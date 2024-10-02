@@ -6,12 +6,14 @@ version = "1.0.0-DEV"
 [deps]
 ConcurrentUtilities = "f0e56b4a-5159-44fe-b623-3e5288b988bb"
 DuckDB = "d2f5444f-75bc-4fdf-ac35-56f514c445e1"
-Glob = "c27321d9-0574-5035-807b-f59d2c89b15c"
+IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
 
 [compat]
 ConcurrentUtilities = "2"
 DuckDB = "1.1"
-Glob = "1"
+IntervalSets = "0.7"
+IterTools = "1"
 julia = "1.10"
 
 [extras]

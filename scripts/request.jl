@@ -1,13 +1,15 @@
-using JSON3, HTTP
+using JSON3, HTTP, JSONTables, DataFrames
 
 d = Dict(
-    "table" => "tbl",
+    "table" => "my_exp_partitioned",
     "filters" => Dict(
-        "intervals" => [Dict("colname" => "var0", "interval" => Dict("left" => 1.2, "right" => 2.5))],
-        "lists" => [Dict("colname" => "var1", "list" => [1, 2, 3])],
+        "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
+        "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
     )
 )
 
 url = "http://127.0.0.1:8080/"
 
-r = HTTP.post(url, body = JSON3.write(d))
+resp = HTTP.post(url, body = JSON3.write(d))
+
+DataFrame(jsontable(resp.body))

@@ -1,4 +1,4 @@
-using DataIngestion, JSON3, DuckDB, Tables
+using DataIngestion, JSON3, DuckDB, DataFrames
 
 files = ["https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv"]
 
@@ -18,8 +18,8 @@ d = Dict(
     )
 )
 
-json = JSON3.write(d)
+req_body = JSON3.write(d)
 
-query = JSON3.read(json, Query)
+query = JSON3.read(req_body, DataIngestion.Query)
 
-DBInterface.execute(Tables.columntable, my_exp, query)
+DBInterface.execute(DataFrame, my_exp, query)

@@ -1,7 +1,6 @@
 module DataIngestion
 
 export Experiment, Partition, register_partition
-export Query
 
 using DuckDB: DBInterface, DuckDB
 using ConcurrentUtilities: Pool, acquire, release

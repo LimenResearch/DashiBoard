@@ -11,6 +11,17 @@ function Directories(path::AbstractString, d::Directories)
     return Directories(configs, outputs, figures)
 end
 
+function print_list(io, files::Vector{String}, delim = true)
+    delim && print(io, "[")
+    for (isfirst, file) in flagfirst(files)
+        isfirst || print(io, ", ")
+        print(io, "'")
+        print(io, file)
+        print(io, "'")
+    end
+    delim && print(io, "]")
+end
+
 const DEFAULT_READERS = Dict{String, String}(
     "csv" => "read_csv",
     "tsv" => "read_csv",
@@ -25,19 +36,15 @@ function to_format(s::AbstractString)
     if haskey(DEFAULT_READERS, fmt)
         return fmt
     else
-        error("Automated format detection failed. Detected invalid format '$fmt'.")
+        valid_formats = collect(keys(DEFAULT_READERS))
+        sort!(valid_formats)
+        error(
+            """
+            Automated format detection failed. Detected invalid format '$fmt'.
+            Valid formats are $(sprint(print_list, valid_formats, false)).
+            """
+        )
     end
-end
-
-function print_list(io, files::Vector{String})
-    print(io, "[")
-    for (isfirst, file) in flagfirst(files)
-        isfirst || print(io, ", ")
-        print(io, "'")
-        print(io, file)
-        print(io, "'")
-    end
-    print(io, "]")
 end
 
 mutable struct Experiment

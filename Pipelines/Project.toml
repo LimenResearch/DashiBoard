@@ -1,0 +1,26 @@
+name = "Pipelines"
+uuid = "12f58945-0960-453a-85e3-e4614e9748b9"
+authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
+version = "1.0.0-DEV"
+
+[deps]
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+Oxygen = "df9a0d86-3283-4920-82dc-4555fc0d1d8b"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+
+[compat]
+HTTP = "1"
+IntervalSets = "0.7"
+JSON3 = "1"
+OrderedCollections = "1"
+Oxygen = "1"
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

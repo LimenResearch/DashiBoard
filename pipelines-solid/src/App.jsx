@@ -1,9 +1,22 @@
-import { createSignal } from "solid-js";
 import { PathPicker } from "./components/path-picker";
 
+function initializeQueryParams() {
+    return {
+        paths: [],
+        listFilters: [],
+        intervalFilters: [],
+        preprocessors: []
+    };
+}
+
 export function App() {
-    const [paths, setPaths] = createSignal([]);
+    const queryParams = initializeQueryParams();
+    const setPaths = paths => {
+        queryParams.paths = paths;
+        console.log(queryParams);
+    };
+
     return <PathPicker permissionMessage="Enable folder"
-        fileMessage="Load files" onInput={setPaths}>
+        fileMessage="Choose files" confirmationMessage="Load" onInput={setPaths}>
     </PathPicker>;
 }

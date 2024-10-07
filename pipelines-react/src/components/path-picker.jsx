@@ -1,3 +1,4 @@
+import {useState} from "react";
 import {Button} from "./button";
 
 export function FilePicker({children, dirHandle, setState}) {
@@ -22,16 +23,13 @@ export function FolderPermission({children, setState}) {
     return <Button positive onClick={dirHandler}>{children}</Button>;
 }
 
-export function PathPicker({permissionMessage, fileMessage, state, setState}) {
-    const dirHandle = state[1];
-    const cp = Array.from(state);
-    const setPaths = x => {cp[0] = x; setState(cp);};
-    const setDirHandle = x => {cp[1] = x; setState(cp);};
+export function PathPicker({permissionMessage, fileMessage, setState}) {
+    const [dirHandle, setDirHandle] = useState(null);
     return <div>
         <FolderPermission setState={setDirHandle}>
             {permissionMessage}
         </FolderPermission>
-        <FilePicker dirHandle={dirHandle} setState={setPaths}>
+        <FilePicker dirHandle={dirHandle} setState={setState}>
             {fileMessage}
         </FilePicker>
     </div>;

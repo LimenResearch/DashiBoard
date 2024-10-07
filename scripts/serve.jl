@@ -5,17 +5,14 @@ using JSON3, DuckDB, Tables
 
 using DataIngestion
 
-files = ["https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv"]
+@post "/load" function (req::HTTP.Request)
+    fs = json(req, DataIngestion.FilesSpec)
+    my_exp = Experiment(fs; name = "experiment", prefix = "cache", parent = "data")
+    DataIngestion.init!(my_exp)
+    return JSON3.write(table)
+end
 
-my_exp = Experiment(; name = "my_exp", prefix = "data", files)
-
-DataIngestion.init!(my_exp)
-
-partition = Partition(by = ["_name"], sorters = ["year", "month", "day", "hour"], tiles = [1, 1, 2, 1, 1, 2])
-
-register_partition(my_exp, partition)
-
-@post "/" function (req::HTTP.Request)
+@post "/query" function (req::HTTP.Request)
     query = json(req, DataIngestion.Query)
     table = DBInterface.execute(Tables.columntable, my_exp, query)
     return JSON3.write(table)

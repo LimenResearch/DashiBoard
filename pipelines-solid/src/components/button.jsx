@@ -1,4 +1,4 @@
-function classList(positive) {
+function classList(positive, disabled) {
     return {
         "text-xl": true,
         "font-semibold": true,
@@ -10,21 +10,29 @@ function classList(positive) {
         "bg-opacity-75": true,
         "border-2": true,
         "border-transparent": true,
-        "bg-blue-100": positive,
-        "hover:bg-blue-200": positive,
-        "text-blue-800": positive,
-        "hover:text-blue-900": positive,
-        "focus:border-blue-500": positive,
-        "bg-red-100": !positive,
-        "hover:bg-red-200": !positive,
-        "text-red-800": !positive,
-        "hover:text-red-900": !positive,
-        "focus:border-red-500": !positive,
+        "bg-blue-100": positive && !disabled,
+        "hover:bg-blue-200": positive && !disabled,
+        "text-blue-800": positive && !disabled,
+        "hover:text-blue-900": positive && !disabled,
+        "focus:border-blue-500": positive && !disabled,
+        "bg-red-100": !positive && !disabled,
+        "hover:bg-red-200": !positive && !disabled,
+        "text-red-800": !positive && !disabled,
+        "hover:text-red-900": !positive && !disabled,
+        "focus:border-red-500": !positive && !disabled,
+        "bg-gray-100": disabled,
+        "text-gray-800": disabled,
+        "focus:border-gray-500": disabled,
     }
 }
 
 export function Button(props) {
-    return <button onClick={props.onClick} classList={classList(props.positive)}>
+    const disabled = () => (props.disabled != null) && props.disabled;
+    const positive = () => props.positive;
+    return <button
+            onClick={props.onClick}
+            disabled={disabled()}
+            classList={classList(positive(), disabled())}>
         {props.children}
     </button>;
 }

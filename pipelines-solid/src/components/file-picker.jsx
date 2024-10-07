@@ -6,7 +6,7 @@ export function FilePicker(props) {
         props.onValue && props.onValue(value);
     }
 
-    return <Button positive onClick={onClick}>{props.children}</Button>;
+    return <Button positive onClick={onClick} disabled={props.disabled}>{props.children}</Button>;
 }
 
 export function DirectoryPicker(props) {
@@ -15,5 +15,5 @@ export function DirectoryPicker(props) {
         props.onValue && props.onValue(value);
     }
 
-    return <Button positive onClick={onClick}>{props.children}</Button>;
+    return <Button positive onClick={onClick} disabled={props.disabled}>{props.children}</Button>;
 }

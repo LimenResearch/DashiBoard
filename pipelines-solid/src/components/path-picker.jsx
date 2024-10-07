@@ -1,45 +1,41 @@
-import { createSignal } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { Button } from "./button";
-
-export function FilePicker(props) {
-    async function loadingHandler() {
-        const options = {
-            multiple: true,
-        };
-        const handles = await window.showOpenFilePicker(options);
-        const paths = await Promise.all(handles.map(
-            handle => props.dirHandle.resolve(handle)
-        ));
-        props.onInput(paths);
-    }
-
-    return <Button positive onClick={loadingHandler}>{props.children}</Button>;
-}
-
-export function FolderPermission(props) {
-    async function dirHandler() {
-        const dirHandle = await window.showDirectoryPicker();
-        props.onInput(dirHandle);
-    }
-
-    return <Button positive onClick={dirHandler}>{props.children}</Button>;
-}
+import { FilePicker, DirectoryPicker } from "./file-picker";
 
 export function PathPicker(props) {
     const [dirHandle, setDirHandle] = createSignal(null);
+    const [fileHandles, setFileHandles] = createSignal([]);
     const [paths, setPaths] = createSignal([]);
+
+    const fileOptions = {
+        multiple: true
+    };
+
+    function updatePaths() {
+        Promise.all(fileHandles().map(x => dirHandle().resolve(x))).then(setPaths);
+    }
+
+    function onFileClick(value) {
+        setFileHandles(value);
+        updatePaths();
+    }
+
+    function onDirectoryClick(value) {
+        setDirHandle(value);
+        updatePaths();
+    }
 
     return <div>
         <div class="m-4">
-            <FolderPermission onInput={setDirHandle}>
-                {props.permissionMessage}
-            </FolderPermission>
+            <DirectoryPicker onValue={onDirectoryClick}>
+                {props.directoryMessage}
+            </DirectoryPicker>
             <span>
                 {dirHandle() === null ? "Select a directory" : dirHandle().name}
             </span>
         </div>
         <div class="m-4">
-            <FilePicker dirHandle={dirHandle()} onInput={setPaths}>
+            <FilePicker onValue={onFileClick} options={fileOptions}>
                 {props.fileMessage}
             </FilePicker>
             <span>
@@ -47,7 +43,7 @@ export function PathPicker(props) {
             </span>
         </div>
         <div class="m-4">
-            <Button positive onClick={() => props.onInput(paths())}>
+            <Button positive onClick={() => props.onValue(paths())}>
                 {props.confirmationMessage}
             </Button>
         </div>

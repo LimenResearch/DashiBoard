@@ -16,7 +16,7 @@ export function App() {
         console.log(queryParams);
     };
 
-    return <PathPicker permissionMessage="Enable folder"
-        fileMessage="Choose files" confirmationMessage="Load" onInput={setPaths}>
+    return <PathPicker directoryMessage="Enable folder"
+        fileMessage="Choose files" confirmationMessage="Load" onValue={setPaths}>
     </PathPicker>;
 }

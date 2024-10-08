@@ -30,6 +30,7 @@ end
     fs = json(req, DataIngestion.FilesSpec)
     my_exp = Experiment(fs; name = "experiment", prefix = "cache", parent = "data")
     DataIngestion.init!(my_exp)
+    table = DBInterface.execute(Tables.columntable, my_exp.repository, "FROM experiment")
     return JSON3.write(table)
 end
 

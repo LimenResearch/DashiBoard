@@ -8,7 +8,7 @@ export function PathPicker(props) {
 
     function computePaths(data) {
         const [dir, files] = data
-        const resolver = x => dir != null ? "" : dir.resolve(x);
+        const resolver = x => dir == null ? [] : dir.resolve(x);
         return Promise.all(files.map(resolver));
     }
 

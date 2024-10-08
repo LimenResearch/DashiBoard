@@ -13,14 +13,13 @@ function initializeQueryParams() {
 function postRequest(body) {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
-    
+
     return fetch("http://127.0.0.1:8080/load", {
       method: "POST",
       body: JSON.stringify(body),
       headers: myHeaders,
-    }).then(response => response.json())
+    }).then(console.log)
 }
-
 
 export function App() {
     const queryParams = initializeQueryParams();
@@ -28,10 +27,14 @@ export function App() {
         queryParams.paths = paths;
         console.log(queryParams);
     };
-    loadData = () => postRequest({paths: queryParams.paths, format: ".csv"})
+    const loadData = () => postRequest({paths: queryParams.paths, format: ".csv"});
+    const onValue = paths => {
+        setPaths(paths);
+        loadData();
+    }
 
     const loadingTab = <PathPicker directoryMessage="Enable folder"
-        fileMessage="Choose files" confirmationMessage="Load" onValue={setPaths}>
+        fileMessage="Choose files" confirmationMessage="Load" onValue={onValue}>
     </PathPicker>;
 
     const tabs = [

@@ -1,11 +1,12 @@
 import { IntervalFilter } from "../components/interval-filter";
+import { ListFilter } from "../components/list-filter";
 
 export function Filters(props) {
     const intervalFilters = <For each={props.metadata.filter(x => x.type == "numerical")}>
-        {item => IntervalFilter(item)}
+        {IntervalFilter}
     </For>;
     const listFilters = <For each={props.metadata.filter(x => x.type == "categorical")}>
-        {item => "TODO"}
+        {ListFilter}
     </For>;
 
     return <div class="flex flex-row gap-4">

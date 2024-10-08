@@ -1,5 +1,6 @@
-import { createEffect, createResource, createSignal } from "solid-js";
+import { createResource, createSignal } from "solid-js";
 import { PathPicker } from "./left-tabs/loading";
+import { Filters } from "./left-tabs/filtering";
 import { Tabs } from "./components/tabs";
 
 function postRequest(url, body) {
@@ -31,20 +32,19 @@ export function App() {
 
     const [metadata] = createResource(paths, fetchTableMetadata);
 
-    // Effect for debugging
-    createEffect(() => console.log(metadata()));
-
     const loadingTab = <PathPicker directoryMessage="Enable folder"
         fileMessage="Choose files" confirmationMessage="Load" onValue={setPaths}>
     </PathPicker>;
 
+    const filteringTab = <Filters metadata={metadata() || []}></Filters>;
+
     const tabs = [
         {key: "Load", value: loadingTab},
-        {key: "Filter", value: "TODO"},
+        {key: "Filter", value: filteringTab},
         {key: "Preprocess", value: "TODO"},
     ];
 
-    return <div class="w-screen min-h-screen bg-gray-100">
+    return <div class="min-w-screen min-h-screen bg-gray-100">
         <Tabs>{tabs}</Tabs>
     </div>;
 }

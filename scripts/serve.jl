@@ -26,31 +26,39 @@ function CorsHandler(handle)
     end
 end
 
-isnumeric(::Type{<:Number}) = true
-isnumeric(::Type{Bool}) = false
-isnumeric(::Type) = false
+isnumerical(::Type{<:Number}) = true
+isnumerical(::Type{Bool}) = false
+isnumerical(::Type) = false
 
-function numeric_summary(x)
+function numerical_summary(x)
     min, max = extrema(x)
-    return (; min, max)
+    diff = max - min
+    step = if eltype(x) <: Integer && diff ≤ 100
+        1
+    else
+        round(diff / 100, sigdigits = 2)
+    end
+    return (; min, max, step)
 end
 
 categorical_summary(x) = unique(x)
 
 function summarize(x)
-    return if isnumeric(eltype(x))
-        (type = "numeric", summary = numeric_summary(x))
+    return if isnumerical(eltype(x))
+        (type = "numerical", summary = numerical_summary(x))
     else
         (type = "categorical", summary = categorical_summary(x))
     end
 end
 
+# TODO: compute summaries in DuckDB
 @post "/load" function (req::HTTP.Request)
     fs = json(req, DataIngestion.FilesSpec)
     my_exp = Experiment(fs; name = "experiment", prefix = "cache", parent = "data")
     DataIngestion.init!(my_exp)
     table = DBInterface.execute(Tables.columntable, my_exp.repository, "FROM experiment")
-    return JSON3.write(map(summarize, table))
+    summaries = [merge((; name = string(k)), summarize(v)) for (k, v) in pairs(table)]
+    return JSON3.write(summaries)
 end
 
 @post "/query" function (req::HTTP.Request)

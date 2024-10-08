@@ -1,22 +1,28 @@
+import { Toggler } from "./toggler";
+
 export function IntervalFilter(props) {
     const leftInput = <input
         type="number"
-        min={props.min}
-        max={props.max}
-        step={props.step}
-        value={props.min}
-    ></input>
+        min={props.summary.min}
+        max={props.summary.max}
+        step={props.summary.step}
+        value={props.summary.min}
+    ></input>;
 
     const rightInput = <input
         type="number"
-        min={props.min}
-        max={props.max}
-        step={props.step}
-        value={props.max}
-    ></input>
+        min={props.summary.min}
+        max={props.summary.max}
+        step={props.summary.step}
+        value={props.summary.max}
+    ></input>;
 
-    return <form class="flex justify-between">
+    const filterForm = <form class="flex justify-between">
         {leftInput}
         {rightInput}
     </form>;
+
+    return <Toggler name={props.name}>
+        {filterForm}
+    </Toggler>;
 }

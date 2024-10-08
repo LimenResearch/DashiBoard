@@ -1,6 +1,6 @@
 import { createSignal, createResource } from "solid-js";
-import { Button } from "./button";
-import { FilePicker, DirectoryPicker } from "./file-picker";
+import { Button } from "../components/button";
+import { FilePicker, DirectoryPicker } from "../components/file-picker";
 
 export function PathPicker(props) {
     const [dirHandle, setDirHandle] = createSignal(null);
@@ -8,7 +8,7 @@ export function PathPicker(props) {
 
     function computePaths(data) {
         const [dir, files] = data
-        const resolver = x => dir != null ? "" : dir.resolve(x);
+        const resolver = x => dir == null ? [] : dir.resolve(x);
         return Promise.all(files.map(resolver));
     }
 

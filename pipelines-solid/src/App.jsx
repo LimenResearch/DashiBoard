@@ -1,5 +1,5 @@
 import { createEffect, createResource, createSignal } from "solid-js";
-import { PathPicker } from "./components/path-picker";
+import { PathPicker } from "./left-tabs/loading";
 import { Tabs } from "./components/tabs";
 
 function postRequest(url, body) {

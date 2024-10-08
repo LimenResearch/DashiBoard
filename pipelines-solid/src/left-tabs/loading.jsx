@@ -1,6 +1,6 @@
 import { createSignal, createResource } from "solid-js";
-import { Button } from "./button";
-import { FilePicker, DirectoryPicker } from "./file-picker";
+import { Button } from "../components/button";
+import { FilePicker, DirectoryPicker } from "../components/file-picker";
 
 export function PathPicker(props) {
     const [dirHandle, setDirHandle] = createSignal(null);

@@ -1,6 +1,6 @@
 import { createSignal, Show } from "solid-js";
 
-function classList(active) {
+function buttonClassList(active) {
     return {
         "text-blue-800": true,
         "text-xl": true,
@@ -13,27 +13,35 @@ function classList(active) {
     };
 }
 
-// TODO: reenable the `modified` option
+function notificationClassList(modified) {
+    return {
+        "float-right": true,
+        "p-4": true,
+        "inline-block": true,
+        "hover:text-red-300": true,
+        "invisible": !modified,
+    };
+}
+
 export function Toggler(props) {
     const [active, setActive] = createSignal(false);
-    const btn = <button
-            classList={classList(active())}
-            onClick={() => setActive(!active())}>
-        <span class="pl-4 py-4 inline-block">{props.name}</span>
-        <Show when={props.modified}>
-            <span class="float-right p-4 inline-block hover:text-red-300">
+    let notification;
+    const onButtonClick = e => notification.isEqualNode(e.target) || setActive(!active());
+    return <div>
+        <button
+            classList={buttonClassList(active())}
+            onClick={onButtonClick}>
+            <span class="pl-4 py-4 inline-block">{props.name}</span>
+            <span ref={notification}
+                    classList={notificationClassList(props.modified)}
+                    onClick={props.onReset}>
                 ⬤
             </span>
+        </button>
+        <Show when={active()}>
+            <div class="p-4 bg-white rounded-b border-b-2">
+                {props.children}
+            </div>
         </Show>
-    </button>;
-    const content = <Show when={active()}>
-        <div class="p-4 bg-white rounded-b border-b-2">
-            {props.children}
-        </div>
-    </Show>;
-
-    return <div >
-        {btn}
-        {content}
     </div>;
 }

@@ -1,48 +1,41 @@
+import { createEffect, createResource, createSignal } from "solid-js";
 import { PathPicker } from "./components/path-picker";
 import { Tabs } from "./components/tabs";
 
-function initializeQueryParams() {
-    return {
-        paths: [],
-        format: "",
-        listFilters: [],
-        intervalFilters: [],
-        preprocessors: []
-    };
-}
-
-function postRequest(body) {
+function postRequest(url, body) {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
-    const response = fetch("http://127.0.0.1:8080/load", {
+    const response = fetch(url, {
         method: "POST",
         body: JSON.stringify(body),
         headers: myHeaders,
     });
 
-    response.then(x => x.json()).then(console.log);
+    return response.then(x => x.json());
 }
 
 function getExt(path) {
     return path.at(-1).split('.').at(-1);
 }
 
+function fetchTableMetadata(paths) {
+    const url = "http://127.0.0.1:8080/load";
+    const format = getExt(paths[0]);
+    const body = {paths, format};
+    return postRequest(url, body);
+}
+
 export function App() {
-    const queryParams = initializeQueryParams();
-    const setPaths = paths => {
-        queryParams.paths = paths;
-        queryParams.format = getExt(paths[0]);
-        console.log(queryParams);
-    };
-    const loadData = () => postRequest({paths: queryParams.paths, format: queryParams.format});
-    const onValue = paths => {
-        setPaths(paths);
-        loadData();
-    }
+    const [paths, setPaths] = createSignal(null);
+
+    const [metadata] = createResource(paths, fetchTableMetadata);
+
+    // Effect for debugging
+    createEffect(() => console.log(metadata()));
 
     const loadingTab = <PathPicker directoryMessage="Enable folder"
-        fileMessage="Choose files" confirmationMessage="Load" onValue={onValue}>
+        fileMessage="Choose files" confirmationMessage="Load" onValue={setPaths}>
     </PathPicker>;
 
     const tabs = [

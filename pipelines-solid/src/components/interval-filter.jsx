@@ -6,8 +6,11 @@ function something(a, b) {
 }
 
 export function IntervalFilter(props) {
-    const [leftValue, setLeftValue] = createSignal(null);
-    const [rightValue, setRightValue] = createSignal(null);
+    const [_leftValue, _setLeftValue] = createSignal(null);
+    const [_rightValue, _setRightValue] = createSignal(null);
+
+    const leftValue = () => something(_leftValue(), props.summary.min);
+    const rightValue = () => something(_rightValue(), props.summary.max);
 
     function updateValid(setter, value) {
         const val = parseFloat(value);
@@ -15,12 +18,12 @@ export function IntervalFilter(props) {
     }
 
     const modified = createMemo(() => {
-        return leftValue() != null || rightValue() != null;
+        return leftValue() !== props.summary.min || rightValue() !== props.summary.max;
     });
 
     const onReset = () => {
-        setLeftValue(null);
-        setRightValue(null);
+        _setLeftValue(null);
+        _setRightValue(null);
     }
 
     const leftInput = <input
@@ -28,8 +31,8 @@ export function IntervalFilter(props) {
         min={props.summary.min}
         max={props.summary.max}
         step={props.summary.step}
-        value={something(leftValue(), props.summary.min)}
-        oninput={e => updateValid(setLeftValue, e.target.value)}
+        value={leftValue()}
+        oninput={e => updateValid(_setLeftValue, e.target.value)}
     ></input>;
 
     const rightInput = <input
@@ -37,8 +40,8 @@ export function IntervalFilter(props) {
         min={props.summary.min}
         max={props.summary.max}
         step={props.summary.step}
-        value={something(rightValue(), props.summary.max)}
-        oninput={e => updateValid(setRightValue, e.target.value)}
+        value={rightValue()}
+        oninput={e => updateValid(_setRightValue, e.target.value)}
     ></input>;
 
     const filterForm = <form class="flex justify-between">

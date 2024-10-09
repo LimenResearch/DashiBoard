@@ -27,6 +27,7 @@ function fetchTableMetadata(paths) {
     return postRequest(url, body);
 }
 
+// TODO: ensure reloading upon failure if button is clicked again
 export function App() {
     const [paths, setPaths] = createSignal(null);
 

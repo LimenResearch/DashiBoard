@@ -1,11 +1,14 @@
 import { createSignal, For } from "solid-js";
 import { Toggler } from "./toggler";
 
+function hasValue(x) {
+    return Object.keys(x).some(k => x[k]);
+}
+
 export function ListFilter(props) {
     const [excluded, setExcluded] = createSignal({});
 
     const onReset = () => setExcluded({});
-    const modified = () => Object.keys(excluded()).length > 0;
 
     const checkboxes = <For each={props.summary}>
         {value => {
@@ -23,7 +26,7 @@ export function ListFilter(props) {
         {checkboxes}
     </div>;
 
-    return <Toggler name={props.name} modified={modified()} onReset={onReset}>
+    return <Toggler name={props.name} modified={hasValue(excluded())} onReset={onReset}>
         {listFilter}
     </Toggler>;
 }

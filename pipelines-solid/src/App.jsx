@@ -1,4 +1,5 @@
 import { createResource, createSignal } from "solid-js";
+
 import { PathPicker } from "./left-tabs/loading";
 import { Filters } from "./left-tabs/filtering";
 import { Tabs } from "./components/tabs";
@@ -28,6 +29,7 @@ function fetchTableMetadata(paths) {
 }
 
 // TODO: ensure reloading upon failure if button is clicked again
+// TODO: disable button during loading
 export function App() {
     const [paths, setPaths] = createSignal(null);
 
@@ -39,13 +41,13 @@ export function App() {
 
     const filteringTab = <Filters metadata={metadata() || []}></Filters>;
 
-    const tabs = [
+    const leftTabs = [
         {key: "Load", value: loadingTab},
         {key: "Filter", value: filteringTab},
         {key: "Preprocess", value: "TODO"},
     ];
 
     return <div class="min-w-screen min-h-screen bg-gray-100">
-        <Tabs>{tabs}</Tabs>
+        <Tabs>{leftTabs}</Tabs>
     </div>;
 }

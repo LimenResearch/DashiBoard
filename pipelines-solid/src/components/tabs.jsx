@@ -7,19 +7,17 @@ export function Tabs(props) {
     const [activeIndex, setActiveIndex] = createSignal(0);
     const keys = () => props.children.map(c => c.key);
     const values = () => props.children.map(c => c.value);
-    const headers = <ul class="flex mb-12">
-        <For each={keys()}>
-            {(item, index) => <ul onClick={() => setActiveIndex(index())} class={headerClass}>{item}</ul>}
-        </For>
-    </ul>
-    const bodies = <div>
-        <For each={values()}>
-            {(item, index) => <Show when={index() === activeIndex()}>{item}</Show>}
-        </For>
-    </div>
-
+    
     return <>
-        {headers}
-        {bodies}
+        <ul class="flex mb-12">
+            <For each={keys()}>
+                {(item, index) => <ul onClick={() => setActiveIndex(index())} class={headerClass}>{item}</ul>}
+            </For>
+        </ul>
+        <div>
+            <For each={values()}>
+                {(item, index) => <Show when={index() === activeIndex()}>{item}</Show>}
+            </For>
+        </div>
     </>;
 }

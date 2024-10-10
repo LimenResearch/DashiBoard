@@ -12,7 +12,13 @@ export function Filters(props) {
             entry,
             {"onValue": (x) => setStore("numerical", {[entry.name]: x})}
         ));
-    const categorical = () => props.metadata.filter(x => x.type == "categorical");
+    const categorical = () => props.metadata
+        .filter(entry => entry.type == "categorical")
+        .map(entry => Object.assign(
+            {},
+            entry,
+            {"onValue": (x) => setStore("categorical", {[entry.name]: x})}
+        ));
 
     const intervalFilters = <For each={numerical()}>
         {IntervalFilter}

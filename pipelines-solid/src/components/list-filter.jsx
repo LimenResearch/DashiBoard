@@ -1,12 +1,6 @@
 import { createSignal, For } from "solid-js";
 import { Toggler } from "./toggler";
 
-function set(a, key, value) {
-    const b = Object.assign({}, a);
-    b[key] = value;
-    return b;
-}
-
 export function ListFilter(props) {
     const [excluded, setExcluded] = createSignal({});
 
@@ -15,7 +9,7 @@ export function ListFilter(props) {
 
     const checkboxes = <For each={props.summary}>
         {value => {
-            const onClick = e => setExcluded(set(excluded(), value, !e.target.checked));
+            const onClick = e => setExcluded(Object.assign({}, excluded(), {[value]: !e.target.checked}));
             const checked = () => !(excluded()[value]);
             const label = String(value);
             return <label class="inline-flex items-center">

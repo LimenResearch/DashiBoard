@@ -30,8 +30,18 @@ function fetchTableMetadata(paths) {
 
 function fetchFilteredData(filters) {
     const url = "http://127.0.0.1:8080/filter";
+    // FIXME: actually run query
     console.log(filters);
     return null;
+}
+
+function nonNullEntries(obj) {
+    const res = [];
+    for (const k in obj) {
+        const v = obj[k];
+        (v == null) || res.push([k, v]);
+    }
+    return res
 }
 
 // TODO: ensure reloading upon failure if button is clicked again
@@ -42,21 +52,11 @@ export function App() {
     const [filters, setFilters] = createSignal({intervals: [], lists: []});
 
     const updateFilters = (store) => {
-        const {numerical, categorical} = store;
-        const fs = {intervals: [], lists: []};
-        for (const colname in numerical) {
-            const interval = numerical[colname];
-            if (interval != null) {
-                fs.intervals.push({colname, interval});
-            }
-        }
-        for (const colname in categorical) {
-            const obj = categorical[colname];
-            if (obj != null) {
-                const list = Object.keys(obj).filter(x => x);
-                fs.lists.push({colname, list});
-            }
-        }
+        const [numerical, categorical] = [store.numerical, store.categorical].map(nonNullEntries);
+        const fs = {
+            intervals: numerical.map(([colname, interval]) => ({colname, interval})),
+            lists: categorical.map(([colname, list]) => ({colname, list: Array.from(list)}))
+        };
         setFilters(fs);
     }
 

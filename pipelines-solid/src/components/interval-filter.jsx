@@ -12,18 +12,22 @@ export function IntervalFilter(props) {
     const leftValue = () => something(_leftValue(), props.summary.min);
     const rightValue = () => something(_rightValue(), props.summary.max);
 
-    function updateValid(setter, value) {
-        const val = parseFloat(value);
-        isNaN(val) || setter(val);
-    }
-
     const modified = createMemo(() => {
         return leftValue() !== props.summary.min || rightValue() !== props.summary.max;
     });
 
+    function updateValid(setter, value) {
+        const val = parseFloat(value);
+        if (!isNaN(val)) {
+            setter(val);
+            props.onValue(modified() ? {left: leftValue(), right: rightValue()} : null);
+        }
+    }
+
     const onReset = () => {
         _setLeftValue(null);
         _setRightValue(null);
+        props.onValue(null);
     }
 
     const leftInput = <input
@@ -37,7 +41,7 @@ export function IntervalFilter(props) {
 
     const rightInput = <input
         type="number"
-        min={props.summary.min}
+        min={props.summary.min + (props.summary.max - props.summary.min) % props.summary.step}
         max={props.summary.max}
         step={props.summary.step}
         value={rightValue()}

@@ -28,6 +28,7 @@ end
 
 @post "/load" function (req::HTTP.Request)
     fs = json(req, DataIngestion.FilesSpec)
+    # TODO: name should depend on request
     my_exp = Experiment(fs; name = "experiment", prefix = "cache", parent = "data")
     DataIngestion.init!(my_exp)
     summaries = DataIngestion.summarize(my_exp.repository, "experiment")

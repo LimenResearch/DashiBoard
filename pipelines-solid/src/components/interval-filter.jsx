@@ -1,4 +1,3 @@
-import { createMemo, createSignal } from "solid-js";
 import { Toggler } from "./toggler";
 
 class Interval {
@@ -17,7 +16,8 @@ class Interval {
 }
 
 export function IntervalFilter(props) {
-    const [filterValue, setFilterValue] = createSignal(new Interval());
+    const filterValue = () => props.store.numerical[props.name] || new Interval();
+    const setFilterValue = value => props.setStore("numerical", { [props.name]: value });
 
     const leftValue = () => filterValue().left == null ? props.summary.min : filterValue().left;
     const rightValue = () => filterValue().right == null ? props.summary.max : filterValue().right;
@@ -29,14 +29,10 @@ export function IntervalFilter(props) {
             const newFilterValue = filterValue().copy();
             newFilterValue[side] = value;
             setFilterValue(newFilterValue);
-            props.onValue(filterValue());
         }
     }
 
-    const onReset = () => {
-        setFilterValue(new Interval());
-        props.onValue(filterValue());
-    }
+    const onReset = () => setFilterValue(null);
 
     const leftInput = <input
         type="number"

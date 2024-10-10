@@ -1,4 +1,4 @@
-import { createSignal, For } from "solid-js";
+import { For } from "solid-js";
 import { Toggler } from "./toggler";
 
 function hasValue(x) {
@@ -6,9 +6,10 @@ function hasValue(x) {
 }
 
 export function ListFilter(props) {
-    const [excluded, setExcluded] = createSignal({});
+    const excluded = () => props.store.numerical[props.name] || {};
+    const setExcluded = value => props.setStore("numerical", { [props.name]: value });
 
-    const onReset = () => setExcluded({});
+    const onReset = () => setExcluded(null);
 
     return <Toggler name={props.name} modified={hasValue(excluded())} onReset={onReset}>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

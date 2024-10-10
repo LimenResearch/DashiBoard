@@ -1,26 +1,29 @@
 import { For } from "solid-js";
 import { Toggler } from "./toggler";
 
-function hasValue(x) {
-    return Object.keys(x).some(k => x[k]);
-}
-
 export function ListFilter(props) {
-    const excluded = () => props.store.numerical[props.name] || {};
-    const setExcluded = value => props.setStore("numerical", { [props.name]: value });
+    const modified = () => props.store.numerical[props.name] != null
+    const list = () => modified() ?
+        props.store.numerical[props.name] :
+        new Set(props.summary);
+    const setList = value => props.setStore("numerical", { [props.name]: value });
 
-    const onReset = () => setExcluded(null);
+    const onReset = () => setList(null);
 
-    return <Toggler name={props.name} modified={hasValue(excluded())} onReset={onReset}>
+    return <Toggler name={props.name} modified={modified()} onReset={onReset}>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <For each={props.summary}>
                 {value => {
-                    const onClick = e => setExcluded(Object.assign({}, excluded(), { [value]: !e.target.checked }));
-                    const checked = () => !(excluded()[value]);
+                    const onClick = e => {
+                        let newList = new Set(list());
+                        e.target.checked ? newList.add(value) : newList.delete(value);
+                        props.summary.every(x => newList.has(x)) && (newList = null);
+                        setList(newList);
+                    }
                     const label = String(value);
                     return <label class="inline-flex items-center">
                         <input class="form-checkbox" type="checkbox" value={value}
-                            checked={checked()} onClick={onClick} />
+                            checked={list().has(value)} onClick={onClick} />
                         <span class="ml-2">{label}</span>
                     </label>;
                 }}

@@ -6,29 +6,27 @@ class Interval {
         this.right = right;
     }
 
-    isTrivial() {
-        return this.left == null && this.right == null;
-    }
-
     copy() {
         return new Interval(this.left, this.right);
     }
 }
 
 export function IntervalFilter(props) {
-    const filterValue = () => props.store.numerical[props.name] || new Interval();
+    const modified = () => props.store.numerical[props.name] != null
+    const filterValue = () => modified() ?
+        props.store.numerical[props.name] :
+        new Interval(props.summary.min, props.summary.max);
     const setFilterValue = value => props.setStore("numerical", { [props.name]: value });
 
-    const leftValue = () => filterValue().left == null ? props.summary.min : filterValue().left;
-    const rightValue = () => filterValue().right == null ? props.summary.max : filterValue().right;
-
-    function updateValid(input, side, limit) {
-        let value = parseFloat(input);
+    function updateValid(input, side) {
+        const value = parseFloat(input);
         if (!isNaN(value)) {
-            (value === limit) && (value = null);
-            const newFilterValue = filterValue().copy();
-            newFilterValue[side] = value;
-            setFilterValue(newFilterValue);
+            let interval = filterValue().copy();
+            interval[side] = value;
+            if (interval.left === props.summary.min  && interval.right === props.summary.max) {
+                interval = null;
+            }
+            setFilterValue(interval);
         }
     }
 
@@ -39,8 +37,8 @@ export function IntervalFilter(props) {
         min={props.summary.min}
         max={props.summary.max}
         step={props.summary.step}
-        value={leftValue()}
-        oninput={e => updateValid(e.target.value, "left", props.summary.min)}
+        value={filterValue().left}
+        oninput={e => updateValid(e.target.value, "left")}
     ></input>;
 
     const rightInput = <input
@@ -48,8 +46,8 @@ export function IntervalFilter(props) {
         min={props.summary.min + (props.summary.max - props.summary.min) % props.summary.step}
         max={props.summary.max}
         step={props.summary.step}
-        value={rightValue()}
-        oninput={e => updateValid(e.target.value, "right", props.summary.max)}
+        value={filterValue().right}
+        oninput={e => updateValid(e.target.value, "right")}
     ></input>;
 
     const filterForm = <form class="flex justify-between">
@@ -57,7 +55,7 @@ export function IntervalFilter(props) {
         {rightInput}
     </form>;
 
-    return <Toggler name={props.name} modified={!filterValue().isTrivial()} onReset={onReset}>
+    return <Toggler name={props.name} modified={modified()} onReset={onReset}>
         {filterForm}
     </Toggler>;
 }

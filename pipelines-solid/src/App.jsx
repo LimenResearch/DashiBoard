@@ -28,18 +28,46 @@ function fetchTableMetadata(paths) {
     return postRequest(url, body);
 }
 
+function fetchFilteredData(filters) {
+    const url = "http://127.0.0.1:8080/filter";
+    console.log(filters);
+    return null;
+}
+
 // TODO: ensure reloading upon failure if button is clicked again
 // TODO: disable button during loading
 export function App() {
-    const [paths, setPaths] = createSignal(null);
+    const [paths, updatePaths] = createSignal(null);
+
+    const [filters, setFilters] = createSignal({intervals: [], lists: []});
+
+    const updateFilters = (store) => {
+        const {numerical, categorical} = store;
+        const fs = {intervals: [], lists: []};
+        for (const colname in numerical) {
+            const interval = numerical[colname];
+            if (interval != null) {
+                fs.intervals.push({colname, interval});
+            }
+        }
+        for (const colname in categorical) {
+            const obj = categorical[colname];
+            if (obj != null) {
+                const list = Object.keys(obj).filter(x => x);
+                fs.lists.push({colname, list});
+            }
+        }
+        setFilters(fs);
+    }
 
     const [metadata] = createResource(paths, fetchTableMetadata);
+    const [filteredTable] = createResource(filters, fetchFilteredData);
 
     const loadingTab = <PathPicker directoryMessage="Enable folder"
-        fileMessage="Choose files" confirmationMessage="Load" onValue={setPaths}>
+        fileMessage="Choose files" confirmationMessage="Load" onValue={updatePaths}>
     </PathPicker>;
 
-    const filteringTab = <Filters metadata={metadata() || []}></Filters>;
+    const filteringTab = <Filters metadata={metadata() || []} onValue={updateFilters}></Filters>;
 
     const leftTabs = [
         {key: "Load", value: loadingTab},

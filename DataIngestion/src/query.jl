@@ -19,3 +19,7 @@ function DBInterface.execute(f::Base.Callable, repo::Repository, query::Query)
     params = pack(sql, query.params)
     return DBInterface.execute(f, repo, String(sql), params)
 end
+
+function DBInterface.execute(f::Base.Callable, repo::Repository, query::SQLNode, params = Dict{String, Any}())
+    return DBInterface.execute(f, repo, Query(query, params))
+end

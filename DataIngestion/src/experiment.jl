@@ -121,19 +121,14 @@ end
 
 function define_source_table(ex::Experiment)
     query = """
-    CREATE OR REPLACE VIEW $(ex.name) AS (
-        FROM read_parquet('$(ex.file)')
-    );
+    CREATE OR REPLACE VIEW $(ex.name) AS
+    FROM read_parquet('$(ex.file)');
     """
     DBInterface.execute(Returns(nothing), ex.repository, query)
 end
 
 function register_subtable_names!(ex::Experiment)
-    query = """
-    SELECT _name
-    FROM $(ex.name)
-    GROUP BY _name;
-    """
+    query = From(ex.name) |> Group(Get._name) |> Select(Get._name)
     ex.names = DBInterface.execute(ex.repository, query) do res
         return String[row._name for row in res]
     end

@@ -8,9 +8,11 @@ end
 function Query(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
+    pleft, pright = string.(prefix, ("left", "right"))
+
     params = Dict(
-        prefix * "left" => leftendpoint(interval),
-        prefix * "right" => rightendpoint(interval)
+        pleft => leftendpoint(interval),
+        pright => rightendpoint(interval)
     )
 
     lcomp = ifelse(isleftclosed(interval), Fun.">=", Fun.">")

@@ -21,15 +21,19 @@ function getExt(path) {
     return path.at(-1).split('.').at(-1);
 }
 
+const sessionName = "experiment";
+
 function fetchTableMetadata(paths) {
     const url = "http://127.0.0.1:8080/load";
     const format = getExt(paths[0]);
-    const body = {paths, format};
+    const body = {paths, format, name: sessionName};
     return postRequest(url, body);
 }
 
 function fetchFilteredData(filters) {
     const url = "http://127.0.0.1:8080/filter";
+    const body = {filters, name: sessionName};
+
     // FIXME: actually run query
     console.log(filters);
     return null;

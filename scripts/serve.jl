@@ -1,5 +1,6 @@
 using HTTP: HTTP
 using Oxygen: json, @post, serve
+using ConcurrentUtilities: lock, Lockable
 
 using JSON3, DuckDB, Tables
 
@@ -26,10 +27,39 @@ function CorsHandler(handle)
     end
 end
 
+const LOCK = ReentrantLock()
+struct WithSession{T}
+    session::String
+    value::T
+end
+
+mutable struct SessionData
+    experiment::Experiment
+    query::Union{DataIngestion.Query, Nothing}
+end
+
+const QUERIES = Lockable(Dict{String, SessionData}())
+
+struct ExperimentSpec
+    name::String
+    paths::Vector{Vector{String}}
+    format::String
+end
+
+function DataIngestion.Experiment(
+        spec::ExperimentSpec;
+        prefix::AbstractString,
+        parent::AbstractString,
+    )
+
+    localpaths = map(joinpath, spec.paths)
+    files = joinpath.(parent, localpaths)
+    return Experiment(; prefix, spec.name, files, spec.format)
+end
+
 @post "/load" function (req::HTTP.Request)
-    fs = json(req, DataIngestion.FilesSpec)
-    # TODO: name should depend on request
-    my_exp = Experiment(fs; name = "experiment", prefix = "cache", parent = "data")
+    spec = json(req, ExperimentSpec)
+    my_exp = Experiment(spec; prefix = "cache", parent = "data")
     DataIngestion.init!(my_exp)
     summaries = DataIngestion.summarize(my_exp.repository, "experiment")
     return JSON3.write(summaries)

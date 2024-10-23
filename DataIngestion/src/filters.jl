@@ -5,17 +5,23 @@ struct IntervalFilter <: AbstractFilter
     interval::Interval
 end
 
-function print_filter(io::IO, f::IntervalFilter, counter::Integer)
+function Clause(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
-    l, r = leftendpoint(interval), rightendpoint(interval)
-    lc, rc = isleftclosed(interval), isrightclosed(interval)
+    params = Dict(
+        prefix * "left" => leftendpoint(interval),
+        prefix * "right" => rightendpoint(interval)
+    )
 
-    print(io, colname, lc ? " >= " : " > ", "\$", counter += 1)
-    print(io, " AND ")
-    print(io, colname, rc ? " <= " : " < ", "\$", counter += 1)
+    lcomp = ifelse(isleftclosed(interval), Fun.">=", Fun.">")
+    rcomp = ifelse(isrightclosed(interval), Fun."<=", Fun."<")
 
-    return Any[l, r]
+    cond = Fun.and(
+        lcomp(Get[colname], Var[prefix * "left"]),
+        rcomp(Get[colname], Var[prefix * "right"]),
+    )
+
+    return Clause(Where(cond), params)
 end
 
 struct ListFilter <: AbstractFilter
@@ -23,37 +29,19 @@ struct ListFilter <: AbstractFilter
     list::Vector{Any}
 end
 
-function print_filter(io::IO, f::ListFilter, counter::Integer)
+function Clause(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
-    N = length(list)
 
-    print(io, colname, " IN (")
-    for i in 1:N
-        print(io, "\$", counter += 1)
-        i == N || print(io, ", ")
-    end
-    print(io, ")")
+    ks = [string(prefix, "value", i) for i in eachindex(list)]
+    params = Dict{String, Any}(zip(ks, list))
 
-    return list
+    vars = [Var[k] for k in ks]
+    cond = Fun.in(Get[colname], vars...)
+
+    return Clause(Where(cond), params)
 end
 
 struct Filters
     intervals::Vector{IntervalFilter}
     lists::Vector{ListFilter}
-end
-
-get_filters(filters::Filters) = (filters.intervals, filters.lists)
-
-function print_filters(io::IO, filters::Filters)
-    print(io, "WHERE TRUE")
-    params = Any[]
-    foreach(get_filters(filters)) do fs
-        for f in fs
-            print(io, " AND ( ")
-            ps = print_filter(io, f, length(params))
-            print(io, " )")
-            append!(params, ps)
-        end
-    end
-    return params
 end

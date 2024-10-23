@@ -11,7 +11,7 @@ allowed_origins = ["Access-Control-Allow-Origin" => "*"]
 cors_headers = [
     allowed_origins...,
     "Access-Control-Allow-Headers" => "*",
-    "Access-Control-Allow-Methods" => "GET, POST"
+    "Access-Control-Allow-Methods" => "GET, POST",
 ]
 
 function CorsHandler(handle)
@@ -71,4 +71,4 @@ end
     return JSON3.write(table)
 end
 
-serve(middleware=[CorsHandler])
+serve(middleware = [CorsHandler])

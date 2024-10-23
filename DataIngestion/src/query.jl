@@ -1,17 +1,20 @@
 struct Query
     table::String
     filters::Filters
+    select::Vector{String}
 end
 
-function print_query(io::IO, query::Query)
-    print(io, "FROM ", query.table, "\n")
-    params = print_filters(io, query.filters)
-    return params
-end
+function Clause(q::Query)
+    clause = Clause(From(q.table))
+    for (i, f) in enumerate(q.filters.intervals)
+        prefix = string("interval", i)
+        clause *= Clause(f, prefix)
+    end
+    for (i, f) in enumerate(q.filters.lists)
+        prefix = string("list", i)
+        clause *= Clause(f, prefix)
+    end
+    clause *= Clause(Select(args = [Get[colname] for colname in q.select]))
 
-function DBInterface.execute(f::Base.Callable, ex::Experiment, query::Query)
-    io = IOBuffer()
-    params = print_query(io, query)
-    sql = String(take!(io))
-    return DBInterface.execute(f, ex.repository, sql, params)
+    return clause
 end

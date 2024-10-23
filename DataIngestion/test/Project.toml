@@ -1,0 +1,7 @@
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
+DuckDB = "d2f5444f-75bc-4fdf-ac35-56f514c445e1"
+
+[sources]
+DataIngestion = {path = ".."}

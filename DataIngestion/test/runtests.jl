@@ -22,12 +22,10 @@ using Test
         [f2]
     )
 
-    query = DataIngestion.Query("my_exp", filters, ["hour", "cbwd"])
+    q = DataIngestion.QuerySpec("my_exp", filters, ["hour", "cbwd"])
+    query = DataIngestion.Query(q)
 
-    # FIXME: rename types!
-    clause = DataIngestion.Clause(query)
-
-    df = DBInterface.execute(DataFrame, my_exp.repository, clause)
+    df = DBInterface.execute(DataFrame, my_exp.repository, query)
     @test unique(sort(df.cbwd)) == ["NW", "SE"]
     @test unique(sort(df.hour)) == [1, 2, 3]
     @test names(df) == ["hour", "cbwd"]

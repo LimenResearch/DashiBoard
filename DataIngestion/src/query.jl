@@ -1,20 +1,21 @@
 struct Query
-    table::String
-    filters::Filters
-    select::Vector{String}
+    node::SQLNode
+    params::Dict{String, Any}
 end
 
-function Clause(q::Query)
-    clause = Clause(From(q.table))
-    for (i, f) in enumerate(q.filters.intervals)
-        prefix = string("interval", i)
-        clause *= Clause(f, prefix)
-    end
-    for (i, f) in enumerate(q.filters.lists)
-        prefix = string("list", i)
-        clause *= Clause(f, prefix)
-    end
-    clause *= Clause(Select(args = [Get[colname] for colname in q.select]))
+Query(node::SQLNode) = Query(node, Dict{String, Any}())
 
-    return clause
+get_node(q::Query) = q.node
+get_params(q::Query) = q.params
+
+function combine(queries)
+    node = mapfoldl(get_node, |>, queries)
+    params = mapfoldl(get_params, merge!, queries, init = Dict{String, Any}())
+    return Query(node, params)
+end
+
+function DBInterface.execute(f::Base.Callable, repo::Repository, query::Query)
+    sql = render(get_catalog(repo), query.node)
+    params = pack(sql, query.params)
+    return DBInterface.execute(f, repo, String(sql), params)
 end

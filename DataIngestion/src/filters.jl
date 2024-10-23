@@ -5,7 +5,7 @@ struct IntervalFilter <: AbstractFilter
     interval::Interval
 end
 
-function Clause(f::IntervalFilter, prefix::AbstractString)
+function Query(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
     params = Dict(
@@ -21,7 +21,7 @@ function Clause(f::IntervalFilter, prefix::AbstractString)
         rcomp(Get[colname], Var[prefix * "right"]),
     )
 
-    return Clause(Where(cond), params)
+    return Query(Where(cond), params)
 end
 
 struct ListFilter <: AbstractFilter
@@ -29,7 +29,7 @@ struct ListFilter <: AbstractFilter
     list::Vector{Any}
 end
 
-function Clause(f::ListFilter, prefix::AbstractString)
+function Query(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
 
     ks = [string(prefix, "value", i) for i in eachindex(list)]
@@ -38,10 +38,26 @@ function Clause(f::ListFilter, prefix::AbstractString)
     vars = [Var[k] for k in ks]
     cond = Fun.in(Get[colname], vars...)
 
-    return Clause(Where(cond), params)
+    return Query(Where(cond), params)
 end
 
 struct Filters
     intervals::Vector{IntervalFilter}
     lists::Vector{ListFilter}
+end
+
+struct QuerySpec
+    table::String
+    filters::Filters
+    select::Vector{String}
+end
+
+function Query(q::QuerySpec)
+    queries = vcat(
+        [Query(From(q.table))],
+        [Query(f, string("interval", i)) for (i, f) in enumerate(q.filters.intervals)],
+        [Query(f, string("list", i)) for (i, f) in enumerate(q.filters.lists)],
+        [Query(Select(args = [Get[colname] for colname in q.select]))]
+    )
+    return combine(queries)
 end

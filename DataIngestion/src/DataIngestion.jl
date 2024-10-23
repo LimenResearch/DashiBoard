@@ -12,9 +12,8 @@ using Tables: Tables
 include("repository.jl")
 include("experiment.jl")
 include("partition.jl")
-include("clause.jl")
-include("filters.jl")
 include("query.jl")
+include("filters.jl")
 include("summary.jl")
 
 end

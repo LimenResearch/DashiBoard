@@ -110,8 +110,8 @@ end
 function write_parquet(ex::Experiment)
     query = """
     COPY (
-        SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
         FROM $(ex.reader)($(ex.source), union_by_name = true, filename = true)
+        SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     )
     TO '$(ex.file)'
     (FORMAT 'parquet');
@@ -126,7 +126,6 @@ function define_source_table(ex::Experiment)
     );
     """
     DBInterface.execute(Returns(nothing), ex.repository, query)
-    @info "Created view '$(ex.name)' on DB"
 end
 
 function register_subtable_names!(ex::Experiment)

@@ -59,5 +59,5 @@ function Query(q::QuerySpec)
         [Query(f, string("list", i)) for (i, f) in enumerate(q.filters.lists)],
         [Query(Select(args = [Get[colname] for colname in q.select]))]
     )
-    return combine(queries)
+    return chain(queries)
 end

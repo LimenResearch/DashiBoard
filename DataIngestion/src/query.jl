@@ -8,7 +8,7 @@ Query(node::SQLNode) = Query(node, Dict{String, Any}())
 get_node(q::Query) = q.node
 get_params(q::Query) = q.params
 
-function combine(queries)
+function chain(queries)
     node = mapfoldl(get_node, |>, queries)
     params = mapfoldl(get_params, merge!, queries, init = Dict{String, Any}())
     return Query(node, params)

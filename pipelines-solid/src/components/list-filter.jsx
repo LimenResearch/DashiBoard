@@ -1,35 +1,35 @@
-import { createSignal, For } from "solid-js";
+import { For } from "solid-js";
 import { Toggler } from "./toggler";
 
-function set(a, key, value) {
-    const b = Object.assign({}, a);
-    b[key] = value;
-    return b;
-}
-
 export function ListFilter(props) {
-    const [excluded, setExcluded] = createSignal({});
+    const modified = () => props.store.categorical[props.name] != null
+    const list = () => modified() ?
+        props.store.categorical[props.name] :
+        new Set(props.summary);
+    const setList = value => props.setStore("categorical", { [props.name]: value });
 
-    const onReset = () => setExcluded({});
-    const modified = () => Object.keys(excluded()).length > 0;
+    const onReset = () => setList(null);
 
-    const checkboxes = <For each={props.summary}>
-        {value => {
-            const onClick = e => setExcluded(set(excluded(), value, !e.target.checked));
-            const checked = () => !(excluded()[value]);
-            const label = String(value);
-            return <label class="inline-flex items-center">
-                <input class="form-checkbox" type="checkbox" value={value}
-                    checked={checked()}  onClick={onClick}/>
-                <span class="ml-2">{label}</span>
-            </label>;
-        }}
-    </For>;
-    const listFilter = <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {checkboxes}
-    </div>;
+    const update = (value, checked) => {
+        let newList = new Set(list());
+        checked ? newList.add(value) : newList.delete(value);
+        props.summary.every(x => newList.has(x)) && (newList = null);
+        setList(newList);
+    }
 
     return <Toggler name={props.name} modified={modified()} onReset={onReset}>
-        {listFilter}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <For each={props.summary}>
+                {value => {
+                    const onClick = e => update(value, e.target.checked);
+                    const label = String(value);
+                    return <label class="inline-flex items-center">
+                        <input class="form-checkbox" type="checkbox" value={value}
+                            checked={list().has(value)} onClick={onClick} />
+                        <span class="ml-2">{label}</span>
+                    </label>;
+                }}
+            </For>
+        </div>
     </Toggler>;
 }

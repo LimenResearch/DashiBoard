@@ -1,47 +1,53 @@
-import { createMemo, createSignal } from "solid-js";
 import { Toggler } from "./toggler";
 
-function something(a, b) {
-    return a == null ? b : a;
+class Interval {
+    constructor(left, right) {
+        this.left = left;
+        this.right = right;
+    }
+
+    copy() {
+        return new Interval(this.left, this.right);
+    }
 }
 
 export function IntervalFilter(props) {
-    const [_leftValue, _setLeftValue] = createSignal(null);
-    const [_rightValue, _setRightValue] = createSignal(null);
+    const modified = () => props.store.numerical[props.name] != null
+    const filterValue = () => modified() ?
+        props.store.numerical[props.name] :
+        new Interval(props.summary.min, props.summary.max);
+    const setFilterValue = value => props.setStore("numerical", { [props.name]: value });
 
-    const leftValue = () => something(_leftValue(), props.summary.min);
-    const rightValue = () => something(_rightValue(), props.summary.max);
-
-    function updateValid(setter, value) {
-        const val = parseFloat(value);
-        isNaN(val) || setter(val);
+    function updateValid(input, side) {
+        const value = parseFloat(input);
+        if (!isNaN(value)) {
+            let interval = filterValue().copy();
+            interval[side] = value;
+            if (interval.left === props.summary.min  && interval.right === props.summary.max) {
+                interval = null;
+            }
+            setFilterValue(interval);
+        }
     }
 
-    const modified = createMemo(() => {
-        return leftValue() !== props.summary.min || rightValue() !== props.summary.max;
-    });
-
-    const onReset = () => {
-        _setLeftValue(null);
-        _setRightValue(null);
-    }
+    const onReset = () => setFilterValue(null);
 
     const leftInput = <input
         type="number"
         min={props.summary.min}
         max={props.summary.max}
         step={props.summary.step}
-        value={leftValue()}
-        oninput={e => updateValid(_setLeftValue, e.target.value)}
+        value={filterValue().left}
+        oninput={e => updateValid(e.target.value, "left")}
     ></input>;
 
     const rightInput = <input
         type="number"
-        min={props.summary.min}
+        min={props.summary.min + (props.summary.max - props.summary.min) % props.summary.step}
         max={props.summary.max}
         step={props.summary.step}
-        value={rightValue()}
-        oninput={e => updateValid(_setRightValue, e.target.value)}
+        value={filterValue().right}
+        oninput={e => updateValid(e.target.value, "right")}
     ></input>;
 
     const filterForm = <form class="flex justify-between">

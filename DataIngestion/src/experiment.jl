@@ -139,20 +139,3 @@ function register_subtable_names!(ex::Experiment)
         return String[row._name for row in res]
     end
 end
-
-struct FilesSpec
-    paths::Vector{Vector{String}}
-    format::String
-end
-
-function Experiment(
-        fs::FilesSpec;
-        prefix::AbstractString,
-        parent::AbstractString,
-        name::AbstractString
-    )
-
-    localpaths = map(joinpath, fs.paths)
-    files = joinpath.(parent, localpaths)
-    return Experiment(; prefix, name, files, fs.format)
-end

@@ -7,12 +7,15 @@ using FunSQL: pack,
     render,
     SQLNode,
     Fun,
+    Agg,
     Get,
     Var,
     Select,
     From,
     Where,
-    Group
+    Group,
+    Partition,
+    Define
 using DuckDB: DBInterface, DuckDB
 using ConcurrentUtilities: Pool, acquire, release
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint

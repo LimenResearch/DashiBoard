@@ -1,39 +1,45 @@
-@kwdef struct Partition
+@kwdef struct PartitionSpec
     sorters::Vector{String}
     by::Vector{String}
     tiles::Vector{Int}
 end
 
-function register_partition(repo::Repository, p::Partition, (source, target)::Pair)
+function register_partition(repo::Repository, p::PartitionSpec, (source, target)::Pair)
     N = length(p.tiles)
-    training = join(findall(==(1), p.tiles), ", ")
-    validation = join(findall(==(2), p.tiles), ", ")
+    training = findall(==(1), p.tiles)
+    validation = findall(==(2), p.tiles)
 
-    _by = join(p.by, ", ")
-    _sorters = join(union(p.sorters, p.by), ", ")
+    by = p.by
+    order_by = union(p.sorters, p.by)
 
-    PARTITION_CLAUSE = isempty(_by) ? "" : "PARTITION BY $_by"
-    ORDER_CLAUSE = isempty(_sorters) ? "" : "ORDER BY $_sorters"
+    pfun = Fun.case(
+        Fun.in(Get._tile, training...), 1,
+        Fun.in(Get._tile, validation...), 2,
+        0
+    )
+
+    query = From(source) |>
+        Partition(by = Get.(by), order_by = Get.(order_by)) |>
+        Define("_tile" => Agg.ntile(N)) |>
+        Define("_partition" => pfun)
+
+    catalog = get_catalog(repo)
+
+    sql = string(
+        "CREATE OR REPLACE TABLE ",
+        target,
+        " AS \n",
+        render(catalog, query)
+    )
 
     DBInterface.execute(
         Returns(nothing),
         repo,
-        """
-        CREATE OR REPLACE VIEW $target AS
-        SELECT *,
-            ntile($N) OVER($PARTITION_CLAUSE $ORDER_CLAUSE) AS _tile,
-            CASE
-                WHEN _tile IN ($training) THEN 1
-                WHEN _tile IN ($validation) THEN 2
-                ELSE 0
-            END AS _partition
-        FROM $source;
-        """
+        sql,
     )
-    @info "Created partitioned view '$target' on DB"
 end
 
-function register_partition(ex::Experiment, p::Partition)
+function register_partition(ex::Experiment, p::PartitionSpec)
     source = ex.name
     target = string(source, "_partitioned")
     register_partition(ex.repository, p, source => target)

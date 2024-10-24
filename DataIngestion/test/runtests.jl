@@ -50,5 +50,19 @@ end
     @test count(==(2), df._partition) == 14608
 end
 
-# TODO: test QuerySpec construction from JSON
-# TODO: test summary
+@testset "summary" begin
+    info = DataIngestion.summarize(my_exp.repository, "source")
+    df = DBInterface.execute(DataFrame, my_exp.repository, "FROM source")
+    @test [x.name for x in info] == names(df)
+
+    No_min, No_max = extrema(df.No)
+    @test info[1].name == "No"
+    @test info[1].type == "numerical"
+    @test info[1].summary == (min = No_min, max = No_max, step = round((No_max - No_min) / 100, sigdigits = 2))
+
+    @test info[10].name == "cbwd"
+    @test info[10].type == "categorical"
+    @test info[10].summary == unique(sort(df.cbwd))
+end
+
+# TODO: test QuerySpec from json (rename to FilterSelect)

@@ -38,18 +38,18 @@ struct Filters
     lists::Vector{ListFilter}
 end
 
-struct QuerySpec
-    table::String
+struct FilterSelect
     filters::Filters
     select::Vector{String}
 end
 
-function Query(q::QuerySpec)
+function Query(fs::FilterSelect)
+    (; filters, select) = fs
     queries = vcat(
-        [Query(From(q.table))],
-        [Query(f, string("interval", i)) for (i, f) in enumerate(q.filters.intervals)],
-        [Query(f, string("list", i)) for (i, f) in enumerate(q.filters.lists)],
-        [Query(Select(args = [Get(colname) for colname in q.select]))]
+        [Query(From(TABLE_NAMES.source))],
+        [Query(f, string("interval", i)) for (i, f) in enumerate(filters.intervals)],
+        [Query(f, string("list", i)) for (i, f) in enumerate(filters.lists)],
+        [Query(Select(args = [Get(colname) for colname in select]))]
     )
     return chain(queries)
 end

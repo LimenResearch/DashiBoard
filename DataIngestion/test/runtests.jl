@@ -1,6 +1,6 @@
 using DataIngestion
 using IntervalSets
-using DuckDB, DataFrames
+using DuckDB, DataFrames, JSON3
 using Test
 
 begin
@@ -27,13 +27,35 @@ end
         [f2]
     )
 
-    q = DataIngestion.QuerySpec("source", filters, ["hour", "cbwd"])
+    q = DataIngestion.FilterSelect(filters, ["hour", "cbwd", "No"])
     query = DataIngestion.Query(q)
 
     df = DBInterface.execute(DataFrame, my_exp.repository, query)
     @test unique(sort(df.cbwd)) == ["NW", "SE"]
     @test unique(sort(df.hour)) == [1, 2, 3]
-    @test names(df) == ["hour", "cbwd"]
+    @test names(df) == ["hour", "cbwd", "No"]
+end
+
+@testset "from json" begin
+    d = Dict(
+        "filters" => Dict(
+            "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
+            "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
+        ),
+        "select" => ["year", "cbwd", "No"]
+    )
+
+    fs = JSON3.read(JSON3.write(d), DataIngestion.FilterSelect)
+
+    @test length(fs.filters.intervals) == 1
+    @test fs.filters.intervals[1].colname == "year"
+    @test fs.filters.intervals[1].interval == 2011 .. 2012
+
+    @test length(fs.filters.lists) == 1
+    @test fs.filters.lists[1].colname == "cbwd"
+    @test fs.filters.lists[1].list == ["NW", "SW"]
+
+    @test fs.select == ["year", "cbwd", "No"]
 end
 
 @testset "partition" begin
@@ -64,5 +86,3 @@ end
     @test info[10].type == "categorical"
     @test info[10].summary == unique(sort(df.cbwd))
 end
-
-# TODO: test QuerySpec from json (rename to FilterSelect)

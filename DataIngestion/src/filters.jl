@@ -28,8 +28,7 @@ function Query(f::ListFilter, prefix::AbstractString)
     ks = [string(prefix, "value", i) for i in eachindex(list)]
     params = Dict{String, Any}(zip(ks, list))
 
-    vars = [Var(k) for k in ks]
-    cond = Fun.in(Get(colname), vars...)
+    cond = Fun.in(Get(colname), Var.(ks)...)
 
     return Query(Where(cond), params)
 end

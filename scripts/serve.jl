@@ -65,6 +65,8 @@ end
     return JSON3.write(summaries)
 end
 
+# FIXME: update
+
 @post "/query" function (req::HTTP.Request)
     query = json(req, DataIngestion.Query)
     table = DBInterface.execute(Tables.columntable, my_exp, query)

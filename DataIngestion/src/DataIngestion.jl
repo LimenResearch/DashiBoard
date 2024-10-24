@@ -1,6 +1,6 @@
 module DataIngestion
 
-export Experiment, Partition, register_partition
+export Experiment, PartitionSpec, register_partition
 
 using FunSQL: pack,
     reflect,

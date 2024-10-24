@@ -1,8 +1,8 @@
 abstract type AbstractFilter end
 
-struct IntervalFilter <: AbstractFilter
+struct IntervalFilter{T} <: AbstractFilter
     colname::String
-    interval::Interval
+    interval::ClosedInterval{T}
 end
 
 function Query(f::IntervalFilter, prefix::AbstractString)
@@ -10,25 +10,16 @@ function Query(f::IntervalFilter, prefix::AbstractString)
 
     pleft, pright = string.(prefix, ("left", "right"))
 
-    params = Dict(
-        pleft => leftendpoint(interval),
-        pright => rightendpoint(interval)
-    )
+    params = Dict(pleft => leftendpoint(interval), pright => rightendpoint(interval))
 
-    lcomp = ifelse(isleftclosed(interval), Fun.">=", Fun.">")
-    rcomp = ifelse(isrightclosed(interval), Fun."<=", Fun."<")
-
-    cond = Fun.and(
-        lcomp(Get[colname], Var[prefix * "left"]),
-        rcomp(Get[colname], Var[prefix * "right"]),
-    )
+    cond = Fun.between(Get(colname), Var(pleft), Var(pright))
 
     return Query(Where(cond), params)
 end
 
-struct ListFilter <: AbstractFilter
+struct ListFilter{T} <: AbstractFilter
     colname::String
-    list::Vector{Any}
+    list::Vector{T}
 end
 
 function Query(f::ListFilter, prefix::AbstractString)
@@ -37,8 +28,8 @@ function Query(f::ListFilter, prefix::AbstractString)
     ks = [string(prefix, "value", i) for i in eachindex(list)]
     params = Dict{String, Any}(zip(ks, list))
 
-    vars = [Var[k] for k in ks]
-    cond = Fun.in(Get[colname], vars...)
+    vars = [Var(k) for k in ks]
+    cond = Fun.in(Get(colname), vars...)
 
     return Query(Where(cond), params)
 end
@@ -59,7 +50,7 @@ function Query(q::QuerySpec)
         [Query(From(q.table))],
         [Query(f, string("interval", i)) for (i, f) in enumerate(q.filters.intervals)],
         [Query(f, string("list", i)) for (i, f) in enumerate(q.filters.lists)],
-        [Query(Select(args = [Get[colname] for colname in q.select]))]
+        [Query(Select(args = [Get(colname) for colname in q.select]))]
     )
     return chain(queries)
 end

@@ -107,6 +107,8 @@ function init!(ex::Experiment)
     return ex
 end
 
+# FIXME: safety of interpolations
+
 function write_parquet(ex::Experiment)
     query = """
     COPY (

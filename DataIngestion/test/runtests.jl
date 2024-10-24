@@ -1,4 +1,5 @@
 using DataIngestion
+using IntervalSets
 using DuckDB, DataFrames
 using Test
 
@@ -9,7 +10,7 @@ using Test
 
     f1 = DataIngestion.IntervalFilter(
         "hour",
-        DataIngestion.Interval(1, 3)
+        1..3
     )
 
     f2 = DataIngestion.ListFilter(
@@ -30,3 +31,7 @@ using Test
     @test unique(sort(df.hour)) == [1, 2, 3]
     @test names(df) == ["hour", "cbwd"]
 end
+
+# TODO: test QuerySpec construction from JSON
+# TODO: test partition
+# TODO: test summary

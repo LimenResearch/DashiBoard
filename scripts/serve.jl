@@ -11,7 +11,7 @@ allowed_origins = ["Access-Control-Allow-Origin" => "*"]
 cors_headers = [
     allowed_origins...,
     "Access-Control-Allow-Headers" => "*",
-    "Access-Control-Allow-Methods" => "GET, POST"
+    "Access-Control-Allow-Methods" => "GET, POST",
 ]
 
 function CorsHandler(handle)
@@ -65,10 +65,12 @@ end
     return JSON3.write(summaries)
 end
 
+# FIXME: update
+
 @post "/query" function (req::HTTP.Request)
     query = json(req, DataIngestion.Query)
     table = DBInterface.execute(Tables.columntable, my_exp, query)
     return JSON3.write(table)
 end
 
-serve(middleware=[CorsHandler])
+serve(middleware = [CorsHandler])

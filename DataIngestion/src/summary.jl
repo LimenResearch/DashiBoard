@@ -1,20 +1,17 @@
 # Helpers to query table created by DataIngestion
 
 function table_schema(repo, tbl::AbstractString)
-    return DBInterface.execute(Tables.schema, repo, "FROM $tbl LIMIT 0;")
+    query = From(tbl) |> Limit(0)
+    return DBInterface.execute(Tables.schema, repo, query)
 end
 
 function categorical_summary(repo, tbl::AbstractString, var::AbstractString)
-    query = """
-    SELECT DISTINCT "$var" AS value FROM $tbl;
-    """
+    query = From(tbl) |> Group(Get(var)) |> Order(Get(var))
     return DBInterface.execute(res -> map(only, res), repo, query)
 end
 
 function numerical_summary(repo, tbl::AbstractString, var::AbstractString; length = 100, sigdigits = 2)
-    query = """
-    SELECT min("$var") AS x0, max("$var") AS x1 FROM $tbl;
-    """
+    query = From(tbl) |> Select("x0" => Fun.min(Get(var)), "x1" => Fun.max(Get(var)))
     (; x0, x1) = DBInterface.execute(first, repo, query)
     diff = x1 - x0
     step = if x0 isa Integer && diff ≤ length
@@ -22,7 +19,6 @@ function numerical_summary(repo, tbl::AbstractString, var::AbstractString; lengt
     else
         round(diff / length; sigdigits)
     end
-
     return (min = x0, max = x1, step = step)
 end
 

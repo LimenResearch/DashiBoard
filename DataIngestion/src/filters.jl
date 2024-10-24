@@ -1,40 +1,36 @@
 abstract type AbstractFilter end
 
-struct IntervalFilter <: AbstractFilter
+struct IntervalFilter{T} <: AbstractFilter
     colname::String
-    interval::Interval
+    interval::ClosedInterval{T}
 end
 
-function print_filter(io::IO, f::IntervalFilter, counter::Integer)
+function Query(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
-    l, r = leftendpoint(interval), rightendpoint(interval)
-    lc, rc = isleftclosed(interval), isrightclosed(interval)
+    pleft, pright = string.(prefix, ("left", "right"))
 
-    print(io, colname, lc ? " >= " : " > ", "\$", counter += 1)
-    print(io, " AND ")
-    print(io, colname, rc ? " <= " : " < ", "\$", counter += 1)
+    params = Dict(pleft => leftendpoint(interval), pright => rightendpoint(interval))
 
-    return Any[l, r]
+    cond = Fun.between(Get(colname), Var(pleft), Var(pright))
+
+    return Query(Where(cond), params)
 end
 
-struct ListFilter <: AbstractFilter
+struct ListFilter{T} <: AbstractFilter
     colname::String
-    list::Vector{Any}
+    list::Vector{T}
 end
 
-function print_filter(io::IO, f::ListFilter, counter::Integer)
+function Query(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
-    N = length(list)
 
-    print(io, colname, " IN (")
-    for i in 1:N
-        print(io, "\$", counter += 1)
-        i == N || print(io, ", ")
-    end
-    print(io, ")")
+    ks = [string(prefix, "value", i) for i in eachindex(list)]
+    params = Dict{String, Any}(zip(ks, list))
 
-    return list
+    cond = Fun.in(Get(colname), Var.(ks)...)
+
+    return Query(Where(cond), params)
 end
 
 struct Filters
@@ -42,18 +38,18 @@ struct Filters
     lists::Vector{ListFilter}
 end
 
-get_filters(filters::Filters) = (filters.intervals, filters.lists)
+struct FilterSelect
+    filters::Filters
+    select::Vector{String}
+end
 
-function print_filters(io::IO, filters::Filters)
-    print(io, "WHERE TRUE")
-    params = Any[]
-    foreach(get_filters(filters)) do fs
-        for f in fs
-            print(io, " AND ( ")
-            ps = print_filter(io, f, length(params))
-            print(io, " )")
-            append!(params, ps)
-        end
-    end
-    return params
+function Query(fs::FilterSelect)
+    (; filters, select) = fs
+    queries = vcat(
+        [Query(From(TABLE_NAMES.source))],
+        [Query(f, string("interval", i)) for (i, f) in enumerate(filters.intervals)],
+        [Query(f, string("list", i)) for (i, f) in enumerate(filters.lists)],
+        [Query(Select(args = [Get(colname) for colname in select]))]
+    )
+    return chain(queries)
 end

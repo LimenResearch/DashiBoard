@@ -19,3 +19,5 @@ function DBInterface.execute(f::Base.Callable, repo::Repository, sql::AbstractSt
         DBInterface.execute(f, conn, sql, params)
     end
 end
+
+get_catalog(repo::Repository; kwargs...) = with_connection(con -> reflect(con; dialect = :duckdb, kwargs...), repo)

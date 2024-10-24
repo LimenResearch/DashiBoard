@@ -4,22 +4,22 @@ files = ["https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.
 
 my_exp = Experiment(; name = "my_exp", prefix = "data", files)
 
-DataIngestion.init!(my_exp)
+DataIngestion.init!(my_exp; load = true)
 
-partition = Partition(by = ["_name"], sorters = ["year", "month", "day", "hour"], tiles = [1, 1, 2, 1, 1, 2])
+partition = PartitionSpec(by = ["_name"], sorters = ["year", "month", "day", "hour"], tiles = [1, 1, 2, 1, 1, 2])
 
 register_partition(my_exp, partition)
 
 d = Dict(
-    "table" => "my_exp_partitioned",
     "filters" => Dict(
         "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
         "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
-    )
+    ),
+    "select" => ["year", "cbwd", "No"]
 )
 
 req_body = JSON3.write(d)
 
-query = JSON3.read(req_body, DataIngestion.Query)
+fs = JSON3.read(req_body, DataIngestion.FilterSelect)
 
-DBInterface.execute(DataFrame, my_exp, query)
+DBInterface.execute(DataFrame, my_exp, DataIngestion.Query(fs))

@@ -8,7 +8,7 @@ begin
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
     ]
     my_exp = Experiment(; name = "my_exp", prefix = "data", files)
-    DataIngestion.init!(my_exp)
+    DataIngestion.init!(my_exp, load = true)
 end
 
 @testset "filtering" begin
@@ -27,7 +27,7 @@ end
         [f2]
     )
 
-    q = DataIngestion.QuerySpec("my_exp", filters, ["hour", "cbwd"])
+    q = DataIngestion.QuerySpec("source", filters, ["hour", "cbwd"])
     query = DataIngestion.Query(q)
 
     df = DBInterface.execute(DataFrame, my_exp.repository, query)
@@ -39,13 +39,13 @@ end
 @testset "partition" begin
     partition = DataIngestion.PartitionSpec(["No"], ["cbwd"], [1, 1, 2, 1, 1, 2])
     DataIngestion.register_partition(my_exp, partition)
-    df = DBInterface.execute(DataFrame, my_exp.repository, "FROM my_exp_partitioned")
+    df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
     @test count(==(1), df._partition) == 29218
     @test count(==(2), df._partition) == 14606
 
     partition = DataIngestion.PartitionSpec(String[], String[], [1, 1, 2, 1, 1, 2])
     DataIngestion.register_partition(my_exp, partition)
-    df = DBInterface.execute(DataFrame, my_exp.repository, "FROM my_exp_partitioned")
+    df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
     @test count(==(1), df._partition) == 29216
     @test count(==(2), df._partition) == 14608
 end

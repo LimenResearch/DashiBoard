@@ -30,6 +30,12 @@ const DEFAULT_READERS = Dict{String, String}(
     "parquet" => "read_parquet",
 )
 
+const TABLE_NAMES = (
+    source = "source",
+    selection = "selection",
+    partition = "partition",
+)
+
 function to_format(s::AbstractString)
     _, ext = splitext(s)
     fmt = lstrip(ext, '.')
@@ -54,7 +60,6 @@ mutable struct Experiment
     const format::String
     const files::Vector{String}
     const directories::Directories
-    const file::String
     const metadata::Dict{String, Any}
     names::Vector{String}
 end
@@ -74,8 +79,6 @@ function Experiment(;
 
     directories = Directories(path, directories)
 
-    file = joinpath(path, "$name.parquet")
-
     db = @something db DuckDB.DB(joinpath(path, "$name.duckdb"))
     repository = Repository(db, pool)
 
@@ -86,49 +89,32 @@ function Experiment(;
         format,
         files,
         directories,
-        file,
         metadata,
         String[]
     )
 end
 
-function init!(ex::Experiment)
-    isfile(ex.file) || write_parquet(ex)
-
-    define_source_table(ex)
+function init!(ex::Experiment; load)
+    load && define_source_table(ex)
     register_subtable_names!(ex)
-
     return ex
 end
 
-function write_parquet(ex::Experiment)
-    catalog = get_catalog(ex.repository)
-    file = render(catalog, LIT(ex.file))
-    files = render(catalog, LIT(LIT.(ex.files)))
-    reader = DEFAULT_READERS[ex.format]
-    query = """
-    COPY (
-        FROM $reader([$files], union_by_name = true, filename = true)
-        SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
-    )
-    TO $file
-    (FORMAT 'parquet');
-    """
-    DBInterface.execute(Returns(nothing), ex.repository, query)
-end
-
 function define_source_table(ex::Experiment)
-    catalog = get_catalog(ex.repository)
-    file = render(catalog, LIT(ex.file))
-    name = render(catalog, ID(ex.name))
-    query = """
-    CREATE OR REPLACE VIEW $name AS FROM read_parquet($file);
+    (; files, format, repository) = ex
+    N = length(files)
+    placeholders = join(string.('$', 1:N), ", ")
+    reader = DEFAULT_READERS[format]
+    sql = """
+    CREATE OR REPLACE TABLE $(TABLE_NAMES.source) AS
+    FROM $reader([$placeholders], union_by_name = true, filename = true)
+    SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     """
-    DBInterface.execute(Returns(nothing), ex.repository, query)
+    DBInterface.execute(Returns(nothing), repository, sql, files)
 end
 
 function register_subtable_names!(ex::Experiment)
-    query = From(ex.name) |> Group(Get._name) |> Select(Get._name)
+    query = From(TABLE_NAMES.source) |> Group(Get._name) |> Select(Get._name)
     ex.names = DBInterface.execute(ex.repository, query) do res
         return String[row._name for row in res]
     end

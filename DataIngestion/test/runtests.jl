@@ -4,7 +4,9 @@ using DuckDB, DataFrames
 using Test
 
 begin
-    files = ["https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv"]
+    files = [
+        "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
+    ]
     my_exp = Experiment(; name = "my_exp", prefix = "data", files)
     DataIngestion.init!(my_exp)
 end

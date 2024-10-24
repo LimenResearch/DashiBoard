@@ -52,8 +52,7 @@ mutable struct Experiment
     const prefix::String
     const name::String
     const format::String
-    const reader::String
-    const source::String
+    const files::Vector{String}
     const directories::Directories
     const file::String
     const metadata::Dict{String, Any}
@@ -71,15 +70,11 @@ function Experiment(;
         metadata::AbstractDict{<:AbstractString} = Dict{String, Any}()
     )
 
-    reader = DEFAULT_READERS[format]
-
     path = mkpath(joinpath(prefix, name))
 
     directories = Directories(path, directories)
 
     file = joinpath(path, "$name.parquet")
-
-    source = sprint(print_list, files)
 
     db = @something db DuckDB.DB(joinpath(path, "$name.duckdb"))
     repository = Repository(db, pool)
@@ -89,8 +84,7 @@ function Experiment(;
         prefix,
         name,
         format,
-        reader,
-        source,
+        files,
         directories,
         file,
         metadata,
@@ -107,24 +101,28 @@ function init!(ex::Experiment)
     return ex
 end
 
-# FIXME: safety of interpolations
-
 function write_parquet(ex::Experiment)
+    catalog = get_catalog(ex.repository)
+    file = render(catalog, LIT(ex.file))
+    files = render(catalog, LIT(LIT.(ex.files)))
+    reader = DEFAULT_READERS[ex.format]
     query = """
     COPY (
-        FROM $(ex.reader)($(ex.source), union_by_name = true, filename = true)
+        FROM $reader([$files], union_by_name = true, filename = true)
         SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     )
-    TO '$(ex.file)'
+    TO $file
     (FORMAT 'parquet');
     """
     DBInterface.execute(Returns(nothing), ex.repository, query)
 end
 
 function define_source_table(ex::Experiment)
+    catalog = get_catalog(ex.repository)
+    file = render(catalog, LIT(ex.file))
+    name = render(catalog, ID(ex.name))
     query = """
-    CREATE OR REPLACE VIEW $(ex.name) AS
-    FROM read_parquet('$(ex.file)');
+    CREATE OR REPLACE VIEW $name AS FROM read_parquet($file);
     """
     DBInterface.execute(Returns(nothing), ex.repository, query)
 end

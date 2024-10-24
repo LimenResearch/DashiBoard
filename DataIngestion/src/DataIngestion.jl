@@ -5,6 +5,8 @@ export Experiment, Partition, register_partition
 using FunSQL: pack,
     reflect,
     render,
+    LIT,
+    ID,
     SQLNode,
     Fun,
     Agg,

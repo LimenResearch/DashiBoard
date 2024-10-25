@@ -5,7 +5,12 @@
 end
 
 # TODO: decide where input of `Partition` comes from
-function register_partition(ex::Experiment, p::PartitionSpec)
+function register_partition(
+        repo::Repository,
+        p::PartitionSpec,
+        (source, target)::Pair{<:AbstractString, <:AbstractString}
+    )
+
     N = length(p.tiles)
     training = findall(==(1), p.tiles)
     validation = findall(==(2), p.tiles)
@@ -19,17 +24,16 @@ function register_partition(ex::Experiment, p::PartitionSpec)
         0
     )
 
-    query = From(TABLE_NAMES.source) |>
+    query = From(source) |>
         Partition(by = Get.(by), order_by = Get.(order_by)) |>
         Define("_tile" => Agg.ntile(N)) |>
         Define("_partition" => pfun)
 
-    repo = ex.repository
     catalog = get_catalog(repo)
     sql = string(
         "CREATE OR REPLACE VIEW ",
-        TABLE_NAMES.partition,
-        " AS \n",
+        render(catalog, convert(SQLClause, target)),
+        " AS\n",
         render(catalog, query)
     )
 

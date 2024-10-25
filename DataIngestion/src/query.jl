@@ -8,6 +8,12 @@ Query(node::SQLNode) = Query(node, Dict{String, Any}())
 get_node(q::Query) = q.node
 get_params(q::Query) = q.params
 
+function parametric_render(catalog::SQLCatalog, query::Query)
+    sql = render(catalog, get_node(query))
+    params = pack(sql, get_params(query))
+    return sql, params
+end
+
 function chain(queries)
     node = mapfoldl(get_node, |>, queries)
     params = mapfoldl(get_params, merge!, queries, init = Dict{String, Any}())
@@ -15,8 +21,7 @@ function chain(queries)
 end
 
 function DBInterface.execute(f::Base.Callable, repo::Repository, query::Query)
-    sql = render(get_catalog(repo), query.node)
-    params = pack(sql, query.params)
+    sql, params = parametric_render(get_catalog(repo), query)
     return DBInterface.execute(f, repo, String(sql), params)
 end
 

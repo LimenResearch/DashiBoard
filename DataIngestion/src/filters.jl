@@ -5,7 +5,7 @@ struct IntervalFilter{T} <: AbstractFilter
     interval::ClosedInterval{T}
 end
 
-function Query(f::IntervalFilter, prefix::AbstractString)
+function ParametricNode(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
     pleft, pright = string.(prefix, ("left", "right"))
@@ -14,7 +14,7 @@ function Query(f::IntervalFilter, prefix::AbstractString)
 
     cond = Fun.between(Get(colname), Var(pleft), Var(pright))
 
-    return Query(Where(cond), params)
+    return ParametricNode(Where(cond), params)
 end
 
 struct ListFilter{T} <: AbstractFilter
@@ -22,7 +22,7 @@ struct ListFilter{T} <: AbstractFilter
     list::Vector{T}
 end
 
-function Query(f::ListFilter, prefix::AbstractString)
+function ParametricNode(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
 
     ks = [string(prefix, "value", i) for i in eachindex(list)]
@@ -30,7 +30,7 @@ function Query(f::ListFilter, prefix::AbstractString)
 
     cond = Fun.in(Get(colname), Var.(ks)...)
 
-    return Query(Where(cond), params)
+    return ParametricNode(Where(cond), params)
 end
 
 struct Filters
@@ -43,13 +43,12 @@ struct FilterSelect
     select::Vector{String}
 end
 
-function Query(fs::FilterSelect)
+function Query(fs::FilterSelect, prefix::AbstractString = "")
     (; filters, select) = fs
-    queries = vcat(
-        [Query(From(TABLE_NAMES.source))],
-        [Query(f, string("interval", i)) for (i, f) in enumerate(filters.intervals)],
-        [Query(f, string("list", i)) for (i, f) in enumerate(filters.lists)],
-        [Query(Select(args = [Get(colname) for colname in select]))]
+    nodes = vcat(
+        [ParametricNode(f, string(prefix, "interval", i)) for (i, f) in enumerate(filters.intervals)],
+        [ParametricNode(f, string(prefix, "list", i)) for (i, f) in enumerate(filters.lists)],
+        [ParametricNode(Select(args = [Get(colname) for colname in select]))]
     )
-    return chain(queries)
+    return Query(nodes)
 end

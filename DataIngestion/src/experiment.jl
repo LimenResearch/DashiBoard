@@ -95,12 +95,12 @@ function Experiment(;
 end
 
 function init!(ex::Experiment; load)
-    load && register_source(ex)
+    load && load_source(ex)
     register_subtable_names!(ex)
     return ex
 end
 
-function register_source(ex::Experiment)
+function load_source(ex::Experiment)
     (; files, format, repository) = ex
     N = length(files)
     placeholders = join(string.('$', 1:N), ", ")

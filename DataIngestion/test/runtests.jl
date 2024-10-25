@@ -27,7 +27,7 @@ mktempdir() do dir
         )
 
         q = DataIngestion.FilterSelect(filters, ["hour", "cbwd", "No"])
-        query = DataIngestion.Query(q)
+        query = DataIngestion.Query(DataIngestion.From("source")) |> DataIngestion.Query(q)
 
         df = DBInterface.execute(DataFrame, my_exp.repository, query)
         @test unique(sort(df.cbwd)) == ["NW", "SE"]

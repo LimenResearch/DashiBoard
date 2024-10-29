@@ -26,49 +26,28 @@ mktempdir() do dir
             [f2]
         )
 
-        q = DataIngestion.FilterSelect(filters, ["hour", "cbwd", "No"])
-        query = DataIngestion.Query(DataIngestion.From("source")) |> DataIngestion.Query(q)
+        DataIngestion.select(my_exp.repository, filters)
 
-        df = DBInterface.execute(DataFrame, my_exp.repository, query)
+        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM selection")
         @test unique(sort(df.cbwd)) == ["NW", "SE"]
         @test unique(sort(df.hour)) == [1, 2, 3]
-        @test names(df) == ["hour", "cbwd", "No"]
     end
 
     @testset "from json" begin
         d = Dict(
-            "filters" => Dict(
-                "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
-                "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
-            ),
-            "select" => ["year", "cbwd", "No"]
+            "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
+            "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
         )
 
-        fs = JSON3.read(JSON3.write(d), DataIngestion.FilterSelect)
+        filters = JSON3.read(JSON3.write(d), DataIngestion.Filters)
 
-        @test length(fs.filters.intervals) == 1
-        @test fs.filters.intervals[1].colname == "year"
-        @test fs.filters.intervals[1].interval == 2011 .. 2012
+        @test length(filters.intervals) == 1
+        @test filters.intervals[1].colname == "year"
+        @test filters.intervals[1].interval == 2011 .. 2012
 
-        @test length(fs.filters.lists) == 1
-        @test fs.filters.lists[1].colname == "cbwd"
-        @test fs.filters.lists[1].list == ["NW", "SW"]
-
-        @test fs.select == ["year", "cbwd", "No"]
-    end
-
-    @testset "partition" begin
-        partition = DataIngestion.PartitionSpec(["No"], ["cbwd"], [1, 1, 2, 1, 1, 2])
-        DataIngestion.register_partition(my_exp.repository, partition, "source" => "partition")
-        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
-        @test count(==(1), df._partition) == 29218
-        @test count(==(2), df._partition) == 14606
-
-        partition = DataIngestion.PartitionSpec(String[], String[], [1, 1, 2, 1, 1, 2])
-        DataIngestion.register_partition(my_exp.repository, partition, "source" => "partition")
-        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
-        @test count(==(1), df._partition) == 29216
-        @test count(==(2), df._partition) == 14608
+        @test length(filters.lists) == 1
+        @test filters.lists[1].colname == "cbwd"
+        @test filters.lists[1].list == ["NW", "SW"]
     end
 
     @testset "summary" begin

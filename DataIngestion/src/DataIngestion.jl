@@ -1,15 +1,14 @@
 module DataIngestion
 
-export Experiment, PartitionSpec, register_partition
+export Experiment, Filters
+
+public select
 
 using FunSQL: pack,
     reflect,
     render,
     SQLNode,
-    SQLClause,
-    SQLCatalog,
     Fun,
-    Agg,
     Get,
     Var,
     Limit,
@@ -17,9 +16,7 @@ using FunSQL: pack,
     From,
     Where,
     Order,
-    Group,
-    Partition,
-    Define
+    Group
 using DuckDB: DBInterface, DuckDB
 using ConcurrentUtilities: Pool, acquire, release
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
@@ -28,8 +25,6 @@ using Tables: Tables
 
 include("repository.jl")
 include("experiment.jl")
-include("partition.jl")
-include("query.jl")
 include("filters.jl")
 include("summary.jl")
 

@@ -33,7 +33,6 @@ const DEFAULT_READERS = Dict{String, String}(
 const TABLE_NAMES = (
     source = "source",
     selection = "selection",
-    partition = "partition",
 )
 
 function to_format(s::AbstractString)

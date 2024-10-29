@@ -1,3 +1,10 @@
+struct Query
+    node::SQLNode
+    params::Dict{String, Any}
+end
+
+Query(node::SQLNode) = Query(node, Dict{String, Any}())
+
 abstract type AbstractFilter end
 
 struct IntervalFilter{T} <: AbstractFilter
@@ -5,7 +12,7 @@ struct IntervalFilter{T} <: AbstractFilter
     interval::ClosedInterval{T}
 end
 
-function ParametricNode(f::IntervalFilter, prefix::AbstractString)
+function Query(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
     pleft, pright = string.(prefix, ("left", "right"))
@@ -14,7 +21,7 @@ function ParametricNode(f::IntervalFilter, prefix::AbstractString)
 
     cond = Fun.between(Get(colname), Var(pleft), Var(pright))
 
-    return ParametricNode(Where(cond), params)
+    return Query(Where(cond), params)
 end
 
 struct ListFilter{T} <: AbstractFilter
@@ -22,7 +29,7 @@ struct ListFilter{T} <: AbstractFilter
     list::Vector{T}
 end
 
-function ParametricNode(f::ListFilter, prefix::AbstractString)
+function Query(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
 
     ks = [string(prefix, "value", i) for i in eachindex(list)]
@@ -30,7 +37,7 @@ function ParametricNode(f::ListFilter, prefix::AbstractString)
 
     cond = Fun.in(Get(colname), Var.(ks)...)
 
-    return ParametricNode(Where(cond), params)
+    return Query(Where(cond), params)
 end
 
 struct Filters
@@ -38,17 +45,26 @@ struct Filters
     lists::Vector{ListFilter}
 end
 
-struct FilterSelect
-    filters::Filters
-    select::Vector{String}
+function Query(filters::Filters; init)
+    qs = vcat(
+        [Query(f, string("interval", i)) for (i, f) in enumerate(filters.intervals)],
+        [Query(f, string("list", i)) for (i, f) in enumerate(filters.lists)],
+    )
+    node, params = init, Dict{String, Any}()
+    for q in qs
+        node = node |> q.node
+        merge!(params, q.params)
+    end
+    return Query(node, params)
 end
 
-function Query(fs::FilterSelect, prefix::AbstractString = "")
-    (; filters, select) = fs
-    nodes = vcat(
-        [ParametricNode(f, string(prefix, "interval", i)) for (i, f) in enumerate(filters.intervals)],
-        [ParametricNode(f, string(prefix, "list", i)) for (i, f) in enumerate(filters.lists)],
-        [ParametricNode(Select(args = [Get(colname) for colname in select]))]
+function select(repo::Repository, filters::Filters)
+    (; node, params) = Query(filters, init = From(TABLE_NAMES.source))
+    sql = render(get_catalog(repo), node)
+    DBInterface.execute(
+        Returns(nothing),
+        repo,
+        string("CREATE OR REPLACE TABLE ", TABLE_NAMES.selection, " AS\n", sql),
+        pack(sql, params)
     )
-    return Query(nodes)
 end

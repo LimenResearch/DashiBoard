@@ -2,6 +2,7 @@
     sorters::Vector{String}
     by::Vector{String}
     tiles::Vector{Int}
+    output::String
 end
 
 function evaluate(
@@ -18,9 +19,11 @@ function evaluate(
     by = p.by
     order_by = union(p.sorters, p.by)
 
+    tile = string(uuid4())
+
     pfun = Fun.case(
-        Fun.in(Get._tile, training...), 1,
-        Fun.in(Get._tile, validation...), 2,
+        Fun.in(Get(tile), training...), 1,
+        Fun.in(Get(tile), validation...), 2,
         0
     )
 
@@ -28,8 +31,8 @@ function evaluate(
 
     query = From(source) |>
         Partition(by = Get.(by), order_by = Get.(order_by)) |>
-        Select(selection..., "_tile" => Agg.ntile(N)) |>
-        Select(selection..., "_partition" => pfun)
+        Select(selection..., tile => Agg.ntile(N)) |>
+        Select(selection..., p.output => pfun)
 
     catalog = get_catalog(repo)
     sql = string(
@@ -48,4 +51,4 @@ end
 
 inputs(::PartitionSpec) = String[]
 
-outputs(::PartitionSpec) = ["_tile", "_partition"]
+outputs(p::PartitionSpec) = [p.output]

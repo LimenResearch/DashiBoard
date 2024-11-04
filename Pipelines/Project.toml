@@ -9,10 +9,12 @@ DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
 FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [compat]
 DBInterface = "2.6.1"
 FunSQL = "0.14.3"
 OrderedCollections = "1.6.3"
 Tables = "1.12.0"
-julia = "1.10"
+UUIDs = "1.11.0"
+julia = "1.11"

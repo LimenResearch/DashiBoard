@@ -2,26 +2,18 @@ module Pipelines
 
 using Tables: Tables
 using DBInterface: DBInterface
+using UUIDs: uuid4
 using OrderedCollections: OrderedDict
 using DataIngestion: Repository, get_catalog
 
-using FunSQL: pack,
-    reflect,
-    render,
-    SQLNode,
+using FunSQL: render,
     SQLClause,
     Partition,
-    Define,
     Agg,
     Fun,
     Get,
-    Var,
-    Limit,
     Select,
-    From,
-    Where,
-    Order,
-    Group
+    From
 
 include("tables.jl")
 include("card.jl")

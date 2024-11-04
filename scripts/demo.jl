@@ -6,7 +6,7 @@ my_exp = Experiment(; name = "my_exp", prefix = "data", files)
 
 DataIngestion.init!(my_exp; load = true)
 
-partition = PartitionSpec(by = ["_name"], sorters = ["year", "month", "day", "hour"], tiles = [1, 1, 2, 1, 1, 2])
+partition = TiledPartition(by = ["_name"], sorters = ["year", "month", "day", "hour"], tiles = [1, 1, 2, 1, 1, 2])
 
 register_partition(my_exp, partition)
 

@@ -15,9 +15,13 @@ using FunSQL: render,
     Select,
     From
 
+using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
+
 include("tables.jl")
 include("card.jl")
 
 include("cards/partition.jl")
+
+include("pipeline.jl")
 
 end

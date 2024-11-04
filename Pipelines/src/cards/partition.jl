@@ -1,4 +1,4 @@
-@kwdef struct PartitionSpec
+@kwdef struct TiledPartition
     sorters::Vector{String}
     by::Vector{String}
     tiles::Vector{Int}
@@ -6,7 +6,7 @@
 end
 
 function evaluate(
-        p::PartitionSpec,
+        p::TiledPartition,
         repo::Repository,
         (source, target)::Pair{<:AbstractString, <:AbstractString},
         select
@@ -15,9 +15,6 @@ function evaluate(
     N = length(p.tiles)
     training = findall(==(1), p.tiles)
     validation = findall(==(2), p.tiles)
-
-    by = p.by
-    order_by = union(p.sorters, p.by)
 
     tile = string(uuid4())
 
@@ -30,7 +27,7 @@ function evaluate(
     selection = @. select => Get(select)
 
     query = From(source) |>
-        Partition(by = Get.(by), order_by = Get.(order_by)) |>
+        Partition(by = Get.(p.by), order_by = Get.(p.sorters)) |>
         Select(selection..., tile => Agg.ntile(N)) |>
         Select(selection..., p.output => pfun)
 
@@ -49,6 +46,6 @@ function evaluate(
     )
 end
 
-inputs(::PartitionSpec) = String[]
+inputs(::TiledPartition) = String[]
 
-outputs(p::PartitionSpec) = [p.output]
+outputs(p::TiledPartition) = [p.output]

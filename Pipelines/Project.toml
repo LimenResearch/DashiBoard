@@ -4,16 +4,15 @@ authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
 version = "1.0.0-DEV"
 
 [deps]
+DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
+DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
+FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [compat]
+DBInterface = "2.6.1"
+FunSQL = "0.14.3"
 OrderedCollections = "1.6.3"
 Tables = "1.12.0"
 julia = "1.10"
-
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test"]

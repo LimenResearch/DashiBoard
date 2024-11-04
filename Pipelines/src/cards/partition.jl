@@ -4,8 +4,7 @@
     tiles::Vector{Int}
 end
 
-# TODO: decide where input of `Partition` comes from
-function register_partition(
+function evaluate(
         repo::Repository,
         p::PartitionSpec,
         (source, target)::Pair{<:AbstractString, <:AbstractString}
@@ -31,7 +30,7 @@ function register_partition(
 
     catalog = get_catalog(repo)
     sql = string(
-        "CREATE OR REPLACE VIEW ",
+        "CREATE OR REPLACE TABLE ",
         render(catalog, convert(SQLClause, target)),
         " AS\n",
         render(catalog, query)
@@ -43,3 +42,7 @@ function register_partition(
         sql,
     )
 end
+
+inputs(::PartitionSpec) = String[]
+
+outputs(::PartitionSpec) = ["_tile", "_partition"]

@@ -1,0 +1,10 @@
+[deps]
+DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
+Pipelines = "12f58945-0960-453a-85e3-e4614e9748b9"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+DataIngestion = {path = "../../DataIngestion/"}
+Pipelines = {path = ".."}

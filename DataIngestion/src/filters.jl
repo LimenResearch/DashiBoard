@@ -45,6 +45,8 @@ struct Filters
     lists::Vector{ListFilter}
 end
 
+Filters(; intervals = IntervalFilter[], lists = ListFilter[]) = Filters(intervals, lists)
+
 function Query(filters::Filters; init)
     qs = vcat(
         [Query(f, string("interval", i)) for (i, f) in enumerate(filters.intervals)],

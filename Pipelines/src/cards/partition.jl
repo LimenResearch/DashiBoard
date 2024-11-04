@@ -5,9 +5,10 @@
 end
 
 function evaluate(
-        repo::Repository,
         p::PartitionSpec,
-        (source, target)::Pair{<:AbstractString, <:AbstractString}
+        repo::Repository,
+        (source, target)::Pair{<:AbstractString, <:AbstractString},
+        select
     )
 
     N = length(p.tiles)
@@ -23,10 +24,12 @@ function evaluate(
         0
     )
 
+    selection = @. select => Get(select)
+
     query = From(source) |>
         Partition(by = Get.(by), order_by = Get.(order_by)) |>
-        Define("_tile" => Agg.ntile(N)) |>
-        Define("_partition" => pfun)
+        Select(selection..., "_tile" => Agg.ntile(N)) |>
+        Select(selection..., "_partition" => pfun)
 
     catalog = get_catalog(repo)
     sql = string(

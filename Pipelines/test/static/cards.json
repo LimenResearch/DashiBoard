@@ -1,0 +1,33 @@
+{
+    "cards": [
+        {
+            "type": "percentile_partition",
+            "order_by": [
+                "No"
+            ],
+            "by": [
+                "cbwd"
+            ],
+            "p": 0.9,
+            "output": "_percentile_partition"
+        },
+        {
+            "type": "tiled_partition",
+            "order_by": [
+                "No"
+            ],
+            "by": [
+                "cbwd"
+            ],
+            "tiles": [
+                1,
+                1,
+                2,
+                1,
+                1,
+                2
+            ],
+            "output": "_tiled_partition"
+        }
+    ]
+}

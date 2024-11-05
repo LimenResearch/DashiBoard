@@ -1,11 +1,11 @@
 abstract type AbstractPartition <: AbstractCard end
 
-inputs(p::AbstractPartition) = union(p.sorters, p.by)
+inputs(p::AbstractPartition) = union(p.order_by, p.by)
 
 outputs(p::AbstractPartition) = [p.output]
 
-function check_sorters(p::AbstractPartition)
-    if isempty(p.sorters)
+function check_order(p::AbstractPartition)
+    if isempty(p.order_by)
         throw(
             ArgumentError(
                 """
@@ -27,7 +27,7 @@ function evaluate(
     selection = @. select => Get(select)
 
     query = From(source) |>
-        Partition(by = Get.(p.by), order_by = Get.(p.sorters)) |>
+        Partition(by = Get.(p.by), order_by = Get.(p.order_by)) |>
         node -> partition_query(p, selection, node)
 
     sql = string(
@@ -45,14 +45,19 @@ function evaluate(
 end
 
 @kwdef struct TiledPartition <: AbstractPartition
-    sorters::Vector{String}
+    order_by::Vector{String}
     by::Vector{String}
     tiles::Vector{Int}
     output::String
 end
 
+function TiledPartition(d::AbstractDict)
+    order_by, by, tiles, output = d["order_by"], d["by"], d["tiles"], d["output"]
+    return TiledPartition(order_by, by, tiles, output)
+end
+
 function partition_query(p::TiledPartition, selection::AbstractVector, node::SQLNode)
-    check_sorters(p)
+    check_order(p)
 
     N = length(p.tiles)
     training = findall(==(1), p.tiles)
@@ -72,14 +77,19 @@ function partition_query(p::TiledPartition, selection::AbstractVector, node::SQL
 end
 
 @kwdef struct PercentilePartition <: AbstractPartition
-    sorters::Vector{String}
+    order_by::Vector{String}
     by::Vector{String}
     p::Float64
     output::String
 end
 
+function PercentilePartition(d::AbstractDict)
+    order_by, by, p, output = d["order_by"], d["by"], d["p"], d["output"]
+    return PercentilePartition(order_by, by, p, output)
+end
+
 function partition_query(p::PercentilePartition, selection::AbstractVector, node::SQLNode)
-    check_sorters(p)
+    check_order(p)
     pfun = Fun.case(Fun."<="(Agg.percent_rank(), p.p), 1, 2)
     return node |> Select(selection..., p.output => pfun)
 end

@@ -52,19 +52,18 @@ function Query(f::ListFilter, prefix::AbstractString)
     return Query(Where(cond), params)
 end
 
-struct Filters
-    filters::Vector{AbstractFilter}
-end
-
 const FILTER_TYPES = Dict(
     "interval" => IntervalFilter,
     "list" => ListFilter,
 )
 
-function Filters(d::AbstractDict)
-    filters = AbstractFilter[FILTER_TYPES[f["type"]](f) for f in d["filters"]]
-    return Filters(filters)
+get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
+
+struct Filters
+    filters::Vector{AbstractFilter}
 end
+
+Filters(d::AbstractDict) = Filters(get_filter.(d["filters"]))
 
 function Query(filters::Filters; init)
     node, params = init, Dict{String, Any}()

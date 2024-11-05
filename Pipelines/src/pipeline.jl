@@ -36,3 +36,29 @@ function evaluation_order!(nodes::AbstractVector{Node})
     end
     return order
 end
+
+const CARD_TYPES = Dict(
+    "tiled_partition" => TiledPartition,
+    "percentile_partition" => PercentilePartition,
+)
+
+get_card(d::AbstractDict) = CARD_TYPES[d["type"]](d)
+
+struct Cards
+    cards::Vector{AbstractCard}
+end
+
+Cards(d::AbstractDict) = Cards(get_card.(d["cards"]))
+
+function evaluate(
+        cards::Cards,
+        repo::Repository,
+        table::AbstractString
+    )
+    # For now, we update all the nodes TODO: mark which cards need updating
+    nodes = [Node(inputs(card), outputs(card), true) for card in cards.cards]
+    order = evaluation_order!(nodes)
+    for idx in order
+        evaluate(cards.cards[idx], repo, table => table)
+    end
+end

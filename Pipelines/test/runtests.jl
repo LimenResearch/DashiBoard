@@ -1,5 +1,7 @@
-using Pipelines, DataIngestion, DBInterface, DataFrames
+using Pipelines, DataIngestion, DBInterface, DataFrames, JSON3
 using Test
+
+const static_dir = joinpath(@__DIR__, "static")
 
 @testset "evaluation order" begin
     nodes = [
@@ -22,41 +24,56 @@ using Test
 end
 
 mktempdir() do dir
-    files = [
-        "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
-    ]
-    my_exp = Experiment(; name = "my_exp", prefix = dir, files)
+    spec = open(JSON3.read, joinpath(static_dir, "experiment.json"))
+    my_exp = Experiment(spec; prefix = dir)
     DataIngestion.init!(my_exp, load = true)
-    filters = DataIngestion.Filters([])
+    filters = DataIngestion.Filters(spec)
     DataIngestion.select(my_exp.repository, filters)
 
     @testset "partition" begin
-        partition = Pipelines.TiledPartition(["No"], ["cbwd"], [1, 1, 2, 1, 1, 2], "_partition")
+        d = open(JSON3.read, joinpath(static_dir, "tiledpartition.json"))
+        partition = Pipelines.get_card(d)
         Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
         df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_partition",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_tiled_partition",
         ]
-        @test count(==(1), df._partition) == 29218
-        @test count(==(2), df._partition) == 14606
+        @test count(==(1), df._tiled_partition) == 29218
+        @test count(==(2), df._tiled_partition) == 14606
         # TODO: test by group as well
 
-        partition = Pipelines.TiledPartition(String[], ["cbwd"], [1, 1, 2, 1, 1, 2], "_partition")
+        partition = Pipelines.TiledPartition(String[], ["cbwd"], [1, 1, 2, 1, 1, 2], "_tiled_partition")
         @test_throws ArgumentError Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
 
-        partition = Pipelines.PercentilePartition(["No"], ["cbwd"], 0.9, "partition_var")
+        partition = Pipelines.PercentilePartition(["No"], ["cbwd"], 0.9, "_percentile_partition")
         Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
         df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition_var",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_percentile_partition",
         ]
-        @test count(==(1), df.partition_var) == 39441
-        @test count(==(2), df.partition_var) == 4383
+        @test count(==(1), df._percentile_partition) == 39441
+        @test count(==(2), df._percentile_partition) == 4383
         # TODO: port TimeFunnelUtils tests
 
-        partition = Pipelines.PercentilePartition(String[], ["cbwd"], 0.9, "partition_var")
+        partition = Pipelines.PercentilePartition(String[], ["cbwd"], 0.9, "_percentile_partition")
         @test_throws ArgumentError Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
+    end
+
+    @testset "cards" begin
+        d = open(JSON3.read, joinpath(static_dir, "cards.json"))
+        cards = Pipelines.Cards(d)
+        Pipelines.evaluate(cards, my_exp.repository, "selection")
+        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM selection")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+            "_tiled_partition", "_percentile_partition",
+        ]
+        @test count(==(1), df._tiled_partition) == 29218
+        @test count(==(2), df._tiled_partition) == 14606
+        @test count(==(1), df._percentile_partition) == 39441
+        @test count(==(2), df._percentile_partition) == 4383
     end
 end

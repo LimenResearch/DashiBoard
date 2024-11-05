@@ -93,6 +93,17 @@ function Experiment(;
     )
 end
 
+function Experiment(
+        d::AbstractDict;
+        db::Union{Nothing, DuckDB.DB} = nothing,
+        prefix::AbstractString,
+    )
+
+    experiment = d["experiment"]
+    name, files = experiment["name"], experiment["files"]
+    return Experiment(; db, prefix, name, files)
+end
+
 function init!(ex::Experiment; load)
     load && load_source(ex)
     register_subtable_names!(ex)

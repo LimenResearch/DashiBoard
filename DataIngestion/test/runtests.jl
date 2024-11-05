@@ -3,11 +3,11 @@ using IntervalSets
 using DuckDB, DataFrames, JSON3
 using Test
 
+const static_dir = joinpath(@__DIR__, "static")
+
 mktempdir() do dir
-    files = [
-        "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
-    ]
-    my_exp = Experiment(; name = "my_exp", prefix = dir, files)
+    spec = open(JSON3.read, joinpath(static_dir, "experiment.json"))
+    my_exp = Experiment(spec; prefix = dir)
     DataIngestion.init!(my_exp, load = true)
 
     @testset "filtering" begin
@@ -31,7 +31,7 @@ mktempdir() do dir
     end
 
     @testset "from json" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "filters.json"))
+        d = open(JSON3.read, joinpath(static_dir, "filters.json"))
         filters = DataIngestion.Filters(d)
 
         @test length(filters.filters) == 2
@@ -52,7 +52,11 @@ mktempdir() do dir
         No_min, No_max = extrema(df.No)
         @test info[1].name == "No"
         @test info[1].type == "numerical"
-        @test info[1].summary == (min = No_min, max = No_max, step = round((No_max - No_min) / 100, sigdigits = 2))
+        @test info[1].summary == (
+            min = No_min,
+            max = No_max,
+            step = round((No_max - No_min) / 100, sigdigits = 2),
+        )
 
         @test info[10].name == "cbwd"
         @test info[10].type == "categorical"

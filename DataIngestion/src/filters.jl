@@ -15,7 +15,7 @@ end
 function IntervalFilter(d::AbstractDict)
     colname, interval = d["colname"], d["interval"]
     left, right = interval["min"], interval["max"]
-    return IntervalFilter(colname, left..right)
+    return IntervalFilter(colname, left .. right)
 end
 
 function Query(f::IntervalFilter, prefix::AbstractString)

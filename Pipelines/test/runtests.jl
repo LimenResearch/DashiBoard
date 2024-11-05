@@ -32,18 +32,31 @@ mktempdir() do dir
 
     @testset "partition" begin
         partition = Pipelines.TiledPartition(["No"], ["cbwd"], [1, 1, 2, 1, 1, 2], "_partition")
-        Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition", ["cbwd"])
+        Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
         df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
-        @test names(df) == ["cbwd", "_partition"]
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_partition",
+        ]
         @test count(==(1), df._partition) == 29218
         @test count(==(2), df._partition) == 14606
         # TODO: test by group as well
 
-        partition = Pipelines.TiledPartition(String[], String[], [1, 1, 2, 1, 1, 2], "partition_var")
-        Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition", ["No", "DEWP"])
+        partition = Pipelines.TiledPartition(String[], ["cbwd"], [1, 1, 2, 1, 1, 2], "_partition")
+        @test_throws ArgumentError Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
+
+        partition = Pipelines.PercentilePartition(["No"], ["cbwd"], 0.9, "partition_var")
+        Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
         df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
-        @test names(df) == ["No", "DEWP", "partition_var"]
-        @test count(==(1), df.partition_var) == 29216
-        @test count(==(2), df.partition_var) == 14608
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition_var",
+        ]
+        @test count(==(1), df.partition_var) == 39441
+        @test count(==(2), df.partition_var) == 4383
+        # TODO: port TimeFunnelUtils tests
+
+        partition = Pipelines.PercentilePartition(String[], ["cbwd"], 0.9, "partition_var")
+        @test_throws ArgumentError Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
     end
 end

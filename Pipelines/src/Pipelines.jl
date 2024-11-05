@@ -8,6 +8,8 @@ using DataIngestion: Repository, get_catalog
 
 using FunSQL: render,
     SQLClause,
+    SQLNode,
+    SQLCatalog,
     Partition,
     Agg,
     Fun,
@@ -17,6 +19,7 @@ using FunSQL: render,
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
+include("utils.jl")
 include("tables.jl")
 include("card.jl")
 

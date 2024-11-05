@@ -1,0 +1,57 @@
+{
+    "experiment": {
+        "name": "my_exp",
+        "files": [
+            "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv"
+        ]
+    },
+    "filters": [
+        {
+            "interval": {
+                "max": 2012,
+                "min": 2011
+            },
+            "colname": "year",
+            "type": "interval"
+        },
+        {
+            "list": [
+                "NW",
+                "SW"
+            ],
+            "colname": "cbwd",
+            "type": "list"
+        }
+    ],
+    "cards": [
+        {
+            "type": "percentile_partition",
+            "order_by": [
+                "No"
+            ],
+            "by": [
+                "cbwd"
+            ],
+            "p": 0.9,
+            "output": "_percentile_partition"
+        },
+        {
+            "type": "tiled_partition",
+            "order_by": [
+                "No"
+            ],
+            "by": [
+                "cbwd"
+            ],
+            "tiles": [
+                1,
+                1,
+                2,
+                1,
+                1,
+                2
+            ],
+            "output": "_tiled_partition"
+        }
+    ]
+}

@@ -75,7 +75,7 @@ function Query(filters::Filters; init)
     return Query(node, params)
 end
 
-function select(repo::Repository, filters::Filters)
+function select(filters::Filters, repo::Repository)
     (; node, params) = Query(filters, init = From(TABLE_NAMES.source))
     sql = render(get_catalog(repo), node)
     DBInterface.execute(

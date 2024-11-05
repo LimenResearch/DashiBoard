@@ -28,7 +28,7 @@ mktempdir() do dir
     my_exp = Experiment(spec; prefix = dir)
     DataIngestion.init!(my_exp, load = true)
     filters = DataIngestion.Filters(spec)
-    DataIngestion.select(my_exp.repository, filters)
+    DataIngestion.select(filters, my_exp.repository)
 
     @testset "partition" begin
         d = open(JSON3.read, joinpath(static_dir, "tiledpartition.json"))

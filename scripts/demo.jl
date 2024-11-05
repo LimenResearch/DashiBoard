@@ -1,25 +1,16 @@
-using DataIngestion, JSON3, DuckDB, DataFrames
+using DataIngestion, Pipelines, JSON3, DuckDB, DataFrames
 
-files = ["https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv"]
+config = open(JSON3.read, "static/demo.json")
 
-my_exp = Experiment(; name = "my_exp", prefix = "data", files)
+my_exp = DataIngestion.Experiment(config; prefix = "data")
 
 DataIngestion.init!(my_exp; load = true)
 
-partition = TiledPartition(by = ["_name"], sorters = ["year", "month", "day", "hour"], tiles = [1, 1, 2, 1, 1, 2])
+filters = DataIngestion.Filters(config)
+DataIngestion.select(filters, my_exp.repository)
 
-register_partition(my_exp, partition)
+cards = Pipelines.Cards(config)
+tablename = DataIngestion.TABLE_NAMES.selection
+Pipelines.evaluate(cards, my_exp.repository, tablename)
 
-d = Dict(
-    "filters" => Dict(
-        "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
-        "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
-    ),
-    "select" => ["year", "cbwd", "No"]
-)
-
-req_body = JSON3.write(d)
-
-fs = JSON3.read(req_body, DataIngestion.FilterSelect)
-
-DBInterface.execute(DataFrame, my_exp, DataIngestion.Query(fs))
+DBInterface.execute(DataFrame, my_exp.repository, "FROM $tablename")

@@ -23,7 +23,7 @@ mktempdir() do dir
 
         filters = DataIngestion.Filters([f1, f2])
 
-        DataIngestion.select(my_exp.repository, filters)
+        DataIngestion.select(filters, my_exp.repository)
 
         df = DBInterface.execute(DataFrame, my_exp.repository, "FROM selection")
         @test unique(sort(df.cbwd)) == ["NW", "SE"]

@@ -21,10 +21,7 @@ mktempdir() do dir
             ["NW", "SE"]
         )
 
-        filters = DataIngestion.Filters(
-            [f1],
-            [f2]
-        )
+        filters = DataIngestion.Filters([f1, f2])
 
         DataIngestion.select(my_exp.repository, filters)
 
@@ -34,20 +31,40 @@ mktempdir() do dir
     end
 
     @testset "from json" begin
-        d = Dict(
-            "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
-            "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
-        )
+        fs = [
+            Dict(
+                "type" => "interval",
+                "colname" => "year",
+                "interval" => Dict("min" => 2011, "max" => 2012)
+            ),
+            Dict(
+                "type" => "list",
+                "colname" => "cbwd",
+                "list" => ["NW", "SW"]
+            )
+        ]
+        d = Dict("filters" => fs)
+        filters = DataIngestion.Filters(d)
 
-        filters = JSON3.read(JSON3.write(d), DataIngestion.Filters)
+        @test length(filters.filters) == 2
+        @test filters.filters[1] isa DataIngestion.IntervalFilter
+        @test filters.filters[1].colname == "year"
+        @test filters.filters[1].interval == 2011 .. 2012
 
-        @test length(filters.intervals) == 1
-        @test filters.intervals[1].colname == "year"
-        @test filters.intervals[1].interval == 2011 .. 2012
+        @test filters.filters[2] isa DataIngestion.ListFilter
+        @test filters.filters[2].colname == "cbwd"
+        @test filters.filters[2].list == ["NW", "SW"]
 
-        @test length(filters.lists) == 1
-        @test filters.lists[1].colname == "cbwd"
-        @test filters.lists[1].list == ["NW", "SW"]
+        # Round trip via JSON
+        filters = DataIngestion.Filters(JSON3.read(JSON3.write(d)))
+        @test length(filters.filters) == 2
+        @test filters.filters[1] isa DataIngestion.IntervalFilter
+        @test filters.filters[1].colname == "year"
+        @test filters.filters[1].interval == 2011 .. 2012
+
+        @test filters.filters[2] isa DataIngestion.ListFilter
+        @test filters.filters[2].colname == "cbwd"
+        @test filters.filters[2].list == ["NW", "SW"]
     end
 
     @testset "summary" begin

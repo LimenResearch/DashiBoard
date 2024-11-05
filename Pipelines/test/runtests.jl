@@ -27,7 +27,7 @@ mktempdir() do dir
     ]
     my_exp = Experiment(; name = "my_exp", prefix = dir, files)
     DataIngestion.init!(my_exp, load = true)
-    filters = DataIngestion.Filters()
+    filters = DataIngestion.Filters([])
     DataIngestion.select(my_exp.repository, filters)
 
     @testset "partition" begin

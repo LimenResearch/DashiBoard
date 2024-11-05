@@ -12,6 +12,12 @@ struct IntervalFilter{T} <: AbstractFilter
     interval::ClosedInterval{T}
 end
 
+function IntervalFilter(d::AbstractDict)
+    colname, interval = d["colname"], d["interval"]
+    left, right = interval["min"], interval["max"]
+    return IntervalFilter(colname, left..right)
+end
+
 function Query(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
@@ -29,6 +35,12 @@ struct ListFilter{T} <: AbstractFilter
     list::Vector{T}
 end
 
+function ListFilter(d::AbstractDict)
+    colname, list = d["colname"], d["list"]
+    T = eltype(list)
+    return ListFilter{T}(colname, list)
+end
+
 function Query(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
 
@@ -41,19 +53,23 @@ function Query(f::ListFilter, prefix::AbstractString)
 end
 
 struct Filters
-    intervals::Vector{IntervalFilter}
-    lists::Vector{ListFilter}
+    filters::Vector{AbstractFilter}
 end
 
-Filters(; intervals = IntervalFilter[], lists = ListFilter[]) = Filters(intervals, lists)
+const FILTER_TYPES = Dict(
+    "interval" => IntervalFilter,
+    "list" => ListFilter,
+)
+
+function Filters(d::AbstractDict)
+    filters = AbstractFilter[FILTER_TYPES[f["type"]](f) for f in d["filters"]]
+    return Filters(filters)
+end
 
 function Query(filters::Filters; init)
-    qs = vcat(
-        [Query(f, string("interval", i)) for (i, f) in enumerate(filters.intervals)],
-        [Query(f, string("list", i)) for (i, f) in enumerate(filters.lists)],
-    )
     node, params = init, Dict{String, Any}()
-    for q in qs
+    for (i, f) in enumerate(filters.filters)
+        q = Query(f, string("filter", i, "_"))
         node = node |> q.node
         merge!(params, q.params)
     end

@@ -19,7 +19,7 @@ using FunSQL: pack,
     Group
 using DuckDB: DBInterface, DuckDB
 using ConcurrentUtilities: Pool, acquire, release
-using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
+using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst
 using Tables: Tables
 

@@ -1,13 +1,13 @@
 import { Toggler } from "./toggler";
 
 class Interval {
-    constructor(left, right) {
-        this.left = left;
-        this.right = right;
+    constructor(min, max) {
+        this.min = min;
+        this.max = max;
     }
 
     copy() {
-        return new Interval(this.left, this.right);
+        return new Interval(this.min, this.max);
     }
 }
 
@@ -18,12 +18,12 @@ export function IntervalFilter(props) {
         new Interval(props.summary.min, props.summary.max);
     const setFilterValue = value => props.setStore("numerical", { [props.name]: value });
 
-    function updateValid(input, side) {
+    function updateValid(input, k) {
         const value = parseFloat(input);
         if (!isNaN(value)) {
             let interval = filterValue().copy();
-            interval[side] = value;
-            if (interval.left === props.summary.min  && interval.right === props.summary.max) {
+            interval[k] = value;
+            if (interval.min === props.summary.min  && interval.max === props.summary.max) {
                 interval = null;
             }
             setFilterValue(interval);
@@ -37,8 +37,8 @@ export function IntervalFilter(props) {
         min={props.summary.min}
         max={props.summary.max}
         step={props.summary.step}
-        value={filterValue().left}
-        oninput={e => updateValid(e.target.value, "left")}
+        value={filterValue().min}
+        oninput={e => updateValid(e.target.value, "min")}
     ></input>;
 
     const rightInput = <input
@@ -46,8 +46,8 @@ export function IntervalFilter(props) {
         min={props.summary.min + (props.summary.max - props.summary.min) % props.summary.step}
         max={props.summary.max}
         step={props.summary.step}
-        value={filterValue().right}
-        oninput={e => updateValid(e.target.value, "right")}
+        value={filterValue().max}
+        oninput={e => updateValid(e.target.value, "max")}
     ></input>;
 
     const filterForm = <form class="flex justify-between">

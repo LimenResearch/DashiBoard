@@ -1,4 +1,5 @@
 import { createResource, createSignal } from "solid-js";
+import { join } from 'path-browserify'
 
 import { PathPicker } from "./left-tabs/loading";
 import { Filters } from "./left-tabs/filtering";
@@ -17,26 +18,26 @@ function postRequest(url, body) {
     return response.then(x => x.json());
 }
 
-function getExt(path) {
-    return path.at(-1).split('.').at(-1);
-}
-
-const sessionName = "experiment";
+const sessionName = "user-experiment";
 
 function fetchTableMetadata(paths) {
     const url = "http://127.0.0.1:8080/load";
-    const format = getExt(paths[0]);
-    const body = {paths, format, name: sessionName};
+    const experiment = {files: paths.map(x => join(...x)), name: sessionName}
+    const body = {experiment};
     return postRequest(url, body);
 }
 
-function fetchFilteredData(filters) {
+function filterData(paths, store) {
     const url = "http://127.0.0.1:8080/filter";
-    const body = {filters, name: sessionName};
+    const experiment = {files: paths.map(x => join(...x)), name: sessionName};
 
-    // FIXME: actually run query
-    console.log(filters);
-    return null;
+    const [numerical, categorical] = [store.numerical, store.categorical].map(nonNullEntries);
+    const intervals = numerical.map(([colname, interval]) => ({type: "interval", colname, interval}));
+    const lists = categorical.map(([colname, list]) => ({type: "list", colname, list: Array.from(list)}));
+    const filters = intervals.concat(lists);
+
+    const body = {experiment, filters};
+    postRequest(url, body);
 }
 
 function nonNullEntries(obj) {
@@ -52,26 +53,13 @@ function nonNullEntries(obj) {
 // TODO: disable button during loading
 export function App() {
     const [paths, updatePaths] = createSignal(null);
-
-    const [filters, setFilters] = createSignal({intervals: [], lists: []});
-
-    const updateFilters = (store) => {
-        const [numerical, categorical] = [store.numerical, store.categorical].map(nonNullEntries);
-        const fs = {
-            intervals: numerical.map(([colname, interval]) => ({colname, interval})),
-            lists: categorical.map(([colname, list]) => ({colname, list: Array.from(list)}))
-        };
-        setFilters(fs);
-    }
-
     const [metadata] = createResource(paths, fetchTableMetadata);
-    const [filteredTable] = createResource(filters, fetchFilteredData);
 
     const loadingTab = <PathPicker directoryMessage="Enable folder"
         fileMessage="Choose files" confirmationMessage="Load" onValue={updatePaths}>
     </PathPicker>;
 
-    const filteringTab = <Filters metadata={metadata() || []} onValue={updateFilters}></Filters>;
+    const filteringTab = <Filters metadata={metadata() || []} onValue={store => filterData(paths(), store)}></Filters>;
 
     const leftTabs = [
         {key: "Load", value: loadingTab},

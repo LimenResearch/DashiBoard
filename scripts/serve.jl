@@ -26,10 +26,12 @@ function CorsHandler(handle)
     end
 end
 
+const parent_folder = "data"
+
 @post "/load" function (req::HTTP.Request)
     spec = json(req)
     # TODO: folder should depend on session / user
-    with_experiment(spec["experiment"]; prefix = "cache") do ex
+    with_experiment(spec["experiment"]; prefix = "cache", parent = parent_folder) do ex
         DataIngestion.init!(ex, load = true)
         summaries = DataIngestion.summarize(ex.repository, "source")
         return JSON3.write(summaries)
@@ -38,22 +40,19 @@ end
 
 @post "/filter" function (req::HTTP.Request)
     spec = json(req)
-    with_experiment(spec["experiment"]; prefix = "cache") do ex
+    with_experiment(spec["experiment"]; prefix = "cache", parent = parent_folder) do ex
         filters = Filters(spec["filters"])
         DataIngestion.select(filters, ex.repository)
-        table = DBInterface.execute(Tables.columntable, ex.repository, "FROM selection")
-        # TODO: decide response here and below
-        return JSON3.write(table)
+        return "Created filtered table"
     end
 end
 
 @post "/process" function (req::HTTP.Request)
     spec = json(req)
-    with_experiment(spec["experiment"]; prefix = "cache") do ex
+    with_experiment(spec["experiment"]; prefix = "cache", parent = parent_folder) do ex
         cards = Pipelines.Cards(spec["cards"])
         Pipelines.evaluate(cards, ex.repository, "selection")
-        table = DBInterface.execute(Tables.columntable, ex.repository, "FROM selection")
-        return JSON3.write(table)
+        return "Processed filtered table"
     end
 end
 

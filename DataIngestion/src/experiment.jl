@@ -96,10 +96,11 @@ end
 function Experiment(
         experiment::AbstractDict;
         db::Union{Nothing, DuckDB.DB} = nothing,
+        parent::AbstractString = "",
         prefix::AbstractString,
     )
 
-    name, files = experiment["name"], experiment["files"]
+    name::String, files::Vector{String} = experiment["name"], joinpath.(parent, experiment["files"])
     return Experiment(; db, prefix, name, files)
 end
 

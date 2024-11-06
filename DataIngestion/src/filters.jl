@@ -58,12 +58,15 @@ const FILTER_TYPES = Dict(
 )
 
 get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
+get_filter(f::AbstractFilter) = f
 
 struct Filters
     filters::Vector{AbstractFilter}
+    function Filters(fs::AbstractVector)
+        filters::Vector{AbstractFilter} = get_filter.(fs)
+        return new(filters)
+    end
 end
-
-Filters(d::AbstractDict) = Filters(get_filter.(d["filters"]))
 
 function Query(filters::Filters; init)
     node, params = init, Dict{String, Any}()

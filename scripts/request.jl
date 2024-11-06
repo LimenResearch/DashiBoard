@@ -1,17 +1,13 @@
-using JSON3, HTTP, JSONTables, DataFrames
-
-# FIXME: update
-
-d = Dict(
-    "table" => "my_exp_partitioned",
-    "filters" => Dict(
-        "intervals" => [Dict("colname" => "year", "interval" => Dict("left" => 2011, "right" => 2012))],
-        "lists" => [Dict("colname" => "cbwd", "list" => ["NW", "SW"])],
-    )
-)
+using HTTP, JSONTables, DataFrames, JSON3
 
 url = "http://127.0.0.1:8080/"
 
-resp = HTTP.post(url, body = JSON3.write(d))
+resp = HTTP.post(url * "load", body = read("static/demo.json", String))
+summaries = JSON3.read(resp.body)
 
+
+resp = HTTP.post(url * "filter", body = read("static/demo.json", String))
+DataFrame(jsontable(resp.body))
+
+resp = HTTP.post(url * "process", body = read("static/demo.json", String))
 DataFrame(jsontable(resp.body))

@@ -43,12 +43,15 @@ const CARD_TYPES = Dict(
 )
 
 get_card(d::AbstractDict) = CARD_TYPES[d["type"]](d)
+get_card(c::AbstractCard) = c
 
 struct Cards
     cards::Vector{AbstractCard}
+    function Cards(cs::AbstractVector)
+        cards::Vector{AbstractCard} = get_card.(cs)
+        return new(cards)
+    end
 end
-
-Cards(d::AbstractDict) = Cards(get_card.(d["cards"]))
 
 function evaluate(
         cards::Cards,

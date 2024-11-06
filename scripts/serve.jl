@@ -1,10 +1,9 @@
 using HTTP: HTTP
 using Oxygen: json, @post, serve
-using ConcurrentUtilities: lock, Lockable
 
 using JSON3, DuckDB, Tables
 
-using DataIngestion
+using DataIngestion, Pipelines
 
 allowed_origins = ["Access-Control-Allow-Origin" => "*"]
 
@@ -27,50 +26,35 @@ function CorsHandler(handle)
     end
 end
 
-const LOCK = ReentrantLock()
-struct WithSession{T}
-    session::String
-    value::T
-end
-
-mutable struct SessionData
-    experiment::Experiment
-    query::Union{DataIngestion.Query, Nothing}
-end
-
-const QUERIES = Lockable(Dict{String, SessionData}())
-
-struct ExperimentSpec
-    name::String
-    paths::Vector{Vector{String}}
-    format::String
-end
-
-function DataIngestion.Experiment(
-        spec::ExperimentSpec;
-        prefix::AbstractString,
-        parent::AbstractString,
-    )
-
-    localpaths = map(joinpath, spec.paths)
-    files = joinpath.(parent, localpaths)
-    return Experiment(; prefix, spec.name, files, spec.format)
-end
-
 @post "/load" function (req::HTTP.Request)
-    spec = json(req, ExperimentSpec)
-    my_exp = Experiment(spec; prefix = "cache", parent = "data")
-    DataIngestion.init!(my_exp)
-    summaries = DataIngestion.summarize(my_exp.repository, "experiment")
-    return JSON3.write(summaries)
+    spec = json(req)
+    # TODO: folder should depend on session / user
+    with_experiment(spec["experiment"]; prefix = "cache") do ex
+        DataIngestion.init!(ex, load = true)
+        summaries = DataIngestion.summarize(ex.repository, "source")
+        return JSON3.write(summaries)
+    end
 end
 
-# FIXME: update
+@post "/filter" function (req::HTTP.Request)
+    spec = json(req)
+    with_experiment(spec["experiment"]; prefix = "cache") do ex
+        filters = Filters(spec["filters"])
+        DataIngestion.select(filters, ex.repository)
+        table = DBInterface.execute(Tables.columntable, ex.repository, "FROM selection")
+        # TODO: decide response here and below
+        return JSON3.write(table)
+    end
+end
 
-@post "/query" function (req::HTTP.Request)
-    query = json(req, DataIngestion.Query)
-    table = DBInterface.execute(Tables.columntable, my_exp, query)
-    return JSON3.write(table)
+@post "/process" function (req::HTTP.Request)
+    spec = json(req)
+    with_experiment(spec["experiment"]; prefix = "cache") do ex
+        cards = Pipelines.Cards(spec["cards"])
+        Pipelines.evaluate(cards, ex.repository, "selection")
+        table = DBInterface.execute(Tables.columntable, ex.repository, "FROM selection")
+        return JSON3.write(table)
+    end
 end
 
 serve(middleware = [CorsHandler])

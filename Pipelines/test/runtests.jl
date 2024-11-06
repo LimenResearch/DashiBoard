@@ -24,10 +24,10 @@ const static_dir = joinpath(@__DIR__, "static")
 end
 
 mktempdir() do dir
-    spec = open(JSON3.read, joinpath(static_dir, "experiment.json"))
-    my_exp = Experiment(spec; prefix = dir)
+    spec = open(JSON3.read, joinpath(static_dir, "spec.json"))
+    my_exp = Experiment(spec["experiment"]; prefix = dir)
     DataIngestion.init!(my_exp, load = true)
-    filters = DataIngestion.Filters(spec)
+    filters = DataIngestion.Filters(spec["filters"])
     DataIngestion.select(filters, my_exp.repository)
 
     @testset "partition" begin

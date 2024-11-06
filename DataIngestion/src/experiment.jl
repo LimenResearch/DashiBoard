@@ -94,12 +94,11 @@ function Experiment(;
 end
 
 function Experiment(
-        d::AbstractDict;
+        experiment::AbstractDict;
         db::Union{Nothing, DuckDB.DB} = nothing,
         prefix::AbstractString,
     )
 
-    experiment = d["experiment"]
     name, files = experiment["name"], experiment["files"]
     return Experiment(; db, prefix, name, files)
 end
@@ -127,5 +126,15 @@ function register_subtable_names!(ex::Experiment)
     query = From(TABLE_NAMES.source) |> Group(Get._name) |> Select(Get._name)
     ex.names = DBInterface.execute(ex.repository, query) do res
         return String[row._name for row in res]
+    end
+end
+
+function with_experiment(f, args...; attributes...)
+    exp = Experiment(args...; attributes...)
+    try
+        f(exp)
+    finally
+        DBInterface.close!(exp.repository.db)
+        # TODO: additional cleanup?
     end
 end

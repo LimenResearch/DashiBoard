@@ -1,20 +1,18 @@
-{
-    "filters": [
-        {
-            "interval": {
-                "max": 2012,
-                "min": 2011
-            },
-            "colname": "year",
-            "type": "interval"
+[
+    {
+        "interval": {
+            "max": 2012,
+            "min": 2011
         },
-        {
-            "list": [
-                "NW",
-                "SW"
-            ],
-            "colname": "cbwd",
-            "type": "list"
-        }
-    ]
-}
+        "colname": "year",
+        "type": "interval"
+    },
+    {
+        "list": [
+            "NW",
+            "SW"
+        ],
+        "colname": "cbwd",
+        "type": "list"
+    }
+]

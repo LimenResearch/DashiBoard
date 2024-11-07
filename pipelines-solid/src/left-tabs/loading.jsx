@@ -1,18 +1,40 @@
 import { createSignal, createResource } from "solid-js";
+import { join } from 'path-browserify'
+
 import { Button } from "../components/button";
 import { FilePicker, DirectoryPicker } from "../components/file-picker";
 
-export function PathPicker(props) {
+async function computeFiles(data) {
+    const [dirHandle, fileHandles] = data
+    const resolver = fileHandle => dirHandle == null ? "" : dirHandle.resolve(fileHandle);
+    const paths = await Promise.all(fileHandles.map(resolver));
+    return paths.map(x => join(...x));
+}
+
+export function initPathPicker(){
     const [dirHandle, setDirHandle] = createSignal(null);
     const [fileHandles, setFileHandles] = createSignal([]);
+    const [files] = createResource(() => [dirHandle(), fileHandles()], computeFiles);
 
-    function computePaths(data) {
-        const [dir, files] = data
-        const resolver = x => dir == null ? [] : dir.resolve(x);
-        return Promise.all(files.map(resolver));
+    return {
+        input: {dirHandle, setDirHandle, fileHandles, setFileHandles, files},
+        output: files
     }
+}
 
-    const [paths] = createResource(() => [dirHandle(), fileHandles()], computePaths);
+export function PathPicker(props) {
+
+    const {dirHandle, setDirHandle, setFileHandles, files} = props.input;
+    const [loading, setLoading] = createSignal(false);
+    const onClick = async () => {
+        setLoading(true);
+        // TODO: add catch block here
+        try {
+            await props.onLoad();
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fileOptions = {
         multiple: true
@@ -32,14 +54,14 @@ export function PathPicker(props) {
                 {props.fileMessage}
             </FilePicker>
             <span>
-                {paths() && paths().length > 0 ? paths().map(x => x.join("/")).join(", ") : "Pick a file"}
+                {files() && files().length > 0 ? files().join(", ") : "Pick a file"}
             </span>
         </div>
         <div class="p-4">
             <Button
                     positive
-                    disabled={paths.loading || paths() == null || paths().length == 0}
-                    onClick={() => props.onValue(paths())}>
+                    disabled={loading() || files.loading || files() == null || files().length == 0}
+                    onClick={onClick}>
                 {props.confirmationMessage}
             </Button>
         </div>

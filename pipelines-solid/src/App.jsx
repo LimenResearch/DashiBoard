@@ -1,65 +1,45 @@
-import { createResource, createSignal } from "solid-js";
-import { join } from 'path-browserify'
+import { createSignal } from "solid-js";
 
-import { PathPicker } from "./left-tabs/loading";
-import { Filters } from "./left-tabs/filtering";
+import { PathPicker, initPathPicker } from "./left-tabs/loading";
+import { Filters, initFilters } from "./left-tabs/filtering";
 import { Tabs } from "./components/tabs";
 
-function postRequest(url, body) {
+function postRequest(page, body) {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
-    const response = fetch(url, {
+    const response = fetch("http://127.0.0.1:8080/" + page, {
         method: "POST",
         body: JSON.stringify(body),
         headers: myHeaders,
     });
 
-    return response.then(x => x.json());
+    return response;
 }
 
 const sessionName = "user-experiment";
 
-function fetchTableMetadata(paths) {
-    const url = "http://127.0.0.1:8080/load";
-    const experiment = {files: paths.map(x => join(...x)), name: sessionName}
-    const body = {experiment};
-    return postRequest(url, body);
-}
-
-function filterData(paths, store) {
-    const url = "http://127.0.0.1:8080/filter";
-    const experiment = {files: paths.map(x => join(...x)), name: sessionName};
-
-    const [numerical, categorical] = [store.numerical, store.categorical].map(nonNullEntries);
-    const intervals = numerical.map(([colname, interval]) => ({type: "interval", colname, interval}));
-    const lists = categorical.map(([colname, list]) => ({type: "list", colname, list: Array.from(list)}));
-    const filters = intervals.concat(lists);
-
-    const body = {experiment, filters};
-    postRequest(url, body);
-}
-
-function nonNullEntries(obj) {
-    const res = [];
-    for (const k in obj) {
-        const v = obj[k];
-        (v == null) || res.push([k, v]);
-    }
-    return res
-}
-
-// TODO: ensure reloading upon failure if button is clicked again
-// TODO: disable button during loading
 export function App() {
-    const [paths, updatePaths] = createSignal(null);
-    const [metadata] = createResource(paths, fetchTableMetadata);
+    const [metadata, setMetadata] = createSignal([]);
+    const pathPickerData = initPathPicker();
+    const filtersData = initFilters();
 
-    const loadingTab = <PathPicker directoryMessage="Enable folder"
-        fileMessage="Choose files" confirmationMessage="Load" onValue={updatePaths}>
+    const spec = () => {
+        return {
+            experiment: {name: sessionName, files: pathPickerData.output()},
+            filters: filtersData.output(),
+        };
+    };
+
+    function loadData() {
+        postRequest("load", spec()).then(x => x.json()).then(setMetadata);
+    }
+
+    const loadingTab = <PathPicker input={pathPickerData.input} directoryMessage="Enable folder"
+        fileMessage="Choose files" confirmationMessage="Load" onLoad={loadData}>
     </PathPicker>;
 
-    const filteringTab = <Filters metadata={metadata() || []} onValue={store => filterData(paths(), store)}></Filters>;
+    const filteringTab = <Filters input={filtersData.input} metadata={metadata()}></Filters>;
 
     const leftTabs = [
         {key: "Load", value: loadingTab},

@@ -1,7 +1,7 @@
 using HTTP: HTTP
 using Oxygen: json, @post, serve
 
-using JSON3, DuckDB, Tables
+using JSON3, DuckDB, Dates, Tables, UUIDs
 
 using DataIngestion, Pipelines
 
@@ -26,33 +26,42 @@ function CorsHandler(handle)
     end
 end
 
-const parent_folder = "data"
+const sessions = DataIngestion.Repository(DuckDB.DB(joinpath("cache", "sessions.duckdb")))
+
+DBInterface.execute(
+    Returns(nothing),
+    sessions,
+    "CREATE OR REPLACE TABLE sessions(name VARCHAR PRIMARY KEY, path VARCHAR, time DATETIME)"
+)
 
 @post "/load" function (req::HTTP.Request)
     spec = json(req)
     # TODO: folder should depend on session / user
-    with_experiment(spec["experiment"]; prefix = "cache", parent = parent_folder) do ex
-        DataIngestion.init!(ex, load = true)
+    path = joinpath("cache", "experiments", string(uuid4()))
+    files = joinpath.("data", spec["files"])
+    with_experiment(path, files) do ex
+        DataIngestion.initialize(ex)
+        DBInterface.execute(
+            Returns(nothing),
+            sessions,
+            "INSERT OR REPLACE INTO sessions VALUES (?, ?, ?)",
+            [spec["session"], path, now()]
+        )
         summaries = DataIngestion.summarize(ex.repository, "source")
         return JSON3.write(summaries)
     end
 end
 
-@post "/filter" function (req::HTTP.Request)
+@post "/pipeline" function (req::HTTP.Request)
     spec = json(req)
-    with_experiment(spec["experiment"]; prefix = "cache", parent = parent_folder) do ex
+    sql = "FROM sessions WHERE name = (?)"
+    res = DBInterface.execute(first, sessions, sql, [spec["session"]])
+    with_experiment(res.path; prefix, parent = parent_folder) do ex
         filters = Filters(spec["filters"])
-        DataIngestion.select(filters, ex.repository)
-        return "Created filtered table"
-    end
-end
-
-@post "/process" function (req::HTTP.Request)
-    spec = json(req)
-    with_experiment(spec["experiment"]; prefix = "cache", parent = parent_folder) do ex
         cards = Pipelines.Cards(spec["cards"])
+        DataIngestion.select(filters, ex.repository)
         Pipelines.evaluate(cards, ex.repository, "selection")
-        return "Processed filtered table"
+        return "Evaluated pipeline"
     end
 end
 

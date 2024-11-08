@@ -2,9 +2,9 @@ using DataIngestion, Pipelines, JSON3, DuckDB, DataFrames
 
 config = open(JSON3.read, "static/demo.json")
 
-my_exp = DataIngestion.Experiment(config["experiment"]; prefix = "cache")
+my_exp = DataIngestion.Experiment("cache", config["experiment"])
 
-DataIngestion.init!(my_exp; load = true)
+DataIngestion.initialize(my_exp)
 
 filters = DataIngestion.Filters(config["filters"])
 DataIngestion.select(filters, my_exp.repository)

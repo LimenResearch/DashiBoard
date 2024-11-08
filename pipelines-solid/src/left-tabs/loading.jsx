@@ -3,6 +3,7 @@ import { join } from 'path-browserify'
 
 import { Button } from "../components/button";
 import { FilePicker, DirectoryPicker } from "../components/file-picker";
+import { postRequest, sessionName } from "../requests";
 
 async function computeFiles(data) {
     const [dirHandle, fileHandles] = data
@@ -11,30 +12,42 @@ async function computeFiles(data) {
     return paths.map(x => join(...x));
 }
 
-export function initPathPicker(){
+export function initLoader(){
     const [dirHandle, setDirHandle] = createSignal(null);
     const [fileHandles, setFileHandles] = createSignal([]);
+    const [metadata, setMetadata] = createSignal([]);
     const [files] = createResource(() => [dirHandle(), fileHandles()], computeFiles);
 
     return {
-        input: {dirHandle, setDirHandle, fileHandles, setFileHandles, files},
-        output: files
+        input: {
+            dirHandle: [dirHandle, setDirHandle],
+            fileHandles: [fileHandles, setFileHandles],
+            metadata: [metadata, setMetadata],
+            files
+        },
+        output: metadata
     }
 }
 
-export function PathPicker(props) {
+export function Loader(props) {
 
-    const {dirHandle, setDirHandle, setFileHandles, files} = props.input;
+    const input = props.input;
+    const [dirHandle, setDirHandle] = input.dirHandle;
+    const [fileHandles, setFileHandles] = input.fileHandles;
+    const [metadata, setMetadata] = input.metadata;
+    const files = input.files;
+
     const [loading, setLoading] = createSignal(false);
-    const onClick = async () => {
+
+    function loadData() {
         setLoading(true);
-        // TODO: add catch block here
-        try {
-            await props.onLoad();
-        } finally {
-            setLoading(false);
-        }
-    };
+        const body = {files: files(), session: sessionName};
+        postRequest("load", body)
+            .then(x => x.json())
+            .then(setMetadata)
+            .catch(error => console.log(error))
+            .finally(setLoading(false));
+    }
 
     const fileOptions = {
         multiple: true
@@ -43,7 +56,7 @@ export function PathPicker(props) {
     return <div>
         <div class="p-4">
             <DirectoryPicker onValue={setDirHandle}>
-                {props.directoryMessage}
+                {props.directoryMessage || "Enable folder"}
             </DirectoryPicker>
             <span>
                 {dirHandle() == null ? "Select a directory" : dirHandle().name}
@@ -51,7 +64,7 @@ export function PathPicker(props) {
         </div>
         <div class="p-4">
             <FilePicker disabled={dirHandle() == null} onValue={setFileHandles} options={fileOptions}>
-                {props.fileMessage}
+                {props.fileMessage || "Choose files"}
             </FilePicker>
             <span>
                 {files() && files().length > 0 ? files().join(", ") : "Pick a file"}
@@ -61,8 +74,8 @@ export function PathPicker(props) {
             <Button
                     positive
                     disabled={loading() || files.loading || files() == null || files().length == 0}
-                    onClick={onClick}>
-                {props.confirmationMessage}
+                    onClick={loadData}>
+                {props.confirmationMessage || "Load"}
             </Button>
         </div>
     </div>;

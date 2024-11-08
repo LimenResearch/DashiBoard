@@ -7,8 +7,8 @@ const static_dir = joinpath(@__DIR__, "static")
 
 mktempdir() do dir
     spec = open(JSON3.read, joinpath(static_dir, "experiment.json"))
-    my_exp = Experiment(spec; prefix = dir)
-    DataIngestion.init!(my_exp, load = true)
+    my_exp = Experiment(dir, spec["files"])
+    DataIngestion.initialize(my_exp)
 
     @testset "filtering" begin
         f1 = DataIngestion.IntervalFilter(

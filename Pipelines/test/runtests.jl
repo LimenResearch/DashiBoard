@@ -25,8 +25,8 @@ end
 
 mktempdir() do dir
     spec = open(JSON3.read, joinpath(static_dir, "spec.json"))
-    my_exp = Experiment(spec["experiment"]; prefix = dir)
-    DataIngestion.init!(my_exp, load = true)
+    my_exp = Experiment(dir, spec["experiment"]["files"])
+    DataIngestion.initialize(my_exp)
     filters = DataIngestion.Filters(spec["filters"])
     DataIngestion.select(filters, my_exp.repository)
 

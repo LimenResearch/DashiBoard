@@ -5,6 +5,8 @@ struct Repository
     pool::DuckDBPool
 end
 
+Repository(db::DuckDB.DB) = Repository(db, DuckDBPool())
+
 function with_connection(f, (; db, pool)::Repository)
     con = acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
     try

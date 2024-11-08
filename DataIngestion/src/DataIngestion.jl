@@ -2,7 +2,7 @@ module DataIngestion
 
 export with_experiment, Experiment, Filters
 
-public init!, summarize, select
+public initialize, summarize, select
 
 using FunSQL: pack,
     reflect,

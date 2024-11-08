@@ -52,66 +52,56 @@ function to_format(s::AbstractString)
     end
 end
 
-mutable struct Experiment
-    const repository::Repository
-    const prefix::String
-    const name::String
-    const format::String
-    const files::Vector{String}
-    const directories::Directories
-    const metadata::Dict{String, Any}
-    names::Vector{String}
+struct Experiment
+    repository::Repository
+    path::String
+    format::Union{Nothing, String}
+    files::Union{Nothing, Vector{String}}
+    directories::Directories
+    metadata::Dict{String, Any}
 end
 
-function Experiment(;
+function Experiment(path::AbstractString;
         db::Union{Nothing, DuckDB.DB} = nothing,
         pool::DuckDBPool = DuckDBPool(),
-        prefix::AbstractString,
-        name::AbstractString,
-        files::AbstractVector{<:AbstractString},
-        format::AbstractString = to_format(first(files)),
+        files::Union{Nothing, AbstractVector{<:AbstractString}} = nothing,
+        format::Union{Nothing, AbstractString} = nothing,
         directories::Directories = Directories(),
         metadata::AbstractDict{<:AbstractString} = Dict{String, Any}()
     )
 
-    path = mkpath(joinpath(prefix, name))
+    !isnothing(files) && isnothing(format) && (format = to_format(first(files)))
+
+    mkpath(path)
 
     directories = Directories(path, directories)
 
-    db = @something db DuckDB.DB(joinpath(path, "$name.duckdb"))
+    db = @something db DuckDB.DB(joinpath(path, "db.duckdb"))
     repository = Repository(db, pool)
 
     return Experiment(
         repository,
-        prefix,
-        name,
+        path,
         format,
         files,
         directories,
-        metadata,
-        String[]
+        metadata
     )
 end
 
-function Experiment(
-        experiment::AbstractDict;
-        db::Union{Nothing, DuckDB.DB} = nothing,
-        parent::AbstractString = "",
-        prefix::AbstractString,
-    )
-
-    name::String, files::Vector{String} = experiment["name"], joinpath.(parent, experiment["files"])
-    return Experiment(; db, prefix, name, files)
+function Experiment(path::AbstractString, files::AbstractVector{<:AbstractString}; attributes...)
+    return Experiment(path; files, attributes...)
 end
 
-function init!(ex::Experiment; load)
-    load && load_source(ex)
-    register_subtable_names!(ex)
-    return ex
-end
-
-function load_source(ex::Experiment)
+function initialize(ex::Experiment)
     (; files, format, repository) = ex
+    isnothing(files) && throw(
+        ArgumentError(
+            """
+            Cannot initialize experiment without files
+            """
+        )
+    )
     N = length(files)
     placeholders = join(string.('$', 1:N), ", ")
     reader = DEFAULT_READERS[format]
@@ -121,13 +111,7 @@ function load_source(ex::Experiment)
     SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     """
     DBInterface.execute(Returns(nothing), repository, sql, files)
-end
-
-function register_subtable_names!(ex::Experiment)
-    query = From(TABLE_NAMES.source) |> Group(Get._name) |> Select(Get._name)
-    ex.names = DBInterface.execute(ex.repository, query) do res
-        return String[row._name for row in res]
-    end
+    return ex
 end
 
 function with_experiment(f, args...; attributes...)

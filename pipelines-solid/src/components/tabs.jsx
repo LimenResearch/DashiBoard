@@ -1,7 +1,23 @@
 import { createSignal } from "solid-js";
 
-const headerClass = `text-blue-800 text-2xl font-semibold rounded mr-4 px-4 py-2
-                     cursor-pointer hover:bg-gray-200`;
+function classList(submit) {
+    return {
+        "cursor-pointer"       : true,
+        "rounded"              : true,
+        "py-2"                 : true,
+        "px-4"                 : true,
+        "text-2xl"             : true,
+        "font-semibold"        : true,
+        "text-blue-800"        : true,
+        "hover:text-blue-900"  : true,
+        "hover:bg-gray-200"    : !submit,
+        "bg-blue-100"          : submit,
+        "hover:bg-blue-200"    : submit,
+        "border-2"             : submit,
+        "border-transparent"   : submit,
+        "focus:border-blue-500": submit,
+    }
+}
 
 export function Tabs(props) {
     const [activeIndex, setActiveIndex] = createSignal(0);
@@ -9,11 +25,16 @@ export function Tabs(props) {
     const values = () => props.children.map(c => c.value);
     
     return <>
-        <ul class="flex mb-12">
+        <div class="flex mb-12">
             <For each={keys()}>
-                {(item, index) => <ul onClick={() => setActiveIndex(index())} class={headerClass}>{item}</ul>}
+                {(item, index) => <span
+                        onClick={() => setActiveIndex(index())}
+                        classList={classList(false)}>{item}</span>}
             </For>
-        </ul>
+            <button classList={classList(true)} onClick={props.onSubmit}>
+                {props.submit}
+            </button>
+        </div>
         <div>
             <For each={values()}>
                 {(item, index) => <Show when={index() === activeIndex()}>{item}</Show>}

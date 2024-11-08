@@ -17,7 +17,7 @@ export function App() {
     const spec = () => ({
         session: sessionName,
         filters: filtersData.output(),
-        cards: processingTab.output()
+        cards: pipelineData.output()
     });
 
     const onSubmit = () => {

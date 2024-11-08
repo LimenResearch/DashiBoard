@@ -2,7 +2,6 @@ import { createSignal } from "solid-js";
 
 function classList(submit) {
     return {
-        "cursor-pointer"       : true,
         "rounded"              : true,
         "py-2"                 : true,
         "px-4"                 : true,

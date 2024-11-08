@@ -56,9 +56,9 @@ end
     spec = json(req)
     sql = "FROM sessions WHERE name = (?)"
     res = DBInterface.execute(first, sessions, sql, [spec["session"]])
-    with_experiment(res.path; prefix, parent = parent_folder) do ex
+    with_experiment(res.path) do ex
         filters = Filters(spec["filters"])
-        cards = Pipelines.Cards(spec["cards"])
+        cards = Cards(spec["cards"])
         DataIngestion.select(filters, ex.repository)
         Pipelines.evaluate(cards, ex.repository, "selection")
         return "Evaluated pipeline"

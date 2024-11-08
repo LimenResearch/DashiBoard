@@ -2,13 +2,9 @@ import { createStore } from "solid-js/store";
 import { CardList } from "../components/card-list"
 
 export function initPipeline() {
-    const [store, setStore] = createStore({
-        cards: [
-            { name: "Percentile Partition", id: 1, input: {value: () => "aa"}},
-        ]
-    });
+    const [store, setStore] = createStore({cards: []});
     const input = [store, setStore];
-    const output = store;
+    const output = () => store.cards.map(card => card.output());
     return {input, output};
 }
 

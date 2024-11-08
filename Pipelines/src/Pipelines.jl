@@ -1,5 +1,7 @@
 module Pipelines
 
+export Cards
+
 using Tables: Tables
 using DBInterface: DBInterface
 using UUIDs: uuid4

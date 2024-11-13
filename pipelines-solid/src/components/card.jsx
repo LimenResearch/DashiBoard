@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { PercentilePartition, initPercentilePartition } from "../cards/percentile-partition"
+import { Select } from "@thisbeyond/solid-select";
 
 export const CARD_MAP = new Map();
 
@@ -29,24 +30,26 @@ export function Card(props) {
 }
 
 export function CardPlus(props) {
-    const plusClass = "w-full text-2xl font-bold py-2 text-gray-900 hover:text-gray-1000 hover:bg-gray-200";
-    const keyClass = "cursor-pointer text-center text-xl py-2 text-gray-900";
-    const cardKeys = Array.from(CARD_MAP.keys());
+    const [initialValue, setInitialValue] = createSignal(null,  { equals: false });
     const [listVisible, setListVisible] = createSignal(false);
-    return <>
-        <button class={plusClass} onClick={() => setListVisible(true)}>＋</button>
-        <ul class="w-full">
-            <Show when={listVisible()}>
-                <For each={cardKeys}>
-                    {k => {
-                        const onClick = () => {
-                            props.onClick(k);
-                            setListVisible(false);
-                        }
-                        return <li class={keyClass} onClick={onClick}>{k}</li>;
-                    }}
-                </For>
-            </Show>
-        </ul>
-    </>;
+    const cardKeys = Array.from(CARD_MAP.keys());
+    const onClick = () => {
+        setListVisible(!listVisible());
+        setInitialValue(null);
+    }
+    const onChange = x => {
+        x && props.onClick(x);
+    }
+    const plusClass = "h-7 font-bold text-lg text-gray-900 hover:text-gray-1000 hover:bg-gray-200";
+
+    return <div class="grid grid-cols-4 gap-4 py-2 my-2">
+        <button class={plusClass} onClick={onClick}>
+            {listVisible() ? "－" : "＋"}
+        </button>
+        <Show when={listVisible()}>
+            <div class="h-7">
+                <Select initialValue={initialValue()} options={cardKeys} onChange={onChange}></Select>
+            </div>
+        </Show>
+    </div>;
 }

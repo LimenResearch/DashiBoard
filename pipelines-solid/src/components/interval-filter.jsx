@@ -20,14 +20,12 @@ export function IntervalFilter(props) {
 
     function updateValid(input, k) {
         const value = parseFloat(input);
-        if (!isNaN(value)) {
-            let interval = filterValue().copy();
-            interval[k] = value;
-            if (interval.min === props.summary.min  && interval.max === props.summary.max) {
-                interval = null;
-            }
-            setFilterValue(interval);
+        let interval = filterValue().copy();
+        interval[k] = value;
+        if (interval.min === props.summary.min  && interval.max === props.summary.max) {
+            interval = null;
         }
+        setFilterValue(interval);
     }
 
     const onReset = () => setFilterValue(null);
@@ -41,7 +39,7 @@ export function IntervalFilter(props) {
         step={props.summary.step}
         class={className}
         value={filterValue().min}
-        oninput={e => updateValid(e.target.value, "min")}
+        onChange={e => updateValid(e.target.value, "min")}
     ></input>;
 
     const rightInput = <input
@@ -51,7 +49,7 @@ export function IntervalFilter(props) {
         step={props.summary.step}
         class={className}
         value={filterValue().max}
-        oninput={e => updateValid(e.target.value, "max")}
+        onChange={e => updateValid(e.target.value, "max")}
     ></input>;
 
     const filterForm = <form class="flex justify-between">

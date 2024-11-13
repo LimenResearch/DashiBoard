@@ -1,4 +1,5 @@
 import { postRequest, sessionName } from "./requests";
+import "@thisbeyond/solid-select/style.css";
 
 import { Loader, initLoader } from "./left-tabs/loading";
 import { Filters, initFilters } from "./left-tabs/filtering";

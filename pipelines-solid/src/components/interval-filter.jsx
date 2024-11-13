@@ -32,11 +32,14 @@ export function IntervalFilter(props) {
 
     const onReset = () => setFilterValue(null);
 
+    const className = "pl-2 py-0.5 rounded border outline-none border-gray-200 ring-offset-2 focus:ring-2 focus:ring-gray-300";
+
     const leftInput = <input
         type="number"
         min={props.summary.min}
         max={props.summary.max}
         step={props.summary.step}
+        class={className}
         value={filterValue().min}
         oninput={e => updateValid(e.target.value, "min")}
     ></input>;
@@ -46,6 +49,7 @@ export function IntervalFilter(props) {
         min={props.summary.min + (props.summary.max - props.summary.min) % props.summary.step}
         max={props.summary.max}
         step={props.summary.step}
+        class={className}
         value={filterValue().max}
         oninput={e => updateValid(e.target.value, "max")}
     ></input>;

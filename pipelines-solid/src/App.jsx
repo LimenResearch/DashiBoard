@@ -12,7 +12,7 @@ export function App() {
 
     const loadingTab = <Loader input={loaderData.input}></Loader>;
     const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;
-    const processingTab = <Pipeline input={pipelineData.input}></Pipeline>;
+    const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
     const spec = () => ({
         session: sessionName,

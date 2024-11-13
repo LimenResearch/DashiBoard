@@ -3,7 +3,6 @@ import { createSignal } from "solid-js";
 function classList(active, submit) {
     return {
         "rounded"              : true,
-        "cursor-pointer"       : true,
         "py-2"                 : true,
         "px-4"                 : true,
         "text-2xl"             : true,
@@ -29,10 +28,10 @@ export function Tabs(props) {
     return <>
         <div class="flex mb-12">
             <For each={keys()}>
-                {(item, index) => <span
+                {(item, index) => <button
                     onClick={() => setActiveIndex(index())}
                     classList={classList(activeIndex() === index(), false)}>
-                    {item}</span>}
+                    {item}</button>}
             </For>
             <button classList={classList(false, true)} onClick={props.onSubmit}>
                 {props.submit}

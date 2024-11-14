@@ -30,7 +30,8 @@ export function IntervalFilter(props) {
 
     const onReset = () => setFilterValue(null);
 
-    const className = "pl-2 py-0.5 rounded border outline-none border-gray-200 ring-offset-2 focus:ring-2 focus:ring-gray-300";
+    const className = `pl-2 py-0.5 rounded border outline-none border-gray-200
+        ring-offset-2 focus:ring-2 focus:ring-gray-300`;
 
     const leftInput = <input
         type="number"

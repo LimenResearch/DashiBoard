@@ -31,7 +31,20 @@ export function App() {
         {key: "Process", value: processingTab},
     ];
 
+    const rightTabs = [
+        {key: "Spreadsheet", value: "TODO"},
+        {key: "Chart", value: "TODO"},
+        {key: "Pipeline", value: "TODO"},
+    ];
+
     return <div class="min-w-screen min-h-screen bg-gray-100">
-        <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>
+        <div class="grid grid-cols-2">
+            <div>
+                <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>
+            </div>
+            <div>
+                <Tabs submit="Submit">{rightTabs}</Tabs>
+            </div>
+        </div>
     </div>;
 }

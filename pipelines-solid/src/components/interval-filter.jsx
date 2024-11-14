@@ -7,7 +7,7 @@ class Interval {
         this.max = max;
     }
 
-    copy() {
+    clone() {
         return new Interval(this.min, this.max);
     }
 }
@@ -21,7 +21,7 @@ export function IntervalFilter(props) {
 
     function updateValid(input, k) {
         const value = parseFloat(input);
-        let interval = filterValue().copy();
+        let interval = filterValue().clone();
         interval[k] = value;
         if (interval.min === props.summary.min  && interval.max === props.summary.max) {
             interval = null;

@@ -4,6 +4,7 @@ import { Input } from "../components/input";
 
 export function initPercentilePartition() {
     const init = {
+        type: "percentile_partition",
         order_by: [],
         by: [],
         p: NaN,
@@ -34,7 +35,7 @@ export function PercentilePartition(props) {
             placeholder="Select..."></Input>
 
         <label for={id + "output"} class={selectClass}>Output</label>
-        <Select id={id + "output"} onChange={x => setKey("output", x)}
-            class="mb-2" {...selProps}></Select>
+        <Input id={id + "output"} onChange={ev => setKey("output", ev.target.value)}
+            class="w-full mb-2" type="text" placeholder="Select..."></Input>
     </>;
 }

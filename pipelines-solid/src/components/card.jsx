@@ -42,7 +42,7 @@ export function CardPlus(props) {
     }
     const plusClass = "h-7 font-bold text-lg text-gray-900 hover:text-gray-1000 hover:bg-gray-200";
 
-    return <div class="grid grid-cols-4 gap-4 py-2 my-2">
+    return <div class="grid grid-cols-2 gap-4 py-2 my-2">
         <button class={plusClass} onClick={onClick}>
             {listVisible() ? "－" : "＋"}
         </button>

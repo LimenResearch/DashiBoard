@@ -8,7 +8,7 @@ export function initPercentilePartition() {
         order_by: [],
         by: [],
         p: NaN,
-        output: ""
+        output: "partition"
     };
     const [value, setValue] = createSignal(init);
     const setKey = (k, v) => setValue(Object.assign({}, value(), {[k]: v}));
@@ -17,6 +17,7 @@ export function initPercentilePartition() {
 
 export function PercentilePartition(props) {
     const [value, setKey] = props.input;
+    const init = value(); // avoid reactivity here
     const selProps = createOptions(() => props.metadata.map(x => x.name));
     const selectClass = "text-blue-800 font-semibold py-4 w-full text-left";
     const id = crypto.randomUUID();
@@ -35,7 +36,8 @@ export function PercentilePartition(props) {
             placeholder="Select..."></Input>
 
         <label for={id + "output"} class={selectClass}>Output</label>
-        <Input id={id + "output"} onChange={ev => setKey("output", ev.target.value)}
+        <Input id={id + "output"} value={init.output}
+            onChange={ev => setKey("output", ev.target.value)}
             class="w-full mb-2" type="text" placeholder="Select..."></Input>
     </>;
 }

@@ -38,11 +38,11 @@ export function App() {
     ];
 
     return <div class="min-w-screen min-h-screen bg-gray-100">
-        <div class="grid grid-cols-2 gap-8">
+        <div class="grid grid-cols-3 gap-8">
             <div>
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>
             </div>
-            <div>
+            <div class="col-span-2">
                 <Tabs submit="Submit">{rightTabs}</Tabs>
             </div>
         </div>

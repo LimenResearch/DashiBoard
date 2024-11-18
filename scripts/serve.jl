@@ -31,7 +31,7 @@ const sessions = DataIngestion.Repository(DuckDB.DB(joinpath("cache", "sessions.
 DBInterface.execute(
     Returns(nothing),
     sessions,
-    "CREATE TABLE IF NOT EXISTS sessions(name VARCHAR PRIMARY KEY, path VARCHAR, time DATETIME)"
+    "CREATE OR REPLACE TABLE sessions(name VARCHAR PRIMARY KEY, path VARCHAR, time DATETIME)"
 )
 
 @post "/load" function (req::HTTP.Request)
@@ -71,26 +71,16 @@ end
     sql = "FROM sessions WHERE name = (?)"
     res = DBInterface.execute(first, sessions, sql, [spec["session"]])
     with_experiment(res.path) do ex
-        hastable = DBInterface.execute(
-            !isempty, ex.repository, """
-            FROM INFORMATION_SCHEMA.TABLES
-            WHERE table_name = 'selection' AND table_schema = 'main'
-            """
-        )
         io = IOBuffer()
-        if hastable
-            print(io, "{\"values\": ")
-            DBInterface.execute(
-                x -> arraytable(io, Tables.columns(x)),
-                ex.repository,
-                "FROM selection LIMIT ? OFFSET ?;",
-                [spec["limit"], spec["offset"]]
-            )
-            count = DBInterface.execute(first, ex.repository, "SELECT count(*) AS nrows FROM selection;")
-            print(io, " , \"length\": ", count.nrows, "}")
-        else
-            JSON3.write(io, (values = [], length = 0))
-        end
+        print(io, "{\"values\": ")
+        DBInterface.execute(
+            x -> arraytable(io, Tables.columns(x)),
+            ex.repository,
+            "FROM selection LIMIT ? OFFSET ?;",
+            [spec["limit"], spec["offset"]]
+        )
+        count = DBInterface.execute(first, ex.repository, "SELECT count(*) AS nrows FROM selection;")
+        print(io, " , \"length\": ", count.nrows, "}")
         return String(take!(io))
     end
 end

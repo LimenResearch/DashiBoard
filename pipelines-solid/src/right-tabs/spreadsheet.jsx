@@ -9,28 +9,37 @@ ModuleRegistry.registerModules([InfiniteRowModelModule]);
 
 export function Spreadsheet(props) {
 
-    const tableNames = () => props.metadata.map(x => ({field: x.name, headerName: x.name}));
-
-    const dataSource = () => ({
-        rowCount: undefined, // behave as infinite scroll
-        getRows: params => {
-            const offset = params.startRow;
-            const limit = params.endRow - params.startRow;
-            postRequest("fetch", {session: sessionName, offset, limit})
-                .then(x => x.json())
-                .then(data => {
-                    let lastRow = -1;
-                    if (data.length <= params.endRow) {
-                        lastRow = data.length;
-                    }
-                    params.successCallback(data.values, lastRow);
-                });
+    const dataSource = columnDefs => {
+        if (columnDefs.length == 0) {
+            return { rowCount: 0, getRows: params => params.successCallback([], 0) };
+        } else {
+            return {
+                rowCount: undefined, // behave as infinite scroll
+                getRows: params => {
+                    const offset = params.startRow;
+                    const limit = params.endRow - params.startRow;
+                    postRequest("fetch", { session: sessionName, offset, limit })
+                        .then(x => x.json())
+                        .then(data => {
+                            let lastRow = -1;
+                            if (data.length <= params.endRow) {
+                                lastRow = data.length;
+                            }
+                            params.successCallback(data.values, lastRow);
+                        });
+                }
+            };
         }
-    });
+    };
+
+    const options = () => {
+        const columnDefs = props.metadata.map(x => ({ field: x.name, headerName: x.name }));
+        const datasource = dataSource(columnDefs);
+        return {datasource, columnDefs}
+    }
 
     const gridOptions = {
-        datasource: dataSource(),
-        columnDefs: tableNames(),
+        ...options,
         defaultColDef: {
             flex: 1,
             minWidth: 100,
@@ -66,9 +75,7 @@ export function Spreadsheet(props) {
         gridApi = createGrid(gridDiv, gridOptions);
     });
 
-    createEffect(() => {
-        gridApi.updateGridOptions({columnDefs: tableNames(), datasource: dataSource()});
-    });
+    createEffect(() => gridApi.updateGridOptions(options()));
 
     // TODO: avoid hard-coded height?
     return <div ref={gridDiv} style="height: 500px" class="ag-theme-quartz"></div>

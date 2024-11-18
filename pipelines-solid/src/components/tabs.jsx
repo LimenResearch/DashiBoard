@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
 
 function classList(active, submit) {
     return {
@@ -33,9 +33,11 @@ export function Tabs(props) {
                     classList={classList(activeIndex() === index(), false)}>
                     {item}</button>}
             </For>
-            <button classList={classList(false, true)} onClick={props.onSubmit}>
-                {props.submit}
-            </button>
+            <Show when={props.submit}>
+                <button classList={classList(false, true)} onClick={props.onSubmit}>
+                    {props.submit}
+                </button>
+            </Show>
         </div>
         <div>
             <For each={values()}>

@@ -30,6 +30,8 @@ export function App() {
         cards: pipelineData.output()
     });
 
+    // TODO: control-enter to submit?
+
     const onSubmit = () => {
         postRequest("pipeline", spec())
             .then(x => x.json())    
@@ -48,13 +50,13 @@ export function App() {
         {key: "Pipeline", value: "TODO"},
     ];
 
-    return <div class="min-w-screen min-h-screen bg-gray-100">
-        <div class="grid grid-cols-3 gap-8 mr-4">
-            <div>
+    return <div class="w-full min-h-screen bg-gray-100">
+        <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
+            <div class="col-span-2">
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>
             </div>
-            <div class="col-span-2">
-                <Tabs submit="Submit">{rightTabs}</Tabs>
+            <div class="col-span-3">
+                <Tabs>{rightTabs}</Tabs>
             </div>
         </div>
     </div>;

@@ -1,7 +1,7 @@
 using HTTP: HTTP
 using Oxygen: json, @post, serve
 
-using JSON3, DuckDB, Dates, Tables, UUIDs
+using JSON3, JSONTables, DuckDB, Dates, Tables, UUIDs
 
 using DataIngestion, Pipelines
 
@@ -31,7 +31,7 @@ const sessions = DataIngestion.Repository(DuckDB.DB(joinpath("cache", "sessions.
 DBInterface.execute(
     Returns(nothing),
     sessions,
-    "CREATE OR REPLACE TABLE sessions(name VARCHAR PRIMARY KEY, path VARCHAR, time DATETIME)"
+    "CREATE TABLE IF NOT EXISTS sessions(name VARCHAR PRIMARY KEY, path VARCHAR, time DATETIME)"
 )
 
 @post "/load" function (req::HTTP.Request)
@@ -61,7 +61,37 @@ end
         cards = Cards(spec["cards"])
         DataIngestion.select(filters, ex.repository)
         Pipelines.evaluate(cards, ex.repository, "selection")
-        return "Evaluated pipeline"
+        summaries = DataIngestion.summarize(ex.repository, "selection")
+        return JSON3.write(summaries)
+    end
+end
+
+@post "/fetch" function (req::HTTP.Request)
+    spec = json(req)
+    sql = "FROM sessions WHERE name = (?)"
+    res = DBInterface.execute(first, sessions, sql, [spec["session"]])
+    with_experiment(res.path) do ex
+        hastable = DBInterface.execute(
+            !isempty, ex.repository, """
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE table_name = 'selection' AND table_schema = 'main'
+            """
+        )
+        io = IOBuffer()
+        if hastable
+            print(io, "{\"values\": ")
+            DBInterface.execute(
+                x -> arraytable(io, Tables.columns(x)),
+                ex.repository,
+                "FROM selection LIMIT ? OFFSET ?;",
+                [spec["limit"], spec["offset"]]
+            )
+            count = DBInterface.execute(first, ex.repository, "SELECT count(*) AS nrows FROM selection;")
+            print(io, " , \"length\": ", count.nrows, "}")
+        else
+            JSON3.write(io, (values = [], length = 0))
+        end
+        return String(take!(io))
     end
 end
 

@@ -1,9 +1,14 @@
-import { postRequest, sessionName } from "./requests";
 import "@thisbeyond/solid-select/style.css";
+import { createSignal } from "solid-js";
+
+import { postRequest, sessionName } from "./requests";
 
 import { Loader, initLoader } from "./left-tabs/loading";
 import { Filters, initFilters } from "./left-tabs/filtering";
 import { Pipeline, initPipeline } from "./left-tabs/processing";
+
+import { Spreadsheet } from "./right-tabs/spreadsheet";
+
 import { Tabs } from "./components/tabs";
 
 export function App() {
@@ -11,9 +16,13 @@ export function App() {
     const filtersData = initFilters();
     const pipelineData = initPipeline();
 
+    const [metadata, setMetadata] = createSignal([]);
+
     const loadingTab = <Loader input={loaderData.input}></Loader>;
     const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
+
+    const spreadsheetTab = <Spreadsheet metadata={metadata()}></Spreadsheet>;
 
     const spec = () => ({
         session: sessionName,
@@ -23,6 +32,8 @@ export function App() {
 
     const onSubmit = () => {
         postRequest("pipeline", spec())
+            .then(x => x.json())    
+            .then(setMetadata);
     };
 
     const leftTabs = [
@@ -32,13 +43,13 @@ export function App() {
     ];
 
     const rightTabs = [
-        {key: "Spreadsheet", value: "TODO"},
+        {key: "Spreadsheet", value: spreadsheetTab},
         {key: "Chart", value: "TODO"},
         {key: "Pipeline", value: "TODO"},
     ];
 
     return <div class="min-w-screen min-h-screen bg-gray-100">
-        <div class="grid grid-cols-3 gap-8">
+        <div class="grid grid-cols-3 gap-8 mr-4">
             <div>
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>
             </div>

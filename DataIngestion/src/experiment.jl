@@ -61,7 +61,8 @@ struct Experiment
     metadata::Dict{String, Any}
 end
 
-function Experiment(path::AbstractString;
+function Experiment(
+        path::AbstractString;
         db::Union{Nothing, DuckDB.DB} = nothing,
         pool::DuckDBPool = DuckDBPool(),
         files::Union{Nothing, AbstractVector{<:AbstractString}} = nothing,

@@ -50,7 +50,13 @@ export function App() {
         {key: "Pipeline", value: "TODO"},
     ];
 
-    return <div class="w-full min-h-screen bg-gray-100">
+    const outerClass = `
+        w-full max-h-screen min-h-screen
+        overflow-y-auto bg-gray-100`;
+
+    return <div
+        class={outerClass}
+        style="scrollbar-gutter: stable;">
         <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
             <div class="col-span-2">
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>

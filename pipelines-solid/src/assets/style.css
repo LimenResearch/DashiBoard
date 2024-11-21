@@ -1,0 +1,5 @@
+/* custom atomic class to avoid "jumps" when scrollbar appears */
+
+.scrollbar-gutter-stable {
+    scrollbar-gutter: stable;
+}

@@ -1,4 +1,3 @@
-import "@thisbeyond/solid-select/style.css";
 import { createSignal } from "solid-js";
 
 import { postRequest, sessionName } from "./requests";

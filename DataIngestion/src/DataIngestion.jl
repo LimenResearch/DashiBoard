@@ -1,8 +1,8 @@
 module DataIngestion
 
-export with_experiment, Experiment, Filters
+export Repository, Filters
 
-public initialize, summarize, select
+public load_files, summarize, select
 
 using FunSQL: pack,
     reflect,
@@ -24,7 +24,7 @@ using IterTools: flagfirst
 using Tables: Tables
 
 include("repository.jl")
-include("experiment.jl")
+include("load.jl")
 include("filters.jl")
 include("summary.jl")
 

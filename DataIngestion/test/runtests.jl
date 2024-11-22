@@ -6,9 +6,9 @@ using Test
 const static_dir = joinpath(@__DIR__, "static")
 
 mktempdir() do dir
-    spec = open(JSON3.read, joinpath(static_dir, "experiment.json"))
-    my_exp = Experiment(dir, spec["files"])
-    DataIngestion.initialize(my_exp)
+    spec = open(JSON3.read, joinpath(static_dir, "data.json"))
+    repo = Repository(joinpath(dir, "db.duckdb"))
+    DataIngestion.load_files(repo, spec["files"])
 
     @testset "filtering" begin
         f1 = DataIngestion.IntervalFilter(
@@ -23,9 +23,9 @@ mktempdir() do dir
 
         filters = DataIngestion.Filters([f1, f2])
 
-        DataIngestion.select(filters, my_exp.repository)
+        DataIngestion.select(filters, repo)
 
-        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM selection")
+        df = DBInterface.execute(DataFrame, repo, "FROM selection")
         @test unique(sort(df.cbwd)) == ["NW", "SE"]
         @test unique(sort(df.hour)) == [1, 2, 3]
     end
@@ -45,8 +45,8 @@ mktempdir() do dir
     end
 
     @testset "summary" begin
-        info = DataIngestion.summarize(my_exp.repository, "source")
-        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM source")
+        info = DataIngestion.summarize(repo, "source")
+        df = DBInterface.execute(DataFrame, repo, "FROM source")
         @test [x.name for x in info] == names(df)
 
         No_min, No_max = extrema(df.No)

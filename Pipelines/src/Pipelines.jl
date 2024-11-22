@@ -26,6 +26,7 @@ include("tables.jl")
 include("card.jl")
 
 include("cards/partition.jl")
+include("cards/rescale.jl")
 
 include("pipeline.jl")
 

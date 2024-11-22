@@ -1,0 +1,47 @@
+{
+    "zscore": {
+        "type": "rescale",
+        "method": "zscore",
+        "by": [],
+        "columns": [
+            "TEMP"
+        ],
+        "suffix": "rescaled"
+    },
+    "maxabs": {
+        "type": "rescale",
+        "method": "maxabs",
+        "by": [],
+        "columns": [
+            "TEMP"
+        ],
+        "suffix": "rescaled"
+    },
+    "minmax": {
+        "type": "rescale",
+        "method": "minmax",
+        "by": [],
+        "columns": [
+            "TEMP"
+        ],
+        "suffix": "rescaled"
+    },
+    "log": {
+        "type": "rescale",
+        "method": "log",
+        "by": [],
+        "columns": [
+            "PRES"
+        ],
+        "suffix": "rescaled"
+    },
+    "logistic": {
+        "type": "rescale",
+        "method": "logistic",
+        "by": [],
+        "columns": [
+            "TEMP"
+        ],
+        "suffix": "rescaled"
+    }
+}

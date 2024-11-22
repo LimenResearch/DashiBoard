@@ -26,63 +26,40 @@ function CorsHandler(handle)
     end
 end
 
-const sessions = DataIngestion.Repository(DuckDB.DB(joinpath("cache", "sessions.duckdb")))
-
-DBInterface.execute(
-    Returns(nothing),
-    sessions,
-    "CREATE OR REPLACE TABLE sessions(name VARCHAR PRIMARY KEY, path VARCHAR, time DATETIME)"
-)
+const repo = Repository(joinpath("cache", "db.duckdb"))
+# TODO: update code below
 
 @post "/load" function (req::HTTP.Request)
     spec = json(req)
-    # TODO: folder should depend on session / user
-    path = joinpath("cache", "experiments", string(uuid4()))
     files = joinpath.("data", spec["files"])
-    with_experiment(path, files) do ex
-        DataIngestion.initialize(ex)
-        DBInterface.execute(
-            Returns(nothing),
-            sessions,
-            "INSERT OR REPLACE INTO sessions VALUES (?, ?, ?)",
-            [spec["session"], path, now()]
-        )
-        summaries = DataIngestion.summarize(ex.repository, "source")
-        return JSON3.write(summaries)
-    end
+    DataIngestion.load_files(repo, files)
+    summaries = DataIngestion.summarize(repo, "source")
+    return JSON3.write(summaries)
 end
 
 @post "/pipeline" function (req::HTTP.Request)
     spec = json(req)
-    sql = "FROM sessions WHERE name = (?)"
-    res = DBInterface.execute(first, sessions, sql, [spec["session"]])
-    with_experiment(res.path) do ex
-        filters = Filters(spec["filters"])
-        cards = Cards(spec["cards"])
-        DataIngestion.select(filters, ex.repository)
-        Pipelines.evaluate(cards, ex.repository, "selection")
-        summaries = DataIngestion.summarize(ex.repository, "selection")
-        return JSON3.write(summaries)
-    end
+    filters = Filters(spec["filters"])
+    cards = Cards(spec["cards"])
+    DataIngestion.select(filters, repo)
+    Pipelines.evaluate(cards, repo, "selection")
+    summaries = DataIngestion.summarize(repo, "selection")
+    return JSON3.write(summaries)
 end
 
 @post "/fetch" function (req::HTTP.Request)
     spec = json(req)
-    sql = "FROM sessions WHERE name = (?)"
-    res = DBInterface.execute(first, sessions, sql, [spec["session"]])
-    with_experiment(res.path) do ex
-        io = IOBuffer()
-        print(io, "{\"values\": ")
-        DBInterface.execute(
-            x -> arraytable(io, Tables.columns(x)),
-            ex.repository,
-            "FROM selection LIMIT ? OFFSET ?;",
-            [spec["limit"], spec["offset"]]
-        )
-        count = DBInterface.execute(first, ex.repository, "SELECT count(*) AS nrows FROM selection;")
-        print(io, " , \"length\": ", count.nrows, "}")
-        return String(take!(io))
-    end
+    io = IOBuffer()
+    print(io, "{\"values\": ")
+    DBInterface.execute(
+        x -> arraytable(io, Tables.columns(x)),
+        repo,
+        "FROM selection LIMIT ? OFFSET ?;",
+        [spec["limit"], spec["offset"]]
+    )
+    count = DBInterface.execute(first, repo, "SELECT count(*) AS nrows FROM selection;")
+    print(io, " , \"length\": ", count.nrows, "}")
+    return String(take!(io))
 end
 
 serve(middleware = [CorsHandler])

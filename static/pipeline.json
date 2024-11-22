@@ -1,10 +1,4 @@
 {
-    "experiment": {
-        "name": "my_exp",
-        "files": [
-            "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv"
-        ]
-    },
     "filters": [
         {
             "interval": {

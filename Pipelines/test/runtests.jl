@@ -25,16 +25,16 @@ end
 
 mktempdir() do dir
     spec = open(JSON3.read, joinpath(static_dir, "spec.json"))
-    my_exp = Experiment(dir, spec["experiment"]["files"])
-    DataIngestion.initialize(my_exp)
+    repo = Repository(joinpath(dir, "db.duckdb"))
+    DataIngestion.load_files(repo, spec["data"]["files"])
     filters = DataIngestion.Filters(spec["filters"])
-    DataIngestion.select(filters, my_exp.repository)
+    DataIngestion.select(filters, repo)
 
     @testset "partition" begin
         d = open(JSON3.read, joinpath(static_dir, "tiledpartition.json"))
         partition = Pipelines.get_card(d)
-        Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
-        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
+        Pipelines.evaluate(partition, repo, "selection" => "partition")
+        df = DBInterface.execute(DataFrame, repo, "FROM partition")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_tiled_partition",
@@ -44,11 +44,11 @@ mktempdir() do dir
         # TODO: test by group as well
 
         partition = Pipelines.TiledPartition(String[], ["cbwd"], [1, 1, 2, 1, 1, 2], "_tiled_partition")
-        @test_throws ArgumentError Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
+        @test_throws ArgumentError Pipelines.evaluate(partition, repo, "selection" => "partition")
 
         partition = Pipelines.PercentilePartition(["No"], ["cbwd"], 0.9, "_percentile_partition")
-        Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
-        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM partition")
+        Pipelines.evaluate(partition, repo, "selection" => "partition")
+        df = DBInterface.execute(DataFrame, repo, "FROM partition")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_percentile_partition",
@@ -58,14 +58,67 @@ mktempdir() do dir
         # TODO: port TimeFunnelUtils tests
 
         partition = Pipelines.PercentilePartition(String[], ["cbwd"], 0.9, "_percentile_partition")
-        @test_throws ArgumentError Pipelines.evaluate(partition, my_exp.repository, "selection" => "partition")
+        @test_throws ArgumentError Pipelines.evaluate(partition, repo, "selection" => "partition")
+    end
+
+    # TODO: also test partitioned version
+    @testset "rescale" begin
+        d = open(JSON3.read, joinpath(static_dir, "rescale.json"))
+
+        resc = Pipelines.get_card(d["zscore"])
+        Pipelines.evaluate(resc, repo, "selection" => "rescaled")
+        df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
+        ]
+        μ, σ = mean(df.TEMP), std(df.TEMP, corrected = false)
+        @test df.TEMP_rescaled ≈ @. (df.TEMP - μ) / σ
+
+        resc = Pipelines.get_card(d["maxabs"])
+        Pipelines.evaluate(resc, repo, "selection" => "rescaled")
+        df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
+        ]
+        maxabs = maximum(abs, df.TEMP)
+        @test df.TEMP_rescaled ≈ @. df.TEMP / maxabs
+
+        resc = Pipelines.get_card(d["minmax"])
+        Pipelines.evaluate(resc, repo, "selection" => "rescaled")
+        df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
+        ]
+        min, max = extrema(df.TEMP)
+        @test df.TEMP_rescaled ≈ @. (df.TEMP - min) / (max - min)
+
+        resc = Pipelines.get_card(d["log"])
+        Pipelines.evaluate(resc, repo, "selection" => "rescaled")
+        df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "PRES_rescaled",
+        ]
+        @test df.PRES_rescaled ≈ @. log(df.PRES)
+
+        resc = Pipelines.get_card(d["logistic"])
+        Pipelines.evaluate(resc, repo, "selection" => "rescaled")
+        df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
+        ]
+        @test df.TEMP_rescaled ≈ @. 1 / (1 + exp(- df.TEMP))
     end
 
     @testset "cards" begin
         d = open(JSON3.read, joinpath(static_dir, "cards.json"))
         cards = Pipelines.Cards(d)
-        Pipelines.evaluate(cards, my_exp.repository, "selection")
-        df = DBInterface.execute(DataFrame, my_exp.repository, "FROM selection")
+        Pipelines.evaluate(cards, repo, "selection")
+        df = DBInterface.execute(DataFrame, repo, "FROM selection")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name",

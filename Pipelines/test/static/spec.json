@@ -1,6 +1,6 @@
 {
-    "experiment": {
-        "name": "my_exp",
+    "data": {
+        "name": "pollution",
         "files": [
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv"
         ]

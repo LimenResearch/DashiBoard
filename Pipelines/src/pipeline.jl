@@ -40,6 +40,7 @@ end
 const CARD_TYPES = Dict(
     "tiled_partition" => TiledPartition,
     "percentile_partition" => PercentilePartition,
+    "rescale" => RescaleCard,
 )
 
 get_card(d::AbstractDict) = CARD_TYPES[d["type"]](d)

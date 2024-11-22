@@ -7,6 +7,9 @@ import { postRequest, sessionName } from "../requests";
 
 ModuleRegistry.registerModules([InfiniteRowModelModule]);
 
+// TODO: understand why occasionally rows do not update
+// TODO: better formatting
+
 export function Spreadsheet(props) {
 
     const dataSource = columnDefs => {

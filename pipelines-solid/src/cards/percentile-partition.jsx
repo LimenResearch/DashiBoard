@@ -3,6 +3,8 @@ import { Select, createOptions } from "@thisbeyond/solid-select"
 import { Input } from "../components/input";
 import { setKey } from "../components/card";
 
+// TODO: convert to `Partition` and add method
+
 class PercentilePartition {
     constructor (order_by, by, p, output) {
         this.type = "percentile_partition";

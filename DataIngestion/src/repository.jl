@@ -7,6 +7,8 @@ end
 
 Repository(db::DuckDB.DB) = Repository(db, DuckDBPool())
 
+Repository(path::AbstractString) = Repository(DuckDB.DB(path))
+
 function with_connection(f, (; db, pool)::Repository)
     con = acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
     try

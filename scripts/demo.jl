@@ -1,15 +1,15 @@
 using DataIngestion, Pipelines, JSON3, DuckDB, DataFrames
 
-config = open(JSON3.read, "static/demo.json")
+load_config = open(JSON3.read, "static/load.json")
+pipeline_config = open(JSON3.read, "static/pipeline.json")
 
-my_exp = DataIngestion.Experiment("cache", config["experiment"])
+repo = Repository(joinpath("cache", "db.duckdb"))
+DataIngestion.load_files(repo, joinpath.("data", load_config["files"]))
 
-DataIngestion.initialize(my_exp)
+filters = DataIngestion.Filters(pipeline_config["filters"])
+DataIngestion.select(filters, repo)
 
-filters = DataIngestion.Filters(config["filters"])
-DataIngestion.select(filters, my_exp.repository)
+cards = Pipelines.Cards(pipeline_config["cards"])
+Pipelines.evaluate(cards, repo, "selection")
 
-cards = Pipelines.Cards(config["cards"])
-Pipelines.evaluate(cards, my_exp.repository, "selection")
-
-DBInterface.execute(DataFrame, my_exp.repository, "FROM selection")
+DBInterface.execute(DataFrame, repo, "FROM selection")

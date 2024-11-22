@@ -38,8 +38,7 @@ function evaluation_order!(nodes::AbstractVector{Node})
 end
 
 const CARD_TYPES = Dict(
-    "tiled_partition" => TiledPartition,
-    "percentile_partition" => PercentilePartition,
+    "split" => SplitCard,
     "rescale" => RescaleCard,
 )
 
@@ -65,4 +64,23 @@ function evaluate(
     for idx in order
         evaluate(cards.cards[idx], repo, table => table)
     end
+end
+
+# Util to replace sql table
+
+function replace_table(repo::Repository, target::AbstractString, query)
+    catalog = get_catalog(repo)
+
+    sql = string(
+        "CREATE OR REPLACE TABLE ",
+        render(catalog, convert(SQLClause, target)),
+        " AS\n",
+        render(catalog, query)
+    )
+
+    DBInterface.execute(
+        Returns(nothing),
+        repo,
+        sql,
+    )
 end

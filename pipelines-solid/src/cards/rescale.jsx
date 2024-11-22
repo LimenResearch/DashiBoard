@@ -5,7 +5,15 @@ import { setKey } from "../components/card";
 
 // TODO: cache summary statistics?
 
-const methods = ["zscore", "maxabs", "minmax", "log", "logistic"]
+const methods = ["zscore", "maxabs", "minmax", "log", "logistic"];
+
+const needsGrouping = {
+    "zscore": true,
+    "maxabs": true,
+    "minmax": true,
+    "log": false,
+    "logistic": false,
+}
 
 class Rescale {
     constructor (method, by, columns, suffix) {
@@ -44,9 +52,11 @@ export function RescaleCard(props) {
         <Select id={id + "method"} onChange={x => setter("method", x)}
             class="mb-2" {...methodProps}></Select>
 
+        <Show when={needsGrouping[value().method]}>
         <label for={id + "by"} class={selectClass}>Group</label>
         <Select id={id + "by"} onChange={x => setter("by", x)}
             class="mb-2" multiple {...selProps}></Select>
+        </Show>
 
         <label for={id + "columns"} class={selectClass}>Columns</label>
         <Select id={id + "columns"} onChange={x => setter("columns", x)}

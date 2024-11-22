@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { Select } from "@thisbeyond/solid-select";
 
-import { PercentilePartitionCard, initPercentilePartitionCard } from "../cards/percentile-partition"
+import { SplitCard, initSplitCard } from "../cards/split"
 import { initRescaleCard, RescaleCard } from "../cards/rescale";
 
 export function setKey([value, setValue], k, v) {
@@ -13,8 +13,8 @@ export function setKey([value, setValue], k, v) {
 export const CARD_MAP = new Map();
 
 CARD_MAP.set(
-    "Percentile Partition",
-    { init: initPercentilePartitionCard, component: PercentilePartitionCard }
+    "Split",
+    { init: initSplitCard, component: SplitCard }
 );
 
 CARD_MAP.set(

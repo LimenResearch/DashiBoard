@@ -16,7 +16,7 @@ using FunSQL: render,
     Agg,
     Fun,
     Get,
-    Select,
+    Define,
     From
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
@@ -25,7 +25,7 @@ include("utils.jl")
 include("tables.jl")
 include("card.jl")
 
-include("cards/partition.jl")
+include("cards/split.jl")
 include("cards/rescale.jl")
 
 include("pipeline.jl")

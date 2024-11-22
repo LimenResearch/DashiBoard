@@ -1,4 +1,4 @@
-using Pipelines, DataIngestion, DBInterface, DataFrames, JSON3
+using Pipelines, DataIngestion, DBInterface, DataFrames, Statistics, JSON3
 using Test
 
 const static_dir = joinpath(@__DIR__, "static")
@@ -30,11 +30,11 @@ mktempdir() do dir
     filters = DataIngestion.Filters(spec["filters"])
     DataIngestion.select(filters, repo)
 
-    @testset "partition" begin
-        d = open(JSON3.read, joinpath(static_dir, "tiledpartition.json"))
-        partition = Pipelines.get_card(d)
-        Pipelines.evaluate(partition, repo, "selection" => "partition")
-        df = DBInterface.execute(DataFrame, repo, "FROM partition")
+    @testset "split" begin
+        d = open(JSON3.read, joinpath(static_dir, "split.json"))
+        split = Pipelines.get_card(d["tiles"])
+        Pipelines.evaluate(split, repo, "selection" => "split")
+        df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_tiled_partition",
@@ -43,12 +43,9 @@ mktempdir() do dir
         @test count(==(2), df._tiled_partition) == 14606
         # TODO: test by group as well
 
-        partition = Pipelines.TiledPartition(String[], ["cbwd"], [1, 1, 2, 1, 1, 2], "_tiled_partition")
-        @test_throws ArgumentError Pipelines.evaluate(partition, repo, "selection" => "partition")
-
-        partition = Pipelines.PercentilePartition(["No"], ["cbwd"], 0.9, "_percentile_partition")
-        Pipelines.evaluate(partition, repo, "selection" => "partition")
-        df = DBInterface.execute(DataFrame, repo, "FROM partition")
+        split = Pipelines.get_card(d["percentile"])
+        Pipelines.evaluate(split, repo, "selection" => "split")
+        df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_percentile_partition",
@@ -57,8 +54,8 @@ mktempdir() do dir
         @test count(==(2), df._percentile_partition) == 4383
         # TODO: port TimeFunnelUtils tests
 
-        partition = Pipelines.PercentilePartition(String[], ["cbwd"], 0.9, "_percentile_partition")
-        @test_throws ArgumentError Pipelines.evaluate(partition, repo, "selection" => "partition")
+        split = Pipelines.SplitCard("percentile", String[], ["cbwd"], "_percentile_partition", 0.9, Int[])
+        @test_throws ArgumentError Pipelines.evaluate(split, repo, "selection" => "split")
     end
 
     # TODO: also test partitioned version

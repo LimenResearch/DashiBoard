@@ -19,7 +19,8 @@
     ],
     "cards": [
         {
-            "type": "percentile_partition",
+            "type": "split",
+            "method": "percentile",
             "order_by": [
                 "No"
             ],
@@ -30,7 +31,8 @@
             "output": "_percentile_partition"
         },
         {
-            "type": "tiled_partition",
+            "type": "split",
+            "method": "tiles",
             "order_by": [
                 "No"
             ],

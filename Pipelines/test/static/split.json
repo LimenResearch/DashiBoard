@@ -1,5 +1,5 @@
-[
-    {
+{
+    "percentile": {
         "type": "split",
         "method": "percentile",
         "order_by": [
@@ -11,7 +11,7 @@
         "p": 0.9,
         "output": "_percentile_partition"
     },
-    {
+    "tiles": {
         "type": "split",
         "method": "tiles",
         "order_by": [
@@ -30,4 +30,4 @@
         ],
         "output": "_tiled_partition"
     }
-]
+}

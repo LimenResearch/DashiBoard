@@ -49,15 +49,16 @@ end
 
 @post "/fetch" function (req::HTTP.Request)
     spec = json(req)
+    table = spec["processed"] ? "selection" : "source"
     io = IOBuffer()
     print(io, "{\"values\": ")
     DBInterface.execute(
         x -> arraytable(io, Tables.columns(x)),
         repo,
-        "FROM selection LIMIT ? OFFSET ?;",
+        "FROM $table LIMIT ? OFFSET ?;",
         [spec["limit"], spec["offset"]]
     )
-    count = DBInterface.execute(first, repo, "SELECT count(*) AS nrows FROM selection;")
+    count = DBInterface.execute(first, repo, "SELECT count(*) AS nrows FROM $table;")
     print(io, " , \"length\": ", count.nrows, "}")
     return String(take!(io))
 end

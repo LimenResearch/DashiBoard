@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 
-import { postRequest, sessionName } from "./requests";
+import { postRequest } from "./requests";
 
 import { Loader, initLoader } from "./left-tabs/loading";
 import { Filters, initFilters } from "./left-tabs/filtering";
@@ -21,15 +21,15 @@ export function App() {
     const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
-    const spreadsheetTab = <Spreadsheet metadata={metadata()}></Spreadsheet>;
+    const spreadsheetTab = <Spreadsheet source={loaderData.output()} selection={metadata()}></Spreadsheet>;
 
     const spec = () => ({
-        session: sessionName,
         filters: filtersData.output(),
         cards: pipelineData.output()
     });
 
     // TODO: control-enter to submit?
+    // TODO: only update metadata if there was no error
 
     const onSubmit = () => {
         postRequest("pipeline", spec())

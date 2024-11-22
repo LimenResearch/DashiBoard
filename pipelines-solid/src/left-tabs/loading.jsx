@@ -3,7 +3,7 @@ import { join } from 'path-browserify'
 
 import { Button } from "../components/button";
 import { FilePicker, DirectoryPicker } from "../components/file-picker";
-import { postRequest, sessionName } from "../requests";
+import { postRequest } from "../requests";
 
 async function computeFiles(data) {
     const [dirHandle, fileHandles] = data
@@ -41,7 +41,7 @@ export function Loader(props) {
 
     function loadData() {
         setLoading(true);
-        const body = {files: files(), session: sessionName};
+        const body = {files: files()};
         postRequest("load", body)
             .then(x => x.json())
             .then(setMetadata)

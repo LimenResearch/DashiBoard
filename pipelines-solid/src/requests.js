@@ -1,5 +1,3 @@
-export const sessionName = "user-experiment";
-
 export function postRequest(page, body) {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");

@@ -1,0 +1,8 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
+Pipelines = "12f58945-0960-453a-85e3-e4614e9748b9"
+
+[sources]
+DataIngestion = {path = "../DataIngestion"}
+Pipelines = {path = "../Pipelines"}

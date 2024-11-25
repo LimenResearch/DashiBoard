@@ -4,6 +4,7 @@ DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
 DuckDB = "d2f5444f-75bc-4fdf-ac35-56f514c445e1"
 IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 DataIngestion = {path = ".."}

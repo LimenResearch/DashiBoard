@@ -1,8 +1,10 @@
+import { host, port } from "./request.json"
+
 export function postRequest(page, body) {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
-    const response = fetch("http://127.0.0.1:8080/" + page, {
+    const response = fetch("http://" + host + ":" + port + "/" + page, {
         method: "POST",
         body: JSON.stringify(body),
         headers: myHeaders,

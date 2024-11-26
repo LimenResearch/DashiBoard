@@ -7,6 +7,8 @@ makedocs(
     modules = [DataIngestion, Pipelines],
     pages = [
         "Overview" => "index.md",
+        "Getting Started" => "getting-started.md",
+        "UI Guide" => "ui-guide.md",
         "DataIngestion API" => "DataIngestion.md",
         "Pipelines API" => "Pipelines.md",
     ]

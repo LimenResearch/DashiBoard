@@ -1,5 +1,6 @@
 using HTTP: HTTP
 using Oxygen: json, @post, serve
+using Scratch: @get_scratch!
 
 using JSON3, JSONTables, DuckDB, Dates, Tables, UUIDs
 
@@ -26,7 +27,7 @@ function CorsHandler(handle)
     end
 end
 
-const repo = Repository(joinpath("cache", "db.duckdb"))
+const repo = Repository(joinpath(@get_scratch!("cache"), "db.duckdb"))
 # TODO: update code below
 
 @post "/load" function (req::HTTP.Request)

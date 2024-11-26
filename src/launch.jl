@@ -21,7 +21,20 @@ function CorsHandler(handle)
     end
 end
 
+function acceptable_files()
+    return Iterators.flatmap(walkdir(data_directory)) do (root, _, files)
+        rel_root = relpath(root, data_directory)
+        return (normpath(rel_root, file) for file in files if is_supported(file))
+    end
+end
+
 function launch(; options...)
+    # TODO: clarify `post` vs `get`
+    @post "/list" function (req::HTTP.Request)
+        files = collect(String, acceptable_files())
+        return JSON3.write(files)
+    end
+
     @post "/load" function (req::HTTP.Request)
         spec = json(req)
         files = joinpath.(data_directory, spec["files"])

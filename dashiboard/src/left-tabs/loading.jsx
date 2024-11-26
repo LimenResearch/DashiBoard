@@ -4,9 +4,6 @@ import { Button } from "../components/button";
 import { FilePicker } from "../components/file-picker";
 import { postRequest } from "../requests";
 
-const source = "data";
-const extensions = [".csv", ".tsv", ".txt", ".json", ".parquet"];
-
 export function initLoader(){
     const [metadata, setMetadata] = createSignal([]);
 
@@ -35,11 +32,7 @@ export function Loader(props) {
 
     return <div>
         <div class="p-4">
-            <FilePicker
-                    multiple
-                    onChange={setFiles}
-                    source={source}
-                    extensions={extensions}>
+            <FilePicker multiple onChange={setFiles}>
             </FilePicker>
         </div>
         <div class="p-4">

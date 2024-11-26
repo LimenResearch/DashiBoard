@@ -13,20 +13,15 @@ const TABLE_NAMES = (
 
 function to_format(s::AbstractString)
     _, ext = splitext(s)
-    fmt = lstrip(ext, '.')
-    if haskey(DEFAULT_READERS, fmt)
-        return fmt
-    else
-        valid_formats = collect(keys(DEFAULT_READERS))
-        sort!(valid_formats)
-        error(
-            """
-            Automated format detection failed. Detected invalid format '$fmt'.
-            Valid formats are $(sprint(print_list, valid_formats, false)).
-            """
-        )
-    end
+    return lstrip(ext, '.')
 end
+
+"""
+    is_supported(file::AbstractString)
+
+Denote whether a file can be read automatically.
+"""
+is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 
 """
     load_files(

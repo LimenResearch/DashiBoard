@@ -8,8 +8,13 @@ CurrentModule = DataIngestion
 
 ```@docs
 Repository
+```
+
+## Ingestion interface
+
+```@docs
+DataIngestion.is_supported
 DataIngestion.load_files
-DataIngestion.summarize
 ```
 
 ## Selection interface
@@ -24,4 +29,10 @@ DataIngestion.select
 ```@docs
 DataIngestion.IntervalFilter
 DataIngestion.ListFilter
+```
+
+### Metadata for filter generation
+
+```@docs
+DataIngestion.summarize
 ```

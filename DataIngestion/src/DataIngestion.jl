@@ -4,7 +4,7 @@ export Repository, Filters
 
 export ListFilter, IntervalFilter
 
-public load_files, summarize, select
+public is_supported, load_files, summarize, select
 
 using FunSQL: pack,
     reflect,

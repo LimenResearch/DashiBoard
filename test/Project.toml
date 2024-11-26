@@ -1,0 +1,16 @@
+[deps]
+DashiBoard = "a38468e0-6083-4ddb-9a62-f888bd36c420"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
+Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+DuckDB = "d2f5444f-75bc-4fdf-ac35-56f514c445e1"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+Pipelines = "12f58945-0960-453a-85e3-e4614e9748b9"
+Scratch = "6c6a2e73-6563-6170-7368-637461726353"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+DashiBoard = {path = ".."}
+DataIngestion = {path = "../DataIngestion"}
+Pipelines = {path = "../Pipelines"}

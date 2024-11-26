@@ -22,8 +22,6 @@
     "@ag-grid-community/infinite-row-model": "^32.3.3",
     "@ag-grid-community/styles": "^32.3.3",
     "@thisbeyond/solid-select": "^0.15.0",
-    "path-browserify": "^1.0.1",
-    "solid-js": "^1.9.1",
-    "vite-plugin-fs": "^1.1.0"
+    "solid-js": "^1.9.1"
   }
 }

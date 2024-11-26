@@ -28,9 +28,26 @@ function to_format(s::AbstractString)
     end
 end
 
+"""
+    load_files(
+        repository::Repository, files::AbstractVector{<:AbstractString},
+        [format::AbstractString]
+    )
+
+Load `files` into a table called `TABLE_NAMES.source` inside `repository.db`.
+The format is inferred or can be passed explicitly.
+
+Supported formats are
+- `"csv"`,
+- `"tsv"`,
+- `"txt"`,
+- `"json"`,
+- `"parquet"`.
+"""
 function load_files(
         repository::Repository, files::AbstractVector{<:AbstractString},
-        format::AbstractString = to_format(first(files)))
+        format::AbstractString = to_format(first(files))
+    )
 
     N = length(files)
     placeholders = join(string.('$', 1:N), ", ")

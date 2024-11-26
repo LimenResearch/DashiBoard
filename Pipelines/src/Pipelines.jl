@@ -2,6 +2,10 @@ module Pipelines
 
 export Cards
 
+export RescaleCard, SplitCard
+
+public evaluate
+
 using Tables: Tables
 using DBInterface: DBInterface
 using UUIDs: uuid4

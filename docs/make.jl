@@ -6,8 +6,10 @@ makedocs(
     format = Documenter.HTML(inventory_version = v"1.0.0-DEV"),
     modules = [DataIngestion, Pipelines],
     pages = [
-            "Overview" => "index.md",
-            ]
+        "Overview" => "index.md",
+        "DataIngestion API" => "DataIngestion.md",
+        "Pipelines API" => "Pipelines.md",
+    ]
 )
 
 # Documenter can also automatically deploy documentation to gh-pages.

@@ -5,6 +5,15 @@ struct Repository
     pool::DuckDBPool
 end
 
+"""
+    Repository(db::DuckDB.DB)
+
+Construct a `Repository` object that holds a `DuckDB.DB` as well as a pool of
+connections.
+
+Use `DBInterface.(f::Base.Callable, repo::Repository, sql::AbstractString, [params])`
+to run a function on the result of a query `sql` on an available connection in the pool.
+"""
 Repository(db::DuckDB.DB) = Repository(db, DuckDBPool())
 
 Repository(path::AbstractString) = Repository(DuckDB.DB(path))

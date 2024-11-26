@@ -45,6 +45,13 @@ const CARD_TYPES = Dict(
 get_card(d::AbstractDict) = CARD_TYPES[d["type"]](d)
 get_card(c::AbstractCard) = c
 
+"""
+    struct Cards
+        cards::Vector{AbstractCard}
+    end
+
+Container for a list of `cards`.
+"""
 struct Cards
     cards::Vector{AbstractCard}
     function Cards(cs::AbstractVector)
@@ -53,11 +60,13 @@ struct Cards
     end
 end
 
-function evaluate(
-        cards::Cards,
-        repo::Repository,
-        table::AbstractString
-    )
+"""
+    evaluate(cards::Cards, repo::Repository, table::AbstractString)
+
+Replace `table` in the database `repo.db` with the outcome of executing all
+the transformations in `cards`.
+"""
+function evaluate(cards::Cards, repo::Repository, table::AbstractString)
     # For now, we update all the nodes TODO: mark which cards need updating
     nodes = [Node(inputs(card), outputs(card), true) for card in cards.cards]
     order = evaluation_order!(nodes)

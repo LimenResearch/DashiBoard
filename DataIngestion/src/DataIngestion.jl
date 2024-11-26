@@ -2,6 +2,8 @@ module DataIngestion
 
 export Repository, Filters
 
+export ListFilter, IntervalFilter
+
 public load_files, summarize, select
 
 using FunSQL: pack,

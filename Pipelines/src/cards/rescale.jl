@@ -1,3 +1,22 @@
+"""
+    struct RescaleCard <: AbstractCard
+        method::String
+        by::Vector{String}
+        columns::Vector{String}
+        suffix::String
+    end
+
+Card to rescale of one or more columns according to a given `method`.
+The supported methods are
+- `"zscore"`,
+- `"maxabs"`,
+- `"minmax"`,
+- `"log"`,
+- `"logistic"`.
+
+The resulting rescaled variable is added to the table under the name
+`"\$(originalname)_\$(suffix)"`. 
+"""
 struct RescaleCard <: AbstractCard
     method::String
     by::Vector{String}

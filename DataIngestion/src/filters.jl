@@ -7,6 +7,14 @@ Query(node::SQLNode) = Query(node, Dict{String, Any}())
 
 abstract type AbstractFilter end
 
+"""
+    struct IntervalFilter{T} <: AbstractFilter
+        colname::String
+        interval::ClosedInterval{T}
+    end
+
+Object to retain only those rows for which the variable `colname` lies inside the `interval`.
+"""
 struct IntervalFilter{T} <: AbstractFilter
     colname::String
     interval::ClosedInterval{T}
@@ -30,6 +38,14 @@ function Query(f::IntervalFilter, prefix::AbstractString)
     return Query(Where(cond), params)
 end
 
+"""
+    struct ListFilter{T} <: AbstractFilter
+        colname::String
+        list::Vector{T}
+    end
+
+Object to retain only those rows for which the variable `colname` belongs to a `list` of options.
+"""
 struct ListFilter{T} <: AbstractFilter
     colname::String
     list::Vector{T}
@@ -60,6 +76,13 @@ const FILTER_TYPES = Dict(
 get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
 get_filter(f::AbstractFilter) = f
 
+"""
+    struct Filters
+        filters::Vector{AbstractFilter}
+    end
+
+Container for a list of `filters`.
+"""
 struct Filters
     filters::Vector{AbstractFilter}
     function Filters(fs::AbstractVector)
@@ -78,6 +101,16 @@ function Query(filters::Filters; init)
     return Query(node, params)
 end
 
+
+"""
+    select(filters::Filters, repo::Repository)
+
+Create a table with name `TABLE_NAMES.selection` within the database `repo.db`
+based on rows from the table `TABLE_NAMES.source` that are kept by the filters
+in `filters`.
+
+See also [`Filters`](@ref) and [`Repository`](@ref).
+"""
 function select(filters::Filters, repo::Repository)
     (; node, params) = Query(filters, init = From(TABLE_NAMES.source))
     sql = render(get_catalog(repo), node)

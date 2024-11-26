@@ -1,3 +1,19 @@
+"""
+    struct SplitCard <: AbstractCard
+        method::String
+        order_by::Vector{String}
+        by::Vector{String}
+        output::String
+        p::Float64
+        tiles::Vector{Int}
+    end
+
+Card to split the data into two groups according to a given `method`.
+
+Currently supported methods are
+- `"tiles"` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
+- `"percentile"` (requires `p` argument, e.g. `p = 0.9`).
+"""
 struct SplitCard <: AbstractCard
     method::String
     order_by::Vector{String}

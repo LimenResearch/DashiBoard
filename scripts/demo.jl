@@ -1,8 +1,8 @@
 using DataIngestion, Pipelines, JSON3, DuckDB, DataFrames
 using Scratch: @get_scratch!
 
-load_config = open(JSON3.read, "static/load.json")
-pipeline_config = open(JSON3.read, "static/pipeline.json")
+load_config = open(JSON3.read, "test/static/load.json")
+pipeline_config = open(JSON3.read, "test/static/pipeline.json")
 
 repo = Repository(joinpath(@get_scratch!("cache"), "db.duckdb"))
 DataIngestion.load_files(repo, joinpath.("dashiboard", "data", load_config["files"]))

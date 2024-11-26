@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { Select } from "@thisbeyond/solid-select";
 
-import { SplitCard, initSplitCard } from "../cards/split"
+import { SplitCard, initSplitCard } from "../cards/split";
 import { initRescaleCard, RescaleCard } from "../cards/rescale";
 
 export function setKey([value, setValue], k, v) {

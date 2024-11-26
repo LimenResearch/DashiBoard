@@ -1,5 +1,5 @@
-import { createSignal } from "solid-js"
-import { Select, createOptions } from "@thisbeyond/solid-select"
+import { createSignal } from "solid-js";
+import { Select, createOptions } from "@thisbeyond/solid-select";
 import { Input } from "../components/input";
 import { setKey } from "../components/card";
 

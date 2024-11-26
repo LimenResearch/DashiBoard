@@ -4,6 +4,7 @@ authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
 version = "1.0.0-DEV"
 
 [deps]
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 ConcurrentUtilities = "f0e56b4a-5159-44fe-b623-3e5288b988bb"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
@@ -21,6 +22,7 @@ DataIngestion = {path = "DataIngestion"}
 Pipelines = {path = "Pipelines"}
 
 [compat]
+ArgParse = "1.2.0"
 ConcurrentUtilities = "2"
 DataFrames = "1.7.0"
 DuckDB = "1.1"

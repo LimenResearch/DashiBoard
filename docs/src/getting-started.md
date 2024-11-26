@@ -20,7 +20,7 @@ julia --project -e 'using Pkg; Pkg.add(Pkg.PackageSpec(name="DuckDB", rev="main"
 Then, launch the server with the following command:
 
 ```
-julia --project scripts/serve.jl
+julia --project bin/launch.jl --host=127.0.0.1 --port=8080
 ```
 
 ## Launching the frontend

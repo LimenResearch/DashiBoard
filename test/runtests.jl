@@ -2,9 +2,15 @@ using HTTP, DataIngestion, Pipelines, JSON3, DuckDB, DataFrames
 using DashiBoard
 using Scratch: @get_scratch!
 using Test
+using Downloads: download
 
 const static_dir = joinpath(@__DIR__, "static")
 const data_dir = joinpath(dirname(@__DIR__), "dashiboard", "data")
+
+download(
+    "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
+    joinpath(data_dir, "pollution.csv")
+)
 
 load_config = open(JSON3.read, joinpath(static_dir, "load.json"))
 pipeline_config = open(JSON3.read, joinpath(static_dir, "pipeline.json"))
@@ -45,3 +51,5 @@ end
 DashiBoard.close!()
 
 close(server)
+
+rm(joinpath(data_dir, "pollution.csv"))

@@ -1,5 +1,3 @@
-
-
 const allowed_origins = ["Access-Control-Allow-Origin" => "*"]
 
 const cors_headers = [
@@ -21,14 +19,12 @@ function CorsHandler(handle)
     end
 end
 
-const repo = Repository(joinpath(@get_scratch!("cache"), "db.duckdb"))
-
-function launch()
+function launch(; options...)
     @post "/load" function (req::HTTP.Request)
         spec = json(req)
         files = joinpath.("dashiboard", "data", spec["files"])
-        DataIngestion.load_files(repo, files)
-        summaries = DataIngestion.summarize(repo, "source")
+        DataIngestion.load_files(REPOSITORY[], files)
+        summaries = DataIngestion.summarize(REPOSITORY[], "source")
         return JSON3.write(summaries)
     end
 
@@ -36,9 +32,9 @@ function launch()
         spec = json(req)
         filters = Filters(spec["filters"])
         cards = Cards(spec["cards"])
-        DataIngestion.select(filters, repo)
-        Pipelines.evaluate(cards, repo, "selection")
-        summaries = DataIngestion.summarize(repo, "selection")
+        DataIngestion.select(filters, REPOSITORY[])
+        Pipelines.evaluate(cards, REPOSITORY[], "selection")
+        summaries = DataIngestion.summarize(REPOSITORY[], "selection")
         return JSON3.write(summaries)
     end
 
@@ -49,14 +45,18 @@ function launch()
         print(io, "{\"values\": ")
         DBInterface.execute(
             x -> arraytable(io, Tables.columns(x)),
-            repo,
+            REPOSITORY[],
             "FROM $table LIMIT ? OFFSET ?;",
             [spec["limit"], spec["offset"]]
         )
-        count = DBInterface.execute(first, repo, "SELECT count(*) AS nrows FROM $table;")
+        count = DBInterface.execute(
+            first,
+            REPOSITORY[],
+            "SELECT count(*) AS nrows FROM $table;"
+        )
         print(io, " , \"length\": ", count.nrows, "}")
         return String(take!(io))
     end
 
-    serve(middleware = [CorsHandler])
+    serve(; middleware = [CorsHandler], options...)
 end

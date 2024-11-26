@@ -60,3 +60,5 @@ function launch(; options...)
 
     serve(; middleware = [CorsHandler], options...)
 end
+
+close!() = DBInterface.close!(REPOSITORY[].db)

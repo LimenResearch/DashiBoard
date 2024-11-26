@@ -4,7 +4,7 @@ using Scratch: @get_scratch!
 using Test
 
 const static_dir = joinpath(@__DIR__, "static")
-const data_dir = joinpath(@__DIR__, "..", "dashiboard", "data")
+const data_dir = joinpath(dirname(@__DIR__), "dashiboard", "data")
 
 load_config = open(JSON3.read, joinpath(static_dir, "load.json"))
 pipeline_config = open(JSON3.read, joinpath(static_dir, "pipeline.json"))
@@ -27,7 +27,7 @@ end
 
 DBInterface.close!(repo.db)
 
-DashiBoard.launch(; async = true)
+server = DashiBoard.launch(; async = true)
 
 @testset "request" begin
     url = "http://127.0.0.1:8080/"
@@ -41,3 +41,7 @@ DashiBoard.launch(; async = true)
 
     @test summaries[end]["name"] == "_percentile_partition"
 end
+
+DashiBoard.close!()
+
+close(server)

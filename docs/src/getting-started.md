@@ -20,7 +20,7 @@ julia --project -e 'using Pkg; Pkg.add(Pkg.PackageSpec(name="DuckDB", rev="main"
 Then, launch the server with the following command:
 
 ```
-julia --project bin/launch.jl --host=127.0.0.1 --port=8080 path/to/data
+julia --project bin/launch.jl path/to/data
 ```
 
 where `path/to/data` represents the data folder you wish to make accessible
@@ -37,4 +37,4 @@ pnpm run dev
 This will inform you that your browser has now access to the data in the folder
 `dashiboard/data` and will launch the UI frontend.
 
-To interact with the UI, open your browser and navigate to the page `http://localhost:3000/`.
+To interact with the UI, open your browser and navigate to the page [http://localhost:3000](http://localhost:3000).

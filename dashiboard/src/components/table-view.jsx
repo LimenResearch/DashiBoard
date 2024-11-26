@@ -36,7 +36,8 @@ export function TableView(props) {
     const options = () => {
         const columnDefs = props.metadata.map(x => ({ field: x.name, headerName: x.name }));
         const datasource = dataSource(columnDefs);
-        return {datasource, columnDefs}
+        const suppressFieldDotNotation = true;
+        return {datasource, columnDefs, suppressFieldDotNotation};
     }
 
     const gridOptions = {

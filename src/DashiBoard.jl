@@ -1,5 +1,6 @@
 module DashiBoard
 
+# TODO: `data_directory` must be configurable
 public launch, data_directory
 
 using HTTP: HTTP

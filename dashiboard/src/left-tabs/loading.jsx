@@ -1,5 +1,5 @@
 import { createSignal, createResource } from "solid-js";
-import { join } from 'path-browserify'
+import { join } from "path-browserify";
 
 import { Button } from "../components/button";
 import { FilePicker, DirectoryPicker } from "../components/file-picker";

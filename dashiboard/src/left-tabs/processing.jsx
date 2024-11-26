@@ -1,5 +1,5 @@
 import { createStore } from "solid-js/store";
-import { CardList } from "../components/card-list"
+import { CardList } from "../components/card-list";
 
 export function initPipeline() {
     const [store, setStore] = createStore({cards: []});

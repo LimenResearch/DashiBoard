@@ -25,7 +25,7 @@ julia --project scripts/serve.jl
 
 ## Launching the frontend
 
-Open a terminal in the `pipelines-solid` folder, then run the following command:
+Open a terminal in the `dashiboard` folder, then run the following command:
 
 ```
 pnpm run dev

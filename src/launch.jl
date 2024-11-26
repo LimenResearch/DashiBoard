@@ -1,5 +1,3 @@
-const data_directory = joinpath(dirname(@__DIR__), "dashiboard", "data")
-
 const allowed_origins = ["Access-Control-Allow-Origin" => "*"]
 
 const cors_headers = [
@@ -21,17 +19,17 @@ function CorsHandler(handle)
     end
 end
 
-function acceptable_files()
+function acceptable_files(data_directory)
     return Iterators.flatmap(walkdir(data_directory)) do (root, _, files)
         rel_root = relpath(root, data_directory)
         return (normpath(rel_root, file) for file in files if is_supported(file))
     end
 end
 
-function launch(; options...)
+function launch(data_directory; options...)
     # TODO: clarify `post` vs `get`
     @post "/list" function (req::HTTP.Request)
-        files = collect(String, acceptable_files())
+        files = collect(String, acceptable_files(data_directory))
         return JSON3.write(files)
     end
 
@@ -75,5 +73,3 @@ function launch(; options...)
 
     serve(; middleware = [CorsHandler], options...)
 end
-
-close!() = DBInterface.close!(REPOSITORY[].db)

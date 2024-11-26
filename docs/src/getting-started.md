@@ -20,8 +20,11 @@ julia --project -e 'using Pkg; Pkg.add(Pkg.PackageSpec(name="DuckDB", rev="main"
 Then, launch the server with the following command:
 
 ```
-julia --project bin/launch.jl --host=127.0.0.1 --port=8080
+julia --project bin/launch.jl --host=127.0.0.1 --port=8080 path/to/data
 ```
+
+where `path/to/data` represents the data folder you wish to make accessible
+to DashiBoard.
 
 ## Launching the frontend
 

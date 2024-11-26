@@ -1,7 +1,6 @@
 module DashiBoard
 
-# TODO: `data_directory` must be configurable
-public launch, data_directory
+public launch
 
 using HTTP: HTTP
 using Oxygen: json, @post, serve

@@ -5,7 +5,7 @@ using Test
 using Downloads: download
 
 const static_dir = joinpath(@__DIR__, "static")
-const data_dir = joinpath(dirname(@__DIR__), "dashiboard", "data")
+const data_dir = DashiBoard.data_directory
 
 download(
     "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",

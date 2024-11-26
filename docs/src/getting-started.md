@@ -1,6 +1,6 @@
 # Getting Started
 
-DashiBoard is still in development, thus installing is requires a few passages.
+DashiBoard is still in development, thus installing requires a few passages.
 
 ## Installation dependencies
 
@@ -30,3 +30,8 @@ Open a terminal in the `dashiboard` folder, then run the following command:
 ```
 pnpm run dev
 ```
+
+This will inform you that your browser has now access to the data in the folder
+`dashiboard/data` and will launch the UI frontend.
+
+To interact with the UI, open your browser and navigate to the page `http://localhost:3000/`.

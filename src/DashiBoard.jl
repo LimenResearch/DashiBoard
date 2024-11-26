@@ -1,6 +1,6 @@
 module DashiBoard
 
-public launch
+public launch, data_directory
 
 using HTTP: HTTP
 using Oxygen: json, @post, serve

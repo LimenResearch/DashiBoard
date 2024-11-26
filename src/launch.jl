@@ -1,3 +1,5 @@
+const data_directory = joinpath(dirname(@__DIR__), "dashiboard", "data")
+
 const allowed_origins = ["Access-Control-Allow-Origin" => "*"]
 
 const cors_headers = [
@@ -22,7 +24,7 @@ end
 function launch(; options...)
     @post "/load" function (req::HTTP.Request)
         spec = json(req)
-        files = joinpath.("dashiboard", "data", spec["files"])
+        files = joinpath.(data_directory, spec["files"])
         DataIngestion.load_files(REPOSITORY[], files)
         summaries = DataIngestion.summarize(REPOSITORY[], "source")
         return JSON3.write(summaries)

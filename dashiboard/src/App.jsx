@@ -1,5 +1,3 @@
-import fs from 'vite-plugin-fs/browser';
-
 import { createSignal } from "solid-js";
 
 import { postRequest } from "./requests";
@@ -13,7 +11,6 @@ import { Spreadsheet } from "./right-tabs/spreadsheet";
 import { Tabs } from "./components/tabs";
 
 export function App() {
-    fs.readdir("../").then(x => console.log(x));
     const loaderData = initLoader();
     const filtersData = initFilters();
     const pipelineData = initPipeline();

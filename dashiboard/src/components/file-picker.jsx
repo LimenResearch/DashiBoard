@@ -1,19 +1,28 @@
-import { Button } from "./button";
+import fs from 'vite-plugin-fs/browser';
 
-export function FilePicker(props) {
-    async function onClick() {
-        const value = await window.showOpenFilePicker(props.options || {});
-        props.onValue && props.onValue(value);
-    }
+import { Select, createOptions } from "@thisbeyond/solid-select";
+import { createResource } from 'solid-js';
 
-    return <Button positive onClick={onClick} disabled={props.disabled}>{props.children}</Button>;
+function acceptable(name, extensions) {
+    return extensions.some(x => name.endsWith(x));
 }
 
-export function DirectoryPicker(props) {
-    async function onClick() {
-        const value = await window.showDirectoryPicker(props.options || {});
-        props.onValue && props.onValue(value);
-    }
+// TODO: allow files in nested directories
+async function readDir(input) {
+    const {source, extensions} = input;
+    const files = await fs.readdir(source);
+    return files.filter(name => acceptable(name, extensions));
+}
 
-    return <Button positive onClick={onClick} disabled={props.disabled}>{props.children}</Button>;
+export function FilePicker(props) {
+    const input = () => ({source: props.source, extensions: props.extensions});
+    const [files] = createResource(input, readDir);
+    const selProps = createOptions(() => files() || []);
+    const selectClass = "text-blue-800 font-semibold py-4 w-full text-left";
+    const id = crypto.randomUUID();
+    return <>
+        <label for={id + "load"} class={selectClass}>Choose files</label>
+        <Select id={id + "load"} onChange={props.onChange}
+            multiple={props.multiple} {...selProps}></Select>
+    </>;
 }

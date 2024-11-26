@@ -32,7 +32,7 @@ const repo = Repository(joinpath(@get_scratch!("cache"), "db.duckdb"))
 
 @post "/load" function (req::HTTP.Request)
     spec = json(req)
-    files = joinpath.("data", spec["files"])
+    files = joinpath.("dashiboard", "data", spec["files"])
     DataIngestion.load_files(repo, files)
     summaries = DataIngestion.summarize(repo, "source")
     return JSON3.write(summaries)

@@ -1,42 +1,26 @@
-import { createSignal, createResource } from "solid-js";
-import { join } from "path-browserify";
+import { createSignal } from "solid-js";
 
 import { Button } from "../components/button";
-import { FilePicker, DirectoryPicker } from "../components/file-picker";
+import { FilePicker } from "../components/file-picker";
 import { postRequest } from "../requests";
 
-async function computeFiles(data) {
-    const [dirHandle, fileHandles] = data
-    const resolver = fileHandle => dirHandle == null ? "" : dirHandle.resolve(fileHandle);
-    const paths = await Promise.all(fileHandles.map(resolver));
-    return paths.map(x => join(...x));
-}
+const source = "data";
+const extensions = [".csv", ".tsv", ".txt", ".json", ".parquet"];
 
 export function initLoader(){
-    const [dirHandle, setDirHandle] = createSignal(null);
-    const [fileHandles, setFileHandles] = createSignal([]);
     const [metadata, setMetadata] = createSignal([]);
-    const [files] = createResource(() => [dirHandle(), fileHandles()], computeFiles);
 
     return {
         input: {
-            dirHandle: [dirHandle, setDirHandle],
-            fileHandles: [fileHandles, setFileHandles],
             metadata: [metadata, setMetadata],
-            files
         },
         output: metadata
     }
 }
 
 export function Loader(props) {
-
-    const input = props.input;
-    const [dirHandle, setDirHandle] = input.dirHandle;
-    const [fileHandles, setFileHandles] = input.fileHandles;
-    const [metadata, setMetadata] = input.metadata;
-    const files = input.files;
-
+    const [metadata, setMetadata] = props.input.metadata;
+    const [files, setFiles] = createSignal([]);
     const [loading, setLoading] = createSignal(false);
 
     function loadData() {
@@ -49,26 +33,14 @@ export function Loader(props) {
             .finally(setLoading(false));
     }
 
-    const fileOptions = {
-        multiple: true
-    };
-
     return <div>
         <div class="p-4">
-            <DirectoryPicker onValue={setDirHandle}>
-                {props.directoryMessage || "Enable folder"}
-            </DirectoryPicker>
-            <span>
-                {dirHandle() == null ? "Select a directory" : dirHandle().name}
-            </span>
-        </div>
-        <div class="p-4">
-            <FilePicker disabled={dirHandle() == null} onValue={setFileHandles} options={fileOptions}>
-                {props.fileMessage || "Choose files"}
+            <FilePicker
+                    multiple
+                    onChange={setFiles}
+                    source={source}
+                    extensions={extensions}>
             </FilePicker>
-            <span>
-                {files() && files().length > 0 ? files().join(", ") : "Pick a file"}
-            </span>
         </div>
         <div class="p-4">
             <Button

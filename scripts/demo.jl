@@ -5,7 +5,7 @@ load_config = open(JSON3.read, "static/load.json")
 pipeline_config = open(JSON3.read, "static/pipeline.json")
 
 repo = Repository(joinpath(@get_scratch!("cache"), "db.duckdb"))
-DataIngestion.load_files(repo, joinpath.("data", load_config["files"]))
+DataIngestion.load_files(repo, joinpath.("dashiboard", "data", load_config["files"]))
 
 filters = DataIngestion.Filters(pipeline_config["filters"])
 DataIngestion.select(filters, repo)

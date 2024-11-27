@@ -3,7 +3,7 @@ using DataIngestion, Pipelines
 
 makedocs(
     sitename = "DashiBoard",
-    format = Documenter.HTML(inventory_version = v"1.0.0-DEV"),
+    format = Documenter.HTML(),
     modules = [DataIngestion, Pipelines],
     pages = [
         "Overview" => "index.md",

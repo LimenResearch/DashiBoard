@@ -3,7 +3,8 @@ using DataIngestion, Pipelines
 
 makedocs(
     sitename = "DashiBoard",
-    format = Documenter.HTML(),
+    format = Documenter.LaTeX(),
+    authors = "Pietro Vertechi",
     modules = [DataIngestion, Pipelines],
     pages = [
         "Overview" => "index.md",

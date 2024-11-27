@@ -39,7 +39,11 @@ filtered data.
 
 To add a new card, click on the `＋` and select the type of card you wish to add.
 
-![adding a new card](assets/new-card.gif)
+![launching the new card selection menu](assets/new-card-0.png)
+
+![choosing the new card](assets/new-card-1.png)
+
+![the new card is generated](assets/new-card-1.png)
 
 You can add and compile as many cards as you wish.
 

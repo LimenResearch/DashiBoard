@@ -28,13 +28,18 @@ to DashiBoard.
 
 ## Launching the frontend
 
-Open a terminal in the `dashiboard` folder, then run the following command:
+Open a terminal in the `dashiboard` folder.
+
+Install all required dependencies with the following command:
 
 ```
-pnpm run dev
+pnpm install
 ```
 
-This will inform you that your browser has now access to the data in the folder
-`dashiboard/data` and will launch the UI frontend.
+Then, launch the frontend with the following command:
+
+```
+pnpm run start
+```
 
 To interact with the UI, open your browser and navigate to the page [http://localhost:3000](http://localhost:3000).

@@ -1,10 +1,19 @@
-const DEFAULT_READERS = Dict{String, String}(
+const VALID_FORMATS = [
     "csv" => "read_csv",
     "tsv" => "read_csv",
     "txt" => "read_csv",
     "json" => "read_json",
     "parquet" => "read_parquet",
-)
+]
+
+const DEFAULT_READERS = Dict{String, String}(VALID_FORMATS)
+
+function print_supported_formats(io::IO)
+    fmts = @. string("- `", first(VALID_FORMATS), "`")
+    join(io, fmts, ",\n")
+end
+
+sprint_supported_formats() = sprint(print_supported_formats)
 
 const TABLE_NAMES = (
     source = "source",
@@ -19,7 +28,8 @@ end
 """
     is_supported(file::AbstractString)
 
-Denote whether a file can be read automatically.
+Denote whether a file is of one of the available formats:
+$(sprint_supported_formats()).
 """
 is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 
@@ -32,12 +42,8 @@ is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 Load `files` into a table called `TABLE_NAMES.source` inside `repository.db`.
 The format is inferred or can be passed explicitly.
 
-Supported formats are
-- `"csv"`,
-- `"tsv"`,
-- `"txt"`,
-- `"json"`,
-- `"parquet"`.
+The following formats are supported:
+$(sprint_supported_formats()).
 """
 function load_files(
         repository::Repository, files::AbstractVector{<:AbstractString},

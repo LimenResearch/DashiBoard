@@ -11,8 +11,8 @@
 Card to split the data into two groups according to a given `method`.
 
 Currently supported methods are
-- `"tiles"` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
-- `"percentile"` (requires `p` argument, e.g. `p = 0.9`).
+- `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
+- `percentile` (requires `p` argument, e.g. `p = 0.9`).
 """
 struct SplitCard <: AbstractCard
     method::String

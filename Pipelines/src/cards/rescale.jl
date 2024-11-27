@@ -8,11 +8,11 @@
 
 Card to rescale of one or more columns according to a given `method`.
 The supported methods are
-- `"zscore"`,
-- `"maxabs"`,
-- `"minmax"`,
-- `"log"`,
-- `"logistic"`.
+- `zscore`,
+- `maxabs`,
+- `minmax`,
+- `log`,
+- `logistic`.
 
 The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`. 
@@ -40,7 +40,7 @@ function rescaler(r::RescaleCard, x::SQLNode)
     throw(ArgumentError("method $method is not supported"))
 end
 
-const needs_grouping = Dict{String, Bool}(
+const NEEDS_GROUPING = Dict{String, Bool}(
     "zscore" => true,
     "maxabs" => true,
     "minmax" => true,
@@ -48,7 +48,7 @@ const needs_grouping = Dict{String, Bool}(
     "logistic" => false,
 )
 
-partition(r::RescaleCard) = needs_grouping[r.method] ? Partition(by = Get.(r.by)) : identity
+partition(r::RescaleCard) = NEEDS_GROUPING[r.method] ? Partition(by = Get.(r.by)) : identity
 
 function evaluate(
         r::RescaleCard,

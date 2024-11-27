@@ -24,6 +24,7 @@ using ConcurrentUtilities: Pool, acquire, release
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst
 using Tables: Tables
+using OrderedCollections: OrderedDict
 
 include("repository.jl")
 include("load.jl")

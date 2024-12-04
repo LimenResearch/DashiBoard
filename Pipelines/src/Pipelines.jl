@@ -10,7 +10,7 @@ using Tables: Tables
 using DBInterface: DBInterface
 using UUIDs: uuid4
 using OrderedCollections: OrderedDict
-using DataIngestion: Repository, get_catalog
+using DuckDBUtils: Repository, get_catalog
 
 using FunSQL: render,
     SQLClause,

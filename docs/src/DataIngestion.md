@@ -4,12 +4,6 @@
 CurrentModule = DataIngestion
 ```
 
-## Database interface
-
-```@docs
-Repository
-```
-
 ## Ingestion interface
 
 ```@docs

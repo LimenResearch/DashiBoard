@@ -1,4 +1,4 @@
-using Pipelines, DataIngestion, DBInterface, DataFrames, Statistics, JSON3
+using Pipelines, DataIngestion, DuckDBUtils, DBInterface, DataFrames, Statistics, JSON3
 using Test
 
 const static_dir = joinpath(@__DIR__, "static")

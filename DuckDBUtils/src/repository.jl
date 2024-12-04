@@ -18,6 +18,8 @@ Repository(db::DuckDB.DB) = Repository(db, DuckDBPool())
 
 Repository(path::AbstractString) = Repository(DuckDB.DB(path))
 
+Repository() = Repository(DuckDB.DB())
+
 """
     with_connection(f, repo::Repository)
 

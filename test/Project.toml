@@ -1,4 +1,5 @@
 [deps]
+DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
 DashiBoard = "a38468e0-6083-4ddb-9a62-f888bd36c420"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"

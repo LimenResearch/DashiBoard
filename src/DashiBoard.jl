@@ -10,7 +10,7 @@ using JSON3: JSON3
 
 using JSONTables: arraytable
 
-using DuckDB: DBInterface, DuckDB
+using DBInterface: DBInterface
 
 using Tables: Tables
 

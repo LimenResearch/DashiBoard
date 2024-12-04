@@ -14,7 +14,9 @@ using DuckDB: DBInterface, DuckDB
 
 using Tables: Tables
 
-using DataIngestion: is_supported, Filters, Repository, DataIngestion
+using DuckDBUtils: Repository
+
+using DataIngestion: is_supported, Filters, DataIngestion
 
 using Pipelines: Cards, Pipelines
 

@@ -1,6 +1,6 @@
 using DataIngestion
 using IntervalSets
-using DuckDB, DataFrames, JSON3
+using DBInterface, DuckDBUtils, DataFrames, JSON3
 using Test
 
 const static_dir = joinpath(@__DIR__, "static")

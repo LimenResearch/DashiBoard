@@ -17,7 +17,7 @@ using FunSQL: pack,
     Where,
     Order,
     Group
-using DuckDB: DBInterface, DuckDB
+using DBInterface: DBInterface
 using DuckDBUtils: Repository, get_catalog
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst

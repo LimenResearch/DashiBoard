@@ -18,6 +18,7 @@ using DataIngestion: is_supported, Filters, Repository, DataIngestion
 
 using Pipelines: Cards, Pipelines
 
+# TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
 
 include("launch.jl")

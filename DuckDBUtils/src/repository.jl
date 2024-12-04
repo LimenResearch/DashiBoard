@@ -21,22 +21,24 @@ Repository(path::AbstractString) = Repository(DuckDB.DB(path))
 Repository() = Repository(DuckDB.DB())
 
 """
-    with_connection(f, repo::Repository)
+    with_connections(f, repo::Repository, n = 1)
 
-Acquire a connection `con` from the pool `repo.pool`.
-Then, execute `f(con)` and release the connection to the pool.
+Acquire `n` connections `(con_1, ..., con_n)` from the pool `repo.pool`.
+Then, execute `f(con_1, ..., con_n)` and release the connections to the pool.
 """
-function with_connection(f, (; db, pool)::Repository)
-    con = acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
+function with_connections(f, (; db, pool)::Repository, n = Val{1}())
+    cons = ntuple(n) do _
+        acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
+    end
     try
-        f(con)
+        f(cons...)
     finally
-        release(pool, con)
+        foreach(Fix1(release, pool), cons)
     end
 end
 
 function DBInterface.execute(f::Base.Callable, repo::Repository, sql::AbstractString, params = (;))
-    with_connection(repo) do conn
+    with_connections(repo) do conn
         DBInterface.execute(f, conn, sql, params)
     end
 end
@@ -52,7 +54,7 @@ end
 Extract the catalog of available tables from a `Repository` `repo`.
 """
 function get_catalog(repo::Repository; schema = nothing)
-    with_connection(repo) do con
+    with_connections(repo) do con
         reflect(con; dialect = :duckdb, schema)
     end
 end

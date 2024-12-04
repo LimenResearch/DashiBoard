@@ -9,7 +9,7 @@ CurrentModule = DuckDBUtils
 ```@docs
 Repository
 get_catalog
-with_connection
+with_connections
 ```
 
 ## Batched iteration

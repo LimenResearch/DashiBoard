@@ -1,4 +1,4 @@
-using HTTP, DataIngestion, Pipelines, JSON3, DuckDB, DataFrames
+using HTTP, DataIngestion, Pipelines, JSON3, DBInterface, DataFrames
 using DashiBoard
 using Scratch: @get_scratch!
 using Test

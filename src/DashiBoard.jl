@@ -10,14 +10,17 @@ using JSON3: JSON3
 
 using JSONTables: arraytable
 
-using DuckDB: DBInterface, DuckDB
+using DBInterface: DBInterface
 
 using Tables: Tables
 
-using DataIngestion: is_supported, Filters, Repository, DataIngestion
+using DuckDBUtils: Repository
+
+using DataIngestion: is_supported, Filters, DataIngestion
 
 using Pipelines: Cards, Pipelines
 
+# TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
 
 include("launch.jl")

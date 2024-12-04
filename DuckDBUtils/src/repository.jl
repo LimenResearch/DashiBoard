@@ -18,6 +18,12 @@ Repository(db::DuckDB.DB) = Repository(db, DuckDBPool())
 
 Repository(path::AbstractString) = Repository(DuckDB.DB(path))
 
+"""
+    with_connection(f, repo::Repository)
+
+Acquire a connection `con` from the pool `repo.pool`.
+Then, execute `f(con)` and release the connection to the pool.
+"""
 function with_connection(f, (; db, pool)::Repository)
     con = acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
     try
@@ -38,4 +44,13 @@ function DBInterface.execute(f::Base.Callable, repo::Repository, node::SQLNode, 
     return DBInterface.execute(f, repo, String(sql), pack(sql, params))
 end
 
-get_catalog(repo::Repository; kwargs...) = with_connection(con -> reflect(con; dialect = :duckdb, kwargs...), repo)
+"""
+    get_catalog(repo::Repository; schema = nothing)
+
+Extract the catalog of available tables from a `Repository` `repo`.
+"""
+function get_catalog(repo::Repository; schema = nothing)
+    with_connection(repo) do con
+        reflect(con; dialect = :duckdb, schema)
+    end
+end

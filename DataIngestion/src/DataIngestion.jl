@@ -1,8 +1,6 @@
 module DataIngestion
 
-export Repository, Filters
-
-export ListFilter, IntervalFilter
+export Filters, ListFilter, IntervalFilter
 
 public is_supported, load_files, summarize, select
 
@@ -19,14 +17,13 @@ using FunSQL: pack,
     Where,
     Order,
     Group
-using DuckDB: DBInterface, DuckDB
-using ConcurrentUtilities: Pool, acquire, release
+using DBInterface: DBInterface
+using DuckDBUtils: Repository, get_catalog
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst
 using Tables: Tables
 using OrderedCollections: OrderedDict
 
-include("repository.jl")
 include("load.jl")
 include("filters.jl")
 include("summary.jl")

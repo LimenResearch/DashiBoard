@@ -1,6 +1,10 @@
 module DuckDBUtils
 
-export Batches, Repository, get_catalog, with_connections
+export Batches
+
+export Repository, with_connection, acquire_connection, release_connection
+
+export get_catalog
 
 using Base: Fix1
 using FunSQL: reflect, render, pack, SQLNode

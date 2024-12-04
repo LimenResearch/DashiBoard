@@ -21,25 +21,45 @@ Repository(path::AbstractString) = Repository(DuckDB.DB(path))
 Repository() = Repository(DuckDB.DB())
 
 """
-    with_connections(f, repo::Repository, n = 1)
+    acquire_connection(repo::Repository)
 
-Acquire `n` connections `(con_1, ..., con_n)` from the pool `repo.pool`.
-Then, execute `f(con_1, ..., con_n)` and release the connections to the pool.
+Acquire an open connection to the database `repo.db` from the pool `repo.pool`.
+See also [`release_connection`](@ref).
+
+!!! note
+    A command `con = acquire_connection(repo)` must always be followed by a matching
+    command `release_connection(repo, con)` (after the connection has been used).
 """
-function with_connections(f, (; db, pool)::Repository, n = Val{1}())
-    cons = ntuple(n) do _
-        acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
-    end
+function acquire_connection(repo::Repository)
+    (; db, pool) = repo
+    return acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
+end
+
+"""
+    release_connection(repo::Repository, con)
+
+Release connection `con` to the pool `repo.pool`
+"""
+release_connection(repo::Repository, con) = release(repo.pool, con)
+
+"""
+    with_connection(f, repo::Repository)
+
+Acquire a connection `con` from the pool `repo.pool`.
+Then, execute `f(con)` and release the connection to the pool.
+"""
+function with_connection(f, repo::Repository, n = Val{1}())
+    con = acquire_connection(repo)
     try
-        f(cons...)
+        f(con)
     finally
-        foreach(Fix1(release, pool), cons)
+        release_connection(repo, con)
     end
 end
 
 function DBInterface.execute(f::Base.Callable, repo::Repository, sql::AbstractString, params = (;))
-    with_connections(repo) do conn
-        DBInterface.execute(f, conn, sql, params)
+    with_connection(repo) do con
+        DBInterface.execute(f, con, sql, params)
     end
 end
 
@@ -54,7 +74,7 @@ end
 Extract the catalog of available tables from a `Repository` `repo`.
 """
 function get_catalog(repo::Repository; schema = nothing)
-    with_connections(repo) do con
+    with_connection(repo) do con
         reflect(con; dialect = :duckdb, schema)
     end
 end

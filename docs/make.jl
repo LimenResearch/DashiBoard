@@ -9,9 +9,9 @@ makedocs(
         "Overview" => "index.md",
         "Getting Started" => "getting-started.md",
         "UI Guide" => "ui-guide.md",
-        "DuckDBUtils API" => "DuckDBUtils.md",
-        "DataIngestion API" => "DataIngestion.md",
-        "Pipelines API" => "Pipelines.md",
+        "DuckDBUtils API" => "lib/DuckDBUtils.md",
+        "DataIngestion API" => "lib/DataIngestion.md",
+        "Pipelines API" => "lib/Pipelines.md",
     ]
 )
 

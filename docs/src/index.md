@@ -2,10 +2,11 @@
 
 DashiBoard is a data visualization GUI written in the [Julia](https://julialang.org/) programming language.
 
-The backend is powered by two libraries:
+The backend is powered by three libraries:
 
-- [Pipelines](@ref),
-- [DataIngestion](@ref).
+- [DuckDBUtils](@ref),
+- [DataIngestion](@ref),
+- [Pipelines](@ref).
 
 The frontend is powered by [SolidJS](https://www.solidjs.com/).
 

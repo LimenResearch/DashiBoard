@@ -43,17 +43,19 @@ Release connection `con` to the pool `repo.pool`
 release_connection(repo::Repository, con) = release(repo.pool, con)
 
 """
-    with_connection(f, repo::Repository)
+    with_connection(f, repo::Repository, [N])
 
 Acquire a connection `con` from the pool `repo.pool`.
 Then, execute `f(con)` and release the connection to the pool.
+An optional parameter `N` can be passed to determine the number of
+connections to be acquired (defaults to `1`).
 """
-function with_connection(f, repo::Repository, n = Val{1}())
-    con = acquire_connection(repo)
+function with_connection(f, repo::Repository, N = Val{1}())
+    cons = ntuple(_ -> acquire_connection(repo), N)
     try
-        f(con)
+        f(cons...)
     finally
-        release_connection(repo, con)
+        foreach(con -> release_connection(repo, con), cons)
     end
 end
 

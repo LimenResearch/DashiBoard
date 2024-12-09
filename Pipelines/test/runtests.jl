@@ -69,8 +69,13 @@ mktempdir() do dir
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
         ]
-        μ, σ = mean(df.TEMP), std(df.TEMP, corrected = false)
-        @test df.TEMP_rescaled ≈ @. (df.TEMP - μ) / σ
+
+        aux = transform(
+            groupby(df, "cbwd"),
+            "TEMP" => mean => "TEMP_mean",
+            "TEMP" => (x -> std(x, corrected = false)) => "TEMP_std"
+        )
+        @test aux.TEMP_rescaled ≈ @. (aux.TEMP - aux.TEMP_mean) / aux.TEMP_std
 
         resc = Pipelines.get_card(d["maxabs"])
         Pipelines.evaluate(resc, repo, "selection" => "rescaled")

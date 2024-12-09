@@ -89,7 +89,7 @@ function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair
     else
         tbl = intermediate_table(r, repo, source)
         with_table(repo, tbl) do tbl_name
-            on = mapfoldl(col -> Fun.:=(Get[col], Get.stats(col)), Fun.and, r.by, init = true)
+            on = mapfoldl(col -> Fun("=", Get[col], Get.stats[col]), Fun.and, r.by, init = true)
             query = From(source) |>
                 Join("stats" => From(tbl_name); on) |>
                 Define(rescaled...)

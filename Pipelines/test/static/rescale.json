@@ -2,7 +2,7 @@
     "zscore": {
         "type": "rescale",
         "method": "zscore",
-        "by": [],
+        "by": ["cbwd"],
         "columns": [
             "TEMP"
         ],

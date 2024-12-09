@@ -12,6 +12,7 @@ get_catalog
 acquire_connection
 release_connection
 with_connection
+with_table
 ```
 
 ## Batched iteration

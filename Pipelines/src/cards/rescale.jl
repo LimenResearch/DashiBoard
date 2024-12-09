@@ -28,20 +28,6 @@ inputs(r::RescaleCard) = union(r.by, r.columns)
 
 outputs(r::RescaleCard) = string.(r.columns, '_', r.suffix)
 
-function pair_wise_group_by(
-        repo::Repository,
-        source::AbstractString,
-        by::AbstractVector,
-        cols::AbstractVector,
-        fs...
-    )
-
-    key = getindex.(Get, by)
-    val = [string(col, '_', name) => f(Get[col]) for col in cols for (name, f) in fs]
-    query = From(source) |> Group(by = key) |> Select(key..., val...)
-    DBInterface.execute(fromtable, repo, query)
-end
-
 function zscore_transform(col)
     x = Get[col]
     μ = Get.stats[string(col, '_', "mean")]
@@ -73,9 +59,18 @@ const RESCALERS = Dict{String, Rescaler}(
     "logistic" => Rescaler(Pair[], logistic_transform)
 )
 
-function intermediate_table(r::RescaleCard, repo::Repository, source::AbstractString)
-    stats = RESCALERS[r.method].stats
-    return pair_wise_group_by(repo, source, r.by, r.columns, stats...)
+function pair_wise_group_by(
+        repo::Repository,
+        source::AbstractString,
+        by::AbstractVector,
+        cols::AbstractVector,
+        fs...
+    )
+
+    key = getindex.(Get, by)
+    val = [string(col, '_', name) => f(Get[col]) for col in cols for (name, f) in fs]
+    query = From(source) |> Group(by = key) |> Select(key..., val...)
+    DBInterface.execute(fromtable, repo, query)
 end
 
 function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair)
@@ -87,7 +82,7 @@ function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair
         replace_table(repo, target, query)
         return SimpleTable()
     else
-        tbl = intermediate_table(r, repo, source)
+        tbl = pair_wise_group_by(repo, source, r.by, r.columns, stats...)
         with_table(repo, tbl) do tbl_name
             on = mapfoldl(col -> Fun("=", Get[col], Get.stats[col]), Fun.and, r.by, init = true)
             query = From(source) |>

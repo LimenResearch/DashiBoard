@@ -59,15 +59,20 @@ function with_connection(f, repo::Repository, N = Val{1}())
     end
 end
 
-function DBInterface.execute(f::Base.Callable, repo::Repository, sql::AbstractString, params = (;))
-    with_connection(repo) do con
-        DBInterface.execute(f, con, sql, params)
-    end
-end
+"""
+    with_table(f, repo::Repository, table)
 
-function DBInterface.execute(f::Base.Callable, repo::Repository, node::SQLNode, params = (;))
-    sql = render(get_catalog(repo), node)
-    return DBInterface.execute(f, repo, String(sql), pack(sql, params))
+Register a table under a random unique name `name`, apply `f(name)`, and then
+unregister the table.
+"""
+function with_table(f, repo::Repository, table)
+    name = string(uuid4())
+    with_connection(con -> register_table(con, table, name), repo)
+    try
+        f(name)
+    finally
+        with_connection(con -> unregister_table(con, name), repo)
+    end
 end
 
 """
@@ -79,4 +84,15 @@ function get_catalog(repo::Repository; schema = nothing)
     with_connection(repo) do con
         reflect(con; dialect = :duckdb, schema)
     end
+end
+
+function DBInterface.execute(f::Base.Callable, repo::Repository, sql::AbstractString, params = (;))
+    with_connection(repo) do con
+        DBInterface.execute(f, con, sql, params)
+    end
+end
+
+function DBInterface.execute(f::Base.Callable, repo::Repository, node::SQLNode, params = (;))
+    sql = render(get_catalog(repo), node)
+    return DBInterface.execute(f, repo, String(sql), pack(sql, params))
 end

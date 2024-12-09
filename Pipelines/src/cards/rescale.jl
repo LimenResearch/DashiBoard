@@ -88,16 +88,12 @@ function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair
         return SimpleTable()
     else
         tbl = intermediate_table(r, repo, source)
-        tbl_name = string(uuid4())
-        on = mapfoldl(col -> Fun.:=(Get[col], Get.stats(col)), Fun.and, r.by, init = true)
-        query = From(source) |>
-            Join("stats" => From(tbl_name); on) |>
-            Define(rescaled...)
-        with_connection(con -> register_table(con, tbl, tbl_name), repo)
-        try
+        with_table(repo, tbl) do tbl_name
+            on = mapfoldl(col -> Fun.:=(Get[col], Get.stats(col)), Fun.and, r.by, init = true)
+            query = From(source) |>
+                Join("stats" => From(tbl_name); on) |>
+                Define(rescaled...)
             replace_table(repo, target, query)
-        finally
-            with_connection(con -> unregister_table(con, tbl_name), repo)
         end
         return tbl
     end

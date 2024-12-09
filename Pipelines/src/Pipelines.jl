@@ -8,9 +8,8 @@ public evaluate
 
 using Tables: Tables
 using DBInterface: DBInterface
-using UUIDs: uuid4
 using OrderedCollections: OrderedDict
-using DuckDBUtils: Repository, get_catalog, with_connection, register_table, unregister_table
+using DuckDBUtils: Repository, get_catalog, with_connection, with_table
 
 using FunSQL: render,
     SQLClause,

@@ -3,7 +3,8 @@ const SimpleTable = OrderedDict{String, AbstractVector}
 
 function fromtable(data)
     cols = Tables.columns(data)
-    return SimpleTable(String(k) => Tables.getcolumn(cols, k) for k in cols)
+    colnames = Tables.columnnames(cols)
+    return SimpleTable(String(k) => Tables.getcolumn(cols, k) for k in colnames)
 end
 
 mapcols!(f, s::SimpleTable) = (map!(f, values(s)); s)

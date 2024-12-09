@@ -14,13 +14,13 @@ Currently supported methods are
 - `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
 - `percentile` (requires `p` argument, e.g. `p = 0.9`).
 """
-struct SplitCard <: AbstractCard
+@kwdef struct SplitCard <: AbstractCard
     method::String
     order_by::Vector{String}
-    by::Vector{String}
+    by::Vector{String} = String[]
     output::String
-    p::Float64
-    tiles::Vector{Int}
+    p::Float64 = NaN
+    tiles::Vector{Int} = Int[]
 end
 
 inputs(s::SplitCard) = union(s.order_by, s.by)
@@ -55,13 +55,16 @@ end
 function evaluate(
         s::SplitCard,
         repo::Repository,
-        (source, target)::Pair{<:AbstractString, <:AbstractString}
+        (source, target)::StringPair
     )
 
     check_order(s)
 
+    by = getindex.(Get, s.by)
+    order_by = getindex.(Get, s.order_by)
+
     query = From(source) |>
-        Partition(by = Get.(s.by), order_by = Get.(s.order_by)) |>
+        Partition(; by, order_by) |>
         Define(s.output => splitter(s))
 
     replace_table(repo, target, query)

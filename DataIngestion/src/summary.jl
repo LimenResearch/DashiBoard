@@ -6,12 +6,12 @@ function table_schema(repo::Repository, tbl::AbstractString)
 end
 
 function categorical_summary(repo::Repository, tbl::AbstractString, var::AbstractString)
-    query = From(tbl) |> Group(Get(var)) |> Order(Get(var))
+    query = From(tbl) |> Group(Get[var]) |> Order(Get[var])
     return DBInterface.execute(res -> map(only, res), repo, query)
 end
 
 function numerical_summary(repo::Repository, tbl::AbstractString, var::AbstractString; length = 100, sigdigits = 2)
-    query = From(tbl) |> Select("x0" => Fun.min(Get(var)), "x1" => Fun.max(Get(var)))
+    query = From(tbl) |> Select("x0" => Fun.min(Get[var]), "x1" => Fun.max(Get[var]))
     (; x0, x1) = DBInterface.execute(first, repo, query)
     diff = x1 - x0
     step = if x0 isa Integer && diff ≤ length

@@ -59,20 +59,49 @@ function with_connection(f, repo::Repository, N = Val{1}())
     end
 end
 
+function load_table(con::DuckDB.Connection, table, name::AbstractString, schema = nothing)
+    schema = something(schema, "main")
+    tempname = string(uuid4())
+    # Temporarily register table in order to load it
+    register_table(con, table, tempname)
+    DBInterface.execute(
+        Returns(nothing), con, """
+        CREATE OR REPLACE TABLE "$(schema)"."$(name)" AS FROM "$(tempname)";
+        """
+    )
+    unregister_table(con, tempname)
+end
+
+function load_table(repo::Repository, table, name::AbstractString, schema = nothing)
+    with_connection(con -> load_table(con, table, name, schema), repo)
+end
+
+function delete_table(con::DuckDB.Connection, name::AbstractString, schema = nothing)
+    schema = something(schema, "main")
+    DBInterface.execute(
+        Returns(nothing), con, """
+        DROP TABLE "$(schema)"."$(name)";
+        """
+    )
+end
+
+function delete_table(repo::Repository, name::AbstractString, schema = nothing)
+    with_connection(con -> delete_table(con, name, schema), repo)
+end
+
 """
-    with_table(f, repo::Repository, table)
+    with_table(f, repo::Repository, table; schema = nothing)
 
 Register a table under a random unique name `name`, apply `f(name)`, and then
 unregister the table.
 """
-function with_table(f, repo::Repository, table)
+function with_table(f, repo::Repository, table; schema = nothing)
     name = string(uuid4())
-    # TODO: support registering table in a given schema?
-    with_connection(con -> register_table(con, table, name), repo)
+    load_table(repo, table, name, schema)
     try
         f(name)
     finally
-        with_connection(con -> unregister_table(con, name), repo)
+        delete_table(repo, name, schema)
     end
 end
 
@@ -93,7 +122,7 @@ function DBInterface.execute(f::Base.Callable, repo::Repository, sql::AbstractSt
     end
 end
 
-function DBInterface.execute(f::Base.Callable, repo::Repository, node::SQLNode, params = (;))
-    sql = render(get_catalog(repo), node)
+function DBInterface.execute(f::Base.Callable, repo::Repository, node::SQLNode, params = (;); schema = nothing)
+    sql = render(get_catalog(repo; schema), node)
     return DBInterface.execute(f, repo, String(sql), pack(sql, params))
 end

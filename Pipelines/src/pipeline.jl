@@ -61,27 +61,28 @@ struct Cards
 end
 
 """
-    evaluate(cards::Cards, repo::Repository, table::AbstractString)
+    evaluate(cards::Cards, repo::Repository, table::AbstractString; schema = nothing)
 
 Replace `table` in the database `repo.db` with the outcome of executing all
 the transformations in `cards`.
 """
-function evaluate(cards::Cards, repo::Repository, table::AbstractString)
+function evaluate(cards::Cards, repo::Repository, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
     nodes = [Node(inputs(card), outputs(card), true) for card in cards.cards]
     order = evaluation_order!(nodes)
     for idx in order
-        evaluate(cards.cards[idx], repo, table => table)
+        evaluate(cards.cards[idx], repo, table => table; schema)
     end
 end
 
 # Util to replace sql table
 
-function replace_table(repo::Repository, target::AbstractString, query)
-    catalog = get_catalog(repo)
+function replace_table(repo::Repository, target::AbstractString, query; schema = nothing)
+    catalog = get_catalog(repo; schema)
 
     sql = string(
         "CREATE OR REPLACE TABLE ",
+        isnothing(schema) ? "" : string(schema, "."),
         render(catalog, convert(SQLClause, target)),
         " AS\n",
         render(catalog, query)

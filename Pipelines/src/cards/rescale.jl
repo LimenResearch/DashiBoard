@@ -32,31 +32,74 @@ function zscore_transform(col)
     x = Get[col]
     μ = Get.stats[string(col, '_', "mean")]
     σ = Get.stats[string(col, '_', "std")]
-    return Fun.:/(Fun.:-(x, μ), σ)
+    return @. (x - μ) / σ
 end
 
-maxabs_transform(col) = Fun.:/(Get[col], Get.stats[string(col, '_', "maxabs")])
+function zscore_invtransform(col, suffix)
+    y = Get[string(col, '_', suffix)]
+    μ = Get.stats[string(col, '_', "mean")]
+    σ = Get.stats[string(col, '_', "std")]
+    return @. μ + σ * y
+end
+
+function maxabs_transform(col)
+    x = Get[col]
+    m = Get.stats[string(col, '_', "maxabs")]
+    return @. x / m
+end
+
+function maxabs_invtransform(col, suffix)
+    y = Get[string(col, '_', suffix)]
+    m = Get.stats[string(col, '_', "maxabs")]
+    return @. m * y
+end
 
 function minmax_transform(col)
     x = Get[col]
     x₀, x₁ = Get.stats[string(col, '_', "min")], Get.stats[string(col, '_', "max")]
-    return Fun.:/(Fun.:-(x, x₀), Fun.:-(x₁, x₀))
+    return @. (x - x₀) / (x₁ - x₀)
 end
 
-log_transform(col) = Fun.ln(Get[col])
-logistic_transform(col) = Fun.:/(1, Fun.:+(1, Fun.exp(Fun.:-(Get[col]))))
+function minmax_invtransform(col, suffix)
+    y = Get[string(col, '_', suffix)]
+    x₀, x₁ = Get.stats[string(col, '_', "min")], Get.stats[string(col, '_', "max")]
+    return @. x₀ + (x₁ - x₀) * y
+end
+
+ln(x) = log(x) # for consistency with SQL
+
+function log_transform(col)
+    x = Get[col]
+    return @. ln(x)
+end
+
+function log_invtransform(col, suffix)
+    y = Get[string(col, '_', suffix)]
+    return @. exp(y)
+end
+
+function logistic_transform(col)
+    x = Get[col]
+    return @. 1 / (1 + exp(-x))
+end
+
+function logistic_invtransform(col)
+    y = Get[string(col, '_', suffix)]
+    return @. ln(y / (1 - y))
+end
 
 struct Rescaler
     stats::Vector{Pair}
     transform::Base.Callable
+    invtransform::Union{Base.Callable, Nothing}
 end
 
 const RESCALERS = Dict{String, Rescaler}(
-    "zscore" => Rescaler(Pair["mean" => Agg.mean, "std" => Agg.stddev_pop], zscore_transform),
-    "maxabs" => Rescaler(Pair["maxabs" => Agg.max ∘ Fun.abs], maxabs_transform),
-    "minmax" => Rescaler(Pair["max" => Agg.max, "min" => Agg.min], minmax_transform),
-    "log" => Rescaler(Pair[], log_transform),
-    "logistic" => Rescaler(Pair[], logistic_transform)
+    "zscore" => Rescaler(Pair["mean" => Agg.mean, "std" => Agg.stddev_pop], zscore_transform, zscore_invtransform),
+    "maxabs" => Rescaler(Pair["maxabs" => Agg.max ∘ Fun.abs], maxabs_transform, maxabs_invtransform),
+    "minmax" => Rescaler(Pair["max" => Agg.max, "min" => Agg.min], minmax_transform, minmax_invtransform),
+    "log" => Rescaler(Pair[], log_transform, log_invtransform),
+    "logistic" => Rescaler(Pair[], logistic_transform, logistic_invtransform)
 )
 
 function pair_wise_group_by(
@@ -64,40 +107,59 @@ function pair_wise_group_by(
         source::AbstractString,
         by::AbstractVector,
         cols::AbstractVector,
-        fs...
+        fs...;
+        schema = nothing
     )
 
     key = getindex.(Get, by)
     val = [string(col, '_', name) => f(Get[col]) for col in cols for (name, f) in fs]
     query = From(source) |> Group(by = key) |> Select(key..., val...)
-    DBInterface.execute(fromtable, repo, query)
+    DBInterface.execute(fromtable, repo, query; schema)
 end
 
-function plan(r::RescaleCard, repo::Repository, source::AbstractString)
+function plan(r::RescaleCard, repo::Repository, source::AbstractString; schema = nothing)
     (; by, columns, method) = r
     (; stats) = RESCALERS[method]
-    return isempty(stats) ? SimpleTable() : pair_wise_group_by(repo, source, by, columns, stats...)
+    return isempty(stats) ? SimpleTable() : pair_wise_group_by(repo, source, by, columns, stats...; schema)
 end
 
-function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair)
-    stats_tbl = plan(r, repo, source)
-    return evaluate(r, repo, source => target, stats_tbl)
+function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair; schema = nothing)
+    stats_tbl = plan(r, repo, source; schema)
+    return evaluate(r, repo, source => target, stats_tbl; schema)
 end
 
-function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair, stats_tbl::SimpleTable)
+function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair, stats_tbl::SimpleTable; schema = nothing)
     (; by, columns, method, suffix) = r
     (; stats, transform) = RESCALERS[method]
     rescaled = (string(col, '_', suffix) => transform(col) for col in columns)
     if isempty(stats)
         query = From(source) |> Define(rescaled...)
-        replace_table(repo, target, query)
+        replace_table(repo, target, query; schema)
+    else
+        with_table(repo, stats_tbl; schema) do tbl_name
+            eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
+            query = From(source) |>
+                Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
+                Define(rescaled...)
+            replace_table(repo, target, query; schema)
+        end
+    end
+end
+
+function deevaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair, stats_tbl::SimpleTable; schema = nothing)
+    (; by, columns, method, suffix) = r
+    (; stats, invtransform) = RESCALERS[method]
+    rescaled = (col => invtransform(col, suffix) for col in columns)
+    if isempty(stats)
+        query = From(source) |> Define(rescaled...)
+        replace_table(repo, target, query; schema)
     else
         with_table(repo, stats_tbl) do tbl_name
             eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
             query = From(source) |>
                 Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
-            replace_table(repo, target, query)
+            replace_table(repo, target, query; schema)
         end
     end
 end

@@ -4,15 +4,14 @@ export Cards
 
 export RescaleCard, SplitCard
 
-public evaluate, plan
+public plan, evaluate, deevaluate
 
 using Tables: Tables
 using DBInterface: DBInterface
 using OrderedCollections: OrderedDict
-using DuckDBUtils: Repository, get_catalog, with_connection, with_table
+using DuckDBUtils: Repository, get_catalog, with_connection, with_table, in_schema
 
 using FunSQL: render,
-    SQLClause,
     SQLNode,
     SQLCatalog,
     Partition,

@@ -82,8 +82,7 @@ function replace_table(repo::Repository, target::AbstractString, query; schema =
 
     sql = string(
         "CREATE OR REPLACE TABLE ",
-        isnothing(schema) ? "" : string(schema, "."),
-        render(catalog, convert(SQLClause, target)),
+        in_schema(target, schema),
         " AS\n",
         render(catalog, query)
     )

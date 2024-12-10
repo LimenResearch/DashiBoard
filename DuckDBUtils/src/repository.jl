@@ -59,14 +59,33 @@ function with_connection(f, repo::Repository, N = Val{1}())
     end
 end
 
+in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
+
+"""
+    in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})
+
+Utility to create a name to refer to a table within the schema.
+
+For instance
+
+```julia-repl
+julia> print(in_schema("tbl", nothing))
+"tbl"
+julia> print(in_schema("tbl", "schm"))
+"schm"."tbl"
+```
+"""
+function in_schema(name::AbstractString, schema::AbstractString)
+    return string("\"", schema, "\".\"", name, "\"")
+end
+
 function load_table(con::DuckDB.Connection, table, name::AbstractString, schema = nothing)
-    schema = something(schema, "main")
     tempname = string(uuid4())
     # Temporarily register table in order to load it
     register_table(con, table, tempname)
     DBInterface.execute(
         Returns(nothing), con, """
-        CREATE OR REPLACE TABLE "$(schema)"."$(name)" AS FROM "$(tempname)";
+        CREATE OR REPLACE TABLE $(in_schema(name, schema)) AS FROM "$(tempname)";
         """
     )
     unregister_table(con, tempname)
@@ -77,10 +96,9 @@ function load_table(repo::Repository, table, name::AbstractString, schema = noth
 end
 
 function delete_table(con::DuckDB.Connection, name::AbstractString, schema = nothing)
-    schema = something(schema, "main")
     DBInterface.execute(
         Returns(nothing), con, """
-        DROP TABLE "$(schema)"."$(name)";
+        DROP TABLE $(in_schema(name, schema));
         """
     )
 end

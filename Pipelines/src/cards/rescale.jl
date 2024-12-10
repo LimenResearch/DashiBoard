@@ -154,7 +154,7 @@ function deevaluate(r::RescaleCard, repo::Repository, (source, target)::StringPa
         query = From(source) |> Define(rescaled...)
         replace_table(repo, target, query; schema)
     else
-        with_table(repo, stats_tbl) do tbl_name
+        with_table(repo, stats_tbl; schema) do tbl_name
             eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
             query = From(source) |>
                 Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>

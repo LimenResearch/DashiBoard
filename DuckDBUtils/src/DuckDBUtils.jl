@@ -6,6 +6,8 @@ export Repository, acquire_connection, release_connection, with_connection, with
 
 export get_catalog
 
+public in_schema
+
 using UUIDs: uuid4
 using FunSQL: reflect, render, pack, SQLNode
 using DuckDB: DBInterface, DuckDB, register_table, unregister_table

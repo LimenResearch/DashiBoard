@@ -13,6 +13,7 @@ acquire_connection
 release_connection
 with_connection
 with_table
+in_schema
 ```
 
 ## Batched iteration

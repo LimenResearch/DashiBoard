@@ -84,8 +84,12 @@ mktempdir() do dir
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
         ]
-        maxabs = maximum(abs, df.TEMP)
-        @test df.TEMP_rescaled ≈ @. df.TEMP / maxabs
+
+        aux = transform(
+            groupby(df, ["year", "month", "cbwd"]),
+            "TEMP" => (x -> maximum(abs, x)) => "TEMP_maxabs"
+        )
+        @test aux.TEMP_rescaled ≈ @. aux.TEMP / aux.TEMP_maxabs
 
         resc = Pipelines.get_card(d["minmax"])
         Pipelines.evaluate(resc, repo, "selection" => "rescaled")

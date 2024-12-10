@@ -67,6 +67,7 @@ unregister the table.
 """
 function with_table(f, repo::Repository, table)
     name = string(uuid4())
+    # TODO: support registering table in a given schema?
     with_connection(con -> register_table(con, table, name), repo)
     try
         f(name)

@@ -73,24 +73,32 @@ function pair_wise_group_by(
     DBInterface.execute(fromtable, repo, query)
 end
 
+function plan(r::RescaleCard, repo::Repository, source::AbstractString)
+    (; by, columns, method) = r
+    (; stats) = RESCALERS[method]
+    return isempty(stats) ? SimpleTable() : pair_wise_group_by(repo, source, by, columns, stats...)
+end
+
 function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair)
-    rescaler = RESCALERS[r.method]
-    stats = rescaler.stats
-    rescaled = (string(col, '_', r.suffix) => rescaler.transform(col) for col in r.columns)
+    stats_tbl = plan(r, repo, source)
+    return evaluate(r, repo, source => target, stats_tbl)
+end
+
+function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair, stats_tbl::SimpleTable)
+    (; by, columns, method, suffix) = r
+    (; stats, transform) = RESCALERS[method]
+    rescaled = (string(col, '_', suffix) => transform(col) for col in columns)
     if isempty(stats)
         query = From(source) |> Define(rescaled...)
         replace_table(repo, target, query)
-        return SimpleTable()
     else
-        tbl = pair_wise_group_by(repo, source, r.by, r.columns, stats...)
-        with_table(repo, tbl) do tbl_name
-            on = mapfoldl(col -> Fun("=", Get[col], Get.stats[col]), Fun.and, r.by, init = true)
+        with_table(repo, stats_tbl) do tbl_name
+            eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
             query = From(source) |>
-                Join("stats" => From(tbl_name); on) |>
+                Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
             replace_table(repo, target, query)
         end
-        return tbl
     end
 end
 

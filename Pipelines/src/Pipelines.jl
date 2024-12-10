@@ -4,7 +4,7 @@ export Cards
 
 export RescaleCard, SplitCard
 
-public evaluate
+public evaluate, plan
 
 using Tables: Tables
 using DBInterface: DBInterface

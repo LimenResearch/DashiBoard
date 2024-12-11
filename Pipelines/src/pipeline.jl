@@ -74,22 +74,3 @@ function evaluate(cards::Cards, repo::Repository, table::AbstractString; schema 
         evaluate(cards.cards[idx], repo, table => table; schema)
     end
 end
-
-# Util to replace sql table
-
-function replace_table(repo::Repository, target::AbstractString, query; schema = nothing)
-    catalog = get_catalog(repo; schema)
-
-    sql = string(
-        "CREATE OR REPLACE TABLE ",
-        in_schema(target, schema),
-        " AS\n",
-        render(catalog, query)
-    )
-
-    DBInterface.execute(
-        Returns(nothing),
-        repo,
-        sql,
-    )
-end

@@ -108,22 +108,6 @@ function delete_table(repo::Repository, name::AbstractString, schema = nothing)
 end
 
 """
-    with_table(f, repo::Repository, table; schema = nothing)
-
-Register a table under a random unique name `name`, apply `f(name)`, and then
-unregister the table.
-"""
-function with_table(f, repo::Repository, table; schema = nothing)
-    name = string(uuid4())
-    load_table(repo, table, name, schema)
-    try
-        f(name)
-    finally
-        delete_table(repo, name, schema)
-    end
-end
-
-"""
     get_catalog(repo::Repository; schema = nothing)
 
 Extract the catalog of available tables from a `Repository` `repo`.

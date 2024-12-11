@@ -13,7 +13,7 @@ acquire_connection
 release_connection
 with_connection
 with_table
-in_schema
+colnames
 ```
 
 ## Batched iteration
@@ -28,4 +28,5 @@ Batches
 DuckDBUtils._numobs
 DuckDBUtils._init
 DuckDBUtils._append!
+DuckDBUtils.in_schema
 ```

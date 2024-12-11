@@ -59,54 +59,6 @@ function with_connection(f, repo::Repository, N = Val{1}())
     end
 end
 
-in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
-
-"""
-    in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})
-
-Utility to create a name to refer to a table within the schema.
-
-For instance
-
-```julia-repl
-julia> print(in_schema("tbl", nothing))
-"tbl"
-julia> print(in_schema("tbl", "schm"))
-"schm"."tbl"
-```
-"""
-function in_schema(name::AbstractString, schema::AbstractString)
-    return string("\"", schema, "\".\"", name, "\"")
-end
-
-function load_table(con::DuckDB.Connection, table, name::AbstractString, schema = nothing)
-    tempname = string(uuid4())
-    # Temporarily register table in order to load it
-    register_table(con, table, tempname)
-    DBInterface.execute(
-        Returns(nothing), con, """
-        CREATE OR REPLACE TABLE $(in_schema(name, schema)) AS FROM "$(tempname)";
-        """
-    )
-    unregister_table(con, tempname)
-end
-
-function load_table(repo::Repository, table, name::AbstractString, schema = nothing)
-    with_connection(con -> load_table(con, table, name, schema), repo)
-end
-
-function delete_table(con::DuckDB.Connection, name::AbstractString, schema = nothing)
-    DBInterface.execute(
-        Returns(nothing), con, """
-        DROP TABLE $(in_schema(name, schema));
-        """
-    )
-end
-
-function delete_table(repo::Repository, name::AbstractString, schema = nothing)
-    with_connection(con -> delete_table(con, name, schema), repo)
-end
-
 """
     get_catalog(repo::Repository; schema = nothing)
 

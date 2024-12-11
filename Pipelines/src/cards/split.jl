@@ -68,7 +68,7 @@ function evaluate(
         Partition(; by, order_by) |>
         Define(s.output => splitter(s))
 
-    replace_table(repo, target, query; schema)
+    replace_table(repo, query, target; schema)
 end
 
 function SplitCard(d::AbstractDict)

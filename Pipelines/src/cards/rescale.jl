@@ -134,14 +134,14 @@ function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair
     rescaled = (string(col, '_', suffix) => transform(col) for col in columns)
     if isempty(stats)
         query = From(source) |> Define(rescaled...)
-        replace_table(repo, target, query; schema)
+        replace_table(repo, query, target; schema)
     else
         with_table(repo, stats_tbl; schema) do tbl_name
             eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
             query = From(source) |>
                 Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
-            replace_table(repo, target, query; schema)
+            replace_table(repo, query, target; schema)
         end
     end
 end
@@ -152,14 +152,14 @@ function deevaluate(r::RescaleCard, repo::Repository, (source, target)::StringPa
     rescaled = (col => invtransform(col, suffix) for col in columns)
     if isempty(stats)
         query = From(source) |> Define(rescaled...)
-        replace_table(repo, target, query; schema)
+        replace_table(repo, query, target; schema)
     else
         with_table(repo, stats_tbl; schema) do tbl_name
             eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
             query = From(source) |>
                 Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
-            replace_table(repo, target, query; schema)
+            replace_table(repo, query, target; schema)
         end
     end
 end

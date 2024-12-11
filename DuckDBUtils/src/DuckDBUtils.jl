@@ -6,10 +6,10 @@ export Repository, acquire_connection, release_connection, with_connection, with
 
 export get_catalog
 
-public colnames, in_schema, replace_table, replace_view
+public colnames, load_table, delete_table, replace_table, replace_view
 
 using UUIDs: uuid4
-using FunSQL: reflect, render, pack, SQLNode
+using FunSQL: reflect, render, pack, SQLNode, From
 using DuckDB: DBInterface, DuckDB, register_table, unregister_table
 using ConcurrentUtilities: Pool, acquire, release
 using Tables: Tables

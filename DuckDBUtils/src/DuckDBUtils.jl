@@ -6,7 +6,7 @@ export Repository, acquire_connection, release_connection, with_connection, with
 
 export get_catalog
 
-public in_schema, replace_table, replace_view
+public colnames, in_schema, replace_table, replace_view
 
 using UUIDs: uuid4
 using FunSQL: reflect, render, pack, SQLNode

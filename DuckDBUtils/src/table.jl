@@ -1,3 +1,19 @@
+"""
+    with_table(f, repo::Repository, table; schema = nothing)
+
+Register a table under a random unique name `name`, apply `f(name)`, and then
+unregister the table.
+"""
+function with_table(f, repo::Repository, table; schema = nothing)
+    name = string(uuid4())
+    load_table(repo, table, name, schema)
+    try
+        f(name)
+    finally
+        delete_table(repo, name, schema)
+    end
+end
+
 function replace_object(object::AbstractString, repo::Repository, target::AbstractString, query; schema = nothing)
     catalog = get_catalog(repo; schema)
 
@@ -26,18 +42,7 @@ function replace_view(repo::Repository, target::AbstractString, query; schema = 
     replace_object("TABLE", repo, target, query; schema)
 end
 
-"""
-    with_table(f, repo::Repository, table; schema = nothing)
-
-Register a table under a random unique name `name`, apply `f(name)`, and then
-unregister the table.
-"""
-function with_table(f, repo::Repository, table; schema = nothing)
-    name = string(uuid4())
-    load_table(repo, table, name, schema)
-    try
-        f(name)
-    finally
-        delete_table(repo, name, schema)
-    end
+function colnames(repo::Repository, table::AbstractString; schema = nothing)
+    catalog = get_catalog(repo; schema)
+    return [string(k) for (k, _) in catalog[table]]
 end

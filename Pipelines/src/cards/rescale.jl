@@ -139,7 +139,7 @@ function evaluate(r::RescaleCard, repo::Repository, (source, target)::StringPair
         with_table(repo, stats_tbl; schema) do tbl_name
             eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
             query = From(source) |>
-                Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
+                LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
             replace_table(repo, query, target; schema)
         end
@@ -157,7 +157,7 @@ function deevaluate(r::RescaleCard, repo::Repository, (source, target)::StringPa
         with_table(repo, stats_tbl; schema) do tbl_name
             eqs = [Fun("=", Get[col], Get.stats[col]) for col in by]
             query = From(source) |>
-                Join("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
+                LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
             replace_table(repo, query, target; schema)
         end

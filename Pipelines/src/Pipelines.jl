@@ -22,7 +22,7 @@ using FunSQL: render,
     Define,
     Select,
     From,
-    Join
+    LeftJoin
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 

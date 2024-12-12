@@ -12,6 +12,12 @@ get_catalog
 acquire_connection
 release_connection
 with_connection
+render_params
+```
+
+## Table tools
+
+```@docs
 with_table
 colnames
 ```

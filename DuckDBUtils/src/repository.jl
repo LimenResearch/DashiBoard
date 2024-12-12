@@ -76,7 +76,18 @@ function DBInterface.execute(f::Base.Callable, repo::Repository, sql::AbstractSt
     end
 end
 
+"""
+    render_params(catalog::SQLCatalog, node::SQLNode, params = (;))
+
+Return query string and parameter list from query expressed as `node`.
+"""
+function render_params(catalog::SQLCatalog, node::SQLNode, params = (;))
+    sql = render(catalog, node)
+    return String(sql), pack(sql, params)
+end
+
 function DBInterface.execute(f::Base.Callable, repo::Repository, node::SQLNode, params = (;); schema = nothing)
-    sql = render(get_catalog(repo; schema), node)
-    return DBInterface.execute(f, repo, String(sql), pack(sql, params))
+    catalog = get_catalog(repo; schema)
+    q, ps = render_params(catalog, node, params)
+    return DBInterface.execute(f, repo, q, ps)
 end

@@ -9,7 +9,12 @@ public plan, evaluate, deevaluate
 using Tables: Tables
 using DBInterface: DBInterface
 using OrderedCollections: OrderedDict
-using DuckDBUtils: Repository, get_catalog, with_connection, with_table, replace_table
+using DuckDBUtils: Repository,
+    get_catalog,
+    with_connection,
+    with_table,
+    replace_table,
+    colnames
 
 using FunSQL: render,
     SQLNode,
@@ -26,7 +31,6 @@ using FunSQL: render,
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
-include("utils.jl")
 include("tables.jl")
 include("card.jl")
 

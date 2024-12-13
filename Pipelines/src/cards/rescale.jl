@@ -153,8 +153,14 @@ function evaluate(
 
     (; by, columns, method, suffix) = r
     (; stats, transform, invtransform) = RESCALERS[method]
-    f(col) = invert ? invtransform(col, suffix) : transform(col)
-    rescaled = string.(columns, '_', suffix) .=> f.(columns)
+
+    available_columns = colnames(repo, source; schema)
+    rescaled = if invert
+        [c => invtransform(c, suffix) for c in columns if string(c, '_', suffix) in available_columns]
+    else
+        [string(c, '_', suffix) => transform(c) for c in columns if c in available_columns]
+    end
+
     if isempty(stats)
         query = From(source) |> Define(rescaled...)
         replace_table(repo, query, target; schema)

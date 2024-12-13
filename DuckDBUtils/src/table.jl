@@ -92,7 +92,6 @@ function with_table(f, repo::Repository, table; schema = nothing)
     end
 end
 
-
 """
     colnames(repo::Repository, table::AbstractString; schema = nothing)
 

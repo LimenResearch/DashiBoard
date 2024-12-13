@@ -33,7 +33,7 @@ function Query(f::IntervalFilter, prefix::AbstractString)
 
     params = Dict(pleft => leftendpoint(interval), pright => rightendpoint(interval))
 
-    cond = Fun.between(Get[colname], Var[pleft], Var[pright])
+    cond = Fun.between(Get(colname), Var(pleft), Var(pright))
 
     return Query(Where(cond), params)
 end
@@ -63,7 +63,7 @@ function Query(f::ListFilter, prefix::AbstractString)
     ks = [string(prefix, "value", i) for i in eachindex(list)]
     params = Dict{String, Any}(zip(ks, list))
 
-    cond = Fun.in(Get[colname], getindex.(Var, ks)...)
+    cond = Fun.in(Get(colname), Var.(ks)...)
 
     return Query(Where(cond), params)
 end

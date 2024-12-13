@@ -23,6 +23,12 @@ Currently supported methods are
     tiles::Vector{Int} = Int[]
 end
 
+function SplitCard(d::AbstractDict)
+    method, order_by, by, output = d["method"], d["order_by"], d["by"], d["output"]
+    p, tiles = get(d, "p", NaN), get(d, "tiles", Int[])
+    return SplitCard(method, order_by, by, output, p, tiles)
+end
+
 inputs(s::SplitCard) = union(s.order_by, s.by)
 
 outputs(s::SplitCard) = [s.output]
@@ -46,7 +52,7 @@ function splitter(s::SplitCard)
         N = length(s.tiles)
         return Fun.list_extract(Fun.list_value(s.tiles...), Agg.ntile(N))
     elseif method == "percentile"
-        return Fun.case(Fun.:<=(Agg.percent_rank(), s.p), 1, 2)
+        return Fun.case(Agg.percent_rank() .<= s.p, 1, 2)
     else
         throw(ArgumentError("method $method is not supported"))
     end
@@ -61,18 +67,12 @@ function evaluate(
 
     check_order(s)
 
-    by = getindex.(Get, s.by)
-    order_by = getindex.(Get, s.order_by)
+    by = Get.(s.by)
+    order_by = Get.(s.order_by)
 
     query = From(source) |>
         Partition(; by, order_by) |>
         Define(s.output => splitter(s))
 
     replace_table(repo, query, target; schema)
-end
-
-function SplitCard(d::AbstractDict)
-    method, order_by, by, output = d["method"], d["order_by"], d["by"], d["output"]
-    p, tiles = get(d, "p", NaN), get(d, "tiles", Int[])
-    return SplitCard(method, order_by, by, output, p, tiles)
 end

@@ -24,7 +24,7 @@ Currently supported methods are
 end
 
 function SplitCard(d::AbstractDict)
-    method, order_by, by, output = d["method"], d["order_by"], d["by"], d["output"]
+    method, order_by, by, output = d["method"], d["order_by"], get(d, "by", String[]), d["output"]
     p, tiles = get(d, "p", NaN), get(d, "tiles", Int[])
     return SplitCard(method, order_by, by, output, p, tiles)
 end

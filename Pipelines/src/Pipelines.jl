@@ -8,7 +8,6 @@ public plan, evaluate, deevaluate
 
 using Tables: Tables
 using DBInterface: DBInterface
-using OrderedCollections: OrderedDict
 using DuckDBUtils: Repository,
     get_catalog,
     with_connection,

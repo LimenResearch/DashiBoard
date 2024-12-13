@@ -1,5 +1,5 @@
 # This simple table type is the preferred way to store tables in memory
-const SimpleTable = OrderedDict{String, AbstractVector}
+const SimpleTable = Dict{String, AbstractVector}
 
 function fromtable(data)
     cols = Tables.columns(data)

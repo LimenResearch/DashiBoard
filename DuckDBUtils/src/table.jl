@@ -18,8 +18,13 @@ function in_schema(name::AbstractString, schema::AbstractString)
     return string("\"", schema, "\".\"", name, "\"")
 end
 
-function replace_object(object::AbstractString, repo::Repository, query, target::AbstractString; schema = nothing)
-    catalog = get_catalog(repo; schema)
+function replace_object(
+        object::AbstractString,
+        repo::Repository,
+        query::AbstractString,
+        target::AbstractString;
+        schema = nothing
+    )
 
     sql = string(
         "CREATE OR REPLACE",
@@ -28,7 +33,7 @@ function replace_object(object::AbstractString, repo::Repository, query, target:
         " ",
         in_schema(target, schema),
         " AS\n",
-        render(catalog, query)
+        query
     )
 
     DBInterface.execute(
@@ -36,6 +41,19 @@ function replace_object(object::AbstractString, repo::Repository, query, target:
         repo,
         sql,
     )
+end
+
+function replace_object(
+        object::AbstractString,
+        repo::Repository,
+        node::SQLNode,
+        target::AbstractString;
+        schema = nothing
+    )
+
+    catalog = get_catalog(repo; schema)
+    query = render(catalog, node)
+    replace_object(object, repo, query, target; schema)
 end
 
 function replace_table(repo::Repository, query, target::AbstractString; schema = nothing)
@@ -54,10 +72,9 @@ function load_table(repo::Repository, table, name::AbstractString; schema = noth
     tempname = string(uuid4())
     # Temporarily register table in order to load it
     with_connection(con -> register_table(con, table, tempname), repo)
-    replace_table(repo, From(tempname), name; schema)
+    replace_table(repo, string("From \"", tempname, "\";"), name; schema)
     with_connection(con -> unregister_table(con, tempname), repo)
 end
-
 
 """
     with_table(f, repo::Repository, table; schema = nothing)

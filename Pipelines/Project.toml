@@ -7,7 +7,10 @@ version = "1.0.0-DEV"
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
 DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
 FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
+GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
+StatsAPI = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
+StatsModels = "3eaba693-59b7-5ba5-a881-562e759f1c8d"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [sources]
@@ -16,6 +19,9 @@ DuckDBUtils = {path = "../DuckDBUtils"}
 [compat]
 DBInterface = "2.6.1"
 FunSQL = "0.14.3"
+GLM = "1.9.0"
 Graphs = "1.12.0"
+StatsAPI = "1.7.0"
+StatsModels = "0.7.4"
 Tables = "1.12.0"
 julia = "1.11"

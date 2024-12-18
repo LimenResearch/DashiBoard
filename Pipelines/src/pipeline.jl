@@ -40,10 +40,16 @@ end
 const CARD_TYPES = Dict(
     "split" => SplitCard,
     "rescale" => RescaleCard,
+    "glm" => GLMCard,
 )
 
-get_card(d::AbstractDict) = CARD_TYPES[d["type"]](d)
 get_card(c::AbstractCard) = c
+
+function get_card(d::AbstractDict)
+    sd = Dict(Symbol(k) => v for (k, v) in pairs(d))
+    type = pop!(sd, :type)
+    return CARD_TYPES[type](; sd...)
+end
 
 """
     struct Cards

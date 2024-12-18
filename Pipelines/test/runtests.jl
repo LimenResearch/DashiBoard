@@ -1,4 +1,4 @@
-using Pipelines, DataIngestion, DuckDBUtils, DBInterface, DataFrames, Statistics, JSON3
+using Pipelines, DataIngestion, DuckDBUtils, DBInterface, DataFrames, GLM, Statistics, JSON3
 using Test
 
 const static_dir = joinpath(@__DIR__, "static")
@@ -118,6 +118,40 @@ mktempdir() do dir
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
         ]
         @test df.TEMP_rescaled ≈ @. 1 / (1 + exp(- df.TEMP))
+    end
+
+    @testset "glm" begin
+        d = open(JSON3.read, joinpath(static_dir, "glm.json"))
+
+        resc = Pipelines.get_card(d["hasLink"])
+        Pipelines.evaluate(resc, repo, "selection" => "glm")
+        df = DBInterface.execute(DataFrame, repo, "FROM glm")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_hat",
+            ]
+        )
+        sel = DBInterface.execute(DataFrame, repo, "FROM selection")
+        m = glm(@formula(TEMP ~ 1 + cbwd * year + No), sel, Normal(), IdentityLink())
+        @test predict(m) == df.TEMP_hat
+
+        d = open(JSON3.read, joinpath(static_dir, "glm.json"))
+
+        resc = Pipelines.get_card(d["hasWeights"])
+        Pipelines.evaluate(resc, repo, "selection" => "glm")
+        df = DBInterface.execute(DataFrame, repo, "FROM glm")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "PRES_hat",
+            ]
+        )
+        sel = DBInterface.execute(DataFrame, repo, "FROM selection")
+        m = glm(@formula(PRES ~ 1 + cbwd * year + No), sel, Gamma(), wts = sel.TEMP)
+        @test predict(m) == df.PRES_hat
     end
 
     @testset "cards" begin

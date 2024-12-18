@@ -24,12 +24,6 @@ The resulting rescaled variable is added to the table under the name
     suffix::String = "rescaled"
 end
 
-function RescaleCard(d::AbstractDict)
-    method, by, columns, suffix =
-        d["method"], get(d, "by", String[]), d["columns"], get(d, "suffix", "rescaled")
-    return RescaleCard(method, by, columns, suffix)
-end
-
 inputs(r::RescaleCard) = union(r.by, r.columns)
 
 outputs(r::RescaleCard) = string.(r.columns, '_', r.suffix)

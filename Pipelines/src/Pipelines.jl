@@ -12,6 +12,7 @@ using DuckDBUtils: Repository,
     get_catalog,
     with_connection,
     with_table,
+    load_table,
     replace_table,
     colnames
 
@@ -31,11 +32,32 @@ using FunSQL: render,
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
+using StatsModels: Term, ConstantTerm
+using StatsAPI: predict
+using GLM: glm,
+    canonicallink,    
+    Normal,
+    Binomial,
+    Gamma,
+    InverseGaussian,
+    Poisson,
+    CauchitLink,
+    CloglogLink,
+    IdentityLink,
+    InverseLink,
+    InverseSquareLink,
+    LogitLink,
+    LogLink,
+    NegativeBinomialLink,
+    ProbitLink,
+    SqrtLink
+
 include("tables.jl")
 include("card.jl")
 
 include("cards/split.jl")
 include("cards/rescale.jl")
+include("cards/glm.jl")
 
 include("pipeline.jl")
 

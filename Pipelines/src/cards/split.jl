@@ -23,12 +23,6 @@ Currently supported methods are
     tiles::Vector{Int} = Int[]
 end
 
-function SplitCard(d::AbstractDict)
-    method, order_by, by, output = d["method"], d["order_by"], get(d, "by", String[]), d["output"]
-    p, tiles = get(d, "p", NaN), get(d, "tiles", Int[])
-    return SplitCard(method, order_by, by, output, p, tiles)
-end
-
 inputs(s::SplitCard) = union(s.order_by, s.by)
 
 outputs(s::SplitCard) = [s.output]

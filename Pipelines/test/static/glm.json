@@ -1,0 +1,16 @@
+{
+    "hasLink": {
+        "type": "glm",
+        "predictors": [1, ["cbwd", "year"], "No"],
+        "target": "TEMP",
+        "distribution": "normal",
+        "link": "identity"
+    },
+    "hasWeights": {
+        "type": "glm",
+        "predictors": [1, ["cbwd", "year"], "No"],
+        "weights": "TEMP",
+        "target": "PRES",
+        "distribution": "gamma"
+    }
+}

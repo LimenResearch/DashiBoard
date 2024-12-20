@@ -15,14 +15,14 @@ function inputs end
 
 function outputs end
 
+function train end
+
+function evaluate end
+
 const StringPair = Pair{<:AbstractString, <:AbstractString}
 
-function plan(::AbstractCard, ::Repository, ::AbstractString; schema = nothing)
-    return nothing
-end
-
 function evaluate(r::AbstractCard, repo::Repository, (source, target)::StringPair; schema = nothing)
-    p = plan(r, repo, source; schema)
-    evaluate(r, repo, source => target, p; schema)
-    return p
+    m = train(r, repo, source; schema)
+    evaluate(r, m, repo, source => target; schema)
+    return m
 end

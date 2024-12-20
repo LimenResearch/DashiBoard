@@ -52,7 +52,17 @@ function splitter(s::SplitCard)
     end
 end
 
-function evaluate(s::SplitCard, repo::Repository, (source, target)::StringPair, ::Nothing; schema = nothing)
+function train(::SplitCard, ::Repository, ::AbstractString; schema = nothing)
+    return nothing
+end
+
+function evaluate(
+        s::SplitCard,
+        ::Nothing,
+        repo::Repository,
+        (source, target)::StringPair;
+        schema = nothing
+    )
 
     check_order(s)
 

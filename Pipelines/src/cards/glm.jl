@@ -57,10 +57,10 @@ inputs(g::GLMCard) = reduce(vcat, map(to_colnames, g.predictors))
 
 outputs(g::GLMCard) = [g.target]
 
-function evaluate(
+function train(
         g::GLMCard,
         repo::Repository,
-        (source, target)::StringPair;
+        source::AbstractString;
         schema = nothing
     )
 
@@ -70,11 +70,22 @@ function evaluate(
     dist = NOISE_MODELS[g.distribution]
     link = isnothing(g.link) ? canonicallink(dist) : LINK_FUNCTIONS[g.link](g.link_params...)
     weights = isnothing(g.weights) ? similar(t[g.target], 0) : t[g.weights]
-    model = glm(formula, t, dist, link, wts = weights)
-    pred = predict(model)
-    pred_name = string(g.target, '_', g.suffix)
+    # TODO save slim version with no data
+    return fit(GeneralizedLinearModel, formula, t, dist, link, wts = weights)
+end
 
-    t[pred_name] = pred
+function evaluate(
+        g::GLMCard,
+        model::RegressionModel,
+        repo::Repository,
+        (source, target)::StringPair;
+        schema = nothing
+    )
+
+    t = DBInterface.execute(fromtable, repo, From(source); schema)
+
+    pred_name = string(g.target, '_', g.suffix)
+    t[pred_name] = predict(model, t)
 
     load_table(repo, t, target; schema)
 end

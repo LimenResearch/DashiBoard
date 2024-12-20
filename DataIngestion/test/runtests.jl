@@ -21,7 +21,7 @@ mktempdir() do dir
             ["NW", "SE"]
         )
 
-        filters = DataIngestion.Filters([f1, f2])
+        filters = [f1, f2]
 
         DataIngestion.select(filters, repo)
 
@@ -32,16 +32,16 @@ mktempdir() do dir
 
     @testset "from json" begin
         d = open(JSON3.read, joinpath(static_dir, "filters.json"))
-        filters = DataIngestion.Filters(d)
+        filters = DataIngestion.get_filter.(d)
 
-        @test length(filters.filters) == 2
-        @test filters.filters[1] isa DataIngestion.IntervalFilter
-        @test filters.filters[1].colname == "year"
-        @test filters.filters[1].interval == 2011 .. 2012
+        @test length(filters) == 2
+        @test filters[1] isa DataIngestion.IntervalFilter
+        @test filters[1].colname == "year"
+        @test filters[1].interval == 2011 .. 2012
 
-        @test filters.filters[2] isa DataIngestion.ListFilter
-        @test filters.filters[2].colname == "cbwd"
-        @test filters.filters[2].list == ["NW", "SW"]
+        @test filters[2] isa DataIngestion.ListFilter
+        @test filters[2].colname == "cbwd"
+        @test filters[2].list == ["NW", "SW"]
     end
 
     @testset "summary" begin

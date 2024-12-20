@@ -5,6 +5,16 @@ end
 
 Query(node::SQLNode) = Query(node, Dict{String, Any}())
 
+"""
+    abstract type AbstractFilter end
+
+Abstract supertype to encompass all possible filters.
+
+Current implementations:
+
+- [`IntervalFilter`](@ref),
+- [`ListFilter`](@ref).
+"""
 abstract type AbstractFilter end
 
 """
@@ -73,27 +83,16 @@ const FILTER_TYPES = Dict(
     "list" => ListFilter,
 )
 
+"""
+    get_filter(d::AbstractDict)
+
+Generate an [`AbstractFilter`](@ref) based on a configuration dictionary.
+"""
 get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
-get_filter(f::AbstractFilter) = f
 
-"""
-    struct Filters
-        filters::Vector{AbstractFilter}
-    end
-
-Container for a list of `filters`.
-"""
-struct Filters
-    filters::Vector{AbstractFilter}
-    function Filters(fs::AbstractVector)
-        filters::Vector{AbstractFilter} = get_filter.(fs)
-        return new(filters)
-    end
-end
-
-function Query(filters::Filters; init)
+function Query(filters::AbstractVector; init)
     node, params = init, Dict{String, Any}()
-    for (i, f) in enumerate(filters.filters)
+    for (i, f) in enumerate(filters)
         q = Query(f, string("filter", i, "_"))
         node = node |> q.node
         merge!(params, q.params)
@@ -101,17 +100,17 @@ function Query(filters::Filters; init)
     return Query(node, params)
 end
 
-
 """
-    select(filters::Filters, repo::Repository)
+    select(filters::AbstractVector, repo::Repository)
 
-Create a table with name `TABLE_NAMES.selection` within the database `repo.db`
-based on rows from the table `TABLE_NAMES.source` that are kept by the filters
-in `filters`.
+Create a table with name `TABLE_NAMES.selection` within the database `repo.db`,
+where `repo` is a  and [`Repository`](@ref).
+The table `TABLE_NAMES.selection` is filled with rows from the table
+`TABLE_NAMES.source` that are kept by the filters in `filters`.
 
-See also [`Filters`](@ref) and [`Repository`](@ref).
+Each filter should be an instance of [`AbstractFilter`](@ref).
 """
-function select(filters::Filters, repo::Repository)
+function select(filters::AbstractVector, repo::Repository)
     (; node, params) = Query(filters, init = From(TABLE_NAMES.source))
     sql = render(get_catalog(repo), node)
     DBInterface.execute(

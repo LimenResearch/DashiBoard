@@ -26,6 +26,19 @@ const LINK_FUNCTIONS = Dict(
     "sqrt" => SqrtLink,
 )
 
+"""
+    struct GLMCard <: AbstractCard
+        predictors::Vector{Any} = Any[]
+        target::String
+        weights::Union{String, Nothing} = nothing
+        distribution::String = "normal"
+        link::Union{String, Nothing} = nothing
+        link_params::Vector{Any} = Any[]
+        suffix::String = "hat"
+    end
+
+Run a GLM 
+"""
 @kwdef struct GLMCard <: AbstractCard
     predictors::Vector{Any} = Any[]
     target::String

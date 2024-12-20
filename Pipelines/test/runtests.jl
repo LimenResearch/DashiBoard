@@ -27,7 +27,7 @@ mktempdir() do dir
     spec = open(JSON3.read, joinpath(static_dir, "spec.json"))
     repo = Repository(joinpath(dir, "db.duckdb"))
     DataIngestion.load_files(repo, spec["data"]["files"])
-    filters = DataIngestion.Filters(spec["filters"])
+    filters = DataIngestion.get_filter.(spec["filters"])
     DataIngestion.select(filters, repo)
 
     @testset "split" begin
@@ -156,7 +156,7 @@ mktempdir() do dir
 
     @testset "cards" begin
         d = open(JSON3.read, joinpath(static_dir, "cards.json"))
-        cards = Pipelines.Cards(d)
+        cards = Pipelines.get_card.(d)
         Pipelines.evaluate(cards, repo, "selection")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
         @test names(df) == [

@@ -18,10 +18,10 @@ mktempdir() do data_dir
     repo = DashiBoard.REPOSITORY[]
     DataIngestion.load_files(repo, joinpath.(data_dir, load_config["files"]))
 
-    filters = DataIngestion.Filters(pipeline_config["filters"])
+    filters = DataIngestion.get_filter.(pipeline_config["filters"])
     DataIngestion.select(filters, repo)
 
-    cards = Pipelines.Cards(pipeline_config["cards"])
+    cards = Pipelines.get_card.(pipeline_config["cards"])
     Pipelines.evaluate(cards, repo, "selection")
 
     res = DBInterface.execute(DataFrame, repo, "FROM selection")

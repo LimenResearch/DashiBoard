@@ -11,10 +11,17 @@ DataIngestion.is_supported
 DataIngestion.load_files
 ```
 
-## Selection interface
+## Metadata for filter generation
 
 ```@docs
-Filters
+DataIngestion.summarize
+```
+
+## Filtering interface
+
+```@docs
+DataIngestion.AbstractFilter
+DataIngestion.get_filter
 DataIngestion.select
 ```
 
@@ -23,10 +30,4 @@ DataIngestion.select
 ```@docs
 DataIngestion.IntervalFilter
 DataIngestion.ListFilter
-```
-
-### Metadata for filter generation
-
-```@docs
-DataIngestion.summarize
 ```

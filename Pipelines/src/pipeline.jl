@@ -43,8 +43,11 @@ const CARD_TYPES = Dict(
     "glm" => GLMCard,
 )
 
-get_card(c::AbstractCard) = c
+"""
+    get_card(d::AbstractDict)
 
+Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
+"""
 function get_card(d::AbstractDict)
     sd = Dict(Symbol(k) => v for (k, v) in pairs(d))
     type = pop!(sd, :type)
@@ -52,31 +55,16 @@ function get_card(d::AbstractDict)
 end
 
 """
-    struct Cards
-        cards::Vector{AbstractCard}
-    end
-
-Container for a list of `cards`.
-"""
-struct Cards
-    cards::Vector{AbstractCard}
-    function Cards(cs::AbstractVector)
-        cards::Vector{AbstractCard} = get_card.(cs)
-        return new(cards)
-    end
-end
-
-"""
-    evaluate(cards::Cards, repo::Repository, table::AbstractString; schema = nothing)
+    evaluate(cards::AbstractVector, repo::Repository, table::AbstractString; schema = nothing)
 
 Replace `table` in the database `repo.db` with the outcome of executing all
 the transformations in `cards`.
 """
-function evaluate(cards::Cards, repo::Repository, table::AbstractString; schema = nothing)
+function evaluate(cards::AbstractVector, repo::Repository, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
-    nodes = [Node(inputs(card), outputs(card), true) for card in cards.cards]
+    nodes = Node.(inputs.(cards), outputs.(cards), true)
     order = evaluation_order!(nodes)
     for idx in order
-        evaluate(cards.cards[idx], repo, table => table; schema)
+        evaluate(cards[idx], repo, table => table; schema)
     end
 end

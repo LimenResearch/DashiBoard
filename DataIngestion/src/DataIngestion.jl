@@ -1,6 +1,6 @@
 module DataIngestion
 
-export Filters, ListFilter, IntervalFilter
+export get_filter, AbstractFilter, ListFilter, IntervalFilter
 
 public is_supported, load_files, summarize, select
 

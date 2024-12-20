@@ -16,9 +16,9 @@ using Tables: Tables
 
 using DuckDBUtils: Repository
 
-using DataIngestion: is_supported, Filters, DataIngestion
+using DataIngestion: is_supported, get_filter, DataIngestion
 
-using Pipelines: Cards, Pipelines
+using Pipelines: get_card, Pipelines
 
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()

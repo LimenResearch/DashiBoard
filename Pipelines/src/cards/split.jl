@@ -2,10 +2,10 @@
     struct SplitCard <: AbstractCard
         method::String
         order_by::Vector{String}
-        by::Vector{String}
+        by::Vector{String} = String[]
         output::String
-        p::Float64
-        tiles::Vector{Int}
+        p::Float64 = NaN
+        tiles::Vector{Int} = Int[]
     end
 
 Card to split the data into two groups according to a given `method`.

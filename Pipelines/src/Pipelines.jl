@@ -1,8 +1,6 @@
 module Pipelines
 
-export Cards
-
-export RescaleCard, SplitCard
+export get_card, AbstractCard, RescaleCard, SplitCard
 
 public plan, evaluate, deevaluate
 
@@ -35,7 +33,7 @@ using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 using StatsModels: Term, ConstantTerm
 using StatsAPI: predict
 using GLM: glm,
-    canonicallink,    
+    canonicallink,
     Normal,
     Binomial,
     Gamma,

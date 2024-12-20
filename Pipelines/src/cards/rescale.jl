@@ -1,9 +1,9 @@
 """
     struct RescaleCard <: AbstractCard
         method::String
-        by::Vector{String}
+        by::Vector{String} = String[]
         columns::Vector{String}
-        suffix::String
+        suffix::String = "rescaled"
     end
 
 Card to rescale of one or more columns according to a given `method`.

@@ -120,3 +120,57 @@ function select(filters::AbstractVector, repo::Repository)
         pack(sql, params)
     )
 end
+###################
+# IntervalFilter for Date
+struct DateIntervalFilter <: AbstractFilter
+    colname::String
+    interval::ClosedInterval{Date}
+end
+
+function Query(f::DateIntervalFilter, prefix::AbstractString)
+    (; colname, interval) = f
+    pleft, pright = string.(prefix, ("left", "right"))
+
+    # Use plain values for Dates and handle casting in SQL
+    params = Dict(pleft => string(leftendpoint(interval)), pright => string(rightendpoint(interval)))
+
+    cond = Get(colname) .>= Fun.cast(Var(pleft), "DATE") .&& Get(colname) .<= Fun.cast(Var(pright), "DATE")
+
+    return Query(Where(cond), params)
+end
+
+# IntervalFilter for Time
+struct TimeIntervalFilter <: AbstractFilter
+    colname::String
+    interval::ClosedInterval{Time}
+end
+
+function Query(f::TimeIntervalFilter, prefix::AbstractString)
+    (; colname, interval) = f
+    pleft, pright = string.(prefix, ("left", "right"))
+
+    # Use plain values for Times and handle casting in SQL
+    params = Dict(pleft => string(leftendpoint(interval)), pright => string(rightendpoint(interval)))
+
+    cond = Get(colname) .>= Fun.cast(Var(pleft), "TIME") .&& Get(colname) .<= Fun.cast(Var(pright), "TIME")
+
+    return Query(Where(cond), params)
+end
+
+# IntervalFilter for DateTime
+struct DateTimeIntervalFilter <: AbstractFilter
+    colname::String
+    interval::ClosedInterval{DateTime}
+end
+
+function Query(f::DateTimeIntervalFilter, prefix::AbstractString)
+    (; colname, interval) = f
+    pleft, pright = string.(prefix, ("left", "right"))
+
+    # Use plain values for DateTimes and handle casting in SQL
+    params = Dict(pleft => string(leftendpoint(interval)), pright => string(rightendpoint(interval)))
+
+    cond = Get(colname) .>= Fun.cast(Var(pleft), "TIMESTAMP") .&& Get(colname) .<= Fun.cast(Var(pright), "TIMESTAMP")
+
+    return Query(Where(cond), params)
+end

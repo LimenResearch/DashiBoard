@@ -32,27 +32,37 @@ is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 """
     load_files(
         repository::Repository, files::AbstractVector{<:AbstractString},
-        [format::AbstractString]
+        [format::AbstractString];
+        kwargs...
     )
 
 Load `files` into a table called `TABLE_NAMES.source` inside `repository.db`.
-The format is inferred or can be passed explicitly.
+The format is inferred or can be passed explicitly. Additional arguments can
+be passed to the DuckDB reader, such as `dateformat`.
 
 The following formats are supported:
 $(list_formats()).
 """
 function load_files(
-        repository::Repository, files::AbstractVector{<:AbstractString},
-        format::AbstractString = to_format(first(files))
+        repository::Repository,
+        files::AbstractVector{<:AbstractString},
+        format::AbstractString = to_format(first(files));
+        kwargs...
     )
-
     N = length(files)
     placeholders = join(string.('$', 1:N), ", ")
     reader = DEFAULT_READERS[format]
+
+    # Construct additional arguments for the reader
+    additional_args = isempty(kwargs) ? "" : ", " * join(
+        ["$k = $v" for (k, v) in kwargs], ", "
+    )
+
     sql = """
     CREATE OR REPLACE TABLE $(TABLE_NAMES.source) AS
-    FROM $reader([$placeholders], union_by_name = true, filename = true)
+    FROM $reader([$placeholders], union_by_name = true, filename = true$(additional_args))
     SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     """
     DBInterface.execute(Returns(nothing), repository, sql, files)
 end
+

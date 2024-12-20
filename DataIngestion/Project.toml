@@ -5,6 +5,7 @@ version = "1.0.0-DEV"
 
 [deps]
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
 FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
 IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
@@ -17,6 +18,7 @@ DuckDBUtils = {path = "../DuckDBUtils"}
 
 [compat]
 DBInterface = "2.6.1"
+Dates = "1.11.0"
 FunSQL = "0.14.3"
 IntervalSets = "0.7.10"
 IterTools = "1"

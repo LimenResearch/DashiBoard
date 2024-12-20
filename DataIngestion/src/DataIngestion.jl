@@ -1,6 +1,6 @@
 module DataIngestion
 
-export get_filter, AbstractFilter, ListFilter, IntervalFilter
+export get_filter, AbstractFilter, ListFilter, IntervalFilter, DateIntervalFilter, TimeIntervalFilter, DateTimeIntervalFilter
 
 public is_supported, load_files, summarize, select
 
@@ -23,6 +23,7 @@ using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst
 using Tables: Tables
 using OrderedCollections: OrderedDict
+using Dates
 
 include("load.jl")
 include("filters.jl")

@@ -2,7 +2,7 @@ module Pipelines
 
 export get_card, AbstractCard, RescaleCard, SplitCard
 
-public plan, evaluate, deevaluate
+public train, evaluate, deevaluate
 
 using Tables: Tables
 using DBInterface: DBInterface
@@ -31,8 +31,9 @@ using FunSQL: render,
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
 using StatsModels: Term, ConstantTerm
-using StatsAPI: predict
-using GLM: glm,
+using StatsAPI: fit, predict
+using GLM: GeneralizedLinearModel,
+    RegressionModel,
     canonicallink,
     Normal,
     Binomial,

@@ -1,0 +1,24 @@
+name = "vae"
+seed = 1234
+
+[components]
+
+embedding = [
+    { name = "conv", size = 1, kernel = [5, 5], sigma = "relu" },
+    { name = "conv", size = 3, kernel = [5, 5], sigma = "relu" },
+    { name = "conv", size = 10, kernel = [3, 3], sigma = "relu" },
+]
+
+model = [
+    { name = "conv", size = 16, kernel = [3, 3], pad = [1, 1], sigma="relu" },
+]
+
+projection = [
+    { name = "conv_t", size = 10, kernel = [3, 3], sigma = "relu" },
+    { name = "conv_t", size = 3, kernel = [5, 5], sigma = "relu" },
+    { name = "conv_t", size = 1, kernel = [4, 4], sigma = "" },
+]
+
+[loss]
+name = "vae_loss"
+beta = 1

@@ -1,5 +1,11 @@
 # Pipelines
 
+```@meta
+CurrentModule = Pipelines
+```
+
+Pipelines is a library designed to generate and evaluate data analysis pipelines.
+
 ## Transformation interface
 
 ```@docs

@@ -49,4 +49,5 @@ jobs:
           Pkg.test("DuckDBUtils")
           Pkg.test("DataIngestion")
           Pkg.test("Pipelines")
+          Pkg.test("StreamlinerCore")
           Pkg.test("DashiBoard")

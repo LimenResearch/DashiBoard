@@ -1,0 +1,7 @@
+/Manifest.toml
+test/Manifest.toml
+LocalPreferences.toml
+/lib
+/.vscode
+/.CondaPkg
+.DS_Store

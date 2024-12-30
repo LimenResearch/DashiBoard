@@ -1,0 +1,33 @@
+name = "basic"
+seed = 1234
+
+[[components.model]]
+name = "conv"
+size = 10
+kernel = [{-v = "kernel_size"}, {-v = "kernel_size"}]
+sigma = {-v = "sigma"}
+
+[[components.model]]
+name = "conv"
+size = 10
+kernel = [{-v = "kernel_size"}, {-v = "kernel_size"}]
+sigma = {-v = "sigma"}
+
+[[components.model]]
+name = "maxpool"
+window = [2, 2]
+
+[[components.model]]
+name = "dense"
+size = 10
+sigma = ""
+
+[loss]
+name = "logitcrossentropy"
+dims = 1
+agg = "mean"
+
+[[metrics]]
+name = "accuracy"
+dims = 1
+agg = "mean"

@@ -1,0 +1,18 @@
+name = "basic"
+seed = 1234
+
+[components]
+
+model = [
+    { name = "conv", size = 10, kernel = [5, 5], sigma = "relu" },
+    { name = "conv", size = 1, kernel = [5, 5], sigma = "relu" },
+    { name = "maxpool", window = [2, 2] },
+]
+
+[loss]
+name = "mse"
+agg = "mean"
+
+[[metrics]]
+name = "mae"
+agg = "mean"

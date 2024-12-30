@@ -1,0 +1,9 @@
+seed = 5678
+device = "cpu"
+batchsize = 32
+iterations = 0
+shuffle = false
+
+[optimizer]
+name = "Adam"
+eta = 1e-2

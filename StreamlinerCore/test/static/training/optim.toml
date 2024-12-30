@@ -1,0 +1,9 @@
+seed = 5678
+device = "cpu"
+iterations = 5
+
+[options]
+f_reltol = 1e-3
+
+[optimizer]
+name = "LBFGS"

@@ -1,0 +1,23 @@
+seed = 5678
+device = "cpu"
+batchsize = 32
+iterations = 5
+
+[optimizer]
+name = "Adam"
+
+[schedules.eta]
+name = "CosAnneal"
+l0 = 1e-2
+l1 = 1e-3
+period = 10
+restart = true
+
+[[stoppers]]
+name = "early_stopping"
+patience = 10
+
+[[stoppers]]
+name = "plateau"
+patience = 10
+min_dist = 0.01

@@ -1,0 +1,29 @@
+name = "basic"
+seed = 1234
+
+[components]
+
+model = [
+    { name = "conv", size = 10, kernel = [5, 5], sigma = "relu" },
+    { name = "conv", size = 3, kernel = [5, 5], sigma = "relu" },
+    { name = "maxpool", window = [2, 2] },
+    { name = "dense", size = 10, sigma = "" },
+]
+
+[loss]
+name = "logitcrossentropy"
+dims = 1
+agg = "mean"
+
+[[metrics]]
+name = "accuracy"
+dims = 1
+agg = "mean"
+
+[[regularizations]]
+name = "l1"
+lambda = 0.01
+
+[[regularizations]]
+name = "l2"
+lambda = 0.1

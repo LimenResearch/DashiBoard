@@ -20,9 +20,9 @@ function default_callback(m, trace::Trace; gc = true)
 end
 
 function _train(
-        io::IO, model::Model, training::Training, data::AbstractData{2}, entry::Maybe{BSON};
-        callback, registry::Registry{P}, prefix::P, resume::Bool
-    ) where {P}
+        io::IO, model::Model, training::Training, data::AbstractData{2}, entry::Maybe{Entry};
+        callback, prefix, resume::Bool
+    )
     (; optimizer, device) = training
     templates = get_templates(data)
     is_batched = optimizer isa AbstractRule
@@ -44,12 +44,12 @@ function _train(
         device(model(templates))
     else
         # Pretrained option: first load weights from `entry`
-        loadmodel(model, training, templates, entry; registry)
+        loadmodel(model, training, templates, entry)
     end
 
     nstats = 1 + length(model.metrics)
     init = if resume
-        entry["result"]["iteration"] => Dict{String, Vector{Float64}}(entry["result"]["stats"])
+        entry.result.iteration => entry.result.stats
     else
         0 => Dict("training" => fill(Inf, nstats), "validation" => fill(Inf, nstats))
     end
@@ -77,14 +77,14 @@ function _train(
         write(joinpath(prefix, filename), bytes)
     end
 
-    result = Dict(
-        "iteration" => best_N,
-        "stats" => best_stats,
-        "prefix" => string(prefix),
-        "path" => filename
+    result = EntryResult(
+        iteration = best_N,
+        stats = best_stats,
+        prefix = prefix,
+        filename = filename
     )
 
-    return insert_entry(registry, result, model, training, data, entry; trained = true, resumed = resume)
+    return generate_entry(result, model, training, data, entry; trained = true, resumed = resume)
 end
 
 function finalize_callback(
@@ -214,19 +214,19 @@ function batched_train!(
 end
 
 function _train(
-        model::Model, training::Training, data::AbstractData{2}, entry::Maybe{BSON};
-        callback = default_callback, registry::Registry{P}, prefix::P,
+        model::Model, training::Training, data::AbstractData{2}, entry::Maybe{Entry};
+        callback = default_callback, prefix,
         parent::AbstractString = tempdir(), resume::Bool
-    ) where {P}
+    )
     return mktemp(parent) do _, io
-        return _train(io, model, training, data, entry; callback, registry, prefix, resume)
+        return _train(io, model, training, data, entry; callback, prefix, resume)
     end
 end
 
 """
     train(
         model::Model, training::Training, data::AbstractData{2};
-        callback = default_callback, registry::Registry{P}, prefix,
+        callback = default_callback, prefix,
         parent::AbstractString = tempdir()
     )
 
@@ -234,7 +234,6 @@ Train `model` using the `training` configuration on `data`.
 
 The keyword arguments are as follows.
 
-- `registry` is a MongoDB that stores metadata.
 - `prefix` represents the path where StreamlinerCore saves model weights (can be local or remote).
 - `parent` represents a folder where StreamlinerCore will store temporary data during training.
 - `callback(m, trace)` will be called after every epoch.
@@ -248,39 +247,39 @@ The arguments of `callback` work as follows.
 """
 function train(
         model::Model, training::Training, data::AbstractData{2};
-        callback = default_callback, registry::Registry{P}, prefix::P,
+        callback = default_callback, prefix,
         parent::AbstractString = tempdir()
-    ) where {P}
-    return _train(model, training, data, nothing; callback, registry, prefix, parent, resume = false)
+    )
+    return _train(model, training, data, nothing; callback, prefix, parent, resume = false)
 end
 
 """
     finetune(
-        parser::Parser, [training::Training], data::AbstractData{2}, entry::BSON;
+        parser::Parser, [training::Training], data::AbstractData{2}, entry::Entry;
         resume::Bool, callback = default_callback,
-        registry::Registry{P}, prefix, parent::AbstractString = tempdir()
-    ) where {P}
+        prefix, parent::AbstractString = tempdir()
+    )
 
 Load model encoded in `entry` via `parser` and retrain it using the `training` configuration on `data`.
 Same keyword arguments as [`train`](@ref).
 The argument `training` is optional and defaults to the settings stored in `entry`.
 """
 function finetune(
-        parser::Parser, training::Training, data::AbstractData{2}, entry::BSON;
+        parser::Parser, training::Training, data::AbstractData{2}, entry::Entry;
         resume::Bool, callback = default_callback,
-        registry::Registry{P}, prefix, parent::AbstractString = tempdir()
-    ) where {P}
+        prefix, parent::AbstractString = tempdir()
+    )
 
-    model = Model(parser, entry["model"])
-    return _train(model, training, data, entry; callback, registry, prefix, parent, resume)
+    model = Model(parser, entry.key.model)
+    return _train(model, training, data, entry; callback, prefix, parent, resume)
 end
 
 function finetune(
-        parser::Parser, data::AbstractData{2}, entry::BSON;
+        parser::Parser, data::AbstractData{2}, entry::Entry;
         resume::Bool, callback = default_callback,
-        registry::Registry{P}, prefix, parent::AbstractString = tempdir()
-    ) where {P}
+        prefix, parent::AbstractString = tempdir()
+    )
 
-    training = Training(parser, entry["training"])
-    return finetune(parser, training, data, entry; resume, callback, registry, prefix, parent)
+    training = Training(parser, entry.key.training)
+    return finetune(parser, training, data, entry; resume, callback, prefix, parent)
 end

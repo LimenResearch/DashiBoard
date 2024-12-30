@@ -16,18 +16,18 @@ end
 
 """
     evaluate(
-        parser::Parser, data::AbstractData{1}, entry::BSON,
-        select::SymbolTuple = (:prediction,); registry::Registry
+        parser::Parser, data::AbstractData{1}, entry::Entry,
+        select::SymbolTuple = (:prediction,)
     )
 
 Load model encoded in `entry` via `parser` and evaluate it on `data`.
 """
 function evaluate(
-        parser::Parser, data::AbstractData{1}, entry::BSON,
-        select::SymbolTuple = (:prediction,); registry::Registry
+        parser::Parser, data::AbstractData{1}, entry::Entry,
+        select::SymbolTuple = (:prediction,)
     )
-    model = Model(parser, entry["model"])
-    training = Training(parser, entry["training"])
-    device_m = loadmodel(model, training, get_templates(data), entry; registry)
+    model = Model(parser, entry.key.model)
+    training = Training(parser, entry.key.training)
+    device_m = loadmodel(model, training, get_templates(data), entry)
     return evaluate(device_m, training, data, select)
 end

@@ -7,27 +7,20 @@ function test_vae(prefix)
 
     println(StreamlinerCore.summarize(model, training, train_regression_data))
 
-    res = train(model, training, train_autoencoder_data; registry, prefix)
+    entry = train(model, training, train_autoencoder_data; prefix)
 
     @info "Completed MNIST training of convolutional network using Variational Auto Encoder"
-    @show res["result"]["path"]
-    @show res["result"]["stats"]
+    @show entry.result.filename
+    @show entry.result.stats
     println()
 
-    entry = find_latest_entry(registry, model, training, train_autoencoder_data)
-    @test !isnothing(entry)
-
-    entries = find_all_entries(registry, model, training, train_autoencoder_data)
-    @test length(entries) == 1
-    @test only(entries) == entry
-
-    res = validate(parser, test_autoencoder_data, entry; registry)
+    entry′ = validate(parser, test_autoencoder_data, entry)
 
     @info "Completed MNIST validation of convolutional network"
-    @show res["result"]["stats"]
+    @show entry′.result.stats
     println()
 
-    res = evaluate(parser, test_autoencoder_data, entry; registry)
+    res = evaluate(parser, test_autoencoder_data, entry)
     @show size.(getproperty.(res, :prediction))
     println()
 end

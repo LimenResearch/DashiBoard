@@ -9,43 +9,33 @@ function test_mnist_conv(prefix)
     # Check data volume
     println(StreamlinerCore.summarize(model, training, train_regression_data))
 
-    res = train(model, training, train_regression_data; registry, prefix)
+    entry = train(model, training, train_regression_data; prefix)
 
     @info "Completed MNIST training of convolutional network"
-    @show res["result"]["path"]
-    @show res["result"]["stats"]
+    @show entry.result.filename
+    @show entry.result.stats
     println()
 
-    entry = find_latest_entry(registry, model, training, train_regression_data)
-    @test !isnothing(entry)
     @test StreamlinerCore.has_weights(entry)
-    templates = StreamlinerCore.dict2templates(entry["templates"])
-    @test templates.input == Template{Float32, 3}((28, 28, 1))
-    @test templates.target == Template{Bool, 1}((10,))
 
-    finetune(parser, train_regression_data, entry; registry, prefix, resume = true)
+    finetune(parser, train_regression_data, entry; prefix, resume = true)
     @info "Finetuned training"
-    entry′ = find_latest_entry(registry, model, training, train_regression_data, entry, resumed = true)
-    @test !isnothing(entry′)
 
-    res = validate(parser, test_regression_data, entry; registry)
-
-    entry′ = find_latest_entry(registry, model, training, test_regression_data, entry; trained = false)
-    @test !isnothing(entry′)
-    @test !StreamlinerCore.has_weights(entry′)
+    entry′ = validate(parser, test_regression_data, entry)
+    @test StreamlinerCore.has_weights(entry′)
 
     @info "Completed MNIST validation of convolutional network"
-    @show res["result"]["stats"]
+    @show entry.result.stats
     println()
 
-    res = evaluate(parser, test_regression_data, entry; registry)
+    res = evaluate(parser, test_regression_data, entry)
     @show size.(getproperty.(res, :prediction))
     println()
 
     # Load trained model using optimal weights
     # Can be used as alternative to `evaluate` below
     templates = get_templates(test_regression_data)
-    m′ = loadmodel(parser, templates, entry; registry)
+    m′ = loadmodel(parser, templates, entry)
     @info "Trained model"
     @show m′
     println()
@@ -53,9 +43,6 @@ function test_mnist_conv(prefix)
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "null.toml"))
 
-    res = train(model, training, train_regression_data; registry, prefix)
-    entry′′ = find_latest_entry(registry, model, training, train_regression_data)
-    @test !isnothing(entry′′)
-
-    @test !StreamlinerCore.has_weights(entry′′)
+    entry = train(model, training, train_regression_data; prefix)
+    @test !StreamlinerCore.has_weights(entry)
 end

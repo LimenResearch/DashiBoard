@@ -25,21 +25,6 @@ Template(::Type{T}, size::NTuple{N, Int}) where {T, N} = Template{T, N}(size)
 Base.size(t::Template) = t.size
 Base.eltype(::Type{Template{T, N}}) where {T, N} = T
 
-function _to_dict(t::Template)
-    elt, sz = eltype(t), size(t)
-    return StringDict("eltype" => string(elt), "size" => collect(sz))
-end
-
-templates2dict(ts::NamedTuple) = StringDict(String(k) => _to_dict(v) for (k, v) in pairs(ts))
-
-function _to_template(d::AbstractDict)
-    T = getproperty(Base, Symbol(d["eltype"]))
-    size = Tuple(d["size"])
-    return Template{T}(size)
-end
-
-dict2templates(d::AbstractDict) = NamedTuple(Symbol(k) => _to_template(v) for (k, v) in pairs(d))
-
 """
     AbstactData{N}
 

@@ -1,10 +1,10 @@
 using Documenter
-using DuckDBUtils, DataIngestion, Pipelines
+using DuckDBUtils, DataIngestion, Pipelines, StreamlinerCore
 
 makedocs(
     sitename = "DashiBoard",
     format = Documenter.HTML(),
-    modules = [DuckDBUtils, DataIngestion, Pipelines],
+    modules = [DuckDBUtils, DataIngestion, Pipelines, StreamlinerCore],
     pages = [
         "Overview" => "index.md",
         "Getting Started" => "getting-started.md",
@@ -12,6 +12,7 @@ makedocs(
         "DuckDBUtils API" => "lib/DuckDBUtils.md",
         "DataIngestion API" => "lib/DataIngestion.md",
         "Pipelines API" => "lib/Pipelines.md",
+        "StreamlinerCore API" => "lib/StreamlinerCore.md",
     ]
 )
 

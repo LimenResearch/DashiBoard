@@ -1,8 +1,11 @@
-# Index
+# StreamlinerCore
 
 ```@meta
 CurrentModule = StreamlinerCore
 ```
+
+StreamlinerCore is a julia library to generate, train and evaluate models
+defined via some configuration files.
 
 ## Data interface
 
@@ -40,15 +43,6 @@ loadmodel
 validate
 evaluate
 summarize
-```
-
-## Registry
-
-```@docs
-Registry
-find_all_entries
-find_latest_entry
-replace_prefix
 ```
 
 ## Utilities

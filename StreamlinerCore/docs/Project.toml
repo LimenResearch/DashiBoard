@@ -1,8 +1,0 @@
-[deps]
-Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-ParametricMachines = "7a7eaec2-4617-4660-b30b-2e3948c72f32"
-StreamlinerCore = "32326c28-9ac7-4954-b80e-c95a277351a4"
-
-[sources]
-ParametricMachines = {url = "https://github.com/LimenResearch/ParametricMachines.jl"}
-StreamlinerCore = {path = ".."}

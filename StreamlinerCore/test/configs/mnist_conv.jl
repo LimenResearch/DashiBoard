@@ -1,4 +1,4 @@
-function test_mnist_conv(prefix)
+function test_mnist_conv(outputdir)
     println()
     @info "Starting MNIST training of convolutional network"
 
@@ -9,33 +9,32 @@ function test_mnist_conv(prefix)
     # Check data volume
     println(StreamlinerCore.summarize(model, training, train_regression_data))
 
-    entry = train(model, training, train_regression_data; prefix)
+    result = train(model, training, train_regression_data; outputdir)
 
     @info "Completed MNIST training of convolutional network"
-    @show entry.result.filename
-    @show entry.result.stats
+    @show StreamlinerCore.get_filename(result)
+    @show result.stats
     println()
 
-    @test StreamlinerCore.has_weights(entry)
+    @test StreamlinerCore.has_weights(result)
 
-    finetune(parser, train_regression_data, entry; prefix, resume = true)
+    finetune(model, training, train_regression_data, result; outputdir, resume = true)
     @info "Finetuned training"
 
-    entry′ = validate(parser, test_regression_data, entry)
-    @test StreamlinerCore.has_weights(entry′)
+    result′ = validate(model, training, test_regression_data, result)
+    @test !StreamlinerCore.has_weights(result′)
 
     @info "Completed MNIST validation of convolutional network"
-    @show entry.result.stats
+    @show result.stats
     println()
 
-    res = evaluate(parser, test_regression_data, entry)
+    res = evaluate(model, training, test_regression_data, result)
     @show size.(getproperty.(res, :prediction))
     println()
 
     # Load trained model using optimal weights
     # Can be used as alternative to `evaluate` below
-    templates = get_templates(test_regression_data)
-    m′ = loadmodel(parser, templates, entry)
+    m′ = loadmodel(model, training, test_regression_data, result)
     @info "Trained model"
     @show m′
     println()
@@ -43,6 +42,6 @@ function test_mnist_conv(prefix)
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "null.toml"))
 
-    entry = train(model, training, train_regression_data; prefix)
-    @test !StreamlinerCore.has_weights(entry)
+    result = train(model, training, train_regression_data; outputdir)
+    @test !StreamlinerCore.has_weights(result)
 end

@@ -1,4 +1,4 @@
-function test_vae(prefix)
+function test_vae(outputdir)
     println()
     @info "Starting MNIST training of convolutional network using Variational Auto Encoder"
 
@@ -7,20 +7,20 @@ function test_vae(prefix)
 
     println(StreamlinerCore.summarize(model, training, train_regression_data))
 
-    entry = train(model, training, train_autoencoder_data; prefix)
+    result = train(model, training, train_autoencoder_data; outputdir)
 
     @info "Completed MNIST training of convolutional network using Variational Auto Encoder"
-    @show entry.result.filename
-    @show entry.result.stats
+    @show StreamlinerCore.get_filename(result)
+    @show result.stats
     println()
 
-    entry′ = validate(parser, test_autoencoder_data, entry)
+    result′ = validate(model, training, test_autoencoder_data, result)
 
     @info "Completed MNIST validation of convolutional network"
-    @show entry′.result.stats
+    @show result′.stats
     println()
 
-    res = evaluate(parser, test_autoencoder_data, entry)
+    res = evaluate(model, training, test_autoencoder_data, result)
     @show size.(getproperty.(res, :prediction))
     println()
 end

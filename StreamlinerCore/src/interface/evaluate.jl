@@ -16,18 +16,16 @@ end
 
 """
     evaluate(
-        parser::Parser, data::AbstractData{1}, entry::Entry,
+        model::Model, training::Training, data::AbstractData{1}, result::Result,
         select::SymbolTuple = (:prediction,)
     )
 
-Load model encoded in `entry` via `parser` and evaluate it on `data`.
+Load model encoded in `result` and evaluate it on `data`.
 """
 function evaluate(
-        parser::Parser, data::AbstractData{1}, entry::Entry,
+        model::Model, training::Training, data::AbstractData{1}, result::Result,
         select::SymbolTuple = (:prediction,)
     )
-    model = Model(parser, entry.key.model)
-    training = Training(parser, entry.key.training)
-    device_m = loadmodel(model, training, get_templates(data), entry)
+    device_m = loadmodel(model, training, data, result)
     return evaluate(device_m, training, data, select)
 end

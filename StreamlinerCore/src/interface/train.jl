@@ -1,7 +1,7 @@
 # Train model via Optimisers.jl or Optim.jl
 
 @kwdef struct Trace
-    stats::StringDict
+    stats::NTuple{2, Vector{Float64}}
     metrics::Vector{Any}
     iteration::Int
 end
@@ -11,8 +11,8 @@ format(k::Symbol, x::Number) = @sprintf "%s: %f" string(k) x
 function default_callback(m, trace::Trace; gc = true)
     (; stats, metrics, iteration) = trace
 
-    local training = join(format.(metricname.(metrics), stats["training"]), ", ")
-    local validation = join(format.(metricname.(metrics), stats["validation"]), ", ")
+    local training = join(format.(metricname.(metrics), stats[Int(DataPartition.training)]), ", ")
+    local validation = join(format.(metricname.(metrics), stats[Int(DataPartition.validation)]), ", ")
 
     print("iteration: $iteration\ttraining: {$training}\tvalidation: {$validation}\n")
 
@@ -20,11 +20,11 @@ function default_callback(m, trace::Trace; gc = true)
 end
 
 function _train(
-        io::IO, model::Model, training::Training, data::AbstractData{2}, entry::Maybe{Entry};
-        callback, prefix, resume::Bool
-    )
+        io::IO, model::Model, training::Training, data::AbstractData{2},
+        result::Maybe{<:Result}; resume::Bool, callback, outputdir::P
+    ) where {P}
+
     (; optimizer, device) = training
-    templates = get_templates(data)
     is_batched = optimizer isa AbstractRule
 
     if is_batched
@@ -40,18 +40,18 @@ function _train(
         end
     end
 
-    device_m = if isnothing(entry)
-        device(model(templates))
+    device_m = if isnothing(result)
+        device(model(data))
     else
-        # Pretrained option: first load weights from `entry`
-        loadmodel(model, training, templates, entry)
+        # Pretrained option: first load weights from `result`
+        loadmodel(model, training, data, result)
     end
 
     nstats = 1 + length(model.metrics)
     init = if resume
-        entry.result.iteration => entry.result.stats
+        result.iteration => result.stats
     else
-        0 => Dict("training" => fill(Inf, nstats), "validation" => fill(Inf, nstats))
+        0 => (fill(Inf, nstats), fill(Inf, nstats))
     end
 
     stoppers::Vector{Any} = start.(training.stoppers)
@@ -70,39 +70,36 @@ function _train(
 
     bytes = read(seekstart(io))
 
-    if isempty(bytes)
-        filename = nothing
-    else
-        filename = "model-$(uuid4()).bson"
-        write(joinpath(prefix, filename), bytes)
-    end
-
-    result = EntryResult(
+    result = Result{P, 2}(
+        prefix = outputdir,
+        uuid = uuid4(),
+        has_weights = !isempty(bytes),
         iteration = best_N,
         stats = best_stats,
-        prefix = prefix,
-        filename = filename
     )
 
-    return generate_entry(result, model, training, data, entry; trained = true, resumed = resume)
+    result.has_weights && write(get_path(result), bytes)
+
+    return result 
 end
 
 function finalize_callback(
-        io::IO, (model, device_m)::ModelPair, (training, training_state)::TrainingPair, valid_stream,
-        (best_N, best_stats), (N, train_stats); callback
+        io::IO, (model, device_m)::ModelPair, (training, training_state)::TrainingPair,
+        valid_stream, (best_N, best_stats), (N, train_stats); callback
     )
 
     metrics = (model.loss, model.metrics...)
     valid_stats = compute_metrics(metrics, device_m, valid_stream)
-    current_stats = Dict(
-        "training" => collect(Float64, train_stats),
-        "validation" => collect(Float64, valid_stats)
+    current_stats = (
+        collect(Float64, train_stats),
+        collect(Float64, valid_stats)
     )
 
     trace = Trace(stats = current_stats, metrics = collect(Any, metrics), iteration = N)
     callback(device_m, trace)
 
-    valid_loss, best_valid_loss = first(current_stats["validation"]), first(best_stats["validation"])
+    valid_loss = first(current_stats[Int(DataPartition.validation)])
+    best_valid_loss = first(best_stats[Int(DataPartition.validation)])
 
     if valid_loss < best_valid_loss
         truncate(io, 0)
@@ -116,8 +113,8 @@ function finalize_callback(
 end
 
 function unbatched_train!(
-        io::IO, (model, device_m)::ModelPair, (training, training_state)::TrainingPair, data::AbstractData{2},
-        (init_N, init_stats)::Pair; callback
+        io::IO, (model, device_m)::ModelPair, (training, training_state)::TrainingPair,
+        data::AbstractData{2}, (init_N, init_stats)::Pair; callback
     )
 
     # Turn model into a pair consisting of
@@ -140,7 +137,8 @@ function unbatched_train!(
         train_stats = compute_metric((vars[].loss, model.metrics...), vars[].output)
         current = N => train_stats
         stop, best[] = finalize_callback(
-            io::IO, model => re(θ), training => training_state, [valid_data], best[], current; callback
+            io::IO, model => re(θ), training => training_state, [valid_data],
+            best[], current; callback
         )
         return stop
     end
@@ -170,7 +168,12 @@ function unbatched_train!(
     return best[]
 end
 
-function epoch_train!((model, device_m)::ModelPair, (training, training_state)::TrainingPair, train_stream)
+function epoch_train!(
+        (model, device_m)::ModelPair,
+        (training, training_state)::TrainingPair,
+        train_stream
+    )
+
     nbatches = length(train_stream)
 
     train_losses = fill(NaN, nbatches)
@@ -180,7 +183,12 @@ function epoch_train!((model, device_m)::ModelPair, (training, training_state)::
         ev = Evaluator(batch, model.loss, model.regularizations)
         vars, (grad,) = withgradient(ev, device_m)
         train_loss, train_res = vars.loss, vars.output
-        store_metrics!((train_loss, model.metrics...), (train_losses, train_metrics...), train_res, nbatch)
+        store_metrics!(
+            (train_loss, model.metrics...),
+            (train_losses, train_metrics...),
+            train_res,
+            nbatch
+        )
         update!(training_state.optimizer, device_m, grad)
         @logprogress nbatch / nbatches
     end
@@ -214,28 +222,28 @@ function batched_train!(
 end
 
 function _train(
-        model::Model, training::Training, data::AbstractData{2}, entry::Maybe{Entry};
-        callback = default_callback, prefix,
-        parent::AbstractString = tempdir(), resume::Bool
+        model::Model, training::Training, data::AbstractData{2}, result::Maybe{Result};
+        resume::Bool, callback = default_callback,
+        outputdir, tempdir::AbstractString = Base.tempdir()
     )
-    return mktemp(parent) do _, io
-        return _train(io, model, training, data, entry; callback, prefix, resume)
+    return mktemp(tempdir) do _, io
+        return _train(io, model, training, data, result; resume, callback, outputdir)
     end
 end
 
 """
     train(
         model::Model, training::Training, data::AbstractData{2};
-        callback = default_callback, prefix,
-        parent::AbstractString = tempdir()
+        callback = default_callback, outputdir,
+        tempdir::AbstractString = Base.tempdir()
     )
 
 Train `model` using the `training` configuration on `data`.
 
 The keyword arguments are as follows.
 
-- `prefix` represents the path where StreamlinerCore saves model weights (can be local or remote).
-- `parent` represents a folder where StreamlinerCore will store temporary data during training.
+- `outputdir` represents the path where StreamlinerCore saves model weights (can be local or remote).
+- `tempdir` represents a folder where StreamlinerCore will store temporary data during training.
 - `callback(m, trace)` will be called after every epoch.
 
 The arguments of `callback` work as follows.
@@ -247,39 +255,28 @@ The arguments of `callback` work as follows.
 """
 function train(
         model::Model, training::Training, data::AbstractData{2};
-        callback = default_callback, prefix,
-        parent::AbstractString = tempdir()
+        callback = default_callback, outputdir,
+        tempdir::AbstractString = Base.tempdir()
     )
-    return _train(model, training, data, nothing; callback, prefix, parent, resume = false)
+    return _train(model, training, data, nothing; callback, outputdir, tempdir, resume = false)
 end
 
 """
     finetune(
-        parser::Parser, [training::Training], data::AbstractData{2}, entry::Entry;
+        model::Model, training::Training, data::AbstractData{2}, result::Result;
         resume::Bool, callback = default_callback,
-        prefix, parent::AbstractString = tempdir()
+        outputdir, tempdir::AbstractString = Base.tempdir()
     )
 
-Load model encoded in `entry` via `parser` and retrain it using the `training` configuration on `data`.
-Same keyword arguments as [`train`](@ref).
-The argument `training` is optional and defaults to the settings stored in `entry`.
+Load model encoded in `result` and retrain it using the `training` configuration on `data`.
+Use `resume = true` to restart training where it left off.
+Same other keyword arguments as [`train`](@ref).
 """
 function finetune(
-        parser::Parser, training::Training, data::AbstractData{2}, entry::Entry;
+        model::Model, training::Training, data::AbstractData{2}, result::Result;
         resume::Bool, callback = default_callback,
-        prefix, parent::AbstractString = tempdir()
+        outputdir, tempdir::AbstractString = Base.tempdir()
     )
 
-    model = Model(parser, entry.key.model)
-    return _train(model, training, data, entry; callback, prefix, parent, resume)
-end
-
-function finetune(
-        parser::Parser, data::AbstractData{2}, entry::Entry;
-        resume::Bool, callback = default_callback,
-        prefix, parent::AbstractString = tempdir()
-    )
-
-    training = Training(parser, entry.key.training)
-    return finetune(parser, training, data, entry; resume, callback, prefix, parent)
+    return _train(model, training, data, result; resume, callback, outputdir, tempdir)
 end

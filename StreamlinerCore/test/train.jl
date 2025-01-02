@@ -1,7 +1,7 @@
 @testset "train" begin
-    mktempdir() do prefix
-        test_mnist_conv(prefix)
-        test_optim(prefix)
-        test_vae(prefix)
+    mktempdir() do outputdir
+        test_mnist_conv(outputdir)
+        test_optim(outputdir)
+        test_vae(outputdir)
     end
 end

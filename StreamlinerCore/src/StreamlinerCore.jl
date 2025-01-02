@@ -72,8 +72,7 @@ include("training/stoppers.jl")
 include("training/optimizer.jl")
 include("training/training.jl")
 
-include("entry.jl")
-
+include("interface/result.jl")
 include("interface/train.jl")
 include("interface/load.jl")
 include("interface/validate.jl")

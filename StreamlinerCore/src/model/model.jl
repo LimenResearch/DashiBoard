@@ -57,3 +57,5 @@ function (model::Model)(templates::Tup)
     isnothing(model.seed) || seed!(model.seed)
     return @with MODEL_CONTEXT => model.context instantiate(model.architecture, templates)
 end
+
+(model::Model)(data::AbstractData) = model(get_templates(data))

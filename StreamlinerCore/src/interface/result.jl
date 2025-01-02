@@ -1,19 +1,24 @@
 # Result management
 
-@kwdef struct Result{P, N}
+@kwdef struct Result{N, P, M<:Model}
+    model::M
     prefix::P
     uuid::UUID
-    has_weights::Bool
     iteration::Int
     stats::NTuple{N, Vector{Float64}}
+    trained::Bool
+    resumed::Maybe{Bool} = nothing
+    successful::Maybe{Bool} = nothing
 end
+
+Model(r::Result) = r.model
 
 """
     has_weights(result::Result)
 
 Return `true` if `result` is a successful training result, `false` otherwise.
 """
-has_weights(result::Result) = result.has_weights
+has_weights(result::Result) = result.trained && result.successful
 
 get_filename(result::Result) = string("model", "-", result.uuid, ".bson")
 get_path(result::Result) = joinpath(result.prefix, get_filename(result))

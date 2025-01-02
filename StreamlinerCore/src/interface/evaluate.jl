@@ -16,16 +16,16 @@ end
 
 """
     evaluate(
-        model::Model, training::Training, data::AbstractData{1}, result::Result,
+        result::Result, training::Training, data::AbstractData{1},
         select::SymbolTuple = (:prediction,)
     )
 
 Load model encoded in `result` and evaluate it on `data`.
 """
 function evaluate(
-        model::Model, training::Training, data::AbstractData{1}, result::Result,
+        result::Result, training::Training, data::AbstractData{1},
         select::SymbolTuple = (:prediction,)
     )
-    device_m = loadmodel(model, training, data, result)
+    device_m = loadmodel(result, training, data)
     return evaluate(device_m, training, data, select)
 end

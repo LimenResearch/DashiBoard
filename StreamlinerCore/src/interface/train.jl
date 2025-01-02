@@ -20,43 +20,23 @@ function default_callback(m, trace::Trace; gc = true)
 end
 
 function _train(
-        io::IO, model::Model, training::Training, data::AbstractData{2},
-        result::Maybe{<:Result}; resume::Bool, callback, outputdir::P
-    ) where {P}
+        io::IO, model′::Union{Model, Result}, training::Training, data::AbstractData{2};
+        resume::Bool, callback, outputdir
+    )
 
-    (; optimizer, device) = training
-    is_batched = optimizer isa AbstractRule
+    device_m = loadmodel(model′, training, data)
+    model = Model(model′)
 
-    if is_batched
-        if !isempty(training.options)
-            throw(ArgumentError("No `options` keywords allowed for $(optimizer)"))
-        end
-    else
-        if !isempty(training.schedules)
-            throw(ArgumentError("No schedules allowed for $(optimizer)"))
-        end
-        if !isnothing(training.batchsize)
-            throw(ArgumentError("No batchsize allowed for $(optimizer)"))
-        end
-    end
-
-    device_m = if isnothing(result)
-        device(model(data))
-    else
-        # Pretrained option: first load weights from `result`
-        loadmodel(model, training, data, result)
-    end
-
-    nstats = 1 + length(model.metrics)
     init = if resume
-        result.iteration => result.stats
+        model′.iteration => model′.stats
     else
+        nstats = 1 + length(model.metrics)
         0 => (fill(Inf, nstats), fill(Inf, nstats))
     end
 
     stoppers::Vector{Any} = start.(training.stoppers)
 
-    if is_batched
+    if is_batched(training)
         training_state = TrainingState(Flux.setup(training.optimizer, device_m), stoppers)
         best_N, best_stats = batched_train!(
             io, model => device_m, training => training_state, data, init; callback
@@ -70,15 +50,18 @@ function _train(
 
     bytes = read(seekstart(io))
 
-    result = Result{P, 2}(
+    result = Result(;
+        model,
         prefix = outputdir,
         uuid = uuid4(),
-        has_weights = !isempty(bytes),
         iteration = best_N,
         stats = best_stats,
+        trained = true,
+        resumed = resume,
+        successful = !isempty(bytes),
     )
 
-    result.has_weights && write(get_path(result), bytes)
+    result.successful && write(get_path(result), bytes)
 
     return result 
 end
@@ -222,12 +205,12 @@ function batched_train!(
 end
 
 function _train(
-        model::Model, training::Training, data::AbstractData{2}, result::Maybe{Result};
+        model::Union{Model, Result}, training::Training, data::AbstractData{2};
         resume::Bool, callback = default_callback,
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
     return mktemp(tempdir) do _, io
-        return _train(io, model, training, data, result; resume, callback, outputdir)
+        return _train(io, model, training, data; resume, callback, outputdir)
     end
 end
 
@@ -258,12 +241,12 @@ function train(
         callback = default_callback, outputdir,
         tempdir::AbstractString = Base.tempdir()
     )
-    return _train(model, training, data, nothing; callback, outputdir, tempdir, resume = false)
+    return _train(model, training, data; callback, outputdir, tempdir, resume = false)
 end
 
 """
     finetune(
-        model::Model, training::Training, data::AbstractData{2}, result::Result;
+        result::Result, training::Training, data::AbstractData{2};
         resume::Bool, callback = default_callback,
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
@@ -273,10 +256,10 @@ Use `resume = true` to restart training where it left off.
 Same other keyword arguments as [`train`](@ref).
 """
 function finetune(
-        model::Model, training::Training, data::AbstractData{2}, result::Result;
+        result::Result, training::Training, data::AbstractData{2};
         resume::Bool, callback = default_callback,
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
 
-    return _train(model, training, data, result; resume, callback, outputdir, tempdir)
+    return _train(result, training, data; resume, callback, outputdir, tempdir)
 end

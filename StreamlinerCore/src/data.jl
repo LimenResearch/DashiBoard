@@ -92,6 +92,8 @@ After training, it will be stored in the MongoDB together.
 """
 function get_metadata end
 
+get_metadata(d::AbstractDict) = d
+
 """
     get_summary(data::AbstractData)::Dict{String, Any}
 

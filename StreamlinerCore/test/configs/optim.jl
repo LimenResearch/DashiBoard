@@ -12,13 +12,13 @@ function test_optim(outputdir)
     @show result.stats
     println()
 
-    result′ = validate(model, training, test_regression_data, result)
+    result′ = validate(result, training, test_regression_data)
 
     @info "Completed MNIST validation of convolutional network"
     @show result′.stats
     println()
 
-    res = evaluate(model, training, test_regression_data, result)
+    res = evaluate(result, training, test_regression_data)
     @show size.(getproperty.(res, :prediction))
     println()
 end

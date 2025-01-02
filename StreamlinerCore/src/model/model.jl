@@ -12,6 +12,8 @@ const ModelPair{L, M <: Tuple, R <: Tuple, T} = Pair{Model{L, M, R}, T}
 
 get_metadata(model::Model) = model.metadata
 
+Model(m::Model) = m
+
 """
     Model(parser::Parser, metadata::AbstractDict)
 

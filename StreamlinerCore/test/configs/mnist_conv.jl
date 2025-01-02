@@ -10,31 +10,35 @@ function test_mnist_conv(outputdir)
     println(StreamlinerCore.summarize(model, training, train_regression_data))
 
     result = train(model, training, train_regression_data; outputdir)
+    @test StreamlinerCore.has_weights(result)
+    @test result.trained
 
     @info "Completed MNIST training of convolutional network"
     @show StreamlinerCore.get_filename(result)
     @show result.stats
     println()
 
-    @test StreamlinerCore.has_weights(result)
+    result′ = finetune(result, training, train_regression_data; outputdir, resume = true)
+    @test result′.trained
+    @test result′.resumed
 
-    finetune(model, training, train_regression_data, result; outputdir, resume = true)
     @info "Finetuned training"
 
-    result′ = validate(model, training, test_regression_data, result)
+    result′ = validate(result, training, test_regression_data)
     @test !StreamlinerCore.has_weights(result′)
+    @test !result′.trained
 
     @info "Completed MNIST validation of convolutional network"
-    @show result.stats
+    @show result′.stats
     println()
 
-    res = evaluate(model, training, test_regression_data, result)
+    res = evaluate(result, training, test_regression_data)
     @show size.(getproperty.(res, :prediction))
     println()
 
     # Load trained model using optimal weights
     # Can be used as alternative to `evaluate` below
-    m′ = loadmodel(model, training, test_regression_data, result)
+    m′ = loadmodel(result, training, test_regression_data)
     @info "Trained model"
     @show m′
     println()

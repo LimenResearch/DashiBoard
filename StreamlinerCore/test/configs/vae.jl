@@ -14,13 +14,13 @@ function test_vae(outputdir)
     @show result.stats
     println()
 
-    result′ = validate(model, training, test_autoencoder_data, result)
+    result′ = validate(result, training, test_autoencoder_data)
 
     @info "Completed MNIST validation of convolutional network"
     @show result′.stats
     println()
 
-    res = evaluate(model, training, test_autoencoder_data, result)
+    res = evaluate(result, training, test_autoencoder_data)
     @show size.(getproperty.(res, :prediction))
     println()
 end

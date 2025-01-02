@@ -69,3 +69,22 @@ function Training(parser::Parser, path::AbstractString, vars::Maybe{AbstractDict
     metadata::StringDict = TOML.parsefile(path)
     return Training(parser, replace_variables(metadata, vars))
 end
+
+function is_batched(training::Training)
+    (; optimizer, options, schedules, batchsize) = training
+
+    if optimizer isa AbstractRule
+        if !isempty(options)
+            throw(ArgumentError("No `options` keywords allowed for $(optimizer)"))
+        end
+        return true
+    else
+        if !isempty(schedules)
+            throw(ArgumentError("No schedules allowed for $(optimizer)"))
+        end
+        if !isnothing(batchsize)
+            throw(ArgumentError("No batchsize allowed for $(optimizer)"))
+        end
+        return false
+    end
+end

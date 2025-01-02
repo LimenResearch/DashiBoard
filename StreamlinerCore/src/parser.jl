@@ -40,13 +40,11 @@ end
 
 const PARSER = ScopedValue{Parser}()
 
-function Base.map(f, p::Parser, qs::Parser...)
-    N = fieldcount(Parser)
-    ps = (p, qs...)
-    fields = ntuple(N) do n
-        getn = Fix2(getfield, n)
-        pns = map(getn, ps)
-        return f(pns...)
+Base.copy(p::Parser) = Parser(ntuple(n -> copy(getfield(p, n)), fieldcount(Parser))...)
+
+function combine!(p::Parser, q::Parser)
+    for n in 1:fieldcount(Parser)
+        merge!(getfield(p, n), getfield(q, n))
     end
-    return Parser(fields...)
+    return p
 end

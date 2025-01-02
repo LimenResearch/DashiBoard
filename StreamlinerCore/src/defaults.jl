@@ -145,9 +145,5 @@ Return a `parser::`[`Parser`](@ref) object that includes StreamlinerCore default
 together with optional `plugins`.
 """
 function default_parser(; plugins::AbstractVector{Parser} = Parser[])
-    parser = map(copy, DEFAULT_PARSER)
-    for plugin in plugins
-        map(merge!, parser, plugin)
-    end
-    return parser
+    return foldl(combine!, plugins, init = copy(DEFAULT_PARSER))
 end

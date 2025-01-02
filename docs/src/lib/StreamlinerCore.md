@@ -37,6 +37,7 @@ StreamlinerCore.Training
 ## Training and evaluation
 
 ```@docs
+Result
 train
 finetune
 loadmodel

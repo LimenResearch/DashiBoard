@@ -1,5 +1,20 @@
 # Result management
 
+"""
+    @kwdef struct Result{N, P, M<:Model}
+        model::M
+        prefix::P
+        uuid::UUID
+        iteration::Int
+        stats::NTuple{N, Vector{Float64}}
+        trained::Bool
+        resumed::Maybe{Bool} = nothing
+        successful::Maybe{Bool} = nothing
+    end
+
+Structure to encode the result of [`train`](@ref), [`finetune`](@ref), or [`validate`](@ref).
+Stores configuration of model, metrics, and information on the location of the model weights.
+"""
 @kwdef struct Result{N, P, M<:Model}
     model::M
     prefix::P

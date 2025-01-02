@@ -1,6 +1,6 @@
 module StreamlinerCore
 
-export Model, Training, Data, AbstractData, DataPartition, default_parser
+export Result, Model, Training, Data, AbstractData, DataPartition, default_parser
 export get_templates, get_metadata, stream
 export finetune, train, loadmodel, validate, evaluate, summarize
 
@@ -72,7 +72,8 @@ include("training/stoppers.jl")
 include("training/optimizer.jl")
 include("training/training.jl")
 
-include("interface/result.jl")
+include("result.jl")
+
 include("interface/train.jl")
 include("interface/load.jl")
 include("interface/validate.jl")

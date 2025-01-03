@@ -4,6 +4,7 @@ function test_mnist_conv(outputdir)
 
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "scheduled.toml"))
+    streaming = Streaming(parser, joinpath(static_dir, "streaming.toml"))
 
     # Instantiate a model to inspect architecture / parameters
     # Check data volume
@@ -24,7 +25,7 @@ function test_mnist_conv(outputdir)
 
     @info "Finetuned training"
 
-    result′ = validate(result, test_regression_data, training)
+    result′ = validate(result, test_regression_data, streaming)
     @test !StreamlinerCore.has_weights(result′)
     @test !result′.trained
 
@@ -32,13 +33,13 @@ function test_mnist_conv(outputdir)
     @show result′.stats
     println()
 
-    res = evaluate(result, test_regression_data, training)
+    res = evaluate(result, test_regression_data, streaming)
     @show size.(getproperty.(res, :prediction))
     println()
 
     # Load trained model using optimal weights
     # Can be used as alternative to `evaluate` below
-    m′ = loadmodel(result, test_regression_data, training)
+    m′ = loadmodel(result, test_regression_data, streaming.device)
     @info "Trained model"
     @show m′
     println()

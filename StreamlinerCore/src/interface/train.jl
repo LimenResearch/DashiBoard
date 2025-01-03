@@ -24,7 +24,7 @@ function _train(
         resume::Bool, callback, outputdir
     )
 
-    device_m = loadmodel(model′, data, training)
+    device_m = loadmodel(model′, data, training.device)
     model = Model(model′)
 
     init = if resume
@@ -101,12 +101,16 @@ function unbatched_train!(
         (init_N, init_stats)::Pair; callback
     )
 
+    train_streaming = Streaming(training)
+    valid_streaming = Streaming(training; shuffle = false)
+    train_data = stream(only, data, DataPartition.training, train_streaming)
+    valid_data = stream(only, data, DataPartition.validation, valid_streaming)
+
     # Turn model into a pair consisting of
     # - a flat vector of parameters `θ₀` and
     # - a function `re` to reconstruct the model from the parameters.
     θ₀, re = destructure(device_m)
-    train_data = stream(only, data, DataPartition.training; batchsize = nothing, training.device)
-    valid_data = stream(only, data, DataPartition.validation; batchsize = nothing, training.device)
+
     ev = Evaluator(re, train_data, model.loss, model.regularizations)
     vars = Ref{Any}(nothing)
 
@@ -185,20 +189,24 @@ function batched_train!(
         (init_N, init_stats)::Pair; callback
     )
 
-    rng = get_rng(training.seed)
-    (; batchsize, device, shuffle) = training
     best = init_N => init_stats
+
+    train_streaming = Streaming(training)
+    valid_streaming = Streaming(training; shuffle = false)
 
     for epoch in 1:training.iterations
         N = epoch + init_N
         adjust_params!(training_state.optimizer, training.schedules, N)
-        train_stats = stream(data, DataPartition.training; batchsize, device, rng, shuffle) do train_stream
+        train_stats = stream(data, DataPartition.training, train_streaming; ) do train_stream
             epoch_train!(model => device_m, train_stream, training => training_state)
         end
         current = N => train_stats
-        stop, best = stream(data, DataPartition.validation; batchsize, device, shuffle = false) do valid_stream
+        stop, best = stream(data, DataPartition.validation, valid_streaming) do valid_stream
             return finalize_callback(
-                io::IO, model => device_m, valid_stream, training => training_state, best, current; callback
+                io::IO, model => device_m,
+                valid_stream, training => training_state,
+                best, current;
+                callback
             )
         end
         stop && break

@@ -4,6 +4,7 @@ function test_optim(outputdir)
 
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "optim.toml"))
+    streaming = Streaming(parser, joinpath(static_dir, "streaming.toml"))
 
     result = train(model, train_regression_data, training; outputdir)
 
@@ -12,13 +13,13 @@ function test_optim(outputdir)
     @show result.stats
     println()
 
-    result′ = validate(result, test_regression_data, training)
+    result′ = validate(result, test_regression_data, streaming)
 
     @info "Completed MNIST validation of convolutional network"
     @show result′.stats
     println()
 
-    res = evaluate(result, test_regression_data, training)
+    res = evaluate(result, test_regression_data, streaming)
     @show size.(getproperty.(res, :prediction))
     println()
 end

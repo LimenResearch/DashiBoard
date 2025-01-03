@@ -11,6 +11,14 @@ struct Training
     seed::Maybe{Int}
 end
 
+function Streaming(
+        training::Training;
+        shuffle::Bool = training.shuffle,
+        rng::AbstractRNG = get_rng(training.seed)
+    )
+    return Streaming(; training.device, training.batchsize, shuffle, rng)
+end
+
 struct TrainingState{T}
     optimizer::T
     stoppers::Vector{Any}
@@ -19,6 +27,10 @@ end
 const TrainingPair{T} = Pair{Training, TrainingState{T}}
 
 get_metadata(training::Training) = training.metadata
+
+get_iterations(config::Config) = get(config, :iterations, 1000)
+get_seed(config::Config) = get(config, :seed, nothing)
+get_options(config::Config) = SymbolDict(config.options)
 
 """
     Training(parser::Parser, metadata::AbstractDict)
@@ -32,18 +44,16 @@ function Training(parser::Parser, metadata::AbstractDict)
     return @with PARSER => parser begin
         optimizer = get_optimizer(config)
 
-        device = PARSER[].devices[get(config, :device, "cpu")]
+        device = get_device(config)
+        batchsize = get_batchsize(config)
+        shuffle = get_shuffle(config)
+        seed = get_seed(config)
 
-        batchsize = get(config, :batchsize, nothing)
-        iterations = get(config, :iterations, 1000)
-
+        iterations = get_iterations(config)
         schedules = get_schedules(config)
         stoppers = get_stoppers(config)
 
-        options = SymbolDict(config.options)
-        seed = get(config, :seed, nothing)
-
-        shuffle = get(config, :shuffle, true)
+        options = get_options(config)
 
         Training(
             metadata, optimizer, device, shuffle, batchsize, iterations,

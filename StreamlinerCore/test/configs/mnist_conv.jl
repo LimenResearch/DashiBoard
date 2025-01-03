@@ -7,9 +7,9 @@ function test_mnist_conv(outputdir)
 
     # Instantiate a model to inspect architecture / parameters
     # Check data volume
-    println(StreamlinerCore.summarize(model, training, train_regression_data))
+    println(StreamlinerCore.summarize(model, train_regression_data, training))
 
-    result = train(model, training, train_regression_data; outputdir)
+    result = train(model, train_regression_data, training; outputdir)
     @test StreamlinerCore.has_weights(result)
     @test result.trained
 
@@ -18,13 +18,13 @@ function test_mnist_conv(outputdir)
     @show result.stats
     println()
 
-    result′ = finetune(result, training, train_regression_data; outputdir, resume = true)
+    result′ = finetune(result, train_regression_data, training; outputdir, resume = true)
     @test result′.trained
     @test result′.resumed
 
     @info "Finetuned training"
 
-    result′ = validate(result, training, test_regression_data)
+    result′ = validate(result, test_regression_data, training)
     @test !StreamlinerCore.has_weights(result′)
     @test !result′.trained
 
@@ -32,13 +32,13 @@ function test_mnist_conv(outputdir)
     @show result′.stats
     println()
 
-    res = evaluate(result, training, test_regression_data)
+    res = evaluate(result, test_regression_data, training)
     @show size.(getproperty.(res, :prediction))
     println()
 
     # Load trained model using optimal weights
     # Can be used as alternative to `evaluate` below
-    m′ = loadmodel(result, training, test_regression_data)
+    m′ = loadmodel(result, test_regression_data, training)
     @info "Trained model"
     @show m′
     println()
@@ -46,6 +46,6 @@ function test_mnist_conv(outputdir)
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "null.toml"))
 
-    result = train(model, training, train_regression_data; outputdir)
+    result = train(model, train_regression_data, training; outputdir)
     @test !StreamlinerCore.has_weights(result)
 end

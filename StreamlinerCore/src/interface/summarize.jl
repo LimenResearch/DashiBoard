@@ -1,10 +1,10 @@
 """
-    summarize(io::IO, model::Model, training::Training, data::AbstractData)
+    summarize(io::IO, model::Model, data::AbstractData, training::Training)
 
 Display summary information concerning model (structure and number of parameters)
 and data (number of batches and size of each batch).
 """
-function summarize(io::IO, model::Model, training::Training, data::AbstractData{N}) where {N}
+function summarize(io::IO, model::Model, data::AbstractData{N}, training::Training) where {N}
     templates = get_templates(data)
     m = model(templates)
 
@@ -26,6 +26,6 @@ function summarize(io::IO, model::Model, training::Training, data::AbstractData{
     return
 end
 
-function summarize(model::Model, training::Training, data::AbstractData)
-    return sprint(summarize, model, training, data)
+function summarize(model::Model, data::AbstractData, training::Training)
+    return sprint(summarize, model, data, training)
 end

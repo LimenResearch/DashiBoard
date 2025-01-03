@@ -88,3 +88,7 @@ function is_batched(training::Training)
         return false
     end
 end
+
+setup(opt::AbstractRule, device_m) = Flux.setup(opt, device_m)
+
+setup(opt, _) = opt

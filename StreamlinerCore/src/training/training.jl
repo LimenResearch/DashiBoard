@@ -11,6 +11,8 @@ struct Training
     seed::Maybe{Int}
 end
 
+@parsable Training
+
 function Streaming(
         training::Training;
         shuffle::Bool = training.shuffle,
@@ -35,7 +37,13 @@ get_options(config::Config) = SymbolDict(config.options)
 """
     Training(parser::Parser, metadata::AbstractDict)
 
-Create a `Training` object from a configuration dictionary `metadata`.
+    Training(parser::Parser, path::AbstractString, [vars::AbstractDict])
+
+Create a `Training` object from a configuration dictionary `metadata` or, alternatively,
+from a configuration dictionary stored at `path` in TOML format.
+The optional argument `vars` is a dictionary of variables the can be used to
+fill the template given in `path`.
+
 The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
 """
 function Training(parser::Parser, metadata::AbstractDict)
@@ -60,24 +68,6 @@ function Training(parser::Parser, metadata::AbstractDict)
             schedules, stoppers, options, seed
         )
     end
-end
-
-"""
-    Training(parser::Parser, path::AbstractString, [vars::AbstractDict])
-
-Create a `Training` object from a configuration dictionary stored at `path`
-in TOML format.
-
-The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
-
-The optional argument `vars` is a dictionary of variables the can be used to
-fill the template given in `path`.
-
-See the `static/training` folder for example configurations.
-"""
-function Training(parser::Parser, path::AbstractString, vars::Maybe{AbstractDict} = nothing)
-    metadata::StringDict = TOML.parsefile(path)
-    return Training(parser, replace_variables(metadata, vars))
 end
 
 function is_batched(training::Training)

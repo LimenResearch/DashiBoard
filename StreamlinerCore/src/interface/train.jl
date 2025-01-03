@@ -62,7 +62,7 @@ function _train(
 
     successful && write(get_path(result), bytes)
 
-    return result 
+    return result
 end
 
 function finalize_callback(
@@ -75,7 +75,7 @@ function finalize_callback(
     valid_stats = compute_metrics(metrics, device_m, valid_stream)
     current_stats = (
         collect(Float64, train_stats),
-        collect(Float64, valid_stats)
+        collect(Float64, valid_stats),
     )
 
     trace = Trace(stats = current_stats, metrics = collect(Any, metrics), iteration = N)
@@ -197,7 +197,7 @@ function batched_train!(
     for epoch in 1:training.iterations
         N = epoch + init_N
         adjust_params!(training_state.optimizer, training.schedules, N)
-        train_stats = stream(data, DataPartition.training, train_streaming; ) do train_stream
+        train_stats = stream(data, DataPartition.training, train_streaming) do train_stream
             epoch_train!(model => device_m, train_stream, training => training_state)
         end
         current = N => train_stats

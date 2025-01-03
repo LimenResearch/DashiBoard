@@ -48,3 +48,13 @@ function combine!(p::Parser, q::Parser)
     end
     return p
 end
+
+macro parsable(T)
+    local T′ = esc(T)
+    return quote
+        function $T′(parser::Parser, path::AbstractString, vars::Maybe{AbstractDict} = nothing)
+            metadata::StringDict = TOML.parsefile(path)
+            return $T′(parser, replace_variables(metadata, vars))
+        end
+    end
+end

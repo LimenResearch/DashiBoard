@@ -40,29 +40,67 @@ Subtypes of `AbstractData` are meant to implement the following methods:
 """
 abstract type AbstractData{N} end
 
+@enumx DataPartition training = 1 validation = 2
+
+@kwdef struct Streaming
+    device::Any
+    batchsize::Maybe{Int}
+    shuffle::Bool = false
+    rng::AbstractRNG = get_rng()
+end
+
+@parsable Streaming
+
+get_device(config::Config) = PARSER[].devices[get(config, :device, "cpu")]
+get_batchsize(config::Config) = get(config, :batchsize, nothing)
+get_shuffle(config::Config) = get(config, :shuffle, false)
+
 """
-    stream(f, data::AbstractData{N}, partition::Integer; batchsize, device, rng::RNG = get_rng(), shuffle = false) where {N}
+    Streaming(parser::Parser, metadata::AbstractDict)
+
+    Streaming(parser::Parser, path::AbstractString, [vars::AbstractDict])
+
+Create a `Streaming` object from a configuration dictionary `metadata` or, alternatively,
+from a configuration dictionary stored at `path` in TOML format.
+The optional argument `vars` is a dictionary of variables the can be used to
+fill the template given in `path`.
+
+The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
+"""
+function Streaming(parser::Parser, metadata::AbstractDict)
+    config = Config(metadata)
+    return @with PARSER => parser begin
+        device = get_device(config)
+        batchsize = get_batchsize(config)
+        shuffle = get_shuffle(config)
+        Streaming(; device, batchsize, shuffle)
+    end
+end
+
+"""
+    stream(f, data::AbstractData, partition::Integer, streaming::Streaming)
 
 Stream `partition` of `data` by batches of `batchsize` on a given `device`.
 Return the result of applying `f` on the resulting batch iterator.
 Shuffling is optional and controlled by `shuffle` (boolean)
 and by the random number generator `rng`.
+
+The options `device`, `batchsize`, `shuffle`, `rng` are passed via the configuration
+struct `streaming::Streaming`. See also [`Streaming`](@ref).
 """
 function stream end
 
-function stream(f, data::AbstractData{1}; options...)
-    return stream(f, data, 1; options...)
+function stream(f, data::AbstractData{1}, streaming::Streaming)
+    return stream(f, data, 1, streaming)
 end
 
-function stream(f, data::AbstractData, partition; options...)
-    return stream(f, data, Int(partition); options...)
+function stream(f, data::AbstractData, partition::DataPartition.T, streaming::Streaming)
+    return stream(f, data, Int(partition), streaming)
 end
 
-function stream(f, data::AbstractData, partition::Int; options...)
-    throw(MethodError(stream, (f, data, partition)))
+function stream(f, data::AbstractData, partition::Int, streaming::Streaming)
+    throw(MethodError(stream, (f, data, partition, streaming)))
 end
-
-@enumx DataPartition training = 1 validation = 2
 
 """
     ingest(data::AbstractData{1}, eval_stream, select)
@@ -125,19 +163,17 @@ function Data{N}(streams::NTuple{N, S}, templates::T, metadata::AbstractDict) wh
     return Data{N, S, T}(streams, templates, metadata)
 end
 
-function stream(
-        f, data::Data, partition::Int;
-        batchsize, device, rng::AbstractRNG = get_rng(), shuffle::Bool = false
-    )
+function stream(f, data::Data, partition::Int, streaming::Streaming)
+    (; device, batchsize, shuffle, rng) = streaming
     batches = if isnothing(batchsize)
         (device(data.streams[partition]),)
     else
-        Iterators.map(device, DataLoader(data.streams[partition]; batchsize, rng, shuffle))
+        dl = DataLoader(data.streams[partition]; batchsize, rng, shuffle)
+        Iterators.map(device, dl)
     end
     return f(batches)
 end
 
-# TODO: consider concatenating along the batch dimension
 ingest(::Data{1}, stream, select::SymbolTuple) = Iterators.map(NamedTuple{select}, stream)
 
 get_templates(data::Data) = data.templates

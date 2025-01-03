@@ -1,8 +1,9 @@
 module StreamlinerCore
 
-export Result, Model, Training, Data, AbstractData, DataPartition, default_parser
-export get_templates, get_metadata, stream
-export finetune, train, loadmodel, validate, evaluate, summarize
+export Result, Model, Data, AbstractData, DataPartition, Training, Streaming
+export default_parser
+export get_templates, get_metadata, get_summary
+export stream, finetune, train, loadmodel, validate, evaluate, summarize
 
 public has_weights
 

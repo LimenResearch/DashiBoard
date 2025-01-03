@@ -32,6 +32,7 @@ StreamlinerCore.default_parser
 ```@docs
 StreamlinerCore.Model
 StreamlinerCore.Training
+StreamlinerCore.Streaming
 ```
 
 ## Training and evaluation

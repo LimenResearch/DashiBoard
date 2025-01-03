@@ -11,6 +11,16 @@ struct Training
     seed::Maybe{Int}
 end
 
+@parsable Training
+
+function Streaming(
+        training::Training;
+        shuffle::Bool = training.shuffle,
+        rng::AbstractRNG = get_rng(training.seed)
+    )
+    return Streaming(; training.device, training.batchsize, shuffle, rng)
+end
+
 struct TrainingState{T}
     optimizer::T
     stoppers::Vector{Any}
@@ -20,10 +30,20 @@ const TrainingPair{T} = Pair{Training, TrainingState{T}}
 
 get_metadata(training::Training) = training.metadata
 
+get_iterations(config::Config) = get(config, :iterations, 1000)
+get_seed(config::Config) = get(config, :seed, nothing)
+get_options(config::Config) = SymbolDict(config.options)
+
 """
     Training(parser::Parser, metadata::AbstractDict)
 
-Create a `Training` object from a configuration dictionary `metadata`.
+    Training(parser::Parser, path::AbstractString, [vars::AbstractDict])
+
+Create a `Training` object from a configuration dictionary `metadata` or, alternatively,
+from a configuration dictionary stored at `path` in TOML format.
+The optional argument `vars` is a dictionary of variables the can be used to
+fill the template given in `path`.
+
 The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
 """
 function Training(parser::Parser, metadata::AbstractDict)
@@ -32,42 +52,22 @@ function Training(parser::Parser, metadata::AbstractDict)
     return @with PARSER => parser begin
         optimizer = get_optimizer(config)
 
-        device = PARSER[].devices[get(config, :device, "cpu")]
+        device = get_device(config)
+        batchsize = get_batchsize(config)
+        shuffle = get_shuffle(config)
+        seed = get_seed(config)
 
-        batchsize = get(config, :batchsize, nothing)
-        iterations = get(config, :iterations, 1000)
-
+        iterations = get_iterations(config)
         schedules = get_schedules(config)
         stoppers = get_stoppers(config)
 
-        options = SymbolDict(config.options)
-        seed = get(config, :seed, nothing)
-
-        shuffle = get(config, :shuffle, true)
+        options = get_options(config)
 
         Training(
             metadata, optimizer, device, shuffle, batchsize, iterations,
             schedules, stoppers, options, seed
         )
     end
-end
-
-"""
-    Training(parser::Parser, path::AbstractString, [vars::AbstractDict])
-
-Create a `Training` object from a configuration dictionary stored at `path`
-in TOML format.
-
-The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
-
-The optional argument `vars` is a dictionary of variables the can be used to
-fill the template given in `path`.
-
-See the `static/training` folder for example configurations.
-"""
-function Training(parser::Parser, path::AbstractString, vars::Maybe{AbstractDict} = nothing)
-    metadata::StringDict = TOML.parsefile(path)
-    return Training(parser, replace_variables(metadata, vars))
 end
 
 function is_batched(training::Training)
@@ -88,3 +88,7 @@ function is_batched(training::Training)
         return false
     end
 end
+
+setup(opt::AbstractRule, device_m) = Flux.setup(opt, device_m)
+
+setup(opt, _) = opt

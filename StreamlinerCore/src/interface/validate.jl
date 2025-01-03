@@ -1,6 +1,6 @@
-function _validate(result::Result, training::Training, data::AbstractData{1}, data_stream)
+function _validate(result::Result, data::AbstractData{1}, data_stream, streaming::Streaming)
 
-    device_m = loadmodel(result, training, data)
+    device_m = loadmodel(result, data, streaming.device)
     model = Model(result)
     loss, metrics = model.loss, Tuple(model.metrics)
     valid_stats = compute_metrics((loss, metrics...), device_m, data_stream)
@@ -10,14 +10,13 @@ function _validate(result::Result, training::Training, data::AbstractData{1}, da
     return Result(; model, result.prefix, uuid, stats, iteration = 0, trained = false)
 end
 
-# TODO: allow custom settings for `device` and `batchsize`, without using `Training`?
 """
-    validate(result::Result, training::Training, data::AbstractData{1})
+    validate(result::Result, data::AbstractData{1}, streaming::Streaming)
 
 Load model encoded in `result` and validate it on `data`.
 """
-function validate(result::Result, training::Training, data::AbstractData{1})
-    return stream(data; training.batchsize, training.device) do data_stream
-        return _validate(result, training, data, data_stream)
+function validate(result::Result, data::AbstractData{1}, streaming::Streaming)
+    return stream(data, streaming) do data_stream
+        return _validate(result, data, data_stream, streaming)
     end
 end

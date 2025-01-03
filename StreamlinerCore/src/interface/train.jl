@@ -20,11 +20,11 @@ function default_callback(m, trace::Trace; gc = true)
 end
 
 function _train(
-        io::IO, model′::Union{Model, Result}, training::Training, data::AbstractData{2};
+        io::IO, model′::Union{Model, Result}, data::AbstractData{2}, training::Training;
         resume::Bool, callback, outputdir
     )
 
-    device_m = loadmodel(model′, training, data)
+    device_m = loadmodel(model′, data, training.device)
     model = Model(model′)
 
     init = if resume
@@ -36,19 +36,18 @@ function _train(
 
     stoppers::Vector{Any} = start.(training.stoppers)
 
-    if is_batched(training)
-        training_state = TrainingState(Flux.setup(training.optimizer, device_m), stoppers)
-        best_N, best_stats = batched_train!(
-            io, model => device_m, training => training_state, data, init; callback
-        )
+    model_pair = model => device_m
+    training_state = TrainingState(setup(training.optimizer, device_m), stoppers)
+    training_pair = training => training_state
+
+    best_N, best_stats = if is_batched(training)
+        batched_train!(io, model_pair, data, training_pair, init; callback)
     else
-        training_state = TrainingState(training.optimizer, stoppers)
-        best_N, best_stats = unbatched_train!(
-            io, model => device_m, training => training_state, data, init; callback
-        )
+        unbatched_train!(io, model_pair, data, training_pair, init; callback)
     end
 
     bytes = read(seekstart(io))
+    successful = !isempty(bytes)
 
     result = Result(;
         model,
@@ -58,24 +57,25 @@ function _train(
         stats = best_stats,
         trained = true,
         resumed = resume,
-        successful = !isempty(bytes),
+        successful
     )
 
-    result.successful && write(get_path(result), bytes)
+    successful && write(get_path(result), bytes)
 
-    return result 
+    return result
 end
 
 function finalize_callback(
-        io::IO, (model, device_m)::ModelPair, (training, training_state)::TrainingPair,
-        valid_stream, (best_N, best_stats), (N, train_stats); callback
+        io::IO, (model, device_m)::ModelPair, valid_stream,
+        (training, training_state)::TrainingPair,
+        (best_N, best_stats), (N, train_stats); callback
     )
 
     metrics = (model.loss, model.metrics...)
     valid_stats = compute_metrics(metrics, device_m, valid_stream)
     current_stats = (
         collect(Float64, train_stats),
-        collect(Float64, valid_stats)
+        collect(Float64, valid_stats),
     )
 
     trace = Trace(stats = current_stats, metrics = collect(Any, metrics), iteration = N)
@@ -96,16 +96,21 @@ function finalize_callback(
 end
 
 function unbatched_train!(
-        io::IO, (model, device_m)::ModelPair, (training, training_state)::TrainingPair,
-        data::AbstractData{2}, (init_N, init_stats)::Pair; callback
+        io::IO, (model, device_m)::ModelPair, data::AbstractData{2},
+        (training, training_state)::TrainingPair,
+        (init_N, init_stats)::Pair; callback
     )
+
+    train_streaming = Streaming(training)
+    valid_streaming = Streaming(training; shuffle = false)
+    train_data = stream(only, data, DataPartition.training, train_streaming)
+    valid_data = stream(only, data, DataPartition.validation, valid_streaming)
 
     # Turn model into a pair consisting of
     # - a flat vector of parameters `θ₀` and
     # - a function `re` to reconstruct the model from the parameters.
     θ₀, re = destructure(device_m)
-    train_data = stream(only, data, DataPartition.training; batchsize = nothing, training.device)
-    valid_data = stream(only, data, DataPartition.validation; batchsize = nothing, training.device)
+
     ev = Evaluator(re, train_data, model.loss, model.regularizations)
     vars = Ref{Any}(nothing)
 
@@ -120,7 +125,7 @@ function unbatched_train!(
         train_stats = compute_metric((vars[].loss, model.metrics...), vars[].output)
         current = N => train_stats
         stop, best[] = finalize_callback(
-            io::IO, model => re(θ), training => training_state, [valid_data],
+            io::IO, model => re(θ), [valid_data], training => training_state,
             best[], current; callback
         )
         return stop
@@ -153,8 +158,8 @@ end
 
 function epoch_train!(
         (model, device_m)::ModelPair,
+        train_stream,
         (training, training_state)::TrainingPair,
-        train_stream
     )
 
     nbatches = length(train_stream)
@@ -179,24 +184,29 @@ function epoch_train!(
 end
 
 function batched_train!(
-        io::IO, (model, device_m)::ModelPair, (training, training_state)::TrainingPair, data::AbstractData{2},
+        io::IO, (model, device_m)::ModelPair, data::AbstractData{2},
+        (training, training_state)::TrainingPair,
         (init_N, init_stats)::Pair; callback
     )
 
-    rng = get_rng(training.seed)
-    (; batchsize, device, shuffle) = training
     best = init_N => init_stats
+
+    train_streaming = Streaming(training)
+    valid_streaming = Streaming(training; shuffle = false)
 
     for epoch in 1:training.iterations
         N = epoch + init_N
         adjust_params!(training_state.optimizer, training.schedules, N)
-        train_stats = stream(data, DataPartition.training; batchsize, device, rng, shuffle) do train_stream
-            epoch_train!(model => device_m, training => training_state, train_stream)
+        train_stats = stream(data, DataPartition.training, train_streaming) do train_stream
+            epoch_train!(model => device_m, train_stream, training => training_state)
         end
         current = N => train_stats
-        stop, best = stream(data, DataPartition.validation; batchsize, device, shuffle = false) do valid_stream
+        stop, best = stream(data, DataPartition.validation, valid_streaming) do valid_stream
             return finalize_callback(
-                io::IO, model => device_m, training => training_state, valid_stream, best, current; callback
+                io::IO, model => device_m,
+                valid_stream, training => training_state,
+                best, current;
+                callback
             )
         end
         stop && break
@@ -205,18 +215,18 @@ function batched_train!(
 end
 
 function _train(
-        model::Union{Model, Result}, training::Training, data::AbstractData{2};
+        model::Union{Model, Result}, data::AbstractData{2}, training::Training;
         resume::Bool, callback = default_callback,
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
     return mktemp(tempdir) do _, io
-        return _train(io, model, training, data; resume, callback, outputdir)
+        return _train(io, model, data, training; resume, callback, outputdir)
     end
 end
 
 """
     train(
-        model::Model, training::Training, data::AbstractData{2};
+        model::Model, data::AbstractData{2}, training::Training;
         callback = default_callback, outputdir,
         tempdir::AbstractString = Base.tempdir()
     )
@@ -237,16 +247,16 @@ The arguments of `callback` work as follows.
     - `iteration`.
 """
 function train(
-        model::Model, training::Training, data::AbstractData{2};
+        model::Model, data::AbstractData{2}, training::Training;
         callback = default_callback, outputdir,
         tempdir::AbstractString = Base.tempdir()
     )
-    return _train(model, training, data; callback, outputdir, tempdir, resume = false)
+    return _train(model, data, training; callback, outputdir, tempdir, resume = false)
 end
 
 """
     finetune(
-        result::Result, training::Training, data::AbstractData{2};
+        result::Result, data::AbstractData{2}, training::Training;
         resume::Bool, callback = default_callback,
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
@@ -256,10 +266,10 @@ Use `resume = true` to restart training where it left off.
 Same other keyword arguments as [`train`](@ref).
 """
 function finetune(
-        result::Result, training::Training, data::AbstractData{2};
+        result::Result, data::AbstractData{2}, training::Training;
         resume::Bool, callback = default_callback,
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
 
-    return _train(result, training, data; resume, callback, outputdir, tempdir)
+    return _train(result, data, training; resume, callback, outputdir, tempdir)
 end

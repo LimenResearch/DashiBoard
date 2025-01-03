@@ -6,7 +6,8 @@ The backend is powered by three libraries:
 
 - [DuckDBUtils](@ref),
 - [DataIngestion](@ref),
-- [Pipelines](@ref).
+- [Pipelines](@ref),
+- [StreamlinerCore](@ref).
 
 The frontend is powered by [SolidJS](https://www.solidjs.com/).
 

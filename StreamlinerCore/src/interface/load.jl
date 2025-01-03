@@ -1,16 +1,16 @@
 """
-    loadmodel(model::Model, training::Training, data::AbstractData)
+    loadmodel(model::Model, data::AbstractData, device)
 
-Load model encoded in `model`.
+Load model encoded in `model` on the `device`.
 The object `data` is required as the model can only be initialized once the data
 dimensions are known.
 """
-loadmodel(model::Model, training::Training, data::AbstractData) = training.device(model(data))
+loadmodel(model::Model, data::AbstractData, device) = device(model(data))
 
 """
-    loadmodel(result::Union{Model, Result}, training::Training, data::AbstractData)
+    loadmodel(result::Union{Model, Result}, data::AbstractData, device)
 
-Load model encoded in `result`.
+Load model encoded in `result` on the `device`.
 The object `data` is required as the model can only be initialized once the data
 dimensions are known.
 
@@ -18,7 +18,7 @@ dimensions are known.
     It is recommended to call [`has_weights`](@ref) beforehand.
     Only call `loadmodel` if `has_weights(result)` returns `true`.
 """
-function loadmodel(result::Result, training::Training, data::AbstractData)
+function loadmodel(result::Result, data::AbstractData, device)
 
     result.trained || throw(ArgumentError("Model was not trained"))
     result.successful || throw(ArgumentError("Unsuccessful result, no weights were saved"))
@@ -27,6 +27,6 @@ function loadmodel(result::Result, training::Training, data::AbstractData)
     path = get_path(result)
     loadmodel!(m, read_state(path)["model_state"])
 
-    device = training.device
+    device = device
     return device(m)
 end

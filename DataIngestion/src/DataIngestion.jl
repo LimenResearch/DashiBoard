@@ -7,6 +7,7 @@ public is_supported, load_files, summarize, select
 using FunSQL: pack,
     reflect,
     render,
+    LIT,
     SQLNode,
     Fun,
     Get,

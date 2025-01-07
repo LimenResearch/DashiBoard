@@ -2,6 +2,7 @@
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
 IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
 JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"

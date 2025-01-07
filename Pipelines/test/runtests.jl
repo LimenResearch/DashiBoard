@@ -126,7 +126,7 @@ mktempdir() do dir
         part = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(part, repo, "selection" => "partition")
 
-        resc = Pipelines.get_card(d["hasLink"])
+        resc = Pipelines.get_card(d["hasPartition"])
         Pipelines.evaluate(resc, repo, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test issetequal(
@@ -152,7 +152,7 @@ mktempdir() do dir
                 "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
             ]
         )
-        train_df = DBInterface.execute(DataFrame, repo, "FROM partition where partition = 1")
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
         m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(), wts = train_df.TEMP)
         @test predict(m, df) == df.PRES_hat
     end

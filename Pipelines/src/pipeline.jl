@@ -70,3 +70,12 @@ function evaluate(cards::AbstractVector, repo::Repository, table::AbstractString
         end
     end
 end
+
+filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
+
+function filter_partition(::Nothing, n::Integer = 1)
+    if n != 1
+        throw(ArgumentError("Data has not been split"))
+    end
+    return identity
+end

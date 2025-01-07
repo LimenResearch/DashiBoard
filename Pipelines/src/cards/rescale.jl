@@ -21,6 +21,7 @@ The resulting rescaled variable is added to the table under the name
     method::String
     by::Vector{String} = String[]
     columns::Vector{String}
+    partition::Union{String, Nothing} = nothing
     suffix::String = "rescaled"
 end
 
@@ -117,12 +118,14 @@ function pair_wise_group_by(
         by::AbstractVector,
         cols::AbstractVector,
         fs...;
-        schema = nothing
+        partition::Union{AbstractString, Nothing} = nothing,
+        schema = nothing,
     )
 
+    select = filter_partition(partition)
     key = getindex.(Get, by)
     val = [string(col, '_', name) => f(Get(col)) for col in cols for (name, f) in fs]
-    query = From(source) |> Group(by = key) |> Select(key..., val...) |> Order(by = key)
+    query = From(source) |> select |> Group(by = key) |> Select(key..., val...) |> Order(by = key)
     DBInterface.execute(fromtable, repo, query; schema)
 end
 
@@ -132,7 +135,7 @@ function train(r::RescaleCard, repo::Repository, source::AbstractString; schema 
     return if isempty(stats)
         SimpleTable()
     else
-        pair_wise_group_by(repo, source, by, columns, stats...; schema)
+        pair_wise_group_by(repo, source, by, columns, stats...; schema, r.partition)
     end
 end
 

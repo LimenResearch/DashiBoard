@@ -1,5 +1,5 @@
 {
-    "hasLink": {
+    "hasPartition": {
         "type": "glm",
         "predictors": [
             1,
@@ -11,6 +11,7 @@
         ],
         "target": "TEMP",
         "distribution": "normal",
+        "partition": "partition",
         "link": "identity"
     },
     "hasWeights": {

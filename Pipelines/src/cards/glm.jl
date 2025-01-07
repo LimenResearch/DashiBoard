@@ -46,7 +46,7 @@ Run a GLM
     distribution::String = "normal"
     link::Union{String, Nothing} = nothing
     link_params::Vector{Any} = Any[]
-    partition::String = "partition"
+    partition::Union{String, Nothing} = nothing
     suffix::String = "hat"
 end
 
@@ -65,8 +65,8 @@ function train(
         schema = nothing
     )
 
-    q = From(source) |>
-        Where(Get(g.partition) .== 1)
+    select = filter_partition(g.partition)
+    q = From(source) |> select
     t = DBInterface.execute(fromtable, repo, q; schema)
 
     formula = to_target(g.target) ~ to_predictors(g.predictors)

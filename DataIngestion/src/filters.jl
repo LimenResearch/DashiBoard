@@ -104,7 +104,7 @@ end
     select(filters::AbstractVector, repo::Repository)
 
 Create a table with name `TABLE_NAMES.selection` within the database `repo.db`,
-where `repo` is a  and [`Repository`](@ref).
+where `repo` is a [`Repository`](@ref).
 The table `TABLE_NAMES.selection` is filled with rows from the table
 `TABLE_NAMES.source` that are kept by the filters in `filters`.
 

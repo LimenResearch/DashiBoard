@@ -123,35 +123,38 @@ mktempdir() do dir
     @testset "glm" begin
         d = open(JSON3.read, joinpath(static_dir, "glm.json"))
 
+        part = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(part, repo, "selection" => "partition")
+
         resc = Pipelines.get_card(d["hasLink"])
-        Pipelines.evaluate(resc, repo, "selection" => "glm")
+        Pipelines.evaluate(resc, repo, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test issetequal(
             names(df),
             [
                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_hat",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
             ]
         )
-        sel = DBInterface.execute(DataFrame, repo, "FROM selection")
-        m = glm(@formula(TEMP ~ 1 + cbwd * year + No), sel, Normal(), IdentityLink())
-        @test predict(m) == df.TEMP_hat
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition where partition = 1")
+        m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
+        @test predict(m, df) == df.TEMP_hat
 
         d = open(JSON3.read, joinpath(static_dir, "glm.json"))
 
         resc = Pipelines.get_card(d["hasWeights"])
-        Pipelines.evaluate(resc, repo, "selection" => "glm")
+        Pipelines.evaluate(resc, repo, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test issetequal(
             names(df),
             [
                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "PRES_hat",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
             ]
         )
-        sel = DBInterface.execute(DataFrame, repo, "FROM selection")
-        m = glm(@formula(PRES ~ 1 + cbwd * year + No), sel, Gamma(), wts = sel.TEMP)
-        @test predict(m) == df.PRES_hat
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition where partition = 1")
+        m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(), wts = train_df.TEMP)
+        @test predict(m, df) == df.PRES_hat
     end
 
     @testset "cards" begin

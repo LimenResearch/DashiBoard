@@ -44,7 +44,6 @@ function launch(data_directory; options...)
     @post "/pipeline" function (req::HTTP.Request)
         spec = json(req)
         filters = get_filter.(spec["filters"])
-        @show spec["cards"]
         cards = get_card.(spec["cards"])
         DataIngestion.select(filters, REPOSITORY[])
         Pipelines.evaluate(cards, REPOSITORY[], "selection")

@@ -25,6 +25,7 @@ using FunSQL: render,
     Define,
     Select,
     Order,
+    Where,
     From,
     LeftJoin
 

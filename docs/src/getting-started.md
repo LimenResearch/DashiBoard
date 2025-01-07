@@ -28,7 +28,7 @@ to DashiBoard.
 
 ## Launching the frontend
 
-Open a terminal in the `dashiboard` folder.
+Open a terminal in the `frontend` folder.
 
 Install all required dependencies with the following command:
 

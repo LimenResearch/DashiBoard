@@ -1,5 +1,6 @@
 /Manifest.toml
 /test/Manifest.toml
 /scratch
+/data
 .DS_Store
 .vscode

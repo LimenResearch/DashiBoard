@@ -63,8 +63,10 @@ the transformations in `cards`.
 function evaluate(cards::AbstractVector, repo::Repository, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
     nodes = Node.(inputs.(cards), outputs.(cards), true)
-    order = evaluation_order!(nodes)
-    for idx in order
-        evaluate(cards[idx], repo, table => table; schema)
+    if any(get_update, nodes)
+        order = evaluation_order!(nodes)
+        for idx in order
+            evaluate(cards[idx], repo, table => table; schema)
+        end
     end
 end

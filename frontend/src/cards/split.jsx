@@ -26,7 +26,7 @@ class Split {
 }
 
 export function initSplitCard() {
-    const init = new Split([], [], NaN, "partition");
+    const init = new Split("", [], [], "partition", NaN, []);
     const [value, setValue] = createSignal(init);
     const setter = (k, v) => setKey([value, setValue], k, v);
     return {input: [value, setter], output: value};

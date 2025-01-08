@@ -45,7 +45,8 @@ The format is inferred or can be passed explicitly.
 The following formats are supported:
 $(list_formats()).
 
-The keyword arguments are forwarded to the reader for the given format.
+`union_by_name` and the remaining keyword arguments are forwarded to the reader
+for the given format.
 """
 function load_files(
         repository::Repository, files::AbstractVector{<:AbstractString},

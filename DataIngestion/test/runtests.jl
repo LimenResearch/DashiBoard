@@ -3,13 +3,11 @@ using IntervalSets, Dates
 using DBInterface, DuckDBUtils, DataFrames, JSON3
 using Test
 
-static_dir = joinpath(@__DIR__, "static")
-
 @testset "filtering" begin
     repo = Repository()
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
-    spec = open(JSON3.read, joinpath(static_dir, "data.json"))
+    spec = open(JSON3.read, joinpath(@__DIR__, "static", "data.json"))
     DataIngestion.load_files(repo, spec["files"]; schema)
 
     f1 = DataIngestion.IntervalFilter(
@@ -51,7 +49,7 @@ end
 end
 
 @testset "from json" begin
-    d = open(JSON3.read, joinpath(static_dir, "filters.json"))
+    d = open(JSON3.read, joinpath(@__DIR__, "static", "filters.json"))
     filters = DataIngestion.get_filter.(d)
 
     @test length(filters) == 2
@@ -68,7 +66,7 @@ end
     repo = Repository()
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
-    spec = open(JSON3.read, joinpath(static_dir, "data.json"))
+    spec = open(JSON3.read, joinpath(@__DIR__, "static", "data.json"))
     DataIngestion.load_files(repo, spec["files"]; schema)
     info = DataIngestion.summarize(repo, "source"; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.source")

@@ -4,16 +4,14 @@ using Scratch: @get_scratch!
 using Test
 using Downloads: download
 
-static_dir = joinpath(@__DIR__, "static")
-
 mktempdir() do data_dir
     download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(data_dir, "pollution.csv")
     )
 
-    load_config = open(JSON3.read, joinpath(static_dir, "load.json"))
-    pipeline_config = open(JSON3.read, joinpath(static_dir, "pipeline.json"))
+    load_config = open(JSON3.read, joinpath(@__DIR__, "static", "load.json"))
+    pipeline_config = open(JSON3.read, joinpath(@__DIR__, "static", "pipeline.json"))
 
     repo = DashiBoard.REPOSITORY[]
     DataIngestion.load_files(repo, joinpath.(data_dir, load_config["files"]))
@@ -36,11 +34,11 @@ mktempdir() do data_dir
     @testset "request" begin
         url = "http://127.0.0.1:8080/"
 
-        resp = HTTP.post(url * "load", body = read(joinpath(static_dir, "load.json"), String))
+        resp = HTTP.post(url * "load", body = read(joinpath(@__DIR__, "static", "load.json"), String))
         summaries = JSON3.read(resp.body)
         @test summaries[end]["name"] == "_name"
 
-        resp = HTTP.post(url * "pipeline", body = read(joinpath(static_dir, "pipeline.json"), String))
+        resp = HTTP.post(url * "pipeline", body = read(joinpath(@__DIR__, "static", "pipeline.json"), String))
         summaries = JSON3.read(resp.body)
 
         @test summaries[end]["name"] == "_percentile_partition"

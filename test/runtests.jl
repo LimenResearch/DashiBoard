@@ -22,7 +22,7 @@ mktempdir() do data_dir
     DataIngestion.select(repo, filters)
 
     cards = Pipelines.get_card.(pipeline_config["cards"])
-    Pipelines.evaluate(cards, repo, "selection")
+    Pipelines.evaluate(repo, cards, "selection")
 
     res = DBInterface.execute(DataFrame, repo, "FROM selection")
 

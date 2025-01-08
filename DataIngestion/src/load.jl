@@ -33,10 +33,13 @@ is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
     load_files(
         repository::Repository, files::AbstractVector{<:AbstractString},
         [format::AbstractString];
+        schema = nothing,
         union_by_name = true, kwargs...)
     )
 
-Load `files` into a table called `TABLE_NAMES.source` inside `repository.db`.
+Load `files` into a table called `TABLE_NAMES.source` inside `repository.db`
+within the schema `schema` (defaults to main schema).
+
 The format is inferred or can be passed explicitly.
 
 The following formats are supported:
@@ -47,6 +50,7 @@ The keyword arguments are forwarded to the reader for the given format.
 function load_files(
         repository::Repository, files::AbstractVector{<:AbstractString},
         format::AbstractString = to_format(first(files));
+        schema = nothing,
         union_by_name = true, kwargs...
     )
 
@@ -58,9 +62,9 @@ function load_files(
     options_str = join([string(k, " =  ", to_sql(v)) for (k, v) in options], ", ")
 
     sql = """
-    CREATE OR REPLACE TABLE $(TABLE_NAMES.source) AS
     FROM $reader([$placeholders], $options_str)
     SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     """
-    DBInterface.execute(Returns(nothing), repository, sql, files)
+
+    replace_table(repository, sql, TABLE_NAMES.source, files; schema)
 end

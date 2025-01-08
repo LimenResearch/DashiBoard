@@ -7,8 +7,10 @@ const static_dir = joinpath(@__DIR__, "static")
 
 @testset "filtering" begin
     repo = Repository()
+    schema = "schm"
+    DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
     spec = open(JSON3.read, joinpath(static_dir, "data.json"))
-    DataIngestion.load_files(repo, spec["files"])
+    DataIngestion.load_files(repo, spec["files"]; schema)
 
     f1 = DataIngestion.IntervalFilter(
         "hour",
@@ -22,20 +24,22 @@ const static_dir = joinpath(@__DIR__, "static")
 
     filters = [f1, f2]
 
-    DataIngestion.select(repo, filters)
+    DataIngestion.select(repo, filters; schema)
 
-    df = DBInterface.execute(DataFrame, repo, "FROM selection")
+    df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")
     @test unique(sort(df.cbwd)) == ["NW", "SE"]
     @test unique(sort(df.hour)) == [1, 2, 3]
 end
 
 @testset "dates" begin
     repo = Repository()
+    schema = "schm"
+    DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
     path = joinpath(@__DIR__, "static", "dates.csv")
-    DataIngestion.load_files(repo, [path], dateformat = "%m/%d/%Y")
+    DataIngestion.load_files(repo, [path], dateformat = "%m/%d/%Y"; schema)
     f = IntervalFilter("date", Date(2023, 12, 09) .. Date(2023, 12, 10))
-    DataIngestion.select(repo, [f])
-    df = DBInterface.execute(DataFrame, repo, "FROM selection")
+    DataIngestion.select(repo, [f]; schema)
+    df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")
     df′ = DataFrame(
         row = [1, 2],
         date = [Date(2023, 12, 09), Date(2023, 12, 10)],
@@ -62,10 +66,12 @@ end
 
 @testset "summary" begin
     repo = Repository()
+    schema = "schm"
+    DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
     spec = open(JSON3.read, joinpath(static_dir, "data.json"))
-    DataIngestion.load_files(repo, spec["files"])
-    info = DataIngestion.summarize(repo, "source")
-    df = DBInterface.execute(DataFrame, repo, "FROM source")
+    DataIngestion.load_files(repo, spec["files"]; schema)
+    info = DataIngestion.summarize(repo, "source"; schema)
+    df = DBInterface.execute(DataFrame, repo, "FROM schm.source")
     @test [x.name for x in info] == names(df)
 
     No_min, No_max = extrema(df.No)

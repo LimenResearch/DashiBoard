@@ -42,12 +42,8 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - name: Develop and test Dashiboard
-        shell: julia --project=test {0}
+        shell: julia --project {0}
         run: |
           using Pkg: Pkg
           Pkg.add(Pkg.PackageSpec(name="DuckDB", rev="main"))
-          include("test/runtests.jl")
-          include("DuckDBUtils/test/runtests.jl")
-          include("DataIngestion/test/runtests.jl")
-          include("Pipelines/test/runtests.jl")
-          include("StreamlinerCore/test/runtests.jl")
+          Pkg.test()

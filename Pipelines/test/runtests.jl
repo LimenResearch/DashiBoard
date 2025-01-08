@@ -1,8 +1,6 @@
 using Pipelines, DataIngestion, DuckDBUtils, DBInterface, DataFrames, GLM, Statistics, JSON3
 using Test
 
-const static_dir = joinpath(@__DIR__, "static")
-
 @testset "evaluation order" begin
     nodes = [
         Pipelines.Node(["temp"], ["pred humid"], true),
@@ -24,14 +22,14 @@ const static_dir = joinpath(@__DIR__, "static")
 end
 
 mktempdir() do dir
-    spec = open(JSON3.read, joinpath(static_dir, "spec.json"))
+    spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))
     repo = Repository(joinpath(dir, "db.duckdb"))
     DataIngestion.load_files(repo, spec["data"]["files"])
     filters = DataIngestion.get_filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 
     @testset "split" begin
-        d = open(JSON3.read, joinpath(static_dir, "split.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "split.json"))
         split = Pipelines.get_card(d["tiles"])
         Pipelines.evaluate(repo, split, "selection" => "split")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
@@ -60,7 +58,7 @@ mktempdir() do dir
 
     # TODO: also test partitioned version
     @testset "rescale" begin
-        d = open(JSON3.read, joinpath(static_dir, "rescale.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "rescale.json"))
 
         resc = Pipelines.get_card(d["zscore"])
         Pipelines.evaluate(repo, resc, "selection" => "rescaled")
@@ -121,7 +119,7 @@ mktempdir() do dir
     end
 
     @testset "glm" begin
-        d = open(JSON3.read, joinpath(static_dir, "glm.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
 
         part = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(repo, part, "selection" => "partition")
@@ -140,7 +138,7 @@ mktempdir() do dir
         m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
         @test predict(m, df) == df.TEMP_hat
 
-        d = open(JSON3.read, joinpath(static_dir, "glm.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
 
         resc = Pipelines.get_card(d["hasWeights"])
         Pipelines.evaluate(repo, resc, "partition" => "glm")
@@ -158,7 +156,7 @@ mktempdir() do dir
     end
 
     @testset "cards" begin
-        d = open(JSON3.read, joinpath(static_dir, "cards.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "cards.json"))
         cards = Pipelines.get_card.(d)
         Pipelines.evaluate(repo, cards, "selection")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")

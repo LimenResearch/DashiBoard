@@ -1,7 +1,7 @@
 using Pipelines, DataIngestion, DuckDBUtils, DBInterface, DataFrames, GLM, Statistics, JSON3
 using Test
 
-const static_dir = joinpath(@__DIR__, "static")
+static_dir = joinpath(@__DIR__, "static")
 
 @testset "evaluation order" begin
     nodes = [

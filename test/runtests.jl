@@ -4,7 +4,7 @@ using Scratch: @get_scratch!
 using Test
 using Downloads: download
 
-const static_dir = joinpath(@__DIR__, "static")
+static_dir = joinpath(@__DIR__, "static")
 
 mktempdir() do data_dir
     download(

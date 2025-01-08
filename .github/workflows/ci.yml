@@ -46,8 +46,8 @@ jobs:
         run: |
           using Pkg: Pkg
           Pkg.add(Pkg.PackageSpec(name="DuckDB", rev="main"))
-          Pkg.test("DuckDBUtils")
-          Pkg.test("DataIngestion")
-          Pkg.test("Pipelines")
-          Pkg.test("StreamlinerCore")
-          Pkg.test("DashiBoard")
+          include("DuckDBUtils/test/runtests.jl")
+          include("DataIngestion/test/runtests.jl")
+          include("Pipelines/test/runtests.jl")
+          include("StreamlinerCore/test/runtests.jl")
+          include("test/runtests.jl")

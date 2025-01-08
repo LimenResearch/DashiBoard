@@ -3,7 +3,7 @@ using IntervalSets, Dates
 using DBInterface, DuckDBUtils, DataFrames, JSON3
 using Test
 
-const static_dir = joinpath(@__DIR__, "static")
+static_dir = joinpath(@__DIR__, "static")
 
 @testset "filtering" begin
     repo = Repository()

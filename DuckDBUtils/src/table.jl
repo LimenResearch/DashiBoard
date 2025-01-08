@@ -1,3 +1,7 @@
+const UnnamedParams = Union{Tuple, AbstractVector}
+const NamedParams = Union{NamedTuple, AbstractDict}
+const Params = Union{NamedParams, UnnamedParams}
+
 in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
 
 """
@@ -22,7 +26,8 @@ function replace_object(
         object::AbstractString,
         repo::Repository,
         query::AbstractString,
-        target::AbstractString;
+        target::AbstractString,
+        params::Params = (;);
         schema = nothing
     )
 
@@ -40,6 +45,7 @@ function replace_object(
         Returns(nothing),
         repo,
         sql,
+        params,
     )
 end
 
@@ -47,21 +53,22 @@ function replace_object(
         object::AbstractString,
         repo::Repository,
         node::SQLNode,
-        target::AbstractString;
+        target::AbstractString,
+        params::NamedParams = (;);
         schema = nothing
     )
 
     catalog = get_catalog(repo; schema)
-    query = render(catalog, node)
-    replace_object(object, repo, query, target; schema)
+    query, ps = render_params(catalog, node, params)
+    replace_object(object, repo, query, target, ps; schema)
 end
 
-function replace_table(repo::Repository, query, target::AbstractString; schema = nothing)
-    replace_object("TABLE", repo, query, target; schema)
+function replace_table(repo::Repository, query, target::AbstractString, params::Params = (;); schema = nothing)
+    replace_object("TABLE", repo, query, target, params; schema)
 end
 
-function replace_view(repo::Repository, query, target::AbstractString; schema = nothing)
-    replace_object("TABLE", repo, query, target; schema)
+function replace_view(repo::Repository, query, target::AbstractString, params::Params = (;); schema = nothing)
+    replace_object("TABLE", repo, query, target, params; schema)
 end
 
 function delete_table(repo::Repository, name::AbstractString; schema = nothing)
@@ -72,7 +79,7 @@ function load_table(repo::Repository, table, name::AbstractString; schema = noth
     tempname = string(uuid4())
     # Temporarily register table in order to load it
     with_connection(con -> register_table(con, table, tempname), repo)
-    replace_table(repo, string("From \"", tempname, "\";"), name; schema)
+    replace_table(repo, string("FROM \"", tempname, "\";"), name; schema)
     with_connection(con -> unregister_table(con, tempname), repo)
 end
 

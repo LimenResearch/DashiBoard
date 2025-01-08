@@ -4,11 +4,7 @@ export get_filter, AbstractFilter, ListFilter, IntervalFilter
 
 public is_supported, load_files, summarize, select
 
-using FunSQL: pack,
-    reflect,
-    render,
-    LIT,
-    SQLNode,
+using FunSQL: SQLNode,
     Fun,
     Get,
     Var,
@@ -19,7 +15,7 @@ using FunSQL: pack,
     Order,
     Group
 using DBInterface: DBInterface
-using DuckDBUtils: Repository, get_catalog
+using DuckDBUtils: Repository, get_catalog, replace_table, to_sql
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst
 using Tables: Tables

@@ -22,7 +22,7 @@ const static_dir = joinpath(@__DIR__, "static")
 
     filters = [f1, f2]
 
-    DataIngestion.select(filters, repo)
+    DataIngestion.select(repo, filters)
 
     df = DBInterface.execute(DataFrame, repo, "FROM selection")
     @test unique(sort(df.cbwd)) == ["NW", "SE"]
@@ -33,8 +33,8 @@ end
     repo = Repository()
     path = joinpath(@__DIR__, "static", "dates.csv")
     DataIngestion.load_files(repo, [path], dateformat = "%m/%d/%Y")
-    f = IntervalFilter("date", Date(2023, 12, 09)..Date(2023, 12, 10))
-    DataIngestion.select([f], repo)
+    f = IntervalFilter("date", Date(2023, 12, 09) .. Date(2023, 12, 10))
+    DataIngestion.select(repo, [f])
     df = DBInterface.execute(DataFrame, repo, "FROM selection")
     df′ = DataFrame(
         row = [1, 2],

@@ -55,18 +55,18 @@ function get_card(d::AbstractDict)
 end
 
 """
-    evaluate(cards::AbstractVector, repo::Repository, table::AbstractString; schema = nothing)
+    evaluate(repo::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
 
 Replace `table` in the database `repo.db` with the outcome of executing all
 the transformations in `cards`.
 """
-function evaluate(cards::AbstractVector, repo::Repository, table::AbstractString; schema = nothing)
+function evaluate(repo::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
     nodes = Node.(inputs.(cards), outputs.(cards), true)
     if any(get_update, nodes)
         order = evaluation_order!(nodes)
         for idx in order
-            evaluate(cards[idx], repo, table => table; schema)
+            evaluate(repo, cards[idx], table => table; schema)
         end
     end
 end

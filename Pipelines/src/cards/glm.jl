@@ -59,8 +59,8 @@ inputs(g::GLMCard) = reduce(vcat, map(to_colnames, g.predictors))
 outputs(g::GLMCard) = [g.target]
 
 function train(
-        g::GLMCard,
         repo::Repository,
+        g::GLMCard,
         source::AbstractString;
         schema = nothing
     )
@@ -78,10 +78,10 @@ function train(
 end
 
 function evaluate(
+        repo::Repository,
         g::GLMCard,
         model::RegressionModel,
-        repo::Repository,
-        (source, target)::StringPair;
+        (source, target)::Pair;
         schema = nothing
     )
 

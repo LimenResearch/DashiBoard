@@ -13,6 +13,7 @@ acquire_connection
 release_connection
 with_connection
 render_params
+to_sql
 ```
 
 ## Table tools

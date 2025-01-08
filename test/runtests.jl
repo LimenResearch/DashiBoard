@@ -19,7 +19,7 @@ mktempdir() do data_dir
     DataIngestion.load_files(repo, joinpath.(data_dir, load_config["files"]))
 
     filters = DataIngestion.get_filter.(pipeline_config["filters"])
-    DataIngestion.select(filters, repo)
+    DataIngestion.select(repo, filters)
 
     cards = Pipelines.get_card.(pipeline_config["cards"])
     Pipelines.evaluate(cards, repo, "selection")

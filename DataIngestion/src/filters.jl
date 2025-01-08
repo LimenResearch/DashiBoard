@@ -101,7 +101,7 @@ function Query(filters::AbstractVector; init)
 end
 
 """
-    select(filters::AbstractVector, repo::Repository)
+    select(repo::Repository, filters::AbstractVector; schema = nothing)
 
 Create a table with name `TABLE_NAMES.selection` within the database `repo.db`,
 where `repo` is a [`Repository`](@ref).
@@ -110,13 +110,7 @@ The table `TABLE_NAMES.selection` is filled with rows from the table
 
 Each filter should be an instance of [`AbstractFilter`](@ref).
 """
-function select(filters::AbstractVector, repo::Repository)
+function select(repo::Repository, filters::AbstractVector; schema = nothing)
     (; node, params) = Query(filters, init = From(TABLE_NAMES.source))
-    sql = render(get_catalog(repo), node)
-    DBInterface.execute(
-        Returns(nothing),
-        repo,
-        string("CREATE OR REPLACE TABLE ", TABLE_NAMES.selection, " AS\n", sql),
-        pack(sql, params)
-    )
+    replace_table(repo, node, TABLE_NAMES.selection, params; schema)
 end

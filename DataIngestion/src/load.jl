@@ -53,9 +53,9 @@ function load_files(
     N = length(files)
     placeholders = join(string.('$', 1:N), ", ")
     reader = DEFAULT_READERS[format]
-    
+
     options = [:filename => true, :union_by_name => union_by_name, pairs(kwargs)...]
-    options_str = join([string(k, " =  ", render(LIT(v))) for (k, v) in options], ", ")
+    options_str = join([string(k, " =  ", to_sql(v)) for (k, v) in options], ", ")
 
     sql = """
     CREATE OR REPLACE TABLE $(TABLE_NAMES.source) AS

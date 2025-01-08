@@ -8,7 +8,7 @@ dimensions are known.
 loadmodel(model::Model, data::AbstractData, device) = device(model(data))
 
 """
-    loadmodel(result::Union{Model, Result}, data::AbstractData, device)
+    loadmodel(result::Result, data::AbstractData, device)
 
 Load model encoded in `result` on the `device`.
 The object `data` is required as the model can only be initialized once the data

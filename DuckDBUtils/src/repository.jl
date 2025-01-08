@@ -91,3 +91,10 @@ function DBInterface.execute(f::Base.Callable, repo::Repository, node::SQLNode, 
     q, ps = render_params(catalog, node, params)
     return DBInterface.execute(f, repo, q, ps)
 end
+
+"""
+    to_sql(x)
+
+Convert a julia value `x` to its SQL representation.
+"""
+to_sql(x) = render(LIT(x))

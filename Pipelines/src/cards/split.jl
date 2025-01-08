@@ -52,15 +52,15 @@ function splitter(s::SplitCard)
     end
 end
 
-function train(::SplitCard, ::Repository, ::AbstractString; schema = nothing)
+function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
     return nothing
 end
 
 function evaluate(
+        repo::Repository,
         s::SplitCard,
         ::Nothing,
-        repo::Repository,
-        (source, target)::StringPair;
+        (source, target)::Pair;
         schema = nothing
     )
 

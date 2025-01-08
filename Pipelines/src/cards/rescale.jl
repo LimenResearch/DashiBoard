@@ -129,7 +129,7 @@ function pair_wise_group_by(
     DBInterface.execute(fromtable, repo, query; schema)
 end
 
-function train(r::RescaleCard, repo::Repository, source::AbstractString; schema = nothing)
+function train(repo::Repository, r::RescaleCard, source::AbstractString; schema = nothing)
     (; by, columns, method) = r
     (; stats) = RESCALERS[method]
     return if isempty(stats)
@@ -140,10 +140,10 @@ function train(r::RescaleCard, repo::Repository, source::AbstractString; schema 
 end
 
 function evaluate(
+        repo::Repository,
         r::RescaleCard,
         stats_tbl::SimpleTable,
-        repo::Repository,
-        (source, target)::StringPair;
+        (source, target)::Pair;
         schema = nothing,
         invert = false
     )
@@ -172,6 +172,13 @@ function evaluate(
     end
 end
 
-function deevaluate(r::RescaleCard, repo::Repository, tbls::StringPair, stats_tbl::SimpleTable; schema = nothing)
-    evaluate(r, repo, tbls, stats_tbl; schema, invert = true)
+function deevaluate(
+        repo::Repository,
+        r::RescaleCard,
+        stats_tbl::SimpleTable,
+        (source, target)::Pair;
+        schema = nothing
+    )
+
+    evaluate(repo, r, stats_tbl, source => target; schema, invert = true)
 end

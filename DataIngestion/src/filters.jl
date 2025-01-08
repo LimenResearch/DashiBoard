@@ -112,5 +112,5 @@ Each filter should be an instance of [`AbstractFilter`](@ref).
 """
 function select(repo::Repository, filters::AbstractVector; schema = nothing)
     (; node, params) = Query(filters, init = From(TABLE_NAMES.source))
-    replace_table(repo, node, TABLE_NAMES.selection, params; schema)
+    replace_table(repo, node, params, TABLE_NAMES.selection; schema)
 end

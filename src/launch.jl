@@ -46,7 +46,7 @@ function launch(data_directory; options...)
         filters = get_filter.(spec["filters"])
         cards = get_card.(spec["cards"])
         DataIngestion.select(REPOSITORY[], filters)
-        Pipelines.evaluate(cards, REPOSITORY[], "selection")
+        Pipelines.evaluate(REPOSITORY[], cards, "selection")
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
         return JSON3.write(summaries)
     end

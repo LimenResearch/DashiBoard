@@ -63,12 +63,18 @@ function replace_object(
     replace_object(object, repo, query, target, ps; schema)
 end
 
-function replace_table(repo::Repository, query, target::AbstractString, params::Params = (;); schema = nothing)
-    replace_object("TABLE", repo, query, target, params; schema)
-end
+function replace_table end
 
-function replace_view(repo::Repository, query, target::AbstractString, params::Params = (;); schema = nothing)
-    replace_object("TABLE", repo, query, target, params; schema)
+function replace_view end
+
+for (f, obj) in [:replace_table => "TABLE", :replace_view => "VIEW"]
+    @eval function $f(repo::Repository, query, params::Params, target::AbstractString; schema = nothing)
+        replace_object($obj, repo, query, target, params; schema)
+    end
+
+    @eval function $f(repo::Repository, query, target::AbstractString; schema = nothing)
+        replace_object($obj, repo, query, target, (;); schema)
+    end
 end
 
 function delete_table(repo::Repository, name::AbstractString; schema = nothing)

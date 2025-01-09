@@ -31,6 +31,10 @@ mktempdir() do dir
     @testset "split" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "split.json"))
         split = Pipelines.get_card(d["tiles"])
+
+        @test issetequal(Pipelines.inputs(split), ["No", "cbwd"])
+        @test issetequal(Pipelines.outputs(split), ["_tiled_partition"])
+
         Pipelines.evaluate(repo, split, "selection" => "split")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
@@ -61,6 +65,10 @@ mktempdir() do dir
         d = open(JSON3.read, joinpath(@__DIR__, "static", "rescale.json"))
 
         resc = Pipelines.get_card(d["zscore"])
+
+        @test issetequal(Pipelines.inputs(resc), ["cbwd", "TEMP"])
+        @test issetequal(Pipelines.outputs(resc), ["TEMP_rescaled"])
+
         Pipelines.evaluate(repo, resc, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
@@ -125,6 +133,10 @@ mktempdir() do dir
         Pipelines.evaluate(repo, part, "selection" => "partition")
 
         resc = Pipelines.get_card(d["hasPartition"])
+
+        @test issetequal(Pipelines.inputs(resc), ["cbwd", "year", "No", "TEMP", "partition"])
+        @test issetequal(Pipelines.outputs(resc), ["TEMP_hat"])
+
         Pipelines.evaluate(repo, resc, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test issetequal(

@@ -23,9 +23,14 @@ Currently supported methods are
     tiles::Vector{Int} = Int[]
 end
 
-inputs(s::SplitCard) = union(s.order_by, s.by)
+function inputs(s::SplitCard)
+    i = Set{String}()
+    union!(i, s.order_by)
+    union!(i, s.by)
+    return i
+end
 
-outputs(s::SplitCard) = [s.output]
+outputs(s::SplitCard) = Set([s.output])
 
 function check_order(s::SplitCard)
     if isempty(s.order_by)

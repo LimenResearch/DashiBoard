@@ -54,14 +54,17 @@ to_colnames(::Number) = String[]
 to_colnames(s::AbstractString) = String[s]
 to_colnames(s::AbstractVector) = reduce(vcat, map(to_colnames, s))
 
-partition_cols(g::GLMCard) = isnothing(g.partition) ? String[] : [g.partition]
-
 function inputs(g::GLMCard)
-    predictors = reduce(vcat, map(to_colnames, g.predictors))
-    return vcat(predictors, partition_cols(g))
+    i = Set{String}()
+    for term in g.predictors
+        union!(i, to_colnames(term))
+    end
+    push!(i, g.target)
+    isnothing(g.partition) || push!(i, g.partition)
+    return i
 end
 
-outputs(g::GLMCard) = [g.target]
+outputs(g::GLMCard) = Set([string(g.target, '_', g.suffix)])
 
 function train(
         repo::Repository,

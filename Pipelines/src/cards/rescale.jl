@@ -25,11 +25,15 @@ The resulting rescaled variable is added to the table under the name
     suffix::String = "rescaled"
 end
 
-partition_cols(r::RescaleCard) = isnothing(r.partition) ? String[] : [r.partition]
+function inputs(r::RescaleCard)
+    i = Set{String}()
+    union!(i, r.by)
+    union!(i, r.columns)
+    isnothing(r.partition) || push!(i, r.partition)
+    return i
+end
 
-inputs(r::RescaleCard) = union(r.by, r.columns, partition_cols(r))
-
-outputs(r::RescaleCard) = string.(r.columns, '_', r.suffix)
+outputs(r::RescaleCard) = Set(string.(r.columns, '_', r.suffix))
 
 GetTransform(col, suffix) = Get(string(col, '_', suffix))
 

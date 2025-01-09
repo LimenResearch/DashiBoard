@@ -9,8 +9,8 @@ end
 function Node(card::AbstractCard, update::Bool)
     return Node(
         card,
-        Set{String}(inputs(card)), # TODO: should already return `Set{String}`
-        Set{String}(outputs(card)), # TODO: should already return `Set{String}`
+        inputs(card),
+        outputs(card),
         update,
         nothing
     )

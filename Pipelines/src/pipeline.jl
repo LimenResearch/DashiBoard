@@ -1,15 +1,37 @@
 mutable struct Node
+    const card::Union{AbstractCard, Nothing}
     const inputs::Set{String}
     const outputs::Set{String}
     update::Bool
+    model::Any
 end
 
-function Node(inputs::AbstractVector, outputs::AbstractVector, update::Bool)
-    return Node(Set{String}(inputs), Set{String}(outputs), update)
+function Node(card::AbstractCard, update::Bool)
+    return Node(
+        card,
+        Set{String}(inputs(card)), # TODO: should already return `Set{String}`
+        Set{String}(outputs(card)), # TODO: should already return `Set{String}`
+        update,
+        nothing
+    )
 end
+
+# FIXME: remove this and fix tests
+function Node(inputs::AbstractVector, outputs::AbstractVector, update::Bool)
+    return Node(
+        nothing,
+        Set{String}(inputs),
+        Set{String}(outputs),
+        update,
+        nothing
+    )
+end 
 
 get_update(node::Node) = node.update
 set_update!(node::Node, update::Bool) = setproperty!(node, :update, update)
+
+get_model(node::Node) = node.model
+set_model!(node::Node, m) = setproperty!(node, :model, m)
 
 function digraph(nodes)
     N = length(nodes)
@@ -24,6 +46,7 @@ function digraph(nodes)
     return g
 end
 
+# Compute order and `update` property
 function evaluation_order!(nodes::AbstractVector{Node})
     order = Int[]
     g = digraph(nodes)
@@ -62,14 +85,21 @@ the transformations in `cards`.
 """
 function evaluate(repo::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
-    nodes = Node.(inputs.(cards), outputs.(cards), true)
+    nodes = Node.(cards, true)
     if any(get_update, nodes)
         order = evaluation_order!(nodes)
         for idx in order
-            evaluate(repo, cards[idx], table => table; schema)
+            node = nodes[idx]
+            m = evaluate(repo, node.card, table => table; schema)
+            set_model!(node, m)
+            set_update!(node, false)
         end
     end
+    return nodes
 end
+
+# TODO: similar method for `deevaluate`?
+# TODO: `deevaluate(repo, node.card, node.model, source => target; schema)`
 
 filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
 

@@ -1,9 +1,9 @@
-const DEFAULT_READERS = OrderedDict{String, String}(
-    "csv" => "read_csv",
-    "tsv" => "read_csv",
-    "txt" => "read_csv",
-    "json" => "read_json",
-    "parquet" => "read_parquet",
+const DEFAULT_READERS = Dict(
+    "csv" => csv_reader,
+    "tsv" => csv_reader,
+    "txt" => csv_reader,
+    "json" => json_reader,
+    "parquet" => parquet_reader,
 )
 
 const TABLE_NAMES = (
@@ -49,21 +49,19 @@ $(list_formats()).
 for the given format.
 """
 function load_files(
-        repository::Repository, files::AbstractVector{<:AbstractString},
+        repository::Repository,
+        files::AbstractVector{<:AbstractString},
         format::AbstractString = to_format(first(files));
         schema = nothing,
-        union_by_name = true, kwargs...
+        union_by_name = true,
+        kwargs...
     )
 
     N = length(files)
-    placeholders = join(string.('$', 1:N), ", ")
-    reader = DEFAULT_READERS[format]
-
-    options = [:filename => true, :union_by_name => union_by_name, pairs(kwargs)...]
-    options_str = join([string(k, " =  ", to_sql(v)) for (k, v) in options], ", ")
+    reader = DEFAULT_READERS[format](N; filename = true, union_by_name, kwargs...)
 
     sql = """
-    FROM $reader([$placeholders], $options_str)
+    FROM $reader
     SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     """
 

@@ -19,7 +19,11 @@ using DuckDBUtils: Repository, get_catalog, replace_table, to_sql
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst
 using Tables: Tables
-using OrderedCollections: OrderedDict
+
+include("readers/utils.jl")
+include("readers/csv.jl")
+include("readers/json.jl")
+include("readers/parquet.jl")
 
 include("load.jl")
 include("filters.jl")

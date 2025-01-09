@@ -3,6 +3,38 @@ using IntervalSets, Dates
 using DBInterface, DuckDBUtils, DataFrames, JSON3
 using Test
 
+@testset "load" begin
+    repo = Repository()
+    DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA csv")
+    DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA json")
+    DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA parquet")
+
+    df = DataFrame(x = [1, 2, 3], y = ["a", "b", "c"])
+    DuckDBUtils.load_table(repo, df, "source")
+
+    mktempdir() do dir
+        path = joinpath(dir, "test")
+        DBInterface.execute(Returns(nothing), repo, "COPY (FROM source) TO '$path.csv'")
+        DBInterface.execute(Returns(nothing), repo, "COPY (FROM source) TO '$path.json'")
+        DBInterface.execute(Returns(nothing), repo, "COPY (FROM source) TO '$path.parquet'")
+
+        DataIngestion.load_files(repo, ["$path.csv"]; schema = "csv")
+        df′ = DBInterface.execute(DataFrame, repo, "FROM csv.source")
+        @test df′.x == [1, 2, 3]
+        @test df′.y == ["a", "b", "c"]
+
+        DataIngestion.load_files(repo, ["$path.json"]; schema = "json")
+        df′ = DBInterface.execute(DataFrame, repo, "FROM json.source")
+        @test df′.x == [1, 2, 3]
+        @test df′.y == ["a", "b", "c"]
+
+        DataIngestion.load_files(repo, ["$path.parquet"]; schema = "parquet")
+        df′ = DBInterface.execute(DataFrame, repo, "FROM parquet.source")
+        @test df′.x == [1, 2, 3]
+        @test df′.y == ["a", "b", "c"]
+    end
+end
+
 @testset "filtering" begin
     repo = Repository()
     schema = "schm"

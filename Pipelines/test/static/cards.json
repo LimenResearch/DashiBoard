@@ -29,5 +29,14 @@
             2
         ],
         "output": "_tiled_partition"
+    },
+    {
+        "type": "rescale",
+        "method": "zscore",
+        "by": [
+            "cbwd"
+        ],
+        "columns": ["PRES", "TEMP"],
+        "partition": "_tiled_partition"
     }
 ]

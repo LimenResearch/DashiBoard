@@ -25,7 +25,9 @@ The resulting rescaled variable is added to the table under the name
     suffix::String = "rescaled"
 end
 
-inputs(r::RescaleCard) = union(r.by, r.columns)
+partition_cols(r::RescaleCard) = isnothing(r.partition) ? String[] : [r.partition]
+
+inputs(r::RescaleCard) = union(r.by, r.columns, partition_cols(r))
 
 outputs(r::RescaleCard) = string.(r.columns, '_', r.suffix)
 

@@ -54,7 +54,12 @@ to_colnames(::Number) = String[]
 to_colnames(s::AbstractString) = String[s]
 to_colnames(s::AbstractVector) = reduce(vcat, map(to_colnames, s))
 
-inputs(g::GLMCard) = reduce(vcat, map(to_colnames, g.predictors))
+partition_cols(g::GLMCard) = isnothing(g.partition) ? String[] : [g.partition]
+
+function inputs(g::GLMCard)
+    predictors = reduce(vcat, map(to_colnames, g.predictors))
+    return vcat(predictors, partition_cols(g))
+end
 
 outputs(g::GLMCard) = [g.target]
 

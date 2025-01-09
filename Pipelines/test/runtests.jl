@@ -163,11 +163,13 @@ mktempdir() do dir
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-            "_tiled_partition", "_percentile_partition",
+            "_tiled_partition", "PRES_rescaled", "TEMP_rescaled",
+            "_percentile_partition",
         ]
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
         @test count(==(1), df._percentile_partition) == 39441
         @test count(==(2), df._percentile_partition) == 4383
+        # TODO: test zscore values as well
     end
 end

@@ -16,22 +16,13 @@ function Node(card::AbstractCard, update::Bool)
     )
 end
 
-# FIXME: remove this and fix tests
-function Node(inputs::AbstractVector, outputs::AbstractVector, update::Bool)
-    return Node(
-        nothing,
-        Set{String}(inputs),
-        Set{String}(outputs),
-        update,
-        nothing
-    )
-end 
-
 get_update(node::Node) = node.update
 set_update!(node::Node, update::Bool) = setproperty!(node, :update, update)
 
 get_model(node::Node) = node.model
 set_model!(node::Node, m) = setproperty!(node, :model, m)
+
+get_card(node::Node) = node.card
 
 function digraph(nodes)
     N = length(nodes)

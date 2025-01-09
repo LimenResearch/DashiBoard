@@ -2,20 +2,27 @@ using Pipelines, DataIngestion, DuckDBUtils, DBInterface, DataFrames, GLM, Stati
 using Test
 
 @testset "evaluation order" begin
+    struct TrivialCard <: Pipelines.AbstractCard
+        inputs::Vector{String}
+        outputs::Vector{String}
+    end
+    Pipelines.inputs(t::TrivialCard) = Set(t.inputs)
+    Pipelines.outputs(t::TrivialCard) = Set(t.outputs)
+
     nodes = [
-        Pipelines.Node(["temp"], ["pred humid"], true),
-        Pipelines.Node(["pred humid"], ["pred wind"], true),
-        Pipelines.Node(["wind", "wind name"], ["pred temp"], true),
-        Pipelines.Node(["wind"], ["wind name"], true),
+        Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), true),
+        Pipelines.Node(TrivialCard(["pred humid"], ["pred wind"]), true),
+        Pipelines.Node(TrivialCard(["wind", "wind name"], ["pred temp"]), true),
+        Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
     ]
 
     @test Pipelines.evaluation_order!(nodes) == [4, 3, 1, 2]
 
     nodes = [
-        Pipelines.Node(["temp"], ["pred humid"], false),
-        Pipelines.Node(["pred humid"], ["pred wind"], true),
-        Pipelines.Node(["wind", "wind name"], ["pred temp"], false),
-        Pipelines.Node(["wind"], ["wind name"], true),
+        Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), false),
+        Pipelines.Node(TrivialCard(["pred humid"], ["pred wind"]), true),
+        Pipelines.Node(TrivialCard(["wind", "wind name"], ["pred temp"]), false),
+        Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
     ]
 
     @test Pipelines.evaluation_order!(nodes) == [4, 3, 2]

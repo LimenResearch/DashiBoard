@@ -2,7 +2,7 @@ module StreamlinerCore
 
 export Result, Model, Data, AbstractData, DataPartition, Training, Streaming
 export default_parser
-export get_templates, get_metadata, get_summary
+export get_templates, get_metadata
 export stream, finetune, train, loadmodel, validate, evaluate, summarize
 
 public has_weights
@@ -45,7 +45,7 @@ using Optimisers: trainables,
 using Base.ScopedValues: @with, ScopedValue
 using EnumX: @enumx
 using Primes: factor
-using BSON: bson, load
+using JLD2: jldopen
 using Printf: @sprintf
 using UUIDs: uuid4, UUID
 

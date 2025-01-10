@@ -35,8 +35,7 @@ and `N = 2` to train models via a training and a validation datasets.
 Subtypes of `AbstractData` are meant to implement the following methods:
 - [`stream`](@ref),
 - [`get_templates`](@ref),
-- [`get_metadata`](@ref),
-- [`get_summary`](@ref) (optional).
+- [`get_metadata`](@ref).
 """
 abstract type AbstractData{N} end
 
@@ -131,16 +130,6 @@ After training, it will be stored in the MongoDB together.
 function get_metadata end
 
 get_metadata(d::AbstractDict) = d
-
-"""
-    get_summary(data::AbstractData)::Dict{String, Any}
-
-Extract summary for `data`.
-`summary` should be a dictionary of summary statistics for `data`.
-Common choices of statistics to report are mean and standard deviation,
-as well as unique values for categorical variables.
-"""
-get_summary(::AbstractData) = StringDict()
 
 """
     get_nsamples(data::AbstractData{N})::NTuple{N, Int} where {N}

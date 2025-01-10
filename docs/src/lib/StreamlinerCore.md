@@ -15,7 +15,6 @@ StreamlinerCore.stream
 StreamlinerCore.ingest
 StreamlinerCore.get_templates
 StreamlinerCore.get_metadata
-StreamlinerCore.get_summary
 StreamlinerCore.get_nsamples
 StreamlinerCore.Template
 ```

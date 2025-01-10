@@ -20,7 +20,7 @@ function default_callback(m, trace::Trace; gc = true)
 end
 
 function _train(
-        io::IO, model′::Union{Model, Result}, data::AbstractData{2}, training::Training;
+        dst::AbstractString, model′::Union{Model, Result}, data::AbstractData{2}, training::Training;
         resume::Bool, callback, outputdir
     )
 
@@ -41,15 +41,16 @@ function _train(
     training_pair = training => training_state
 
     best_N, best_stats = if is_batched(training)
-        batched_train!(io, model_pair, data, training_pair, init; callback)
+        batched_train!(dst, model_pair, data, training_pair, init; callback)
     else
-        unbatched_train!(io, model_pair, data, training_pair, init; callback)
+        unbatched_train!(dst, model_pair, data, training_pair, init; callback)
     end
 
-    bytes = read(seekstart(io))
-    successful = !isempty(bytes)
+    successful = jldopen(dst) do file
+        !isnothing(file["model_state"])
+    end
 
-    result = Result(;
+    return Result(;
         model,
         prefix = outputdir,
         uuid = uuid4(),
@@ -59,14 +60,10 @@ function _train(
         resumed = resume,
         successful
     )
-
-    successful && write(get_path(result), bytes)
-
-    return result
 end
 
 function finalize_callback(
-        io::IO, (model, device_m)::ModelPair, valid_stream,
+        dst::AbstractString, (model, device_m)::ModelPair, valid_stream,
         (training, training_state)::TrainingPair,
         (best_N, best_stats), (N, train_stats); callback
     )
@@ -85,10 +82,9 @@ function finalize_callback(
     best_valid_loss = first(best_stats[Int(DataPartition.validation)])
 
     if valid_loss < best_valid_loss
-        truncate(io, 0)
-        seekstart(io)
-        state = StringDict("model_state" => Flux.cpu(Flux.state(device_m)))
-        write_state(io, state)
+        jldopen(dst, "w") do file
+            file["model_state"] = Flux.cpu(Flux.state(device_m))
+        end
         best_N, best_stats = N, current_stats
     end
 
@@ -96,7 +92,7 @@ function finalize_callback(
 end
 
 function unbatched_train!(
-        io::IO, (model, device_m)::ModelPair, data::AbstractData{2},
+        dst::AbstractString, (model, device_m)::ModelPair, data::AbstractData{2},
         (training, training_state)::TrainingPair,
         (init_N, init_stats)::Pair; callback
     )
@@ -125,7 +121,7 @@ function unbatched_train!(
         train_stats = compute_metric((vars[].loss, model.metrics...), vars[].output)
         current = N => train_stats
         stop, best[] = finalize_callback(
-            io::IO, model => re(θ), [valid_data], training => training_state,
+            dst, model => re(θ), [valid_data], training => training_state,
             best[], current; callback
         )
         return stop
@@ -184,7 +180,7 @@ function epoch_train!(
 end
 
 function batched_train!(
-        io::IO, (model, device_m)::ModelPair, data::AbstractData{2},
+        dst::AbstractString, (model, device_m)::ModelPair, data::AbstractData{2},
         (training, training_state)::TrainingPair,
         (init_N, init_stats)::Pair; callback
     )
@@ -203,7 +199,7 @@ function batched_train!(
         current = N => train_stats
         stop, best = stream(data, DataPartition.validation, valid_streaming) do valid_stream
             return finalize_callback(
-                io::IO, model => device_m,
+                dst, model => device_m,
                 valid_stream, training => training_state,
                 best, current;
                 callback
@@ -219,8 +215,13 @@ function _train(
         resume::Bool, callback = default_callback,
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
-    return mktemp(tempdir) do _, io
-        return _train(io, model, data, training; resume, callback, outputdir)
+    return mktemp(tempdir) do dst, io
+        jldopen(dst, "w") do file
+            file["model_state"] = nothing
+        end
+        result = _train(dst, model, data, training; resume, callback, outputdir)
+        result.successful && write(get_path(result), read(io))
+        return result
     end
 end
 

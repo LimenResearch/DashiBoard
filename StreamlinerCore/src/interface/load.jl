@@ -25,8 +25,17 @@ function loadmodel(result::Result, data::AbstractData, device)
 
     m = Model(result)(data)
     path = get_path(result)
-    loadmodel!(m, read_state(path)["model_state"])
 
-    device = device
+    jldopen(maybe_buffer(path)) do file
+        state = file["model_state"]
+        loadmodel!(m, state)
+    end
+
     return device(m)
 end
+
+# For local file system, read from path
+maybe_buffer(path::AbstractString) = path
+
+# For remote file systems (e.g., S3 paths), load in memory
+maybe_buffer(path) = IOBuffer(read(path))

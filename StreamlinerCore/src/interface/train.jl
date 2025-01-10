@@ -19,6 +19,8 @@ function default_callback(m, trace::Trace; gc = true)
     gc && GC.gc(false)
 end
 
+get_valid_loss(stats::NTuple{2, AbstractVector{<:Real}}) = first(stats[Int(DataPartition.validation)])
+
 function _train(
         dst::AbstractString, model′::Union{Model, Result}, data::AbstractData{2}, training::Training;
         resume::Bool, callback, outputdir
@@ -27,28 +29,29 @@ function _train(
     device_m = loadmodel(model′, data, training.device)
     model = Model(model′)
 
-    init = if resume
+    init_N, init_stats = if resume
         model′.iteration => model′.stats
     else
         nstats = 1 + length(model.metrics)
+        # We assume that untrained model has `Inf` loss
         0 => (fill(Inf, nstats), fill(Inf, nstats))
     end
 
-    stoppers::Vector{Any} = start.(training.stoppers)
+    init_valid_loss = get_valid_loss(init_stats)
+    stoppers::Vector{Any} = start.(training.stoppers, init_valid_loss)
 
     model_pair = model => device_m
     training_state = TrainingState(setup(training.optimizer, device_m), stoppers)
     training_pair = training => training_state
 
     best_N, best_stats = if is_batched(training)
-        batched_train!(dst, model_pair, data, training_pair, init; callback)
+        batched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
     else
-        unbatched_train!(dst, model_pair, data, training_pair, init; callback)
+        unbatched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
     end
 
-    successful = jldopen(dst) do file
-        !isnothing(file["model_state"])
-    end
+    best_valid_loss = get_valid_loss(best_stats)
+    successful = best_valid_loss < init_valid_loss
 
     return Result(;
         model,
@@ -70,22 +73,21 @@ function finalize_callback(
 
     metrics = (model.loss, model.metrics...)
     valid_stats = compute_metrics(metrics, device_m, valid_stream)
-    current_stats = (
+    stats = (
         collect(Float64, train_stats),
         collect(Float64, valid_stats),
     )
 
-    trace = Trace(stats = current_stats, metrics = collect(Any, metrics), iteration = N)
+    trace = Trace(stats = stats, metrics = collect(Any, metrics), iteration = N)
     callback(device_m, trace)
 
-    valid_loss = first(current_stats[Int(DataPartition.validation)])
-    best_valid_loss = first(best_stats[Int(DataPartition.validation)])
+    valid_loss, best_valid_loss = get_valid_loss(stats), get_valid_loss(best_stats)
 
     if valid_loss < best_valid_loss
         jldopen(dst, "w") do file
             file["model_state"] = Flux.cpu(Flux.state(device_m))
         end
-        best_N, best_stats = N, current_stats
+        best_N, best_stats = N, stats
     end
 
     return any(Fix1(|>, valid_loss), training_state.stoppers), best_N => best_stats
@@ -220,7 +222,7 @@ function _train(
             file["model_state"] = nothing
         end
         result = _train(dst, model, data, training; resume, callback, outputdir)
-        result.successful && write(get_path(result), read(io))
+        write(get_path(result), read(io))
         return result
     end
 end

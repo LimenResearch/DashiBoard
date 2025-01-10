@@ -218,9 +218,6 @@ function _train(
         outputdir, tempdir::AbstractString = Base.tempdir()
     )
     return mktemp(tempdir) do dst, io
-        jldopen(dst, "w") do file
-            file["model_state"] = nothing
-        end
         result = _train(dst, model, data, training; resume, callback, outputdir)
         write(get_path(result), read(io))
         return result

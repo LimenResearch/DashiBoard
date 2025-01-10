@@ -19,6 +19,9 @@ to_sql
 ## Table tools
 
 ```@docs
+load_table
+replace_table
+delete_table
 with_table
 colnames
 ```

@@ -22,65 +22,109 @@ function in_schema(name::AbstractString, schema::AbstractString)
     return string("\"", schema, "\".\"", name, "\"")
 end
 
-function replace_object(
-        object::AbstractString,
+"""
+    replace_table(
+        repo::Repository,
+        query::Union{AbstractString, SQLNode}
+        [params,]
+        name::AbstractString;
+        schema = nothing,
+        virtual::Bool = false
+    )
+
+Replace table `name` in schema `schema` in `repo.db` with the result of a given
+`query` with optional parameters `params`.
+
+Use `virtual = true` to replace a view instead of a table.
+"""
+function replace_table end
+
+function replace_table(
         repo::Repository,
         query::AbstractString,
-        target::AbstractString,
-        params::Params = (;);
-        schema = nothing
+        params::Params,
+        name::AbstractString;
+        schema = nothing,
+        virtual::Bool = false
     )
 
     sql = string(
         "CREATE OR REPLACE",
         " ",
-        object,
+        virtual ? "VIEW" : "TABLE",
         " ",
-        in_schema(target, schema),
+        in_schema(name, schema),
         " AS\n",
         query
     )
 
-    DBInterface.execute(
-        Returns(nothing),
-        repo,
-        sql,
-        params,
-    )
+    DBInterface.execute(Returns(nothing), repo, sql, params)
 end
 
-function replace_object(
-        object::AbstractString,
+function replace_table(
         repo::Repository,
         node::SQLNode,
-        target::AbstractString,
-        params::NamedParams = (;);
-        schema = nothing
+        params::NamedParams,
+        name::AbstractString;
+        schema = nothing,
+        virtual::Bool = false
     )
 
     catalog = get_catalog(repo; schema)
     query, ps = render_params(catalog, node, params)
-    replace_object(object, repo, query, target, ps; schema)
+    replace_table(repo, query, ps, name; schema, virtual)
 end
 
-function replace_table end
+function replace_table(
+    repo::Repository,
+    query::Union{SQLNode, AbstractString},
+    name::AbstractString;
+    schema = nothing,
+    virtual::Bool = false
+    )
 
-function replace_view end
-
-for (f, obj) in [:replace_table => "TABLE", :replace_view => "VIEW"]
-    @eval function $f(repo::Repository, query, params::Params, target::AbstractString; schema = nothing)
-        replace_object($obj, repo, query, target, params; schema)
-    end
-
-    @eval function $f(repo::Repository, query, target::AbstractString; schema = nothing)
-        replace_object($obj, repo, query, target, (;); schema)
-    end
+    params = NamedTuple()
+    replace_table(repo, query, params, name; schema, virtual)
 end
 
-function delete_table(repo::Repository, name::AbstractString; schema = nothing)
-    DBInterface.execute(Returns(nothing), repo, "DROP TABLE $(in_schema(name, schema));")
+"""
+    delete(
+        repo::Repository,
+        name::AbstractString;
+        schema = nothing,
+        virtual::Bool = false
+    )
+
+Delete table `name` in schema `schema` in `repo.db`.
+
+Use `virtual = true` to delete a view instead of a table.
+"""
+function delete_table(
+        repo::Repository,
+        name::AbstractString;
+        schema = nothing,
+        virtual::Bool = false)
+
+    sql = string(
+        "DROP",
+        " ",
+        virtual ? "VIEW" : "TABLE",
+        " ",
+        in_schema(name, schema)
+    )
+    DBInterface.execute(Returns(nothing), repo, sql)
 end
 
+"""
+    load(
+        repo::Repository,
+        table,
+        name::AbstractString;
+        schema = nothing
+    )
+
+Load a Julia table `table` as `name` in schema `schema` in `repo.db`.
+"""
 function load_table(repo::Repository, table, name::AbstractString; schema = nothing)
     tempname = string(uuid4())
     # Temporarily register table in order to load it

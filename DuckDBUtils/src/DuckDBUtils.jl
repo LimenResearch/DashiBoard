@@ -8,7 +8,7 @@ export get_catalog
 
 public colnames, to_sql
 
-public load_table, delete_table, replace_table, replace_view
+public load_table, delete_table, replace_table
 
 public render_params
 

@@ -76,11 +76,11 @@ function replace_table(
 end
 
 function replace_table(
-    repo::Repository,
-    query::Union{SQLNode, AbstractString},
-    name::AbstractString;
-    schema = nothing,
-    virtual::Bool = false
+        repo::Repository,
+        query::Union{SQLNode, AbstractString},
+        name::AbstractString;
+        schema = nothing,
+        virtual::Bool = false
     )
 
     params = NamedTuple()
@@ -103,7 +103,8 @@ function delete_table(
         repo::Repository,
         name::AbstractString;
         schema = nothing,
-        virtual::Bool = false)
+        virtual::Bool = false
+    )
 
     sql = string(
         "DROP",

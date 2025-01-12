@@ -38,16 +38,11 @@ StreamlinerCore.Streaming
 
 ```@docs
 Result
+has_weights
 train
 finetune
 loadmodel
 validate
 evaluate
 summarize
-```
-
-## Utilities
-
-```@docs
-StreamlinerCore.has_weights
 ```

@@ -27,7 +27,6 @@ Return `true` if `result` is a successful training result, `false` otherwise.
 """
 has_weights(result::Result) = result.trained && result.successful
 
-
 # Train model via Optimisers.jl or Optim.jl
 
 @kwdef struct Trace
@@ -242,18 +241,15 @@ end
 
 """
     train(
+        filename::AbstractString,
         model::Model, data::AbstractData{2}, training::Training;
-        callback = default_callback, outputdir,
-        tempdir::AbstractString = Base.tempdir()
+        callback = default_callback
     )
 
 Train `model` using the `training` configuration on `data`.
+Save the resulting weights in `filename`.
 
-The keyword arguments are as follows.
-
-- `outputdir` represents the path where StreamlinerCore saves model weights (can be local or remote).
-- `tempdir` represents a folder where StreamlinerCore will store temporary data during training.
-- `callback(m, trace)` will be called after every epoch.
+After every epoch, `callback(m, trace)`.
 
 The arguments of `callback` work as follows.
 - `m` is the instantiated neural network or machine,
@@ -263,32 +259,32 @@ The arguments of `callback` work as follows.
     - `iteration`.
 """
 function train(
-        dest::AbstractString,
-        model::Model,
-        data::AbstractData{2},
-        training::Training;
+        filename::AbstractString,
+        model::Model, data::AbstractData{2}, training::Training;
         callback = default_callback
     )
-    return _train(nothing => dest, model, data, training; callback)
+    return _train(nothing => filename, model, data, training; callback)
 end
 
 """
     finetune(
-        path::AbstractString,
+        (src, dst)::Pair,
         model::Model, data::AbstractData{2}, training::Training;
         init::Maybe{Result} = nothing, callback = default_callback
     )
 
-Load model encoded in `model` from `path` and retrain it using
+Load model encoded in `model` from `src` and retrain it using
 the `training` configuration on `data`.
-Use `init = result` to restart training where it left off.
-The `callback` keyword argument works as [`train`](@ref).
+Save the resulting weights in `dst`.
+
+Use `init = result::Result` to restart training where it left off.
+The `callback` keyword argument works as in [`train`](@ref).
 """
 function finetune(
-        path::AbstractString,
+        (src, dst)::Pair,
         model::Model, data::AbstractData{2}, training::Training;
         init::Maybe{Result} = nothing, callback = default_callback
     )
 
-    return _train(path => path, model, data, training; init, callback)
+    return _train(src => dst, model, data, training; init, callback)
 end

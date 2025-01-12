@@ -19,19 +19,19 @@ end
 
 """
     evaluate(
-        path::AbstractString,
+        filename::AbstractString,
         model::Model, data::AbstractData{1}, streaming::Streaming,
         select::SymbolTuple = (:prediction,)
     )
 
-Load `model` with weights saved in `path` and evaluate it on `data`
+Load `model` with weights saved in `filename` and evaluate it on `data`
 using streaming settings `streaming`.
 """
 function evaluate(
-        path::AbstractString,
+        filename::AbstractString,
         model::Model, data::AbstractData{1}, streaming::Streaming,
         select::SymbolTuple = (:prediction,)
     )
-    device_m = loadmodel(path, model, data, streaming.device)
+    device_m = loadmodel(filename, model, data, streaming.device)
     return evaluate(device_m, data, streaming, select)
 end

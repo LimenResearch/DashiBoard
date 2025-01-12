@@ -19,7 +19,8 @@ function test_mnist_conv(dir)
     @show result.stats
     println()
 
-    result′ = finetune(wts, model, train_regression_data, training, init = result)
+    wts′ = joinpath(dir, "wts′.jld2")
+    result′ = finetune(wts => wts′, model, train_regression_data, training, init = result)
     @test result′.trained
     @test result′.resumed
 

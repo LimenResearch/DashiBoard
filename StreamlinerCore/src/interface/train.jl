@@ -1,3 +1,33 @@
+# Result management
+
+"""
+    @kwdef struct Result{N, P, M<:Model}
+        iteration::Int
+        stats::NTuple{N, Vector{Float64}}
+        trained::Bool
+        resumed::Maybe{Bool} = nothing
+        successful::Maybe{Bool} = nothing
+    end
+
+Structure to encode the result of [`train`](@ref), [`finetune`](@ref), or [`validate`](@ref).
+Stores configuration of model, metrics, and information on the location of the model weights.
+"""
+@kwdef struct Result{N}
+    iteration::Int
+    stats::NTuple{N, Vector{Float64}}
+    trained::Bool
+    resumed::Maybe{Bool} = nothing
+    successful::Maybe{Bool} = nothing
+end
+
+"""
+    has_weights(result::Result)
+
+Return `true` if `result` is a successful training result, `false` otherwise.
+"""
+has_weights(result::Result) = result.trained && result.successful
+
+
 # Train model via Optimisers.jl or Optim.jl
 
 @kwdef struct Trace
@@ -20,50 +50,6 @@ function default_callback(m, trace::Trace; gc = true)
 end
 
 get_valid_loss(stats::NTuple{2, AbstractVector{<:Real}}) = first(stats[Int(DataPartition.validation)])
-
-function _train(
-        dst::AbstractString, model′::Union{Model, Result}, data::AbstractData{2}, training::Training;
-        resume::Bool, callback, outputdir
-    )
-
-    device_m = loadmodel(model′, data, training.device)
-    model = Model(model′)
-
-    init_N, init_stats = if resume
-        model′.iteration => model′.stats
-    else
-        nstats = 1 + length(model.metrics)
-        # We assume that untrained model has `Inf` loss
-        0 => (fill(Inf, nstats), fill(Inf, nstats))
-    end
-
-    init_valid_loss = get_valid_loss(init_stats)
-    stoppers::Vector{Any} = start.(training.stoppers, init_valid_loss)
-
-    model_pair = model => device_m
-    training_state = TrainingState(setup(training.optimizer, device_m), stoppers)
-    training_pair = training => training_state
-
-    best_N, best_stats = if is_batched(training)
-        batched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
-    else
-        unbatched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
-    end
-
-    best_valid_loss = get_valid_loss(best_stats)
-    successful = best_valid_loss < init_valid_loss
-
-    return Result(;
-        model,
-        prefix = outputdir,
-        uuid = uuid4(),
-        iteration = best_N,
-        stats = best_stats,
-        trained = true,
-        resumed = resume,
-        successful
-    )
-end
 
 function finalize_callback(
         dst::AbstractString, (model, device_m)::ModelPair, valid_stream,
@@ -213,15 +199,45 @@ function batched_train!(
 end
 
 function _train(
-        model::Union{Model, Result}, data::AbstractData{2}, training::Training;
-        resume::Bool, callback = default_callback,
-        outputdir, tempdir::AbstractString = Base.tempdir()
+        (src, dst)::Pair,
+        model::Model, data::AbstractData{2}, training::Training;
+        init::Maybe{Result} = nothing, callback = default_callback
     )
-    return mktemp(tempdir) do dst, io
-        result = _train(dst, model, data, training; resume, callback, outputdir)
-        write(get_path(result), read(io))
-        return result
+
+    device_m = loadmodel(src, model, data, training.device)
+
+    resumed = !isnothing(init)
+    init_N, init_stats = if resumed
+        init.iteration => init.stats
+    else
+        nstats = 1 + length(model.metrics)
+        # We assume that untrained model has `Inf` loss
+        0 => (fill(Inf, nstats), fill(Inf, nstats))
     end
+
+    init_valid_loss = get_valid_loss(init_stats)
+    stoppers::Vector{Any} = start.(training.stoppers, init_valid_loss)
+
+    model_pair = model => device_m
+    training_state = TrainingState(setup(training.optimizer, device_m), stoppers)
+    training_pair = training => training_state
+
+    best_N, best_stats = if is_batched(training)
+        batched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
+    else
+        unbatched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
+    end
+
+    best_valid_loss = get_valid_loss(best_stats)
+    successful = best_valid_loss < init_valid_loss
+
+    return Result(;
+        iteration = best_N,
+        stats = best_stats,
+        trained = true,
+        resumed,
+        successful
+    )
 end
 
 """
@@ -247,29 +263,32 @@ The arguments of `callback` work as follows.
     - `iteration`.
 """
 function train(
-        model::Model, data::AbstractData{2}, training::Training;
-        callback = default_callback, outputdir,
-        tempdir::AbstractString = Base.tempdir()
+        dest::AbstractString,
+        model::Model,
+        data::AbstractData{2},
+        training::Training;
+        callback = default_callback
     )
-    return _train(model, data, training; callback, outputdir, tempdir, resume = false)
+    return _train(nothing => dest, model, data, training; callback)
 end
 
 """
     finetune(
-        result::Result, data::AbstractData{2}, training::Training;
-        resume::Bool, callback = default_callback,
-        outputdir, tempdir::AbstractString = Base.tempdir()
+        path::AbstractString,
+        model::Model, data::AbstractData{2}, training::Training;
+        init::Maybe{Result} = nothing, callback = default_callback
     )
 
-Load model encoded in `result` and retrain it using the `training` configuration on `data`.
-Use `resume = true` to restart training where it left off.
-Same other keyword arguments as [`train`](@ref).
+Load model encoded in `model` from `path` and retrain it using
+the `training` configuration on `data`.
+Use `init = result` to restart training where it left off.
+The `callback` keyword argument works as [`train`](@ref).
 """
 function finetune(
-        result::Result, data::AbstractData{2}, training::Training;
-        resume::Bool, callback = default_callback,
-        outputdir, tempdir::AbstractString = Base.tempdir()
+        path::AbstractString,
+        model::Model, data::AbstractData{2}, training::Training;
+        init::Maybe{Result} = nothing, callback = default_callback
     )
 
-    return _train(result, data, training; resume, callback, outputdir, tempdir)
+    return _train(path => path, model, data, training; init, callback)
 end

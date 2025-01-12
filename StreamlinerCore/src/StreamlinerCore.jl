@@ -47,7 +47,6 @@ using EnumX: @enumx
 using Primes: factor
 using JLD2: jldopen
 using Printf: @sprintf
-using UUIDs: uuid4, UUID
 
 include("utils.jl")
 include("variables.jl")
@@ -72,8 +71,6 @@ include("training/schedules.jl")
 include("training/stoppers.jl")
 include("training/optimizer.jl")
 include("training/training.jl")
-
-include("result.jl")
 
 include("interface/train.jl")
 include("interface/load.jl")

@@ -1,22 +1,28 @@
-function _validate(result::Result, data::AbstractData{1}, data_stream, streaming::Streaming)
-
-    device_m = loadmodel(result, data, streaming.device)
-    model = Model(result)
-    loss, metrics = model.loss, Tuple(model.metrics)
-    valid_stats = compute_metrics((loss, metrics...), device_m, data_stream)
-    stats = (collect(Float64, valid_stats),)
-    uuid = uuid4()
-
-    return Result(; model, result.prefix, uuid, stats, iteration = 0, trained = false)
-end
-
 """
-    validate(result::Result, data::AbstractData{1}, streaming::Streaming)
+    validate(
+        path::AbstractString,
+        model::Model,
+        data::AbstractData{1},
+        streaming::Streaming
+    )
 
-Load model encoded in `result` and validate it on `data`.
+Load `model` with weights saved in `path` and validate it on `data`
+using streaming settings `streaming`.
 """
-function validate(result::Result, data::AbstractData{1}, streaming::Streaming)
+function validate(
+        path::AbstractString,
+        model::Model,
+        data::AbstractData{1},
+        streaming::Streaming
+    )
+
     return stream(data, streaming) do data_stream
-        return _validate(result, data, data_stream, streaming)
+
+        device_m = loadmodel(path, model, data, streaming.device)
+        loss, metrics = model.loss, Tuple(model.metrics)
+        valid_stats = compute_metrics((loss, metrics...), device_m, data_stream)
+        stats = (collect(Float64, valid_stats),)
+
+        return Result(; stats, iteration = 0, trained = false)
     end
 end

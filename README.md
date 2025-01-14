@@ -5,7 +5,7 @@
 
 This repository contains several package to implement a data visualization GUI in the Julia programming language.
 
-The `scripts` folder contains a simple example server, whereas the `dashiboard` folder provides a SolidJS frontend.
+The `scripts` folder contains a simple example server, whereas the `frontend` folder provides a SolidJS frontend.
 
 See the [documentation](https://LimenResearch.github.io/DashiBoard/dev) for more details.
 

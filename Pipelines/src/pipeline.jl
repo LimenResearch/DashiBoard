@@ -101,6 +101,12 @@ stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s
 
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
+function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
+    for node in nodes
+        deevaluate(repo, node.card, node.model, table => table; schema)
+    end
+end
+
 filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
 
 function filter_partition(::Nothing, n::Integer = 1)

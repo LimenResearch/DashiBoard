@@ -37,7 +37,7 @@ const LINK_FUNCTIONS = Dict(
         suffix::String = "hat"
     end
 
-Run a GLM 
+Run a Generalized Linear Model (GLM), predicting `target` from `predictors`. 
 """
 @kwdef struct GLMCard <: AbstractCard
     predictors::Vector{Any} = Any[]

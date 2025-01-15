@@ -11,4 +11,8 @@ See the [documentation](https://LimenResearch.github.io/DashiBoard/dev) for more
 
 ## Acknowledgements
 
-This work is supported by the Fondazione ICSC, Spoke 3 Astrophysics and Cosmos Observations. National Recovery and Resilience Plan (Piano Nazionale di Ripresa e Resilienza, PNRR) Project ID CN_00000013 "Italian Research Center on  High-Performance Computing, Big Data and Quantum Computing"  funded by MUR Missione 4 Componente 2 Investimento 1.4: Potenziamento strutture di ricerca e creazione di "campioni nazionali di R&S (M4C2-19 )" - Next Generation EU (NGEU).
+This work is supported by the Fondazione ICSC, Spoke 3 Astrophysics and Cosmos Observations.
+National Recovery and Resilience Plan (Piano Nazionale di Ripresa e Resilienza, PNRR)
+Project ID CN_00000013 "Italian Research Center on High-Performance Computing, Big Data and Quantum Computing"
+funded by MUR Missione 4 Componente 2 Investimento 1.4:
+Potenziamento strutture di ricerca e creazione di "campioni nazionali di R&S (M4C2-19 )" - Next Generation EU (NGEU)

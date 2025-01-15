@@ -96,10 +96,12 @@ function evaluate(
 
     t = DBInterface.execute(fromtable, repo, From(source) |> Order(Get(ic.predictor)); schema)
     predictor = ic.predictor
+    x = t[predictor]
 
     for (ip, target) in zip(ips, ic.targets)
         pred_name = string(target, '_', ic.suffix)
-        t[pred_name] = ip(t[predictor])
+        ŷ = similar(x, float(eltype(x)))
+        t[pred_name] = ip(ŷ, x)
     end
 
     load_table(repo, t, dest; schema)

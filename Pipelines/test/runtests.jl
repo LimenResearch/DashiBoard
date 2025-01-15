@@ -214,8 +214,41 @@ mktempdir() do dir
             )
         ]
 
-        @test ips[1](df.No) == df.TEMP_hat
-        @test ips[2](df.No) == df.PRES_hat
+        @test ips[1](float.(df.No)) == df.TEMP_hat
+        @test ips[2](float.(df.No)) == df.PRES_hat
+
+        card = Pipelines.get_card(d["quadratic"])
+
+        @test issetequal(Pipelines.inputs(card), ["No"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP", "PRES"])
+
+        Pipelines.evaluate(repo, card, "partition" => "interp")
+        df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+            ]
+        )
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
+        ips = [
+            QuadraticInterpolation(
+                train_df.TEMP,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Linear,
+                extrapolation_right = ExtrapolationType.Linear
+            ),
+            QuadraticInterpolation(
+                train_df.PRES,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Linear,
+                extrapolation_right = ExtrapolationType.Linear
+            )
+        ]
+
+        @test ips[1](float.(df.No)) == df.TEMP_hat
+        @test ips[2](float.(df.No)) == df.PRES_hat
     end
 
     @testset "cards" begin

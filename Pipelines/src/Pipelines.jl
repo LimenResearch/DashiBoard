@@ -52,12 +52,22 @@ using GLM: GeneralizedLinearModel,
     ProbitLink,
     SqrtLink
 
+using DataInterpolations: ExtrapolationType,
+    ConstantInterpolation,
+    LinearInterpolation,
+    QuadraticInterpolation,
+    QuadraticSpline,
+    CubicSpline,
+    AkimaInterpolation,
+    PCHIPInterpolation
+
 include("tables.jl")
 include("card.jl")
 
 include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/glm.jl")
+include("cards/interp.jl")
 
 include("pipeline.jl")
 

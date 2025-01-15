@@ -33,9 +33,9 @@ Return a trained model for a given `card` on a table `table` in the database `re
 function train end
 
 """
-    evaluate(repo::Repository, card::AbstractCard, m, (source, target)::Pair; schema = nothing)
+    evaluate(repo::Repository, card::AbstractCard, m, (source, dest)::Pair; schema = nothing)
 
-Replace table `target` in the database `repo.db` with the outcome of executing the `card`
+Replace table `dest` in the database `repo.db` with the outcome of executing the `card`
 on the table `source`.
 
 Here, `m` represents the result of `train(repo, card, source; schema)`.
@@ -43,8 +43,8 @@ See also [`train`](@ref).
 """
 function evaluate end
 
-function evaluate(repo::Repository, card::AbstractCard, (source, target)::Pair; schema = nothing)
+function evaluate(repo::Repository, card::AbstractCard, (source, dest)::Pair; schema = nothing)
     m = train(repo, card, source; schema)
-    evaluate(repo, card, m, source => target; schema)
+    evaluate(repo, card, m, source => dest; schema)
     return m
 end

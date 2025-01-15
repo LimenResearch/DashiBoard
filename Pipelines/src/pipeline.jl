@@ -55,6 +55,7 @@ const CARD_TYPES = Dict(
     "split" => SplitCard,
     "rescale" => RescaleCard,
     "glm" => GLMCard,
+    "interp" => InterpCard,
 )
 
 """

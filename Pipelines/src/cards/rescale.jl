@@ -149,7 +149,7 @@ function evaluate(
         repo::Repository,
         r::RescaleCard,
         stats_tbl::SimpleTable,
-        (source, target)::Pair;
+        (source, dest)::Pair;
         schema = nothing,
         invert = false
     )
@@ -166,14 +166,14 @@ function evaluate(
 
     if isempty(stats)
         query = From(source) |> Define(rescaled...)
-        replace_table(repo, query, target; schema)
+        replace_table(repo, query, dest; schema)
     else
         with_table(repo, stats_tbl; schema) do tbl_name
             eqs = (.==).(Get.(by), GetStats.(by))
             query = From(source) |>
                 LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
-            replace_table(repo, query, target; schema)
+            replace_table(repo, query, dest; schema)
         end
     end
 end
@@ -182,9 +182,9 @@ function deevaluate(
         repo::Repository,
         r::RescaleCard,
         stats_tbl::SimpleTable,
-        (source, target)::Pair;
+        (source, dest)::Pair;
         schema = nothing
     )
 
-    evaluate(repo, r, stats_tbl, source => target; schema, invert = true)
+    evaluate(repo, r, stats_tbl, source => dest; schema, invert = true)
 end

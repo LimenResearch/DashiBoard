@@ -37,7 +37,7 @@ const LINK_FUNCTIONS = Dict(
         suffix::String = "hat"
     end
 
-Run a GLM 
+Run a Generalized Linear Model (GLM), predicting `target` from `predictors`. 
 """
 @kwdef struct GLMCard <: AbstractCard
     predictors::Vector{Any} = Any[]
@@ -89,7 +89,7 @@ function evaluate(
         repo::Repository,
         g::GLMCard,
         model::RegressionModel,
-        (source, target)::Pair;
+        (source, dest)::Pair;
         schema = nothing
     )
 
@@ -98,5 +98,5 @@ function evaluate(
     pred_name = string(g.target, '_', g.suffix)
     t[pred_name] = predict(model, t)
 
-    load_table(repo, t, target; schema)
+    load_table(repo, t, dest; schema)
 end

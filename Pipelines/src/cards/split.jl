@@ -65,7 +65,7 @@ function evaluate(
         repo::Repository,
         s::SplitCard,
         ::Nothing,
-        (source, target)::Pair;
+        (source, dest)::Pair;
         schema = nothing
     )
 
@@ -78,5 +78,5 @@ function evaluate(
         Partition(; by, order_by) |>
         Define(s.output => splitter(s))
 
-    replace_table(repo, query, target; schema)
+    replace_table(repo, query, dest; schema)
 end

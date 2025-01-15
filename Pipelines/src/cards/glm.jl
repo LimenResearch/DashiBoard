@@ -89,7 +89,7 @@ function evaluate(
         repo::Repository,
         g::GLMCard,
         model::RegressionModel,
-        (source, target)::Pair;
+        (source, dest)::Pair;
         schema = nothing
     )
 
@@ -98,5 +98,5 @@ function evaluate(
     pred_name = string(g.target, '_', g.suffix)
     t[pred_name] = predict(model, t)
 
-    load_table(repo, t, target; schema)
+    load_table(repo, t, dest; schema)
 end

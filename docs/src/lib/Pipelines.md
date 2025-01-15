@@ -29,4 +29,5 @@ Pipelines.evaluate(repo::Repository, cards::AbstractVector, table::AbstractStrin
 Pipelines.RescaleCard
 Pipelines.SplitCard
 Pipelines.GLMCard
+Pipelines.InterpCard
 ```

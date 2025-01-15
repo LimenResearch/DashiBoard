@@ -211,7 +211,7 @@ mktempdir() do dir
                 extrapolation_left = ExtrapolationType.Extension,
                 extrapolation_right = ExtrapolationType.Extension,
                 dir = :right
-            )
+            ),
         ]
 
         @test ips[1](float.(df.No)) == df.TEMP_hat
@@ -244,7 +244,7 @@ mktempdir() do dir
                 train_df.No,
                 extrapolation_left = ExtrapolationType.Linear,
                 extrapolation_right = ExtrapolationType.Linear
-            )
+            ),
         ]
 
         @test ips[1](float.(df.No)) == df.TEMP_hat

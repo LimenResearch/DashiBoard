@@ -47,6 +47,7 @@ end
 function splitter(s::SplitCard)
     method = s.method
 
+    # TODO: add randomized methods
     if method == "tiles"
         N = length(s.tiles)
         return Fun.list_extract(Fun.list_value(s.tiles...), Agg.ntile(N))

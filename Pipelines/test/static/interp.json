@@ -1,0 +1,30 @@
+{
+    "constant": {
+        "type": "interp",
+        "method": "constant",
+        "predictor": "No",
+        "targets": ["TEMP", "PRES"],
+        "extrapolation_left": "extension",
+        "extrapolation_right": "extension",
+        "dir": "right",
+        "partition": "partition"
+    },
+    "quadratic": {
+        "type": "interp",
+        "method": "quadratic",
+        "predictor": "No",
+        "targets": ["TEMP", "PRES"],
+        "extrapolation_left": "linear",
+        "extrapolation_right": "linear",
+        "partition": "partition"
+    },
+    "partition": {
+        "type": "split",
+        "method": "percentile",
+        "order_by": [
+            "No"
+        ],
+        "p": 0.9,
+        "output": "partition"
+    }
+}

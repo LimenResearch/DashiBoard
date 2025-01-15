@@ -54,7 +54,7 @@ end
 
 inputs(ic::InterpCard) = Set{String}([ic.predictor])
 
-outputs(ic::InterpCard) = Set{String(ic.targets)}
+outputs(ic::InterpCard) = Set{String}(ic.targets)
 
 function train(
         repo::Repository,
@@ -77,10 +77,11 @@ function train(
     return map(ic.targets) do target
         ip = INTERPOLATORS[ic.method]
         predictor = ic.predictor
+        y, x = t[target], t[predictor]
         return if ip.has_dir
-            ip(t[target], t[predictor]; extrapolation_left, extrapolation_right, dir)
+            ip.method(y, x; extrapolation_left, extrapolation_right, dir)
         else
-            ip(t[target], t[predictor]; extrapolation_left, extrapolation_right)
+            ip.method(y, x; extrapolation_left, extrapolation_right)
         end
     end
 end
@@ -93,12 +94,12 @@ function evaluate(
         schema = nothing
     )
 
-    t = DBInterface.execute(fromtable, repo, From(source); schema)
-    predictor = t[ic.predictor]
+    t = DBInterface.execute(fromtable, repo, From(source) |> Order(Get(ic.predictor)); schema)
+    predictor = ic.predictor
 
     for (ip, target) in zip(ips, ic.targets)
         pred_name = string(target, '_', ic.suffix)
-        t[pred_name] = ip(predictor)
+        t[pred_name] = ip(t[predictor])
     end
 
     load_table(repo, t, dest; schema)

@@ -1,4 +1,5 @@
-using Pipelines, DataIngestion, DuckDBUtils, DBInterface, DataFrames, GLM, Statistics, JSON3
+using Pipelines, DataIngestion, DuckDBUtils
+using DBInterface, DataFrames, GLM, DataInterpolations, Statistics, JSON3
 using Test
 
 @testset "evaluation order" begin
@@ -37,12 +38,12 @@ mktempdir() do dir
 
     @testset "split" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "split.json"))
-        split = Pipelines.get_card(d["tiles"])
+        card = Pipelines.get_card(d["tiles"])
 
-        @test issetequal(Pipelines.inputs(split), ["No", "cbwd"])
-        @test issetequal(Pipelines.outputs(split), ["_tiled_partition"])
+        @test issetequal(Pipelines.inputs(card), ["No", "cbwd"])
+        @test issetequal(Pipelines.outputs(card), ["_tiled_partition"])
 
-        Pipelines.evaluate(repo, split, "selection" => "split")
+        Pipelines.evaluate(repo, card, "selection" => "split")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -52,8 +53,8 @@ mktempdir() do dir
         @test count(==(2), df._tiled_partition) == 14606
         # TODO: test by group as well
 
-        split = Pipelines.get_card(d["percentile"])
-        Pipelines.evaluate(repo, split, "selection" => "split")
+        card = Pipelines.get_card(d["percentile"])
+        Pipelines.evaluate(repo, card, "selection" => "split")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -63,20 +64,20 @@ mktempdir() do dir
         @test count(==(2), df._percentile_partition) == 4383
         # TODO: port TimeFunnelUtils tests
 
-        split = Pipelines.SplitCard("percentile", String[], ["cbwd"], "_percentile_partition", 0.9, Int[])
-        @test_throws ArgumentError Pipelines.evaluate(repo, split, "selection" => "split")
+        card = Pipelines.SplitCard("percentile", String[], ["cbwd"], "_percentile_partition", 0.9, Int[])
+        @test_throws ArgumentError Pipelines.evaluate(repo, card, "selection" => "split")
     end
 
     # TODO: also test partitioned version
     @testset "rescale" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "rescale.json"))
 
-        resc = Pipelines.get_card(d["zscore"])
+        card = Pipelines.get_card(d["zscore"])
 
-        @test issetequal(Pipelines.inputs(resc), ["cbwd", "TEMP"])
-        @test issetequal(Pipelines.outputs(resc), ["TEMP_rescaled"])
+        @test issetequal(Pipelines.inputs(card), ["cbwd", "TEMP"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP_rescaled"])
 
-        Pipelines.evaluate(repo, resc, "selection" => "rescaled")
+        Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -90,8 +91,8 @@ mktempdir() do dir
         )
         @test aux.TEMP_rescaled ≈ @. (aux.TEMP - aux.TEMP_mean) / aux.TEMP_std
 
-        resc = Pipelines.get_card(d["maxabs"])
-        Pipelines.evaluate(repo, resc, "selection" => "rescaled")
+        card = Pipelines.get_card(d["maxabs"])
+        Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -104,8 +105,8 @@ mktempdir() do dir
         )
         @test aux.TEMP_rescaled ≈ @. aux.TEMP / aux.TEMP_maxabs
 
-        resc = Pipelines.get_card(d["minmax"])
-        Pipelines.evaluate(repo, resc, "selection" => "rescaled")
+        card = Pipelines.get_card(d["minmax"])
+        Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -114,8 +115,8 @@ mktempdir() do dir
         min, max = extrema(df.TEMP)
         @test df.TEMP_rescaled ≈ @. (df.TEMP - min) / (max - min)
 
-        resc = Pipelines.get_card(d["log"])
-        Pipelines.evaluate(repo, resc, "selection" => "rescaled")
+        card = Pipelines.get_card(d["log"])
+        Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -123,8 +124,8 @@ mktempdir() do dir
         ]
         @test df.PRES_rescaled ≈ @. log(df.PRES)
 
-        resc = Pipelines.get_card(d["logistic"])
-        Pipelines.evaluate(repo, resc, "selection" => "rescaled")
+        card = Pipelines.get_card(d["logistic"])
+        Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -136,15 +137,15 @@ mktempdir() do dir
     @testset "glm" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
 
-        part = Pipelines.get_card(d["partition"])
-        Pipelines.evaluate(repo, part, "selection" => "partition")
+        part_card = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
-        resc = Pipelines.get_card(d["hasPartition"])
+        card = Pipelines.get_card(d["hasPartition"])
 
-        @test issetequal(Pipelines.inputs(resc), ["cbwd", "year", "No", "TEMP", "partition"])
-        @test issetequal(Pipelines.outputs(resc), ["TEMP_hat"])
+        @test issetequal(Pipelines.inputs(card), ["cbwd", "year", "No", "TEMP", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP_hat"])
 
-        Pipelines.evaluate(repo, resc, "partition" => "glm")
+        Pipelines.evaluate(repo, card, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test issetequal(
             names(df),
@@ -153,14 +154,15 @@ mktempdir() do dir
                 "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
             ]
         )
-        train_df = DBInterface.execute(DataFrame, repo, "FROM partition where partition = 1")
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
         m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
         @test predict(m, df) == df.TEMP_hat
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
 
-        resc = Pipelines.get_card(d["hasWeights"])
-        Pipelines.evaluate(repo, resc, "partition" => "glm")
+        card = Pipelines.get_card(d["hasWeights"])
+
+        Pipelines.evaluate(repo, card, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test issetequal(
             names(df),
@@ -172,6 +174,48 @@ mktempdir() do dir
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
         m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(), wts = train_df.TEMP)
         @test predict(m, df) == df.PRES_hat
+    end
+
+    @testset "interp" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "interp.json"))
+
+        part_card = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(repo, part_card, "selection" => "partition")
+
+        card = Pipelines.get_card(d["constant"])
+
+        @test issetequal(Pipelines.inputs(card), ["No"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP", "PRES"])
+
+        Pipelines.evaluate(repo, card, "partition" => "interp")
+        df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+            ]
+        )
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
+        ips = [
+            ConstantInterpolation(
+                train_df.TEMP,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Extension,
+                extrapolation_right = ExtrapolationType.Extension,
+                dir = :right
+            ),
+            ConstantInterpolation(
+                train_df.PRES,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Extension,
+                extrapolation_right = ExtrapolationType.Extension,
+                dir = :right
+            )
+        ]
+
+        @test ips[1](df.No) == df.TEMP_hat
+        @test ips[2](df.No) == df.PRES_hat
     end
 
     @testset "cards" begin

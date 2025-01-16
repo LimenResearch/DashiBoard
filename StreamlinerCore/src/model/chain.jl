@@ -7,14 +7,16 @@ end
 function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
 
     layers, sh = [], input
-    sh′ = requires_shape(first(ls))
+    shapes = map(requires_shape, ls)
 
     for i in eachindex(ls)
+        l, sh′, sh′′ = ls[i], shapes[i], get(shapes, i + 1, output)
         if sh′.format !== sh.format
+            # Try and make data compatible with `l`
             sh = push_layer!(layers, formatter, sh, sh′)
         end
-        sh′ = i == lastindex(ls) ? output : requires_shape(ls[i + 1])
-        sh = push_layer!(layers, ls[i], sh, sh′)
+        # Try and make data compatible with `ls[i+1]` or `output`
+        sh = push_layer!(layers, l, sh, sh′′)
     end
 
     if !isnothing(output)
@@ -43,7 +45,6 @@ function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
     return layers, sh
 end
 
-# TODO: support empty chain?
 function chain(ls::AbstractVector, input::Shape, output::Maybe{Shape} = nothing)
     layers, sh = concat_layers(ls, input, output)
     # Convert to `Tuple` to improve runtime performance at the cost of compilation

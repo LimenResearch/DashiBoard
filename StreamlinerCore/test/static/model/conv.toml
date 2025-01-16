@@ -7,7 +7,7 @@ model = [
     { name = "conv", size = 10, kernel = [5, 5], sigma = "relu" },
     { name = "conv", size = 3, kernel = [5, 5], sigma = "relu" },
     { name = "maxpool", window = [2, 2] },
-    { name = "dense", sigma = "" },
+    { name = "dense", size = 10, sigma = "" },
 ]
 
 [loss]

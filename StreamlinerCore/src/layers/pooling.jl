@@ -22,7 +22,7 @@ end
 
 requires_format(::PoolSpec{<:Any, N}, ::AbstractFormat) where {N} = SpatialFormat{N}()
 
-function instantiate(p::PoolSpec, size, fmt)
+function instantiate(p::PoolSpec, size, fmt; outputsize = nothing, outputformat = nothing)
     layer = p.layer(p.window; p.pad, p.stride)
     outputsize = get_outputsize(layer, size)
     return layer, outputsize, fmt
@@ -42,7 +42,9 @@ function requires_format(::Upsample{<:Any, N}, ::AbstractFormat) where {N}
     return SpatialFormat{N}()
 end
 
-instantiate(u::Upsample, (_..., feats), fmt) = u, (u.size..., feats), fmt
+function instantiate(u::Upsample, (_..., feats), fmt; outputsize = nothing, outputformat = nothing)
+    return u, (u.size..., feats), fmt
+end
 
 # Functions
 

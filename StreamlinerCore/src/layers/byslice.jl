@@ -9,7 +9,7 @@ end
 
 requires_format(::BySlice, ::AbstractFormat{N}) where {N} = SpatialFormat{N}()
 
-instantiate(b::BySlice, size, fmt) = b, size, fmt
+instantiate(b::BySlice, size, fmt; outputsize = nothing, outputformat = nothing) = b, size, fmt
 
 # Parameter-free
 

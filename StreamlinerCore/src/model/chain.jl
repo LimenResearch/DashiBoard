@@ -21,18 +21,26 @@ function concat_layers(
 
     for l in ls
         format′ = requires_format(l, format)
-        size, format = push_layer!(layers, Reshaper(format′), size, format)
+        if format′ !== format
+            size, format = push_layer!(
+                layers,
+                formatter,
+                size,
+                format,
+                outputformat = format′
+            )
+        end
         size, format = push_layer!(layers, l, size, format)
     end
 
     # output reshaper
-    l = Reshaper(something(outputformat, format))
-    size, format = push_layer!(layers, l, size, format)
+    l = formatter
+    size, format = push_layer!(layers, l, size, format, outputformat = something(outputformat, format))
 
     # output resizer
     if !isnothing(outputsize)
-        if !(format isa SpatialFormat)
-            throw(ArgumentError("Only spatial format is allowed as chain output"))
+        if !(format isa ClassicalFormat)
+            throw(ArgumentError("Only classical format is allowed as chain output"))
         end
         window = map(div, front(size), front(outputsize))
         if any(>(1), window)

@@ -12,16 +12,16 @@ Current implementations:
 abstract type AbstractCard end
 
 """
-    outputs(c::AbstractCard)
+    inputs(c::AbstractCard)::Set{String}
 
-Return the list of outputs for a given card.
+Return the list of inputs for a given card.
 """
 function inputs end
 
 """
-    inputs(c::AbstractCard)
+    outputs(c::AbstractCard)::Set{String}
 
-Return the list of inputs for a given card.
+Return the list of outputs for a given card.
 """
 function outputs end
 

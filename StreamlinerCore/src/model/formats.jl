@@ -31,6 +31,8 @@ end
 
 Shape(features::Integer) = Shape(FlatFormat(), (), features)
 
+Shape{N}() where {N} = N === 0 ? Shape(FlatFormat()) : Shape(SpatialFormat{N}())
+
 struct Formatter end
 
 const formatter = Formatter()
@@ -58,7 +60,7 @@ function reformat(::FlatFormat, ::SpatialFormat{N}, input::Shape, output::Shape)
     factors = factor(Vector, input.features)
     shape = ntuple(n -> get(factors, n, 1), N)
     features = div(input.features, prod(shape))
-    s = Shape(shape, features)
-    return Fix2(unflatten, s), s
+    sh = Shape(shape, features)
+    return Fix2(unflatten, sh), sh
 end
 

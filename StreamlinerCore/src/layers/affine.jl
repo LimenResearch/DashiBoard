@@ -7,21 +7,18 @@ struct DenseSpec{L, S}
     sigma::S
 end
 
-requires_format(::DenseSpec, ::AbstractFormat) = FlatFormat()
+requires_shape(::DenseSpec, ::Shape) = Shape(FlatFormat())
 
-function instantiate(
-        d::DenseSpec, inputsize::Dims, inputformat::AbstractFormat;
-        outputsize::Maybe{Dims} = nothing, outputformat::Maybe{AbstractFormat} = nothing
-    )
+function instantiate(d::DenseSpec, input::Shape, output::Maybe{Shape})
 
-    ch_in = only(inputsize)
+    f_in = input.features
 
     # TODO: better error message if this fails
-    ch_out = @something d.size only(outputsize)
+    f_out = @something d.size output.features
 
-    layer = isnothing(d.sigma) ? d.layer(ch_in => ch_out) : d.layer(ch_in => ch_out, d.sigma)
+    layer = isnothing(d.sigma) ? d.layer(f_in => f_out) : d.layer(f_in => f_out, d.sigma)
 
-    return layer, (ch_out,), inputformat
+    return layer, Shape(f_out)
 end
 
 # Conv structure
@@ -50,19 +47,15 @@ function ConvSpec(layer, kernel, size, sigma; pad = 0, stride = 1, dilation = 1)
     return ConvSpec(layer, size, sigma, kernel, pad′, stride′, dilation′)
 end
 
-function requires_format(::ConvSpec{<:Any, <:Any, N}, ::AbstractFormat) where {N}
-    return SpatialFormat{N}()
+function requires_shape(::ConvSpec{<:Any, <:Any, N}, ::Shape) where {N}
+    return Shape(SpatialFormat{N}())
 end
 
-function instantiate(
-        c::ConvSpec, inputsize::Dims, inputformat::AbstractFormat;
-        outputsize::Maybe{Dims} = nothing, outputformat::Maybe{AbstractFormat} = nothing
-    )
-
-    ch_in = last(inputsize)
-    ch_out = @something c.size last(outputsize)
+function instantiate(c::ConvSpec, input::Shape, output::Maybe{Shape})
+    ch_in = input.features
+    ch_out = @something c.size output.features
     layer = c.layer(c.kernel, ch_in => ch_out, c.sigma; c.pad, c.stride, c.dilation)
-    return layer, get_outputsize(layer, inputsize), inputformat
+    return layer, get_outputshape(layer, input)
 end
 
 # Dense-like

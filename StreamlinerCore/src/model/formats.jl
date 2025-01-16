@@ -1,55 +1,85 @@
-abstract type AbstractDataFormat{N} end
+abstract type AbstractFormat{N} end
 
-struct SpatialFormat{N} <: AbstractDataFormat{N} end
+abstract type ClassicalFormat{N} <: AbstractFormat{N} end
 
-SpatialFormat(x) = SpatialFormat{x}()
+struct SpatialFormat{N} <: ClassicalFormat{N}
+    function SpatialFormat{N}() where {N}
+        if N ≤ 0
+            throw(
+                ArgumentError(
+                    """
+                    `N` must be at least `1` in a `SpatialFormat`.
+                    """
+                )
+            )
+        end
+        return new{N}()
+    end
+end
 
-const FlatFormat = SpatialFormat{0}
+struct FlatFormat <: ClassicalFormat{0} end
 
-defaultformat(::NTuple{N, Int}) where {N} = SpatialFormat{N - 1}()
-
-struct FourierFormat{N} <: AbstractDataFormat{N} end
-
-struct Reshaper{T}
+struct Shape{N, T <: AbstractFormat{N}}
     format::T
+    shape::Maybe{Dims{N}}
+    features::Maybe{Int}
+
+    function Shape(
+            format::AbstractFormat{N},
+            shape::Maybe{NTuple{N, Integer}},
+            features::Maybe{Integer},
+        ) where {N}
+
+        T = typeof(format)
+        return new{N, T}(format, shape, features)
+    end
 end
 
-instantiate(r::Reshaper, sz, fmt) = reshaper(r.format, sz, fmt)
-
-reshaper(::T, sz, ::T) where {T <: AbstractDataFormat} = nothing, sz, T()
-
-reshaper(::FlatFormat, sz, ::FlatFormat) = nothing, sz, FlatFormat()
-
-reshaper(::FlatFormat, sz, ::SpatialFormat{N}) where {N} = flatten, (prod(sz),), FlatFormat()
-
-function reshaper(::SpatialFormat{N}, (feats,), ::FlatFormat) where {N}
-    factors = factor(Vector, feats)
-    spatial = ntuple(n -> get(factors, n, 1), N)
-    feats′ = div(feats, prod(spatial))
-    size = (spatial..., feats′)
-    return Fix2(unflatten, size), size, SpatialFormat{N}()
+function Shape{N}() where {N}
+    format = N === 0 ? FlatFormat() : SpatialFormat{N}()
+    return Shape(format)
 end
 
-unflatten(x::AbstractMatrix, sz) = reshape(x, sz..., last(size(x)))
+Shape(format::AbstractFormat) = Shape(format, nothing, nothing)
 
-function reshaper(::FourierFormat{N}, (sp..., f), ::SpatialFormat{N}) where {N}
-    # TODO: choose default
-    pad_ratio = get(MODEL_CONTEXT[], :pad_ratio, fill(1.0, N))
-    sz′ = (f, sp...)
-    return Fourier(Tuple(pad_ratio)), sz′, FourierFormat{N}()
+function Shape(shape::NTuple{N, Integer}, features::Integer) where {N}
+    (; format) = Shape{N}()
+    return Shape(format, shape, features)
 end
 
-function reshaper(::FourierFormat{N}, (feats,), ::FlatFormat) where {N}
-    res, size, _ = reshaper(SpatialFormat{N}(), (feats,), FlatFormat())
-    res′, size′ = reshaper(FourierFormat{N}(), size, SpatialFormat{N}())
-    return Flux.Chain(res, res′), size′, FourierFormat{N}()
+Shape(features::Integer) = Shape((), features)
+
+Shape(template::Template) = Shape(front(template.size), last(template.size))
+
+function get_outputshape(layer, sh::Shape)
+    size = sh.shape..., sh.features
+    shape..., features, _ = Flux.outputsize(layer, size, padbatch = true)
+    return Shape(shape, features)
 end
 
-function reshaper(::SpatialFormat{N}, (f, sp...), ::FourierFormat{N}) where {N}
-    sz′ = (sp..., f)
-    return InvFourier(), sz′, SpatialFormat{N}()
+struct Formatter end
+
+const formatter = Formatter()
+
+function instantiate(::Formatter, input::Shape, output::Shape)
+    return reformat(input.format, output.format, input, output)
 end
 
-function reshaper(::FlatFormat, size, ::FourierFormat{N}) where {N}
-    return Flux.Chain(InvFourier(), flatten), prod(size), FlatFormat()
+function unflatten(x::AbstractMatrix, s::Shape)
+    (; features, shape) = s
+    _..., mb = size(x)
+    return reshape(x, shape..., features, mb)
+end
+
+function reformat(::SpatialFormat{N}, ::FlatFormat, input::Shape, output::Shape) where {N}
+    features = input.features * prod(input.shape)
+    return flatten, Shape(features)
+end
+
+function reformat(::FlatFormat, ::SpatialFormat{N}, input::Shape, output::Shape) where {N}
+    factors = factor(Vector, input.features)
+    shape = ntuple(n -> get(factors, n, 1), N)
+    features = div(input.features, prod(shape))
+    sh = Shape(shape, features)
+    return Fix2(unflatten, sh), sh
 end

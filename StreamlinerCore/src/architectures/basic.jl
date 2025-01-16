@@ -18,8 +18,9 @@ struct BasicSpec
 end
 
 function instantiate(b::BasicSpec, templates)
-    inputsize, outputsize = size(templates.input), size(templates.target)
-    model, _... = chain(b.model, inputsize; outputsize)
+    input = Shape(templates.input)
+    output = Shape(templates.target)
+    model, _ = chain(b.model, input, output)
     return Basic(; model)
 end
 

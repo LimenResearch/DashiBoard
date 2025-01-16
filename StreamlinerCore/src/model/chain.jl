@@ -1,55 +1,50 @@
-function push_layer!(layers, l, size, format)
-    layer, size, format = instantiate(l, size, format)
+function push_layer!(layers, l, input::Shape, output::Maybe{Shape} = nothing)
+    layer, sh = instantiate(l, input, output)
     push!(layers, layer)
-    return size, format
+    return sh
 end
 
-function concat_layers(
-        ls, inputsize::Tuple, inputformat::Maybe{AbstractDataFormat} = nothing;
-        outputsize::Maybe{Tuple} = nothing,
-        outputformat::Maybe{AbstractDataFormat} = nothing
-    )
+function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
 
-    inputformat = @something inputformat defaultformat(inputsize)
-    isnothing(outputsize) || (outputformat = @something outputformat defaultformat(outputsize))
-
-    layers, size, format = [], inputsize, inputformat
+    layers, sh = [], input
 
     for l in ls
-        format′ = requires_format(l, format)
-        size, format = push_layer!(layers, Reshaper(format′), size, format)
-        size, format = push_layer!(layers, l, size, format)
+        sh′ = requires_shape(l, sh)
+        if sh′.format !== sh.format
+            sh = push_layer!(layers, formatter, sh, sh′)
+        end
+        sh = push_layer!(layers, l, sh)
     end
 
-    # output reshaper
-    l = Reshaper(something(outputformat, format))
-    size, format = push_layer!(layers, l, size, format)
+    if !isnothing(output)
+        # output reformatting
+        if output.format !== sh.format
+            sh = push_layer!(layers, formatter, sh, output)
+        end
 
-    # output resizer
-    if !isnothing(outputsize)
-        if !(format isa SpatialFormat)
-            throw(ArgumentError("Only spatial format is allowed as chain output"))
-        end
-        window = map(div, front(size), front(outputsize))
-        if any(>(1), window)
-            l = meanpool(; window)
-            size, format = push_layer!(layers, l, size, format)
-        end
-        if front(size) != front(outputsize)
-            l = upsample(size = front(outputsize))
-            size, format = push_layer!(layers, l, size, format)
+        # output resampling
+        if !isnothing(output.shape)
+            if !(sh.format isa ClassicalFormat)
+                throw(ArgumentError("Only classical format is allowed as chain output"))
+            end
+            window = map(div, sh.shape, output.shape)
+            if any(>(1), window)
+                l = meanpool(; window)
+                sh = push_layer!(layers, l, sh)
+            end
+            if sh.shape != output.shape
+                l = upsample(size = output.shape)
+                sh = push_layer!(layers, l, sh)
+            end
         end
     end
 
-    # Some reshaping layers might be trivial
-    filter!(!isnothing, layers)
-
-    return layers, size, format
+    return layers, sh
 end
 
 # TODO: support empty chain?
-function chain(args...; params...)
-    layers, size, format = concat_layers(args...; params...)
+function chain(ls::AbstractVector, input::Shape, output::Maybe{Shape} = nothing)
+    layers, sh = concat_layers(ls, input, output)
     # Convert to `Tuple` to improve runtime performance at the cost of compilation
-    return Flux.Chain(Tuple(layers)), size, format
+    return Flux.Chain(Tuple(layers)), sh
 end

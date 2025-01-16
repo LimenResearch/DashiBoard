@@ -20,12 +20,11 @@ function PoolSpec(layer, window; pad = 0, stride = window)
     return PoolSpec(layer, window, pad′, stride′)
 end
 
-requires_format(::PoolSpec{<:Any, N}, ::AbstractDataFormat) where {N} = SpatialFormat{N}()
+requires_shape(::PoolSpec{<:Any, N}, ::Shape) where {N} = Shape{N}()
 
-function instantiate(p::PoolSpec, size, fmt)
+function instantiate(p::PoolSpec, input::Shape, ::Maybe{Shape})
     layer = p.layer(p.window; p.pad, p.stride)
-    outputsize = get_outputsize(layer, size)
-    return layer, outputsize, fmt
+    return layer, get_outputshape(layer, input)
 end
 
 # Upsampling structure
@@ -38,11 +37,11 @@ end
 
 (u::Upsample)(x) = u.layer(x; u.size, u.align_corners)
 
-function requires_format(::Upsample{<:Any, N}, ::AbstractDataFormat) where {N}
-    return SpatialFormat{N}()
-end
+requires_shape(::Upsample{<:Any, N}, ::Shape) where {N} = Shape{N}()
 
-instantiate(u::Upsample, (_..., feats), fmt) = u, (u.size..., feats), fmt
+function instantiate(u::Upsample, input::Shape, ::Maybe{Shape})
+    return u, Shape(input.format, u.size, input.features)
+end
 
 # Functions
 

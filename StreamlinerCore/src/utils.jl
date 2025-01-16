@@ -13,7 +13,5 @@ tuplify_list(v) = v isa AbstractVector ? Tuple(v) : v
 expand(_, x::Tuple) = x
 expand(N, x::Int) = ntuple(Returns(x), N)
 
-get_outputsize(layer, size) = Flux.outputsize(layer, size, padbatch = true)[1:(end - 1)]
-
 get_rng(::Nothing = nothing) = Xoshiro()
 get_rng(seed::Integer) = Xoshiro(seed)

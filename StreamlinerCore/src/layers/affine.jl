@@ -3,24 +3,25 @@
 # TODO: support passing custom initializers
 struct DenseSpec{L, S}
     layer::L
-    size::Int
+    features::Maybe{Int}
     sigma::S
 end
 
-requires_format(::DenseSpec, ::AbstractDataFormat) = FlatFormat()
+requires_shape(::DenseSpec, ::Shape) = Shape(FlatFormat())
 
-function instantiate(d::DenseSpec, size, fmt)
-    i = only(size)
-    layer = isnothing(d.sigma) ? d.layer(i => d.size) : d.layer(i => d.size, d.sigma)
-
-    return layer, (d.size,), fmt
+function instantiate(d::DenseSpec, input::Shape, output::Maybe{Shape})
+    f_in = input.features
+    # TODO: better error message if this fails
+    f_out = @something d.features output.features
+    layer = isnothing(d.sigma) ? d.layer(f_in => f_out) : d.layer(f_in => f_out, d.sigma)
+    return layer, Shape(f_out)
 end
 
 # Conv structure
 
 struct ConvSpec{L, S, N, N′}
     layer::L
-    size::Int
+    features::Maybe{Int}
     sigma::S
     kernel::NTuple{N, Int}
     pad::NTuple{N′, Int}
@@ -28,7 +29,7 @@ struct ConvSpec{L, S, N, N′}
     dilation::NTuple{N, Int}
 end
 
-function ConvSpec(layer, kernel, size, sigma; pad = 0, stride = 1, dilation = 1)
+function ConvSpec(layer, kernel, features, sigma; pad = 0, stride = 1, dilation = 1)
 
     kernel, pad, stride, dilation =
         Tuple(kernel), tuplify_list(pad), tuplify_list(stride), tuplify_list(dilation)
@@ -39,35 +40,35 @@ function ConvSpec(layer, kernel, size, sigma; pad = 0, stride = 1, dilation = 1)
     stride′ = expand(N, stride)
     dilation′ = expand(N, dilation)
 
-    return ConvSpec(layer, size, sigma, kernel, pad′, stride′, dilation′)
+    return ConvSpec(layer, features, sigma, kernel, pad′, stride′, dilation′)
 end
 
-function requires_format(::ConvSpec{<:Any, <:Any, N}, ::AbstractDataFormat) where {N}
-    return SpatialFormat{N}()
+function requires_shape(::ConvSpec{<:Any, <:Any, N}, ::Shape) where {N}
+    return Shape(SpatialFormat{N}())
 end
 
-function instantiate(c::ConvSpec, size, fmt)
-    N = length(c.kernel)
-    i = last(size)
-    layer = c.layer(c.kernel, i => c.size, c.sigma; c.pad, c.stride, c.dilation)
-    outputsize = get_outputsize(layer, size)
-    return layer, outputsize, fmt
+function instantiate(c::ConvSpec, input::Shape, output::Maybe{Shape})
+    ch_in = input.features
+    # TODO: better error message if this fails
+    ch_out = @something c.features output.features
+    layer = c.layer(c.kernel, ch_in => ch_out, c.sigma; c.pad, c.stride, c.dilation)
+    return layer, get_outputshape(layer, input)
 end
 
 # Dense-like
 
-dense(; size, sigma = "") = DenseSpec(Dense, size, PARSER[].sigmas[sigma])
+dense(; features = nothing, sigma = "") = DenseSpec(Dense, features, PARSER[].sigmas[sigma])
 
-rnn(; size, sigma = "tanh") = DenseSpec(RNN, size, PARSER[].sigmas[sigma])
+rnn(; features = nothing, sigma = "tanh") = DenseSpec(RNN, features, PARSER[].sigmas[sigma])
 
-lstm(; size) = DenseSpec(LSTM, size, nothing)
+lstm(; features = nothing) = DenseSpec(LSTM, features, nothing)
 
-gru(; size) = DenseSpec(GRU, size, nothing)
+gru(; features = nothing) = DenseSpec(GRU, features, nothing)
 
 # Conv-like
 
-conv(; kernel, size, sigma = "", ks...) =
-    ConvSpec(Conv, kernel, size, PARSER[].sigmas[sigma]; ks...)
+conv(; kernel, features = nothing, sigma = "", ks...) =
+    ConvSpec(Conv, kernel, features, PARSER[].sigmas[sigma]; ks...)
 
-conv_t(; kernel, size, sigma = "", ks...) =
-    ConvSpec(ConvTranspose, kernel, size, PARSER[].sigmas[sigma]; ks...)
+conv_t(; kernel, features = nothing, sigma = "", ks...) =
+    ConvSpec(ConvTranspose, kernel, features, PARSER[].sigmas[sigma]; ks...)

@@ -7,9 +7,9 @@ end
 
 (b::BySlice)(x) = b.layer(x; b.dims)
 
-requires_format(::BySlice, ::AbstractDataFormat{N}) where {N} = SpatialFormat{N}()
+requires_shape(::BySlice, ::Shape{N}) where {N} = Shape{N}()
 
-instantiate(b::BySlice, size, fmt) = b, size, fmt
+instantiate(b::BySlice, input::Shape, ::Maybe{Shape}) = b, input
 
 # Parameter-free
 

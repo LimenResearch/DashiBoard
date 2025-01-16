@@ -12,7 +12,7 @@ function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
     for i in eachindex(ls)
         l, sh′, sh′′ = ls[i], shapes[i], get(shapes, i + 1, output)
         if sh′.format !== sh.format
-            # Try and make data compatible with `l`
+            # Try and make data compatible with `ls[i]`
             sh = push_layer!(layers, formatter, sh, sh′)
         end
         # Try and make data compatible with `ls[i+1]` or `output`

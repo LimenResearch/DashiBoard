@@ -32,16 +32,14 @@ Shape(features::Integer) = Shape(FlatFormat(), (), features)
 
 Shape{N}() where {N} = N === 0 ? Shape(FlatFormat()) : Shape(SpatialFormat{N}())
 
+Shape(template::Template) = Shape(front(template.size), last(template.size))
+
 struct Formatter end
 
 const formatter = Formatter()
 
 function instantiate(::Formatter, input::Shape, output::Shape)
-    return if input.format === output.format
-        nothing, input
-    else
-        reformat(input.format, output.format, input, output)
-    end
+    return reformat(input.format, output.format, input, output)
 end
 
 function unflatten(x::AbstractMatrix, s::Shape)

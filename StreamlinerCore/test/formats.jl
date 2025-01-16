@@ -6,8 +6,6 @@
     @test Shape((1,), 2).format === fmt1
     @test Shape((1, 2), 3).format === fmt2
 
-    @test StreamlinerCore.instantiate(formatter, Shape(5), Shape(5)) === (nothing, Shape(5))
-    @test StreamlinerCore.instantiate(formatter, Shape((1,), 2), Shape((1,), 2)) === (nothing, Shape((1,), 2))
     @test_throws MethodError StreamlinerCore.instantiate(
         formatter,
         Shape((1,), 2),

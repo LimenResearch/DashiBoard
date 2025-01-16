@@ -39,12 +39,12 @@ function concat_layers(ls, input::Shape, output::Maybe{Shape})
         end
     end
 
-    return layers, size, format
+    return layers, sh
 end
 
 # TODO: support empty chain?
 function chain(ls, input::Shape, output::Maybe{Shape} = nothing)
-    layers, size, format = concat_layers(ls, input, output)
+    layers, sh = concat_layers(ls, input, output)
     # Convert to `Tuple` to improve runtime performance at the cost of compilation
-    return Flux.Chain(Tuple(layers)), size, format
+    return Flux.Chain(Tuple(layers)), sh
 end

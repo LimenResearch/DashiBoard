@@ -47,15 +47,15 @@ struct VAESpec
 end
 
 function instantiate(v::VAESpec, templates)
-    inputsize = size(templates.input)
-    outputsize = inputsize
+    input = Shape(templates.input)
+    output = Shape(templates.input)
 
-    embedding, sz, format = chain(v.embedding, inputsize)
+    embedding, sh = chain(v.embedding, input)
 
-    model_μ, _... = chain(v.model, sz, format)
-    model_logvar, sz, format = chain(v.model, sz, format)
+    model_μ, _ = chain(v.model, sh)
+    model_logvar, sh = chain(v.model, sh)
 
-    projection, _... = chain(v.projection, sz, format; outputsize)
+    projection, _ = chain(v.projection, sh, output)
 
     return VAE(; embedding, model_μ, model_logvar, projection)
 end

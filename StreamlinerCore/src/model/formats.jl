@@ -35,15 +35,19 @@ struct Shape{N, T <: AbstractFormat{N}}
     end
 end
 
+function Shape{N}() where {N}
+    format = N === 0 ? FlatFormat() : SpatialFormat{N}()
+    return Shape(format)
+end
+
 Shape(format::AbstractFormat) = Shape(format, nothing, nothing)
 
 function Shape(shape::NTuple{N, Integer}, features::Integer) where {N}
-    return Shape(Shape{N}().format, shape, features)
+    (; format) = Shape{N}()
+    return Shape(format, shape, features)
 end
 
-Shape(features::Integer) = Shape(FlatFormat(), (), features)
-
-Shape{N}() where {N} = N === 0 ? Shape(FlatFormat()) : Shape(SpatialFormat{N}())
+Shape(features::Integer) = Shape((), features)
 
 Shape(template::Template) = Shape(front(template.size), last(template.size))
 

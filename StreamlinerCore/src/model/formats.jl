@@ -2,9 +2,22 @@ abstract type AbstractFormat{N} end
 
 abstract type ClassicalFormat{N} <: AbstractFormat{N} end
 
-struct SpatialFormat{N} <:ClassicalFormat{N} end
+struct SpatialFormat{N} <: ClassicalFormat{N}
+    function SpatialFormat{N}() where {N}
+        if N ≤ 0
+            throw(
+                ArgumentError(
+                    """
+                    `N` must be at least `1` in a `SpatialFormat`.
+                    """
+                )
+            )
+        end
+        return new{N}()
+    end
+end
 
-struct FlatFormat <:ClassicalFormat{0} end
+struct FlatFormat <: ClassicalFormat{0} end
 
 struct Shape{N, T <: AbstractFormat{N}}
     format::T
@@ -60,4 +73,3 @@ function reformat(::FlatFormat, ::SpatialFormat{N}, input::Shape, output::Shape)
     sh = Shape(shape, features)
     return Fix2(unflatten, sh), sh
 end
-

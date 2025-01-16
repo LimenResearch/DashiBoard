@@ -17,11 +17,11 @@
 
     @test StreamlinerCore.instantiate(formatter, Shape(110), Shape(fmt2)) === (
         Base.Fix2(StreamlinerCore.unflatten, Shape((2, 5), 11)),
-        Shape((2, 5), 11)
+        Shape((2, 5), 11),
     )
 
     @test StreamlinerCore.instantiate(formatter, Shape((2, 5), 11), Shape(fmt0)) === (
         MLUtils.flatten,
-        Shape(110)
+        Shape(110),
     )
 end

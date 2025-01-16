@@ -1,4 +1,4 @@
-function push_layer!(layers, l, input::Shape, output::Maybe{Shape} = nothing)
+function push_layer!(layers, l, input::Shape, output::Maybe{Shape})
     layer, sh = instantiate(l, input, output)
     push!(layers, layer)
     return sh
@@ -32,12 +32,12 @@ function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
             end
             window = map(div, sh.shape, output.shape)
             if any(>(1), window)
-                l = meanpool(; window)
-                sh = push_layer!(layers, l, sh)
+                l = meanpool(; window = max.(window, 1))
+                sh = push_layer!(layers, l, sh, output)
             end
             if sh.shape != output.shape
                 l = upsample(size = output.shape)
-                sh = push_layer!(layers, l, sh)
+                sh = push_layer!(layers, l, sh, output)
             end
         end
     end

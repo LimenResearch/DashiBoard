@@ -7,12 +7,18 @@ struct DenseSpec{L, S}
     sigma::S
 end
 
-requires_shape(::DenseSpec, ::Shape) = Shape(FlatFormat())
+requires_shape(::DenseSpec) = Shape(FlatFormat())
 
 function instantiate(d::DenseSpec, input::Shape, output::Maybe{Shape})
     f_in = input.features
-    # TODO: better error message if this fails
-    f_out = @something d.features output.features
+    f_out = if !isnothing(d.features)
+        d.features
+    else
+        if isnothing(output) || output.format !== requires_shape(d).format
+            throw(ArgumentError("Could not infer output size"))
+        end
+        output.features
+    end
     layer = isnothing(d.sigma) ? d.layer(f_in => f_out) : d.layer(f_in => f_out, d.sigma)
     return layer, Shape(f_out)
 end
@@ -43,13 +49,20 @@ function ConvSpec(layer, kernel, features, sigma; pad = 0, stride = 1, dilation 
     return ConvSpec(layer, features, sigma, kernel, pad′, stride′, dilation′)
 end
 
-function requires_shape(::ConvSpec{<:Any, <:Any, N}, ::Shape) where {N}
+function requires_shape(::ConvSpec{<:Any, <:Any, N}) where {N}
     return Shape(SpatialFormat{N}())
 end
 
 function instantiate(c::ConvSpec, input::Shape, output::Maybe{Shape})
     ch_in = input.features
-    # TODO: better error message if this fails
+    ch_out = if !isnothing(c.features)
+        c.features
+    else
+        if isnothing(output) || output.format !== requires_shape(c).format
+            throw(ArgumentError("Could not infer output size"))
+        end
+        output.features
+    end
     ch_out = @something c.features output.features
     layer = c.layer(c.kernel, ch_in => ch_out, c.sigma; c.pad, c.stride, c.dilation)
     return layer, get_outputshape(layer, input)

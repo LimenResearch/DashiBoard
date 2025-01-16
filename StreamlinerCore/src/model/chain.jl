@@ -7,16 +7,14 @@ end
 function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
 
     layers, sh = [], input
+    sh′ = requires_shape(first(ls))
 
     for i in eachindex(ls)
-        l = ls[i]
-        sh′ = requires_shape(l, sh)
         if sh′.format !== sh.format
             sh = push_layer!(layers, formatter, sh, sh′)
         end
-        # TODO: smarter method to also pass info about following layer?
-        sh′ = i == lastindex(ls) ? output : nothing
-        sh = push_layer!(layers, l, sh, sh′)
+        sh′ = i == lastindex(ls) ? output : requires_shape(ls[i + 1])
+        sh = push_layer!(layers, ls[i], sh, sh′)
     end
 
     if !isnothing(output)

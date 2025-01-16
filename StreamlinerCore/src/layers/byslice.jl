@@ -7,7 +7,7 @@ end
 
 (b::BySlice)(x) = b.layer(x; b.dims)
 
-requires_format(::BySlice, ::AbstractDataFormat{N}) where {N} = SpatialFormat{N}()
+requires_format(::BySlice, ::AbstractFormat{N}) where {N} = SpatialFormat{N}()
 
 instantiate(b::BySlice, size, fmt) = b, size, fmt
 

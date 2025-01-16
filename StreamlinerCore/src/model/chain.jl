@@ -1,13 +1,17 @@
-function push_layer!(layers, l, size, format)
-    layer, size, format = instantiate(l, size, format)
+function push_layer!(
+        layers, l, inputsize::Dims, inputformat::AbstractFormat;
+        outputsize::Maybe{Dims} = nothing, outputformat::Maybe{AbstractFormat} = nothing
+    )
+
+    layer, size, format = instantiate(l, inputsize, inputformat; outputsize, outputformat)
     push!(layers, layer)
     return size, format
 end
 
 function concat_layers(
-        ls, inputsize::Tuple, inputformat::Maybe{AbstractDataFormat} = nothing;
-        outputsize::Maybe{Tuple} = nothing,
-        outputformat::Maybe{AbstractDataFormat} = nothing
+        ls, inputsize::Dims, inputformat::Maybe{AbstractFormat} = nothing;
+        outputsize::Maybe{Dims} = nothing,
+        outputformat::Maybe{AbstractFormat} = nothing
     )
 
     inputformat = @something inputformat defaultformat(inputsize)

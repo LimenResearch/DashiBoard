@@ -20,7 +20,7 @@ function PoolSpec(layer, window; pad = 0, stride = window)
     return PoolSpec(layer, window, pad′, stride′)
 end
 
-requires_format(::PoolSpec{<:Any, N}, ::AbstractDataFormat) where {N} = SpatialFormat{N}()
+requires_format(::PoolSpec{<:Any, N}, ::AbstractFormat) where {N} = SpatialFormat{N}()
 
 function instantiate(p::PoolSpec, size, fmt)
     layer = p.layer(p.window; p.pad, p.stride)
@@ -38,7 +38,7 @@ end
 
 (u::Upsample)(x) = u.layer(x; u.size, u.align_corners)
 
-function requires_format(::Upsample{<:Any, N}, ::AbstractDataFormat) where {N}
+function requires_format(::Upsample{<:Any, N}, ::AbstractFormat) where {N}
     return SpatialFormat{N}()
 end
 

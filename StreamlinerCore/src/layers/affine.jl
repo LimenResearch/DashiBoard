@@ -3,24 +3,32 @@
 # TODO: support passing custom initializers
 struct DenseSpec{L, S}
     layer::L
-    size::Int
+    size::Maybe{Int}
     sigma::S
 end
 
-requires_format(::DenseSpec, ::AbstractDataFormat) = FlatFormat()
+requires_format(::DenseSpec, ::AbstractFormat) = FlatFormat()
 
-function instantiate(d::DenseSpec, size, fmt)
-    i = only(size)
-    layer = isnothing(d.sigma) ? d.layer(i => d.size) : d.layer(i => d.size, d.sigma)
+function instantiate(
+        d::DenseSpec, inputsize::Dims, inputformat::AbstractFormat;
+        outputsize::Maybe{Dims} = nothing, outputformat::Maybe{AbstractFormat} = nothing
+    )
 
-    return layer, (d.size,), fmt
+    ch_in = only(inputsize)
+
+    # TODO: better error message if this fails
+    ch_out = @something d.size only(outputsize)
+
+    layer = isnothing(d.sigma) ? d.layer(ch_in => ch_out) : d.layer(ch_in => ch_out, d.sigma)
+
+    return layer, (ch_out,), inputformat
 end
 
 # Conv structure
 
 struct ConvSpec{L, S, N, N′}
     layer::L
-    size::Int
+    size::Maybe{Int}
     sigma::S
     kernel::NTuple{N, Int}
     pad::NTuple{N′, Int}
@@ -42,32 +50,35 @@ function ConvSpec(layer, kernel, size, sigma; pad = 0, stride = 1, dilation = 1)
     return ConvSpec(layer, size, sigma, kernel, pad′, stride′, dilation′)
 end
 
-function requires_format(::ConvSpec{<:Any, <:Any, N}, ::AbstractDataFormat) where {N}
+function requires_format(::ConvSpec{<:Any, <:Any, N}, ::AbstractFormat) where {N}
     return SpatialFormat{N}()
 end
 
-function instantiate(c::ConvSpec, size, fmt)
-    N = length(c.kernel)
-    i = last(size)
-    layer = c.layer(c.kernel, i => c.size, c.sigma; c.pad, c.stride, c.dilation)
-    outputsize = get_outputsize(layer, size)
-    return layer, outputsize, fmt
+function instantiate(
+        c::ConvSpec, inputsize::Dims, inputformat::AbstractFormat;
+        outputsize::Maybe{Dims} = nothing, outputformat::Maybe{AbstractFormat} = nothing
+    )
+
+    ch_in = last(inputsize)
+    ch_out = @something c.size last(outputsize)
+    layer = c.layer(c.kernel, ch_in => ch_out, c.sigma; c.pad, c.stride, c.dilation)
+    return layer, get_outputsize(layer, inputsize), inputformat
 end
 
 # Dense-like
 
-dense(; size, sigma = "") = DenseSpec(Dense, size, PARSER[].sigmas[sigma])
+dense(; size = nothing, sigma = "") = DenseSpec(Dense, size, PARSER[].sigmas[sigma])
 
-rnn(; size, sigma = "tanh") = DenseSpec(RNN, size, PARSER[].sigmas[sigma])
+rnn(; size = nothing, sigma = "tanh") = DenseSpec(RNN, size, PARSER[].sigmas[sigma])
 
-lstm(; size) = DenseSpec(LSTM, size, nothing)
+lstm(; size = nothing) = DenseSpec(LSTM, size, nothing)
 
-gru(; size) = DenseSpec(GRU, size, nothing)
+gru(; size = nothing) = DenseSpec(GRU, size, nothing)
 
 # Conv-like
 
-conv(; kernel, size, sigma = "", ks...) =
+conv(; kernel, size = nothing, sigma = "", ks...) =
     ConvSpec(Conv, kernel, size, PARSER[].sigmas[sigma]; ks...)
 
-conv_t(; kernel, size, sigma = "", ks...) =
+conv_t(; kernel, size = nothing, sigma = "", ks...) =
     ConvSpec(ConvTranspose, kernel, size, PARSER[].sigmas[sigma]; ks...)

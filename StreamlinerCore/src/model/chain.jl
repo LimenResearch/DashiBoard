@@ -16,22 +16,26 @@ function concat_layers(ls, input::Shape, output::Maybe{Shape})
         sh = push_layer!(layers, l, sh)
     end
 
-    # output reformatting
-    sh = push_layer!(layers, formatter, sh, output)
+    if !isnothing(output)
+        # output reformatting
+        if output.format !== sh.format
+            sh = push_layer!(layers, formatter, sh, output)
+        end
 
-    # output resampling
-    if !isnothing(output) && !isnothing(output.shape)
-        if !(sh.format isa ClassicalFormat)
-            throw(ArgumentError("Only classical format is allowed as chain output"))
-        end
-        window = map(div, sh.shape, output.shape)
-        if any(>(1), window)
-            l = meanpool(; window)
-            sh = push_layer!(layers, l, sh)
-        end
-        if sh.shape != output.shape
-            l = upsample(size = output.shape)
-            sh = push_layer!(layers, l, sh)
+        # output resampling
+        if !isnothing(output.shape)
+            if !(sh.format isa ClassicalFormat)
+                throw(ArgumentError("Only classical format is allowed as chain output"))
+            end
+            window = map(div, sh.shape, output.shape)
+            if any(>(1), window)
+                l = meanpool(; window)
+                sh = push_layer!(layers, l, sh)
+            end
+            if sh.shape != output.shape
+                l = upsample(size = output.shape)
+                sh = push_layer!(layers, l, sh)
+            end
         end
     end
 

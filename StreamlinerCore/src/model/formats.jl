@@ -25,8 +25,7 @@ end
 Shape(format::AbstractFormat) = Shape(format, nothing, nothing)
 
 function Shape(shape::NTuple{N, Integer}, features::Integer) where {N}
-    format = SpatialFormat{N}()
-    return Shape(format, shape, features)
+    return Shape(Shape{N}().format, shape, features)
 end
 
 Shape(features::Integer) = Shape(FlatFormat(), (), features)

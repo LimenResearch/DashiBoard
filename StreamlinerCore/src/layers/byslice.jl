@@ -1,20 +1,21 @@
 # Simple layers with no weights
 
-struct BySlice{L, D}
+struct BySlice{N, L, D}
     layer::L
     dims::D
+    BySlice{N}(layer::L, dims::D) where {N, L, D} = new{N, L, D}(layer, dims)
 end
 
 (b::BySlice)(x) = b.layer(x; b.dims)
 
-requires_shape(::BySlice, ::Shape{N}) where {N} = Shape{N}()
+requires_shape(::BySlice{N}) where {N} = Shape{N}()
 
 instantiate(b::BySlice, input::Shape, ::Maybe{Shape}) = b, input
 
 # Parameter-free
 
-softmax(; dims = 1) = BySlice(Flux.softmax, dims)
+softmax(; N = 0, dims = N + 1) = BySlice{N}(Flux.softmax, dims)
 
-logsoftmax(; dims = 1) = BySlice(Flux.logsoftmax, dims)
+logsoftmax(; N = 0, dims = N + 1) = BySlice{N}(Flux.logsoftmax, dims)
 
-logsumexp(; dims = 1) = BySlice(Flux.logsumexp, dims)
+logsumexp(; N = 0, dims = N + 1) = BySlice{N}(Flux.logsumexp, dims)

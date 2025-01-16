@@ -16,7 +16,7 @@ model = [
 projection = [
     { name = "conv_t", features = 10, kernel = [3, 3], sigma = "relu" },
     { name = "conv_t", features = 3, kernel = [5, 5], sigma = "relu" },
-    { name = "conv_t", features = 1, kernel = [4, 4], sigma = "" },
+    { name = "conv_t", kernel = [4, 4], sigma = "" },
 ]
 
 [loss]

@@ -63,6 +63,7 @@ include("model/model.jl")
 include("architectures/basic.jl")
 include("architectures/vae.jl")
 
+include("layers/formatter.jl")
 include("layers/affine.jl")
 include("layers/byslice.jl")
 include("layers/pooling.jl")

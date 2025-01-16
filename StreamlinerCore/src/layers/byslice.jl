@@ -3,7 +3,7 @@
 struct BySlice{N, L, D}
     layer::L
     dims::D
-    BySlice{N}(layer::L, dims::D) where {N,  L, D} = new{N, L, D}(layer, dims)
+    BySlice{N}(layer::L, dims::D) where {N, L, D} = new{N, L, D}(layer, dims)
 end
 
 (b::BySlice)(x) = b.layer(x; b.dims)

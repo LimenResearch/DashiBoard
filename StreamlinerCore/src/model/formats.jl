@@ -47,6 +47,12 @@ Shape{N}() where {N} = N === 0 ? Shape(FlatFormat()) : Shape(SpatialFormat{N}())
 
 Shape(template::Template) = Shape(front(template.size), last(template.size))
 
+function get_outputshape(layer, sh::Shape)
+    size = sh.shape..., sh.features
+    shape..., features, _ = Flux.outputsize(layer, size, padbatch = true)
+    return Shape(shape, features)
+end
+
 struct Formatter end
 
 const formatter = Formatter()

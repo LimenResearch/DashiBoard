@@ -4,10 +4,10 @@ seed = 1234
 [components]
 
 model = [
-    { name = "conv", size = 10, kernel = [5, 5], sigma = "relu" },
-    { name = "conv", size = 3, kernel = [5, 5], sigma = "relu" },
+    { name = "conv", features = 10, kernel = [5, 5], sigma = "relu" },
+    { name = "conv", features = 3, kernel = [5, 5], sigma = "relu" },
     { name = "maxpool", window = [2, 2] },
-    { name = "dense", size = 10, sigma = "" },
+    { name = "dense", features = 10, sigma = "" },
 ]
 
 [loss]

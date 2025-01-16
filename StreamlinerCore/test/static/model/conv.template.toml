@@ -3,13 +3,13 @@ seed = 1234
 
 [[components.model]]
 name = "conv"
-size = 10
+features = 10
 kernel = [{-v = "kernel_size"}, {-v = "kernel_size"}]
 sigma = {-v = "sigma"}
 
 [[components.model]]
 name = "conv"
-size = 10
+features = 10
 kernel = [{-v = "kernel_size"}, {-v = "kernel_size"}]
 sigma = {-v = "sigma"}
 
@@ -19,7 +19,7 @@ window = [2, 2]
 
 [[components.model]]
 name = "dense"
-size = 10
+features = 10
 sigma = ""
 
 [loss]

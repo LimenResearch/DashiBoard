@@ -4,7 +4,7 @@ function push_layer!(layers, l, input::Shape, output::Maybe{Shape} = nothing)
     return sh
 end
 
-function concat_layers(ls, input::Shape, output::Maybe{Shape})
+function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
 
     layers, sh = [], input
 
@@ -43,7 +43,7 @@ function concat_layers(ls, input::Shape, output::Maybe{Shape})
 end
 
 # TODO: support empty chain?
-function chain(ls, input::Shape, output::Maybe{Shape} = nothing)
+function chain(ls::AbstractVector, input::Shape, output::Maybe{Shape} = nothing)
     layers, sh = concat_layers(ls, input, output)
     # Convert to `Tuple` to improve runtime performance at the cost of compilation
     return Flux.Chain(Tuple(layers)), sh

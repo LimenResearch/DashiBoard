@@ -93,7 +93,7 @@ get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
 function Query(filters::AbstractVector; init)
     node, params = init, Dict{String, Any}()
     for (i, f) in enumerate(filters)
-        q = Query(f, string("filter", i, "_"))
+        q = Query(f, string("filter", i, '_'))
         node = node |> q.node
         merge!(params, q.params)
     end

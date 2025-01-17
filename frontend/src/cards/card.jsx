@@ -1,35 +1,23 @@
 import { createSignal } from "solid-js";
 import { Select } from "@thisbeyond/solid-select";
 
-import { SplitCard, initSplitCard } from "../cards/split";
-import { initRescaleCard, RescaleCard } from "../cards/rescale";
+import { CardContent, initCardContent } from "./content";
+import { CARD_CONFIGS } from "./configs"
 
-export function setKey([value, setValue], k, v) {
-    const newValue = value().clone();
-    newValue[k] = v;
-    setValue(newValue);
-}
+// TODO: generate CARD_CONFIGS from julia
 
 export const CARD_MAP = new Map();
 
-CARD_MAP.set(
-    "Split",
-    { init: initSplitCard, component: SplitCard }
-);
-
-CARD_MAP.set(
-    "Rescale",
-    { init: initRescaleCard, component: RescaleCard }
-);
+for (const card of CARD_CONFIGS) {
+    CARD_MAP.set(card.label, card.type)
+}
 
 export function initCard(props) {
-    return CARD_MAP.get(props.name).init();
+    const type = CARD_MAP.get(props.name);
+    return initCardContent(type);
 }
 
 export function Card(props) {
-
-    const children = CARD_MAP.get(props.name).component(props);
-
     return <div class="bg-white w-full p-4">
         <span class="text-blue-800 text-xl font-semibold">{props.name}</span>
         <span onClick={props.onClose}
@@ -37,9 +25,9 @@ export function Card(props) {
             ✕
         </span>
         <div class="mt-2">
-            {children}
+            <CardContent type={CARD_MAP.get(props.name)} {...props}></CardContent>
         </div>
-    </div>
+    </div>;
 }
 
 export function CardPlus(props) {

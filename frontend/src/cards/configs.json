@@ -1,0 +1,107 @@
+{"CARD_CONFIGS": [
+    {
+        "type": "split",
+        "label": "Split",
+        "output": {
+            "field": "output",
+            "multiple": false
+        },
+        "fields": [
+            {
+                "widget": "select",
+                "key": "method",
+                "label": "Method",
+                "value": "",
+                "multiple": false,
+                "options": ["percentile", "tiles"]
+            },
+            {
+                "widget": "select",
+                "key": "order_by",
+                "label": "Order",
+                "value": [],
+                "multiple": true,
+                "options": { "-v": "names" }
+            },
+            {
+                "widget": "select",
+                "key": "by",
+                "label": "Group",
+                "value": [],
+                "multiple": true,
+                "options": { "-v": "names" }
+            },
+            {
+                "widget": "input",
+                "key": "output",
+                "label": "Output",
+                "value": "partition",
+                "type": "text",
+                "attributes": { "placeholder": "Select..." }
+            },
+            {
+                "widget": "input",
+                "key": "percentile",
+                "label": "Percentile",
+                "value": null,
+                "type": "number",
+                "attributes": { "placeholder": "Select...", "min": 0, "max": 1, "step": 0.01 },
+                "conditional": { "method": ["percentile"] }
+            },
+            {
+                "widget": "select",
+                "key": "tiles",
+                "label": "Tiles",
+                "value": [],
+                "multiple": true,
+                "type": "number",
+                "options": ["1", "2"],
+                "conditional": { "method": ["tiles"] }
+            }
+        ]
+    },
+    {
+        "type": "rescale",
+        "label": "Rescale",
+        "output": {
+            "field": "columns",
+            "suffixField": "suffix",
+            "multiple": true
+        },
+        "fields": [
+            {
+                "widget": "select",
+                "key": "method",
+                "label": "Method",
+                "value": "",
+                "multiple": false,
+                "options": ["zscore", "maxabs", "minmax", "log", "logistic"]
+            },
+            {
+                "widget": "select",
+                "key": "by",
+                "label": "Group",
+                "value": [],
+                "multiple": true,
+                "options": {"-v": "names"},
+                "conditional": { "method": ["zscore", "maxabs", "minmax"] }
+            },
+            {
+                "widget": "select",
+                "key": "columns",
+                "label": "Columns",
+                "value": [],
+                "multiple": true,
+                "options": {"-v": "names"}
+            },
+            {
+                "widget": "input",
+                "key": "suffix",
+                "label": "Suffix",
+                "value": "rescaled",
+                "type": "text",
+                "attributes": { "placeholder": "Select..." }
+            }
+        ]
+    }
+]}

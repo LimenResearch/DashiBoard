@@ -1,5 +1,5 @@
-import { Input } from "./input";
-import { Toggler } from "./toggler";
+import { Input } from "../components/input";
+import { Toggler } from "../components/toggler";
 
 class Interval {
     constructor(min, max) {

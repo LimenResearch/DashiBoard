@@ -3,8 +3,7 @@
         "type": "split",
         "label": "Split",
         "output": {
-            "field": "output",
-            "multiple": false
+            "field": "output"
         },
         "fields": [
             {
@@ -65,8 +64,7 @@
         "label": "Rescale",
         "output": {
             "field": "columns",
-            "suffixField": "suffix",
-            "multiple": true
+            "suffixField": "suffix"
         },
         "fields": [
             {

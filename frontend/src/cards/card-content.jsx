@@ -1,14 +1,10 @@
 import { createSignal } from "solid-js";
-import { AutoWidget } from "./autoWidget";
-import { CARD_CONFIGS } from "./configs"
+import { AutoWidget } from "./auto-widget";
 
-function getConfig(type) {
-    return CARD_CONFIGS.find(x => x.type === type);
-}
-
-export function getOutputs(content) {
-    const { field, suffixField, multiple } =  getConfig(content.type).output;
+export function getOutputs(config, content) {
+    const { field, suffixField } = config.output;
     const suffix = suffixField ? content[suffixField] : null;
+    const multiple = config.fields.find(x => x.key === field).multiple;
     const output = multiple ? content[field] : [content[field]];
     const names = suffix ? output.map(x => [x, suffix].join('_')) : output;
     return names.map(x => ({name: x}));
@@ -20,19 +16,13 @@ function setKey([value, setValue], k, v) {
     setValue(newValue);
 }
 
-export function cardContent(type) {
+export function initCardContent(config) {
     const content = {};
-    content.type = type;
-    for (const v of getConfig(type).fields) {
-        const {key, value} = v;
+    content.type = config.type;
+    for (const {key, value} of config.fields) {
         content[key] = value;
     }
-    return content;
-}
-
-export function initCardContent(type) {
-    const init = cardContent(type);
-    const [value, setValue] = createSignal(init);
+    const [value, setValue] = createSignal(content);
     const setter = (k, v) => setKey([value, setValue], k, v);
     return { input: [value, setter], output: value };
 }
@@ -40,7 +30,7 @@ export function initCardContent(type) {
 export function CardContent(props) {
     const names = () => props.metadata.map(x => x.name);
     const id = crypto.randomUUID();
-    return <For each={getConfig(props.type).fields}>
+    return <For each={props.config.fields}>
         {itemProps => {
             return <AutoWidget id={id} input={props.input}
                 names={names()} {...itemProps}></AutoWidget>

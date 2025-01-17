@@ -1,7 +1,7 @@
 import { createStore } from "solid-js/store";
 
-import { IntervalFilter } from "../components/interval-filter";
-import { ListFilter } from "../components/list-filter";
+import { IntervalFilter } from "../filters/interval-filter";
+import { ListFilter } from "../filters/list-filter";
 
 function nonNullEntries(obj) {
     const res = [];

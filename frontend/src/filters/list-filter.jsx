@@ -1,5 +1,5 @@
 import { For } from "solid-js";
-import { Toggler } from "./toggler";
+import { Toggler } from "../components/toggler";
 
 export function ListFilter(props) {
     const modified = () => props.store.categorical[props.name] != null

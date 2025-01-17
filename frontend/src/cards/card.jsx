@@ -1,31 +1,24 @@
 import { createSignal } from "solid-js";
 import { Select } from "@thisbeyond/solid-select";
 
-import { CardContent, initCardContent } from "./content";
-import { CARD_CONFIGS } from "./configs"
+import { CardContent, initCardContent } from "./card-content";
 
 // TODO: generate CARD_CONFIGS from julia
 
-export const CARD_MAP = new Map();
-
-for (const card of CARD_CONFIGS) {
-    CARD_MAP.set(card.label, card.type)
-}
-
-export function initCard(props) {
-    const type = CARD_MAP.get(props.name);
-    return initCardContent(type);
+export function initCard(config) {
+    return initCardContent(config);
 }
 
 export function Card(props) {
     return <div class="bg-white w-full p-4">
-        <span class="text-blue-800 text-xl font-semibold">{props.name}</span>
+        <span class="text-blue-800 text-xl font-semibold">{props.label}</span>
         <span onClick={props.onClose}
             class="text-red-800 hover:text-red-900 text-xl font-semibold float-right cursor-pointer">
             ✕
         </span>
         <div class="mt-2">
-            <CardContent type={CARD_MAP.get(props.name)} {...props}></CardContent>
+            <CardContent config={props.config} input={props.input}
+                metadata={props.metadata}></CardContent>
         </div>
     </div>;
 }
@@ -33,7 +26,6 @@ export function Card(props) {
 export function CardPlus(props) {
     const [initialValue, setInitialValue] = createSignal(null,  { equals: false });
     const [listVisible, setListVisible] = createSignal(false);
-    const cardKeys = Array.from(CARD_MAP.keys());
     const onClick = () => {
         setListVisible(!listVisible());
         setInitialValue(null);
@@ -49,7 +41,8 @@ export function CardPlus(props) {
         </button>
         <Show when={listVisible()}>
             <div class="h-7">
-                <Select initialValue={initialValue()} options={cardKeys} onChange={onChange}></Select>
+                <Select initialValue={initialValue()} options={props.options}
+                    onChange={onChange}></Select>
             </div>
         </Show>
     </div>;

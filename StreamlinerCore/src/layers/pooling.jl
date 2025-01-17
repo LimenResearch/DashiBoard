@@ -22,7 +22,7 @@ end
 
 requires_shape(::PoolSpec{<:Any, N}) where {N} = Shape{N}()
 
-function instantiate(p::PoolSpec, input::Shape, ::Maybe{Shape})
+function instantiate(p::PoolSpec, input::Shape, ::Shape)
     layer = p.layer(p.window; p.pad, p.stride)
     return layer, get_outputshape(layer, input)
 end
@@ -39,7 +39,7 @@ end
 
 requires_shape(::Upsample{<:Any, N}) where {N} = Shape{N}()
 
-function instantiate(u::Upsample, input::Shape, ::Maybe{Shape})
+function instantiate(u::Upsample, input::Shape, ::Shape)
     return u, Shape(input.format, u.size, input.features)
 end
 

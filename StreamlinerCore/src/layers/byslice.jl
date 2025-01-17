@@ -10,7 +10,7 @@ end
 
 requires_shape(::BySlice{N}) where {N} = Shape{N}()
 
-instantiate(b::BySlice, input::Shape, ::Maybe{Shape}) = b, input
+instantiate(b::BySlice, input::Shape, ::Shape) = b, input
 
 # Parameter-free
 

@@ -1,10 +1,10 @@
-function push_layer!(layers, l, input::Shape, output::Maybe{Shape})
+function push_layer!(layers, l, input::Shape, output::Shape)
     layer, sh = instantiate(l, input, output)
     push!(layers, layer)
     return sh
 end
 
-function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
+function concat_layers(ls::AbstractVector, input::Shape, output::Shape)
 
     layers, sh = [], input
     shapes = map(requires_shape, ls)
@@ -45,7 +45,7 @@ function concat_layers(ls::AbstractVector, input::Shape, output::Maybe{Shape})
     return layers, sh
 end
 
-function chain(ls::AbstractVector, input::Shape, output::Maybe{Shape} = nothing)
+function chain(ls::AbstractVector, input::Shape, output::Shape)
     layers, sh = concat_layers(ls, input, output)
     # Convert to `Tuple` to improve runtime performance at the cost of compilation
     return Flux.Chain(Tuple(layers)), sh

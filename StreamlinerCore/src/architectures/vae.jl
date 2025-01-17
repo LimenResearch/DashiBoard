@@ -50,10 +50,13 @@ function instantiate(v::VAESpec, templates)
     input = Shape(templates.input)
     output = Shape(templates.input)
 
-    embedding, sh = chain(v.embedding, input)
+    sh_m = requires_shape(first(v.model))
+    sh_p = requires_shape(first(v.projection))
 
-    model_μ, _ = chain(v.model, sh)
-    model_logvar, sh = chain(v.model, sh)
+    embedding, sh = chain(v.embedding, input, sh_m)
+
+    model_μ, _ = chain(v.model, sh, sh_p)
+    model_logvar, sh = chain(v.model, sh, sh_p)
 
     projection, _ = chain(v.projection, sh, output)
 

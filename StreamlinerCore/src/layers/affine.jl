@@ -9,16 +9,9 @@ end
 
 requires_shape(::DenseSpec) = Shape(FlatFormat())
 
-function instantiate(d::DenseSpec, input::Shape, output::Maybe{Shape})
+function instantiate(d::DenseSpec, input::Shape, output::Shape)
     f_in = input.features
-    f_out = if !isnothing(d.features)
-        d.features
-    else
-        if isnothing(output) || output.format !== requires_shape(d).format
-            throw(ArgumentError("Could not infer output size"))
-        end
-        output.features
-    end
+    f_out = infer_features(output, d)
     layer = isnothing(d.sigma) ? d.layer(f_in => f_out) : d.layer(f_in => f_out, d.sigma)
     return layer, Shape(f_out)
 end
@@ -53,16 +46,9 @@ function requires_shape(::ConvSpec{<:Any, <:Any, N}) where {N}
     return Shape(SpatialFormat{N}())
 end
 
-function instantiate(c::ConvSpec, input::Shape, output::Maybe{Shape})
+function instantiate(c::ConvSpec, input::Shape, output::Shape)
     ch_in = input.features
-    ch_out = if !isnothing(c.features)
-        c.features
-    else
-        if isnothing(output) || output.format !== requires_shape(c).format
-            throw(ArgumentError("Could not infer output size"))
-        end
-        output.features
-    end
+    ch_out = infer_features(output, c)
     ch_out = @something c.features output.features
     layer = c.layer(c.kernel, ch_in => ch_out, c.sigma; c.pad, c.stride, c.dilation)
     return layer, get_outputshape(layer, input)

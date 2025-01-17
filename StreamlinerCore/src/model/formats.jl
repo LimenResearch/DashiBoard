@@ -56,3 +56,13 @@ function get_outputshape(layer, sh::Shape)
     shape..., features, _ = Flux.outputsize(layer, size, padbatch = true)
     return Shape(shape, features)
 end
+
+function infer_features(sh::Shape, sp)
+    if !isnothing(sp.features)
+        return sp.features
+    elseif !isnothing(sh.features) && sh.format === requires_shape(sp).format
+        return sh.features
+    else
+        throw(ArgumentError("Could not infer output features."))
+    end
+end

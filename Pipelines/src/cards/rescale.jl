@@ -189,10 +189,7 @@ function deevaluate(
     evaluate(repo, r, stats_tbl, source => dest; schema, invert = true)
 end
 
-function CardWidget(
-        ::Type{RescaleCard};
-        suffix = (placeholder = "Select...",)
-    )
+function CardWidget(::Type{RescaleCard})
 
     methods = collect(keys(RESCALERS))
     need_group = [k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
@@ -204,10 +201,11 @@ function CardWidget(
             key = "columns",
             label = "Columns",
             value = [],
+            placeholder = "Select columns...",
             multiple = true,
             options = Dict("-v" => "names")
         ),
-        SuffixWidget(value = "rescaled", attributes = Dict("placeholder" => suffix.placeholder)),
+        SuffixWidget(value = "rescaled"),
     ]
 
     return CardWidget(;

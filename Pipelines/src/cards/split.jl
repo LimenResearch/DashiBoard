@@ -84,9 +84,7 @@ end
 
 function CardWidget(
         ::Type{SplitCard};
-        percentile = (placeholder = "Select...", min = 0, max = 1, step = 0.01),
-        tiles = (placeholder = "Select...",),
-        output = (placeholder = "Select...",),
+        percentile = (min = 0, max = 1, step = 0.01),
     )
 
     methods = ["percentile", "tiles"]
@@ -95,34 +93,31 @@ function CardWidget(
         MethodWidget(methods),
         OrderWidget(),
         GroupWidget(),
-        InputWidget(
+        TextWidget(
             key = "output",
             label = "Output",
             value = "partition",
             type = "text",
-            attributes = Dict("placeholder" => output.placeholder)
+            placeholder = "Select output name..."
         ),
-        InputWidget(
+        NumberWidget(;
             key = "p",
             label = "Percentile",
             value = nothing,
-            type = "number",
-            attributes = Dict(
-                "placeholder" => percentile.placeholder,
-                "min" => percentile.min,
-                "max" => percentile.max,
-                "step" => percentile.step
-            ),
+            placeholder = "Select percentile value...",
+            percentile.min,
+            percentile.max,
+            percentile.step,
             conditional = Dict("method" => ["percentile"])
         ),
         SelectWidget(
             key = "tiles",
             label = "Tiles",
-            value = [],
+            value = Int[],
+            placeholder = "Select tiles...",
             multiple = true,
             type = "number",
             options = [1, 2],
-            attributes = Dict("placeholder" => tiles.placeholder),
             conditional = Dict("method" => ["tiles"])
         ),
     ]

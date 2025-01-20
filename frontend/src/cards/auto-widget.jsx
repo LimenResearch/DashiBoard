@@ -42,7 +42,7 @@ export function AutoWidget(props) {
                 </label>
                 <Select id={props.id + props.key} onChange={updateValue}
                     multiple={props.multiple} class="mb-2" {...wdgProps}
-                    {...props.attributes} initialValue={init[props.key]}>
+                    placeholder={props.placeholder} initialValue={init[props.key]}>
                 </Select>
             </>;
             break;
@@ -51,9 +51,11 @@ export function AutoWidget(props) {
                 <label for={props.id + props.key} class={selectClass}>
                     {props.label}
                 </label>
-                <Input id={props.id + props.key} onChange={ev => updateValue(ev.target.value)}
+                <Input id={props.id + props.key}
+                    onChange={ev => updateValue(ev.target.value)}
                     class="w-full mb-2" type={props.type} value={init[props.key]}
-                    {...props.attributes}>
+                    min={props.min} max={props.max} step={props.step}
+                    placeholder={props.placeholder}>
                 </Input>
             </>;
             break;

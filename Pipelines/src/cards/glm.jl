@@ -101,39 +101,30 @@ function evaluate(
     load_table(repo, t, dest; schema)
 end
 
-function CardWidget(
-        ::Type{GLMCard};
-        predictors = (placeholder = "Select...",),
-        target = (placeholder = "Select...",),
-        weights = (placeholder = "Select...",),
-        distribution = (placeholder = "Select...",),
-        link = (placeholder = "Select...",),
-        partition = (placeholder = "Select...",),
-        suffix = (placeholder = "Select...",),
-    )
+function CardWidget(::Type{GLMCard})
 
     fields = [
-        PredictorWidget(multiple = true, attributes = Dict("placeholder" => predictors.placeholder)),
-        TargetWidget(multiple = false, attributes = Dict("placeholder" => target.placeholder)),
-        WeightsWidget(attributes = Dict("placeholder" => weights.placeholder)),
+        PredictorWidget(multiple = true),
+        TargetWidget(multiple = false),
+        WeightsWidget(),
         SelectWidget(
             key = "distribution",
             label = "Noise",
-            value = "normal",
+            value = nothing,
+            placeholder = "Select noise model...",
             multiple = false,
-            options = collect(keys(NOISE_MODELS)),
-            attributes = Dict("placeholder" => distribution.placeholder)
+            options = collect(keys(NOISE_MODELS))
         ),
         SelectWidget(
             key = "link",
             label = "Link",
             value = nothing,
+            placeholder = "Select link function...",
             multiple = false,
-            options = collect(keys(LINK_FUNCTIONS)),
-            attributes = Dict("placeholder" => link.placeholder)
+            options = collect(keys(LINK_FUNCTIONS))
         ),
-        PartitionWidget(attributes = Dict("placeholder" => partition.placeholder)),
-        SuffixWidget(value = "hat", attributes = Dict("placeholder" => suffix.placeholder)),
+        PartitionWidget(),
+        SuffixWidget(value = "hat"),
     ]
 
     return CardWidget(;

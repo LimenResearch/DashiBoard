@@ -1,17 +1,33 @@
 abstract type AbstractWidget end
 
-@kwdef struct InputWidget <: AbstractWidget
+@kwdef struct NumberWidget <: AbstractWidget
     widget::String = "input"
     key::String
     label::String
-    value::Any
-    type::String = "text"
-    attributes::Dict{String, Any} = Dict{String, Any}()
+    value::Union{Float64, Nothing}
+    placeholder::String
+    min::Union{Float64, Nothing}
+    max::Union{Float64, Nothing}
+    step::Union{Float64, Nothing}
+    type::String = "number"
     conditional::Dict{String, Any} = Dict{String, Any}()
 end
 
-function SuffixWidget(; value::AbstractString, attributes::AbstractDict = Dict{String, Any}())
-    return InputWidget(; key = "suffix", label = "Suffix", value = value, attributes)
+@kwdef struct TextWidget <: AbstractWidget
+    widget::String = "input"
+    key::String
+    label::String
+    value::Union{String, Nothing}
+    placeholder::String
+    type::String = "text"
+    conditional::Dict{String, Any} = Dict{String, Any}()
+end
+
+function SuffixWidget(; value::AbstractString)
+    key = "suffix"
+    label = "Suffix"
+    placeholder = "Select suffix..."
+    return TextWidget(; key, label, value, placeholder)
 end
 
 @kwdef struct SelectWidget <: AbstractWidget
@@ -19,109 +35,91 @@ end
     key::String
     label::String
     value::Any
-    type::String = "text"
     options::Any
     multiple::Bool
-    attributes::Dict{String, Any} = Dict{String, Any}()
+    placeholder::String
+    type::String = "text"
     conditional::Dict{String, Any} = Dict{String, Any}()
 end
 
-function MethodWidget(methods; attributes::AbstractDict = Dict{String, Any}())
-    return SelectWidget(;
-        key = "method",
-        label = "Method",
-        value = "",
-        multiple = false,
-        options = methods,
-        attributes
-    )
+function MethodWidget(options)
+    key = "method"
+    label = "Method"
+    placeholder = "Select method..."
+    value = nothing
+    multiple = false
+    return SelectWidget(; key, label, value, options, multiple, placeholder)
 end
 
 function VariableWidget(;
-        label::AbstractString, key::AbstractString, multiple::Bool,
-        attributes::AbstractDict = Dict{String, Any}(),
-        conditional::AbstractDict = Dict{String, Any}()
+        key::AbstractString, label::AbstractString, multiple::Bool,
+        placeholder::AbstractString, conditional::AbstractDict = Dict{String, Any}()
     )
 
-    return SelectWidget(;
-        key,
-        label,
-        value = multiple ? [] : nothing,
-        multiple,
-        options = Dict("-v" => "names"),
-        attributes,
-        conditional
-    )
+    value = multiple ? String[] : nothing
+    options = Dict("-v" => "names")
+    return SelectWidget(; key, label, value, options, multiple, placeholder, conditional)
 end
 
 function TargetWidget(;
         multiple::Bool,
-        attributes::AbstractDict = Dict{String, Any}(),
         conditional::AbstractDict = Dict{String, Any}()
     )
 
     key = multiple ? "targets" : "target"
     label = multiple ? "Targets" : "Target"
-    return VariableWidget(; key, label, multiple, attributes, conditional)
+    placeholder = multiple ? "Select target variables..." : "Select target variable..."
+    return VariableWidget(; key, label, multiple, placeholder, conditional)
 end
 
 function PredictorWidget(;
         multiple::Bool,
-        attributes::AbstractDict = Dict{String, Any}(),
         conditional::AbstractDict = Dict{String, Any}()
     )
 
     key = multiple ? "predictors" : "predictor"
     label = multiple ? "Predictors" : "Predictor"
-    return VariableWidget(; key, label, multiple, attributes, conditional)
+    placeholder = multiple ? "Select predictor variables..." : "Select predictor variable..."
+    return VariableWidget(; key, label, multiple, placeholder, conditional)
 end
 
-function WeightsWidget(;
-        attributes::AbstractDict = Dict{String, Any}(),
-        conditional::AbstractDict = Dict{String, Any}()
-    )
+function WeightsWidget(; conditional::AbstractDict = Dict{String, Any}())
 
     multiple = false
     key = "weights"
     label = "Weights"
-    return VariableWidget(; key, label, multiple, attributes, conditional)
+    placeholder = "Select weight variable..."
+
+    return VariableWidget(; key, label, multiple, placeholder, conditional)
 end
 
-function PartitionWidget(;
-        attributes::AbstractDict = Dict{String, Any}(),
-        conditional::AbstractDict = Dict{String, Any}()
-    )
+function PartitionWidget(; conditional::AbstractDict = Dict{String, Any}())
 
     multiple = false
     key = "partition"
     label = "Partition"
-    return VariableWidget(; key, label, multiple, attributes, conditional)
+    placeholder = "Select partition variable..."
+    return VariableWidget(; key, label, multiple, placeholder, conditional)
 end
 
-function OrderWidget(;
-        attributes::AbstractDict = Dict{String, Any}(),
-        conditional::AbstractDict = Dict{String, Any}()
-    )
-    return VariableWidget(;
-        key = "order_by",
-        label = "Order",
-        multiple = true,
-        attributes,
-        conditional
-    )
+function OrderWidget(; conditional::AbstractDict = Dict{String, Any}())
+
+    key = "order_by"
+    label = "Order"
+    placeholder = "Select ordering variables..."
+    multiple = true
+
+    return VariableWidget(; key, label, placeholder, multiple, conditional)
 end
 
-function GroupWidget(;
-        attributes::AbstractDict = Dict{String, Any}(),
-        conditional::AbstractDict = Dict{String, Any}()
-    )
-    return VariableWidget(;
-        key = "by",
-        label = "Group",
-        multiple = true,
-        attributes,
-        conditional
-    )
+function GroupWidget(; conditional::AbstractDict = Dict{String, Any}())
+
+    key = "by"
+    label = "Group"
+    placeholder = "Select grouping variables..."
+    multiple = true
+
+    return VariableWidget(; key, label, placeholder, multiple, conditional)
 end
 
 struct OutputSpec

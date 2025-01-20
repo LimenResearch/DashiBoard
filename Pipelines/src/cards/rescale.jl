@@ -188,3 +188,31 @@ function deevaluate(
 
     evaluate(repo, r, stats_tbl, source => dest; schema, invert = true)
 end
+
+function CardWidget(
+        ::Type{RescaleCard};
+        suffix = (placeholder = "Select...",)
+    )
+
+    methods = ["zscore", "maxabs", "minmax", "log", "logistic"]
+
+    fields = [
+        MethodWidget(methods),
+        GroupWidget(conditional = Dict("method" => ["zscore", "maxabs", "minmax"])),
+        SelectWidget(
+            key = "columns",
+            label = "Columns",
+            value = [],
+            multiple = true,
+            options = Dict("-v" => "names")
+        ),
+        SuffixWidget(value = "rescaled", attributes = Dict("placeholder" => suffix.placeholder)),
+    ]
+
+    return CardWidget(;
+        type = "rescale",
+        label = "Rescale",
+        output = OutputSpec("columns", "suffix"),
+        fields
+    )
+end

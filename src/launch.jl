@@ -41,6 +41,12 @@ function launch(data_directory; options...)
         return JSON3.write(summaries)
     end
 
+    @post "/card-configurations" function (req::HTTP.Request)
+        spec = json(req) |> Config
+        configs = Pipelines.card_configurations(; spec...)
+        return JSON3.write(configs)
+    end
+
     @post "/pipeline" function (req::HTTP.Request)
         spec = json(req)
         filters = get_filter.(spec["filters"])

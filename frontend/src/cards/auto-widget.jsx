@@ -32,7 +32,8 @@ export function AutoWidget(props) {
                     {props.label}
                 </label>
                 <Select id={props.id + "by"} onChange={updateValue}
-                    multiple={props.multiple} class="mb-2" {...wdgProps}>
+                    multiple={props.multiple} class="mb-2" {...wdgProps}
+                    {...props.attributes}>
                 </Select>
             </>;
             break;

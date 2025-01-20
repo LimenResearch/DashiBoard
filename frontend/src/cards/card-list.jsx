@@ -1,14 +1,18 @@
+import { createResource } from "solid-js";
 import { initCard, Card, CardPlus } from "./card";
 import { getOutputs } from "./card-content";
-import { CARD_CONFIGS } from "./configs"
+import { postRequest } from "../requests";
 
 export function CardList(props) {
     const [store, setStore] = props.input;
+    const [configs] = createResource(
+        () => postRequest("card-configurations", {}).then(x => x.json())
+    );
 
-    const options = CARD_CONFIGS.map(x => x.label);
+    const options = () => (configs() || []).map(x => x.label);
 
     const addCardAfter = (label, card) => {
-        const config = CARD_CONFIGS.find(x => x.label === label);
+        const config = (configs() || []).find(x => x.label === label);
         const data = initCard(config);
         const i = store.cards.indexOf(card);
         setStore(
@@ -30,14 +34,14 @@ export function CardList(props) {
     };
 
     return <>
-        <CardPlus onClick={addCardAfter} options={options}></CardPlus>
+        <CardPlus onClick={addCardAfter} options={options()}></CardPlus>
         <For each={store.cards}>
             {card => {
                 const onClose = () => setStore("cards", store.cards.filter(x => x !== card));
                 return <>
                     <Card onClose={onClose} metadata={metadata(card)} {...card}></Card>
                     <CardPlus onClick={label => addCardAfter(label, card)}
-                        options={options}></CardPlus>
+                        options={options()}></CardPlus>
                 </>;
             }}
         </For>

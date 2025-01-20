@@ -81,3 +81,51 @@ function evaluate(
 
     replace_table(repo, query, dest; schema)
 end
+
+function CardWidget(
+        ::Type{SplitCard};
+        percentile = (placeholder = "Select...", min = 0, max = 1, step = 0.01),
+        tiles = (placeholder = "Select...",),
+        output = (placeholder = "Select...",),
+    )
+
+    methods = ["percentile", "tiles"]
+
+    fields = [
+        MethodWidget(methods),
+        OrderWidget(),
+        GroupWidget(),
+        InputWidget(
+            key = "output",
+            label = "Output",
+            value = "partition",
+            type = "text",
+            attributes = Dict("placeholder" => output.placeholder)
+        ),
+        InputWidget(
+            key = "percentile",
+            label = "Percentile",
+            value = nothing,
+            type = "number",
+            attributes = Dict(
+                "placeholder" => percentile.placeholder,
+                "min" => percentile.min,
+                "max" => percentile.max,
+                "step" => percentile.step
+            ),
+            conditional = Dict("method" => ["percentile"])
+        ),
+        SelectWidget(
+            key = "tiles",
+            label = "Tiles",
+            value = [],
+            multiple = true,
+            type = "number",
+            options = ["1", "2"],
+            attributes = Dict("placeholder" => tiles.placeholder),
+            conditional = Dict("method" => ["tiles"])
+        ),
+    ]
+
+    return CardWidget(; type = "split", label = "Split", output = OutputSpec("output"), fields)
+end

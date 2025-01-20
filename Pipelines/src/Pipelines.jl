@@ -1,6 +1,6 @@
 module Pipelines
 
-export get_card, AbstractCard, RescaleCard, SplitCard
+export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard
 
 public train, evaluate, deevaluate
 
@@ -62,6 +62,7 @@ using DataInterpolations: ExtrapolationType,
     PCHIPInterpolation
 
 include("tables.jl")
+include("widgets.jl")
 include("card.jl")
 
 include("cards/split.jl")

@@ -101,3 +101,10 @@ function filter_partition(::Nothing, n::Integer = 1)
     end
     return identity
 end
+
+function card_configurations(; rescale = (;), split = (;))
+    return [
+        CardWidget(RescaleCard; rescale...),
+        CardWidget(SplitCard; split...),
+    ]
+end

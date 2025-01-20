@@ -110,7 +110,7 @@ struct Rescaler
     invtransform::Union{Base.Callable, Nothing}
 end
 
-const RESCALERS = Dict{String, Rescaler}(
+const RESCALERS = OrderedDict{String, Rescaler}(
     "zscore" => Rescaler(Pair["mean" => Agg.mean, "std" => Agg.stddev_pop], zscore_transform, zscore_invtransform),
     "maxabs" => Rescaler(Pair["maxabs" => Agg.max ∘ Fun.abs], maxabs_transform, maxabs_invtransform),
     "minmax" => Rescaler(Pair["max" => Agg.max, "min" => Agg.min], minmax_transform, minmax_invtransform),
@@ -194,11 +194,12 @@ function CardWidget(
         suffix = (placeholder = "Select...",)
     )
 
-    methods = ["zscore", "maxabs", "minmax", "log", "logistic"]
+    methods = collect(keys(RESCALERS))
+    need_group = [k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 
     fields = [
         MethodWidget(methods),
-        GroupWidget(conditional = Dict("method" => ["zscore", "maxabs", "minmax"])),
+        GroupWidget(conditional = Dict("method" => need_group)),
         SelectWidget(
             key = "columns",
             label = "Columns",

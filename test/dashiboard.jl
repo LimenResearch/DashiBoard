@@ -34,11 +34,18 @@ mktempdir() do data_dir
     @testset "request" begin
         url = "http://127.0.0.1:8080/"
 
-        resp = HTTP.post(url * "load", body = read(joinpath(@__DIR__, "static", "load.json"), String))
+        body = read(joinpath(@__DIR__, "static", "card-configurations.json"), String)
+        resp = HTTP.post(url * "card-configurations", body = body)
+        configs = JSON3.read(resp.body)
+        @test configs isa AbstractVector
+
+        body = read(joinpath(@__DIR__, "static", "load.json"), String)
+        resp = HTTP.post(url * "load", body = body)
         summaries = JSON3.read(resp.body)
         @test summaries[end]["name"] == "_name"
 
-        resp = HTTP.post(url * "pipeline", body = read(joinpath(@__DIR__, "static", "pipeline.json"), String))
+        body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
+        resp = HTTP.post(url * "pipeline", body = body)
         summaries = JSON3.read(resp.body)
 
         @test summaries[end]["name"] == "_percentile_partition"

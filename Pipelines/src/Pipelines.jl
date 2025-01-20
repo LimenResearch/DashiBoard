@@ -4,6 +4,7 @@ export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard
 
 public train, evaluate, deevaluate
 
+using OrderedCollections: OrderedDict
 using Tables: Tables
 using DBInterface: DBInterface
 using DuckDBUtils: Repository,

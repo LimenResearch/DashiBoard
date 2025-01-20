@@ -7,7 +7,7 @@ function Interpolator(method::Base.Callable; has_dir::Bool = false)
     return Interpolator(method, has_dir)
 end
 
-const EXTRAPOLATION_OPTIONS = Dict(
+const EXTRAPOLATION_OPTIONS = OrderedDict(
     "none" => ExtrapolationType.None,
     "constant" => ExtrapolationType.Constant,
     "linear" => ExtrapolationType.Linear,
@@ -16,9 +16,9 @@ const EXTRAPOLATION_OPTIONS = Dict(
     "reflective" => ExtrapolationType.Reflective,
 )
 
-const DIRECTION_OPTIONS = Dict("left" => :left, "right" => :right)
+const DIRECTION_OPTIONS = OrderedDict("left" => :left, "right" => :right)
 
-const INTERPOLATORS = Dict(
+const INTERPOLATORS = OrderedDict(
     "constant" => Interpolator(ConstantInterpolation, has_dir = true),
     "linear" => Interpolator(LinearInterpolation),
     "quadratic" => Interpolator(QuadraticInterpolation),
@@ -32,10 +32,11 @@ const INTERPOLATORS = Dict(
     struct InterpCard <: AbstractCard
         predictor::String
         targets::Vector{String}
-        weights::Union{String, Nothing} = nothing
-        distribution::String = "normal"
-        link::Union{String, Nothing} = nothing
-        link_params::Vector{Any} = Any[]
+        method::String = "linear"
+        extrapolation_left::String = "none"
+        extrapolation_right::String = "none"
+        dir::String = "left"
+        partition::Union{String, Nothing} = nothing
         suffix::String = "hat"
     end
 

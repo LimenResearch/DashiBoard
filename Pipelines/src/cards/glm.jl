@@ -5,7 +5,7 @@ to_term(x::AbstractVector) = mapfoldl(to_term, *, x)
 to_predictors(x::AbstractVector) = mapfoldl(to_term, +, x)
 to_target(x::AbstractString) = to_term(x)
 
-const NOISE_MODELS = Dict(
+const NOISE_MODELS = OrderedDict(
     "normal" => Normal(),
     "binomial" => Binomial(),
     "gamma" => Gamma(),
@@ -13,7 +13,7 @@ const NOISE_MODELS = Dict(
     "poisson" => Poisson(),
 )
 
-const LINK_FUNCTIONS = Dict(
+const LINK_FUNCTIONS = OrderedDict(
     "cauchit" => CauchitLink,
     "cloglog" => CloglogLink,
     "identity" => IdentityLink,

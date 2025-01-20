@@ -37,16 +37,75 @@ function MethodWidget(methods; attributes::AbstractDict = Dict{String, Any}())
     )
 end
 
+function VariableWidget(;
+        label::AbstractString, key::AbstractString, multiple::Bool,
+        attributes::AbstractDict = Dict{String, Any}(),
+        conditional::AbstractDict = Dict{String, Any}()
+    )
+
+    return SelectWidget(;
+        key,
+        label,
+        value = multiple ? [] : nothing,
+        multiple,
+        options = Dict("-v" => "names"),
+        attributes,
+        conditional
+    )
+end
+
+function TargetWidget(;
+        multiple::Bool,
+        attributes::AbstractDict = Dict{String, Any}(),
+        conditional::AbstractDict = Dict{String, Any}()
+    )
+
+    key = multiple ? "targets" : "target"
+    label = multiple ? "Targets" : "Target"
+    return VariableWidget(; key, label, multiple, attributes, conditional)
+end
+
+function PredictorWidget(;
+        multiple::Bool,
+        attributes::AbstractDict = Dict{String, Any}(),
+        conditional::AbstractDict = Dict{String, Any}()
+    )
+
+    key = multiple ? "predictors" : "predictor"
+    label = multiple ? "Predictors" : "Predictor"
+    return VariableWidget(; key, label, multiple, attributes, conditional)
+end
+
+function WeightsWidget(;
+        attributes::AbstractDict = Dict{String, Any}(),
+        conditional::AbstractDict = Dict{String, Any}()
+    )
+
+    multiple = false
+    key = "weights"
+    label = "Weights"
+    return VariableWidget(; key, label, multiple, attributes, conditional)
+end
+
+function PartitionWidget(;
+        attributes::AbstractDict = Dict{String, Any}(),
+        conditional::AbstractDict = Dict{String, Any}()
+    )
+
+    multiple = false
+    key = "partition"
+    label = "Partition"
+    return VariableWidget(; key, label, multiple, attributes, conditional)
+end
+
 function OrderWidget(;
         attributes::AbstractDict = Dict{String, Any}(),
         conditional::AbstractDict = Dict{String, Any}()
     )
-    return SelectWidget(;
+    return VariableWidget(;
         key = "order_by",
         label = "Order",
-        value = [],
         multiple = true,
-        options = Dict("-v" => "names"),
         attributes,
         conditional
     )
@@ -56,12 +115,10 @@ function GroupWidget(;
         attributes::AbstractDict = Dict{String, Any}(),
         conditional::AbstractDict = Dict{String, Any}()
     )
-    return SelectWidget(;
+    return VariableWidget(;
         key = "by",
         label = "Group",
-        value = [],
         multiple = true,
-        options = Dict("-v" => "names"),
         attributes,
         conditional
     )

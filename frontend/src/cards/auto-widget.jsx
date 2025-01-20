@@ -18,7 +18,16 @@ export function AutoWidget(props) {
     const [value, setter] = props.input;
     const init = value(); // No reactivity here
     const defaults = () => ({ names: props.names });
-    const parse = x => props.type === "number" ? parseFloat(x) : x;
+    const parse = x => {
+        if (props.type === "number") {
+            const y = parseFloat(x);
+            return isNaN(y) ? null : y;
+        } else if (props.type === "text" && x === "") {
+            return null;
+        } else {
+            return x;
+        }
+    };
     const parseAll = x => props.multiple ? x.map(parse) : parse(x);
     const updateValue = x => setter(props.key, parseAll(x));
 
@@ -31,9 +40,9 @@ export function AutoWidget(props) {
                 <label for={props.id + props.key} class={selectClass}>
                     {props.label}
                 </label>
-                <Select id={props.id + "by"} onChange={updateValue}
+                <Select id={props.id + props.key} onChange={updateValue}
                     multiple={props.multiple} class="mb-2" {...wdgProps}
-                    {...props.attributes}>
+                    {...props.attributes} initialValue={init[props.key]}>
                 </Select>
             </>;
             break;
@@ -42,7 +51,7 @@ export function AutoWidget(props) {
                 <label for={props.id + props.key} class={selectClass}>
                     {props.label}
                 </label>
-                <Input id={props.id + "by"} onChange={ev => updateValue(ev.target.value)}
+                <Input id={props.id + props.key} onChange={ev => updateValue(ev.target.value)}
                     class="w-full mb-2" type={props.type} value={init[props.key]}
                     {...props.attributes}>
                 </Input>

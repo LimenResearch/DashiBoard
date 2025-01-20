@@ -103,7 +103,7 @@ function CardWidget(
             attributes = Dict("placeholder" => output.placeholder)
         ),
         InputWidget(
-            key = "percentile",
+            key = "p",
             label = "Percentile",
             value = nothing,
             type = "number",
@@ -121,7 +121,7 @@ function CardWidget(
             value = [],
             multiple = true,
             type = "number",
-            options = ["1", "2"],
+            options = [1, 2],
             attributes = Dict("placeholder" => tiles.placeholder),
             conditional = Dict("method" => ["tiles"])
         ),

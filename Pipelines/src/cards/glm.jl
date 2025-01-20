@@ -43,7 +43,7 @@ Run a Generalized Linear Model (GLM), predicting `target` from `predictors`.
     predictors::Vector{Any} = Any[]
     target::String
     weights::Union{String, Nothing} = nothing
-    distribution::String = "normal"
+    distribution::Union{String, Nothing} = nothing
     link::Union{String, Nothing} = nothing
     link_params::Vector{Any} = Any[]
     partition::Union{String, Nothing} = nothing
@@ -78,7 +78,7 @@ function train(
     t = DBInterface.execute(fromtable, repo, q; schema)
 
     formula = to_target(g.target) ~ to_predictors(g.predictors)
-    dist = NOISE_MODELS[g.distribution]
+    dist = NOISE_MODELS[something(g.distribution, "normal")]
     link = isnothing(g.link) ? canonicallink(dist) : LINK_FUNCTIONS[g.link](g.link_params...)
     weights = isnothing(g.weights) ? similar(t[g.target], 0) : t[g.weights]
     # TODO save slim version with no data
@@ -99,4 +99,47 @@ function evaluate(
     t[pred_name] = predict(model, t)
 
     load_table(repo, t, dest; schema)
+end
+
+function CardWidget(
+        ::Type{GLMCard};
+        predictors = (placeholder = "Select...",),
+        target = (placeholder = "Select...",),
+        weights = (placeholder = "Select...",),
+        distribution = (placeholder = "Select...",),
+        link = (placeholder = "Select...",),
+        partition = (placeholder = "Select...",),
+        suffix = (placeholder = "Select...",),
+    )
+
+    fields = [
+        PredictorWidget(multiple = true, attributes = Dict("placeholder" => predictors.placeholder)),
+        TargetWidget(multiple = false, attributes = Dict("placeholder" => target.placeholder)),
+        WeightsWidget(attributes = Dict("placeholder" => weights.placeholder)),
+        SelectWidget(
+            key = "distribution",
+            label = "Noise",
+            value = "normal",
+            multiple = false,
+            options = collect(keys(NOISE_MODELS)),
+            attributes = Dict("placeholder" => distribution.placeholder)
+        ),
+        SelectWidget(
+            key = "link",
+            label = "Link",
+            value = nothing,
+            multiple = false,
+            options = collect(keys(LINK_FUNCTIONS)),
+            attributes = Dict("placeholder" => link.placeholder)
+        ),
+        PartitionWidget(attributes = Dict("placeholder" => partition.placeholder)),
+        SuffixWidget(value = "hat", attributes = Dict("placeholder" => suffix.placeholder)),
+    ]
+
+    return CardWidget(;
+        type = "glm",
+        label = "GLM",
+        output = OutputSpec("target", "suffix"),
+        fields
+    )
 end

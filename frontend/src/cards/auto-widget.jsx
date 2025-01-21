@@ -38,7 +38,8 @@ export function AutoWidget(props) {
                 </label>
                 <Select id={props.id + props.key} onChange={updateValue}
                     multiple={props.multiple} class="mb-2" {...wdgProps}
-                    placeholder={props.placeholder} initialValue={init[props.key] || ""}>
+                    placeholder={props.placeholder} initialValue={init[props.key] || ""}
+                    required={applyFilter(props.required || {}, value())}>
                 </Select>
             </>;
             break;
@@ -49,14 +50,15 @@ export function AutoWidget(props) {
                 </label>
                 <Input id={props.id + props.key}
                     onChange={ev => updateValue(ev.target.value)}
-                    class="w-full mb-2" type={props.type} value={init[props.key]}
+                    class="w-full mb-2" type={props.type}
+                    value={init[props.key]} placeholder={props.placeholder}
                     min={props.min} max={props.max} step={props.step}
-                    placeholder={props.placeholder}>
+                    required={applyFilter(props.required || {}, value())}>
                 </Input>
             </>;
             break;
         default:
             console.log("widget not available");
     }
-    return <Show when={applyFilter(props.conditional || {}, value())}>{wdg}</Show>;
+    return <Show when={applyFilter(props.visible || {}, value())}>{wdg}</Show>;
 }

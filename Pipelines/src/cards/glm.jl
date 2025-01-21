@@ -104,25 +104,13 @@ end
 function CardWidget(::Type{GLMCard})
 
     fields = [
-        PredictorWidget(multiple = true),
-        TargetWidget(multiple = false),
-        WeightsWidget(),
-        SelectWidget(
-            key = "distribution",
-            label = "Noise",
-            multiple = false,
-            placeholder = "Select noise model...",
-            options = collect(keys(NOISE_MODELS))
-        ),
-        SelectWidget(
-            key = "link",
-            label = "Link",
-            multiple = false,
-            placeholder = "Select link function...",
-            options = collect(keys(LINK_FUNCTIONS))
-        ),
-        PartitionWidget(),
-        SuffixWidget(value = "hat"),
+        SelectWidget("predictors"),
+        SelectWidget("target"),
+        SelectWidget("weights"),
+        SelectWidget("distribution", options = collect(keys(NOISE_MODELS))),
+        SelectWidget("link", options = collect(keys(LINK_FUNCTIONS))),
+        SelectWidget("partition"),
+        TextWidget("suffix", value = "hat"),
     ]
 
     return CardWidget(;

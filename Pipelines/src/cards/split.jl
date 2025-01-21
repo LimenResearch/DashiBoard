@@ -4,7 +4,7 @@
         order_by::Vector{String}
         by::Vector{String} = String[]
         output::String
-        p::Union{Float64, Nothing} = nothing
+        percentile::Union{Float64, Nothing} = nothing
         tiles::Vector{Int} = Int[]
     end
 
@@ -12,14 +12,14 @@ Card to split the data into two groups according to a given `method`.
 
 Currently supported methods are
 - `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
-- `percentile` (requires `p` argument, e.g. `p = 0.9`).
+- `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
 @kwdef struct SplitCard <: AbstractCard
     method::String
     order_by::Vector{String}
     by::Vector{String} = String[]
     output::String
-    p::Union{Float64, Nothing} = nothing
+    percentile::Union{Float64, Nothing} = nothing
     tiles::Vector{Int} = Int[]
 end
 
@@ -52,7 +52,7 @@ function splitter(s::SplitCard)
         N = length(s.tiles)
         return Fun.list_extract(Fun.list_value(s.tiles...), Agg.ntile(N))
     elseif method == "percentile"
-        return Fun.case(Agg.percent_rank() .<= s.p, 1, 2)
+        return Fun.case(Agg.percent_rank() .<= s.percentile, 1, 2)
     else
         throw(ArgumentError("method $method is not supported"))
     end
@@ -90,34 +90,18 @@ function CardWidget(
     options = ["percentile", "tiles"]
 
     fields = [
-        MethodWidget(; options),
-        OrderWidget(),
-        GroupWidget(),
-        TextWidget(
-            key = "output",
-            label = "Output",
-            placeholder = "Select output name...",
-            value = "partition",
-            type = "text",
-        ),
-        NumberWidget(;
-            key = "p",
-            label = "Percentile",
-            placeholder = "Select percentile value...",
+        SelectWidget("method"; options),
+        SelectWidget("order_by"),
+        SelectWidget("by"),
+        TextWidget("output", value = "partition"),
+        NumberWidget(
+            "percentile";
             percentile.min,
             percentile.max,
             percentile.step,
-            conditional = Dict("method" => ["percentile"])
+            visible = Dict("method" => ["percentile"])
         ),
-        SelectWidget(
-            key = "tiles",
-            label = "Tiles",
-            placeholder = "Select tiles...",
-            multiple = true,
-            type = "number",
-            options = [1, 2],
-            conditional = Dict("method" => ["tiles"])
-        ),
+        SelectWidget("tiles", visible = Dict("method" => ["tiles"]))
     ]
 
     return CardWidget(; type = "split", label = "Split", output = OutputSpec("output"), fields)

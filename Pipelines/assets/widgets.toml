@@ -1,0 +1,92 @@
+[suffix]
+label = "Suffix"
+placeholder = "Select suffix..."
+
+[output]
+label = "Output"
+placeholder = "Select output name..."
+
+[method]
+label = "Method"
+placeholder = "Select method..."
+
+[columns]
+label = "Columns"
+placeholder = "Select columns..."
+multiple = true
+options = {"-v" = "names"}
+
+[target]
+label = "Target"
+placeholder = "Select target variable..."
+options = {"-v" = "names"}
+
+[targets]
+label = "Targets"
+placeholder = "Select target variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[predictor]
+label = "Predictor"
+placeholder = "Select predictor variable..."
+options = {"-v" = "names"}
+
+[predictors]
+label = "Predictors"
+placeholder = "Select predictor variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[weights]
+label = "Weights"
+placeholder = "Select weight variable..."
+options = {"-v" = "names"}
+
+[partition]
+label = "Partition"
+placeholder = "Select partition variable..."
+options = {"-v" = "names"}
+
+[by]
+label = "Group"
+placeholder = "Select grouping variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[order_by]
+label = "Order"
+placeholder = "Select ordering variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[tiles]
+label = "Tiles"
+placeholder = "Select tiles..."
+multiple = true
+type = "number"
+options = [1, 2]
+
+[percentile]
+label = "Percentile"
+placeholder = "Select percentile..."
+
+[distribution]
+label = "Noise"
+placeholder = "Select noise model..."
+
+[link]
+label = "Link"
+placeholder = "Select link function..."
+
+[extrapolation_left]
+label = "Extrapolation (left)"
+placeholder = "Select extrapolation function..."
+
+[extrapolation_right]
+label = "Extrapolation (right)"
+placeholder = "Select extrapolation function..."
+
+[dir]
+label = "Extrapolation direction"
+placeholder = "Select extrapolation direction..."

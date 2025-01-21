@@ -184,7 +184,7 @@ mktempdir() do dir
 
         card = Pipelines.get_card(d["constant"])
 
-        @test issetequal(Pipelines.inputs(card), ["No"])
+        @test issetequal(Pipelines.inputs(card), ["No", "partition"])
         @test issetequal(Pipelines.outputs(card), ["TEMP", "PRES"])
 
         Pipelines.evaluate(repo, card, "partition" => "interp")
@@ -219,7 +219,7 @@ mktempdir() do dir
 
         card = Pipelines.get_card(d["quadratic"])
 
-        @test issetequal(Pipelines.inputs(card), ["No"])
+        @test issetequal(Pipelines.inputs(card), ["No", "partition"])
         @test issetequal(Pipelines.outputs(card), ["TEMP", "PRES"])
 
         Pipelines.evaluate(repo, card, "partition" => "interp")

@@ -200,7 +200,6 @@ function CardWidget(::Type{RescaleCard})
         SelectWidget(
             key = "columns",
             label = "Columns",
-            value = [],
             placeholder = "Select columns...",
             multiple = true,
             options = Dict("-v" => "names")

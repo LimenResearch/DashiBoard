@@ -102,10 +102,17 @@ function filter_partition(::Nothing, n::Integer = 1)
     return identity
 end
 
-function card_configurations(; rescale = (;), split = (;), glm = (;))
+function card_configurations(;
+        rescale = (;),
+        split = (;),
+        glm = (;),
+        interp = (;),
+    )
+
     return [
         CardWidget(SplitCard; split...),
         CardWidget(RescaleCard; rescale...),
         CardWidget(GLMCard; glm...),
+        CardWidget(InterpCard; interp...),
     ]
 end

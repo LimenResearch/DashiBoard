@@ -96,14 +96,13 @@ function CardWidget(
         TextWidget(
             key = "output",
             label = "Output",
+            placeholder = "Select output name...",
             value = "partition",
             type = "text",
-            placeholder = "Select output name..."
         ),
         NumberWidget(;
             key = "p",
             label = "Percentile",
-            value = nothing,
             placeholder = "Select percentile value...",
             percentile.min,
             percentile.max,
@@ -113,7 +112,6 @@ function CardWidget(
         SelectWidget(
             key = "tiles",
             label = "Tiles",
-            value = Int[],
             placeholder = "Select tiles...",
             multiple = true,
             type = "number",

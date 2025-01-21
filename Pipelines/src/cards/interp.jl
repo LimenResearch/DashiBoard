@@ -107,3 +107,43 @@ function evaluate(
 
     load_table(repo, t, dest; schema)
 end
+
+function CardWidget(::Type{InterpCard})
+    methods = collect(keys(INTERPOLATORS))
+    extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
+    direction_options = collect(keys(DIRECTION_OPTIONS))
+
+    fields = [
+        PredictorWidget(multiple = false),
+        TargetWidget(multiple = true),
+        MethodWidget(methods),
+        SelectWidget(
+            key = "extrapolation_left",
+            label = "Extrapolation (left)",
+            placeholder = "Select extrapolation method...",
+            options = extrapolation_options
+        ),
+        SelectWidget(
+            key = "extrapolation_right",
+            label = "Extrapolation (right)",
+            placeholder = "Select extrapolation method...",
+            options = extrapolation_options
+        ),
+        SelectWidget(
+            key = "dir",
+            label = "Direction",
+            placeholder = "Select extrapolation direction...",
+            options = direction_options,
+            conditional = Dict("method" => ["constant"])
+        ),
+        PartitionWidget(),
+        SuffixWidget(value = "hat")
+    ]
+
+    return CardWidget(;
+        type = "interp",
+        label = "Interpolation",
+        output = OutputSpec("targets", "suffix"),
+        fields
+    )
+end

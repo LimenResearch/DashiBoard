@@ -110,17 +110,15 @@ function CardWidget(::Type{GLMCard})
         SelectWidget(
             key = "distribution",
             label = "Noise",
-            value = nothing,
-            placeholder = "Select noise model...",
             multiple = false,
+            placeholder = "Select noise model...",
             options = collect(keys(NOISE_MODELS))
         ),
         SelectWidget(
             key = "link",
             label = "Link",
-            value = nothing,
-            placeholder = "Select link function...",
             multiple = false,
+            placeholder = "Select link function...",
             options = collect(keys(LINK_FUNCTIONS))
         ),
         PartitionWidget(),

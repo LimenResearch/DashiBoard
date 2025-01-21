@@ -14,11 +14,16 @@ function applyTemplate(obj, def) {
     return (k != null) ? def[k] : obj;
 }
 
+function parseNumber(s) {
+    const x = parseFloat(s);
+    return isNaN(x) ? null : x;
+}
+
 export function AutoWidget(props) {
     const [value, setter] = props.input;
     const init = value(); // No reactivity here
     const defaults = () => ({ names: props.names });
-    const parse = x => (props.type === "number") ? parseFloat(x) : x;
+    const parse = x => (props.type === "number") ? parseNumber(x) : x;
     const parseAll = x => props.multiple ? x.map(parse) : parse(x);
     const updateValue = x => setter(props.key, parseAll(x));
 

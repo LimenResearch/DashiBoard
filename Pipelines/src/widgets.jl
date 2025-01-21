@@ -5,7 +5,7 @@ abstract type AbstractWidget end
     key::String
     label::String
     placeholder::String
-    value::Float64 = NaN
+    value::Union{Float64, Nothing} = nothing
     min::Union{Float64, Nothing} = nothing
     max::Union{Float64, Nothing} = nothing
     step::Union{Float64, Nothing} = nothing

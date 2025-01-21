@@ -4,7 +4,7 @@
         order_by::Vector{String}
         by::Vector{String} = String[]
         output::String
-        p::Float64 = NaN
+        p::Union{Float64, Nothing} = nothing
         tiles::Vector{Int} = Int[]
     end
 
@@ -19,7 +19,7 @@ Currently supported methods are
     order_by::Vector{String}
     by::Vector{String} = String[]
     output::String
-    p::Float64 = NaN
+    p::Union{Float64, Nothing} = nothing
     tiles::Vector{Int} = Int[]
 end
 

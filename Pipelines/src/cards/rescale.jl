@@ -198,6 +198,7 @@ function CardWidget(::Type{RescaleCard})
         SelectWidget("method"; options),
         SelectWidget("by", visible = Dict("method" => need_group)),
         SelectWidget("columns"),
+        SelectWidget("partition"),
         SuffixWidget(value = "rescaled"),
     ]
 

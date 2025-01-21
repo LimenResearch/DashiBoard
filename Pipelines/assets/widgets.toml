@@ -39,6 +39,11 @@ label = "Weights"
 placeholder = "Select weight variable..."
 options = {"-v" = "names"}
 
+[partition]
+label = "Partition"
+placeholder = "Select partition variable..."
+options = {"-v" = "names"}
+
 [by]
 label = "Group"
 placeholder = "Select grouping variables..."
@@ -57,3 +62,23 @@ placeholder = "Select tiles..."
 multiple = true
 type = "number"
 options = [1, 2]
+
+[distribution]
+label = "Noise"
+placeholder = "Select noise model..."
+
+[link]
+label = "Link"
+placeholder = "Select link function..."
+
+[extrapolation_left]
+label = "Extrapolation (left)"
+placeholder = "Select extrapolation function..."
+
+[extrapolation_right]
+label = "Extrapolation (right)"
+placeholder = "Select extrapolation function..."
+
+[dir]
+label = "Extrapolation direction"
+placeholder = "Select extrapolation direction..."

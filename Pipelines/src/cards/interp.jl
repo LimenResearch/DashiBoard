@@ -119,32 +119,26 @@ function CardWidget(::Type{InterpCard})
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
     fields = [
-        PredictorWidget(multiple = false),
-        TargetWidget(multiple = true),
-        MethodWidget(; options, value = "linear"),
+        SelectWidget("predictor"),
+        SelectWidget("targets"),
+        SelectWidget("method"; options, value = "linear"),
         SelectWidget(
-            key = "extrapolation_left",
-            label = "Extrapolation (left)",
-            placeholder = "Select extrapolation method...",
+            "extrapolation_left",
             value = "linear",
             options = extrapolation_options
         ),
         SelectWidget(
-            key = "extrapolation_right",
-            label = "Extrapolation (right)",
-            placeholder = "Select extrapolation method...",
+            "extrapolation_right",
             value = "linear",
             options = extrapolation_options
         ),
         SelectWidget(
-            key = "dir",
-            label = "Direction",
-            placeholder = "Select extrapolation direction...",
+            "dir",
             options = direction_options,
             value = "left",
-            conditional = Dict("method" => ["constant"])
+            visible = Dict("method" => ["constant"])
         ),
-        PartitionWidget(),
+        SelectWidget("partition"),
         SuffixWidget(value = "hat")
     ]
 

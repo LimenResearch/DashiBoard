@@ -1,4 +1,4 @@
-const WIDGET_CONFIG = TOML.parsefile(joinpath(@__DIR__, "..", "assets", "widgets.toml"))
+widget_config() = TOML.parsefile(joinpath(@__DIR__, "..", "assets", "widgets.toml"))
 
 abstract type AbstractWidget end
 
@@ -55,7 +55,7 @@ function SelectWidget(
     )
 
     widget = "select"
-    conf = WIDGET_CONFIG[key]
+    conf = widget_config()[key]
     label = get(conf, "label", "")
     placeholder = get(conf, "placeholder", "")
     options = @something options conf["options"]

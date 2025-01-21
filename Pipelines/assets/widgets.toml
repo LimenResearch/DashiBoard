@@ -1,0 +1,59 @@
+[suffix]
+label = "Suffix"
+placeholder = "Select suffix..."
+
+[method]
+label = "Method"
+placeholder = "Select method..."
+
+[columns]
+label = "Columns"
+placeholder = "Select columns..."
+multiple = true
+options = {"-v" = "names"}
+
+[target]
+label = "Target"
+placeholder = "Select target variable..."
+options = {"-v" = "names"}
+
+[targets]
+label = "Targets"
+placeholder = "Select target variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[predictor]
+label = "Predictor"
+placeholder = "Select predictor variable..."
+options = {"-v" = "names"}
+
+[predictors]
+label = "Predictors"
+placeholder = "Select predictor variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[weights]
+label = "Weights"
+placeholder = "Select weight variable..."
+options = {"-v" = "names"}
+
+[by]
+label = "Group"
+placeholder = "Select grouping variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[order_by]
+label = "Order"
+placeholder = "Select ordering variables..."
+multiple = true
+options = {"-v" = "names"}
+
+[tiles]
+label = "Tiles"
+placeholder = "Select tiles..."
+multiple = true
+type = "number"
+options = [1, 2]

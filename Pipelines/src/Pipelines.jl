@@ -4,6 +4,8 @@ export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard
 
 public train, evaluate, deevaluate
 
+using TOML: TOML
+
 using OrderedCollections: OrderedDict
 using Tables: Tables
 using DBInterface: DBInterface

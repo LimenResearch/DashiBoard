@@ -195,15 +195,9 @@ function CardWidget(::Type{RescaleCard})
     need_group = [k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 
     fields = [
-        MethodWidget(; options),
-        GroupWidget(conditional = Dict("method" => need_group)),
-        SelectWidget(
-            key = "columns",
-            label = "Columns",
-            placeholder = "Select columns...",
-            multiple = true,
-            options = Dict("-v" => "names")
-        ),
+        SelectWidget("method"; options),
+        SelectWidget("by", visible = Dict("method" => need_group)),
+        SelectWidget("columns"),
         SuffixWidget(value = "rescaled"),
     ]
 

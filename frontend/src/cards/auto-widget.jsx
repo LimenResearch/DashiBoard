@@ -18,16 +18,7 @@ export function AutoWidget(props) {
     const [value, setter] = props.input;
     const init = value(); // No reactivity here
     const defaults = () => ({ names: props.names });
-    const parse = x => {
-        if (props.type === "number") {
-            const y = parseFloat(x);
-            return isNaN(y) ? null : y;
-        } else if (props.type === "text" && x === "") {
-            return null;
-        } else {
-            return x;
-        }
-    };
+    const parse = x => (props.type === "number") ? parseFloat(x) : x;
     const parseAll = x => props.multiple ? x.map(parse) : parse(x);
     const updateValue = x => setter(props.key, parseAll(x));
 
@@ -42,7 +33,7 @@ export function AutoWidget(props) {
                 </label>
                 <Select id={props.id + props.key} onChange={updateValue}
                     multiple={props.multiple} class="mb-2" {...wdgProps}
-                    placeholder={props.placeholder} initialValue={init[props.key]}>
+                    placeholder={props.placeholder} initialValue={init[props.key] || ""}>
                 </Select>
             </>;
             break;

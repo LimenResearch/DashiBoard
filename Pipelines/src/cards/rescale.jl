@@ -191,11 +191,11 @@ end
 
 function CardWidget(::Type{RescaleCard})
 
-    methods = collect(keys(RESCALERS))
+    options = collect(keys(RESCALERS))
     need_group = [k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 
     fields = [
-        MethodWidget(methods),
+        MethodWidget(; options),
         GroupWidget(conditional = Dict("method" => need_group)),
         SelectWidget(
             key = "columns",

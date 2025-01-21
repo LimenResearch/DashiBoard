@@ -38,6 +38,7 @@ mktempdir() do data_dir
         resp = HTTP.post(url * "card-configurations", body = body)
         configs = JSON3.read(resp.body)
         @test configs isa AbstractVector
+        @test length(configs) == 4
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load", body = body)

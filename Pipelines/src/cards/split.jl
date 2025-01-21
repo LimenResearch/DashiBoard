@@ -87,10 +87,10 @@ function CardWidget(
         percentile = (min = 0, max = 1, step = 0.01),
     )
 
-    methods = ["percentile", "tiles"]
+    options = ["percentile", "tiles"]
 
     fields = [
-        MethodWidget(methods),
+        MethodWidget(; options),
         OrderWidget(),
         GroupWidget(),
         TextWidget(

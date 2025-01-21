@@ -46,14 +46,19 @@ Interpolate `targets` based on `predictor`.
     predictor::String
     targets::Vector{String}
     method::String = "linear"
-    extrapolation_left::String = "none"
-    extrapolation_right::String = "none"
-    dir::String = "left"
+    extrapolation_left::Union{String, Nothing} = nothing
+    extrapolation_right::Union{String, Nothing} = nothing
+    dir::Union{String, Nothing} = nothing
     partition::Union{String, Nothing} = nothing
     suffix::String = "hat"
 end
 
-inputs(ic::InterpCard) = Set{String}([ic.predictor])
+function inputs(ic::InterpCard)
+    i = Set{String}()
+    push!(i, ic.predictor)
+    isnothing(ic.partition) || push!(i, ic.partition)
+    return i
+end
 
 outputs(ic::InterpCard) = Set{String}(ic.targets)
 
@@ -71,9 +76,9 @@ function train(
         Order(Get(ic.predictor))
     t = DBInterface.execute(fromtable, repo, q; schema)
 
-    extrapolation_left = EXTRAPOLATION_OPTIONS[ic.extrapolation_left]
-    extrapolation_right = EXTRAPOLATION_OPTIONS[ic.extrapolation_right]
-    dir = DIRECTION_OPTIONS[ic.dir]
+    extrapolation_left = EXTRAPOLATION_OPTIONS[something(ic.extrapolation_left, "none")]
+    extrapolation_right = EXTRAPOLATION_OPTIONS[something(ic.extrapolation_right, "none")]
+    dir = DIRECTION_OPTIONS[something(ic.dir, "left")]
 
     return map(ic.targets) do target
         ip = INTERPOLATORS[ic.method]
@@ -109,24 +114,26 @@ function evaluate(
 end
 
 function CardWidget(::Type{InterpCard})
-    methods = collect(keys(INTERPOLATORS))
+    options = collect(keys(INTERPOLATORS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
     fields = [
         PredictorWidget(multiple = false),
         TargetWidget(multiple = true),
-        MethodWidget(methods),
+        MethodWidget(; options, value = "linear"),
         SelectWidget(
             key = "extrapolation_left",
             label = "Extrapolation (left)",
             placeholder = "Select extrapolation method...",
+            value = "linear",
             options = extrapolation_options
         ),
         SelectWidget(
             key = "extrapolation_right",
             label = "Extrapolation (right)",
             placeholder = "Select extrapolation method...",
+            value = "linear",
             options = extrapolation_options
         ),
         SelectWidget(
@@ -134,6 +141,7 @@ function CardWidget(::Type{InterpCard})
             label = "Direction",
             placeholder = "Select extrapolation direction...",
             options = direction_options,
+            value = "left",
             conditional = Dict("method" => ["constant"])
         ),
         PartitionWidget(),

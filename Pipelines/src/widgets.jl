@@ -5,7 +5,7 @@ abstract type AbstractWidget end
     key::String
     label::String
     placeholder::String
-    value::Union{Float64, Nothing} = nothing
+    value::Float64 = NaN
     min::Union{Float64, Nothing} = nothing
     max::Union{Float64, Nothing} = nothing
     step::Union{Float64, Nothing} = nothing
@@ -18,7 +18,7 @@ end
     key::String
     label::String
     placeholder::String
-    value::Union{String, Nothing} = nothing
+    value::String = ""
     type::String = "text"
     conditional::Dict{String, Any} = Dict{String, Any}()
 end
@@ -27,7 +27,7 @@ function SuffixWidget(; value::AbstractString)
     key = "suffix"
     label = "Suffix"
     placeholder = "Select suffix..."
-    return TextWidget(; key, label, placeholder)
+    return TextWidget(; key, label, placeholder, value)
 end
 
 struct SelectWidget <: AbstractWidget
@@ -58,11 +58,11 @@ function SelectWidget(;
     return SelectWidget(widget, key, label, placeholder, options, multiple, value, type, conditional)
 end
 
-function MethodWidget(options)
+function MethodWidget(; options, value = nothing)
     key = "method"
     label = "Method"
     placeholder = "Select method..."
-    return SelectWidget(; key, label, placeholder, options)
+    return SelectWidget(; key, label, placeholder, options, value)
 end
 
 function VariableWidget(;

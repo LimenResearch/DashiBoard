@@ -56,6 +56,7 @@ const CARD_TYPES = Dict(
     "rescale" => RescaleCard,
     "glm" => GLMCard,
     "interp" => InterpCard,
+    "gaussian" => GaussianCard
 )
 
 """

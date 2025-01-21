@@ -1,14 +1,22 @@
 """
     struct GaussianCard <: AbstractCard
 
-Defines a card for Gaussian transformations of a specified column.
+Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
-- `column::String`: The name of the column to transform.
-- `means::Int`: The number of means (Gaussian distributions) to generate.
-- `max::Float64`: The maximum value used for normalization (denominator).
-- `coef::Float64`: A coefficient for scaling the standard deviation.
-- `suffix::String`: A suffix added to the output column names.
+- `column::String`: Name of the column to transform.
+- `means::Int`: Number of Gaussian distributions to generate.
+- `max::Float64`: Maximum value used for normalization (denominator).
+- `coef::Float64`: Coefficient for scaling the standard deviation.
+- `suffix::String`: Suffix added to the output column names.
+- `method::String`: Preprocessing method applied to the column (e.g., `"identity"`, `"dayofyear"`, `"hour"`).
+
+Notes:
+- The `method` field determines the preprocessing applied to the column.
+- No automatic selection based on column type. The user must ensure compatibility:
+  - `"identity"`: Assumes the column is numeric.
+  - `"dayofyear"`: Assumes the column is a date or timestamp.
+  - `"hour"`: Assumes the column is a time or timestamp.
 """
 @kwdef struct GaussianCard <: AbstractCard
     column::String
@@ -16,105 +24,135 @@ Fields:
     max::Float64
     coef::Float64  = 0.5
     suffix::String = "gaussian"
+    method::String = "identity"  # Default preprocessing method
 end
 
-inputs(g::GaussianCard) = [g.column, g.means, g.max, g.coef]
-
+inputs(g::GaussianCard) = [g.column]
 outputs(g::GaussianCard) = [string(g.column, "_", g.suffix, "_", i) for i in 1:g.means]
 
 """
-train(repo::Repository, g::GaussianCard; schema=nothing) -> SimpleTable
+gaussian_train(repo::Repository, g::GaussianCard; schema=nothing) -> SimpleTable
 
 Generates a SimpleTable containing:
-- `sigma`: The standard deviation for the Gaussian transformations.
-- `denominator`: The normalization value.
-- `mean_1, mean_2, ..., mean_n`: Columns for each Gaussian mean.
-
-The means are evenly spaced in the range [0, 1].
-
-Args:
-- `repo`: The repository instance (not used but included for consistency).
-- `g`: The GaussianCard instance.
-- `schema`: Optional schema name.
+- `_σ`: Standard deviation for the Gaussian transformations.
+- `_d`: Normalization value.
+- `_μ_1, _μ_2, ..., _μ_n`: Gaussian means.
 
 Returns:
-- A SimpleTable (Dict{String, AbstractVector}) containing Gaussian parameters.
+- A SimpleTable (Dict{String, AbstractVector}) with Gaussian parameters.
 """
-function train(repo::Repository, g::GaussianCard; schema = nothing)
+function gaussian_train(g::GaussianCard)
     μs = range(0, stop=1, length=g.means)  # Means normalized between 0 and 1
     σ = round(step(μs) * g.coef, digits=4)
-
-    # Create a SimpleTable
-    stats = Dict(
-        "sigma" => [σ],  # Standard deviation
-        "denominator" => [g.max]  # Normalization value
-    )
+    params = Dict("_σ" => [σ], "_d" => [g.max])
     for (i, μ) in enumerate(μs)
-        stats["mean_$i"] = [μ]  # Add each mean as a separate key
+        params["_μ_$i"] = [μ]
     end
-    return SimpleTable(stats)
+    return SimpleTable(params)
+end
+
+"""
+gaussian_train(repo::Repository, g::GaussianCard; schema=nothing) -> SimpleTable
+
+Generates a SimpleTable containing:
+- `_σ`: Standard deviation for the Gaussian transformations.
+- `_d`: Normalization value.
+- `_μ_1, _μ_2, ..., _μ_n`: Gaussian means.
+
+Args:
+- `repo`: Repository instance (necessary for compatibility but unused).
+- `g`: GaussianCard instance.
+- `source`: Source table name (necessary for compatibility but unused).
+- `schema`: Optional schema name (necessary for compatibility but unused).
+
+Returns:
+- A SimpleTable (Dict{String, AbstractVector}) with Gaussian parameters.
+"""
+train(repo::Repository, g::GaussianCard, source::AbstractString; schema = nothing) = gaussian_train(g::GaussianCard)
+
+"""
+evaluate(repo::Repository, g::GaussianCard, params_tbl::SimpleTable, (source, target)::Pair; schema=nothing)
+
+Applies the Gaussian transformation defined by the GaussianCard to the source table.
+
+Steps:
+1. Preprocesses the column using the specified method (e.g., `"dayofyear"`, `"hour"`, `"identity"`).
+2. Temporarily registers the Gaussian parameters (`params_tbl`) using `with_table`.
+3. Joins the source table (with preprocessing applied) with the params table via a CROSS JOIN.
+4. Computes Gaussian-transformed columns (`gaussian_1`, `gaussian_2`, ...).
+5. Selects only the required columns (original and transformed), excluding intermediate values.
+6. Replaces the target table with the final results.
+
+Args:
+- `repo`: Repository instance.
+- `g`: GaussianCard instance.
+- `params_tbl`: SimpleTable containing Gaussian parameters (`_σ`, `_d`, `_μ_#`).
+- `source`: Source table name.
+- `target`: Target table name for the transformed data.
+- `schema`: Optional schema name.
+"""
+function evaluate(
+    repo::Repository, g::GaussianCard, params_tbl::SimpleTable, (source, target)::Pair; schema = nothing
+)
+    preprocess = get(GAUSSIAN_METHODS, g.method, nothing)
+    if isnothing(preprocess)
+        throw(ArgumentError("Method $(g.method) is not supported for GaussianCard"))
+    end
+
+    converted = [
+        string(g.column, "_", g.suffix, "_", i) => gaussian_transform(
+            Get("_transformed"), Get(Symbol("_μ_$i")), Get(:_σ), Get(:_d)
+        ) for i in 1:g.means
+    ]
+    
+    with_table(repo, params_tbl; schema) do tbl_name
+        transform_query = With(
+            :transformed_table => From(source) |>
+                Define(preprocess(Get(g.column)) |> As("_transformed"))
+        )
+        join_query = From(:transformed_table) |>
+            Join(From(tbl_name), on = true) |>  # CROSS JOIN with params table
+            Define(converted...) |>
+            transform_query
+        source_columns = DuckDBUtils.colnames(repo, source; schema)
+        select_query = join_query |>
+            Select(Get.(Symbol.(vcat(source_columns, outputs(g))))...)
+        replace_table(repo, select_query, target; schema)
+    end
 end
 
 """
 gaussian_transform(x, μ, σ, d) -> Float64
 
-Applies the Gaussian transformation:
+Computes the Gaussian transformation:
     exp(- ((x / d) - μ)^2 / σ)
 
 Args:
-- `x`: The input value to transform.
-- `μ`: The Gaussian mean.
-- `σ`: The standard deviation.
-- `d`: The normalization denominator.
+- `x`: Input value to transform.
+- `μ`: Gaussian mean.
+- `σ`: Standard deviation.
+- `d`: Normalization denominator.
 
 Returns:
-- The transformed value as a Float64.
+- Transformed value as Float64.
 """
 gaussian_transform(x, μ, σ, d) = @. exp(- ((x / d) - μ) * ((x / d) - μ) / σ)
 
-
 """
-evaluate(repo::Repository, g::GaussianCard, stats_tbl::SimpleTable, (source, target)::Pair; schema=nothing)
+GAUSSIAN_METHODS
 
-Evaluates the Gaussian transformation defined by the GaussianCard and applies it to the source table.
+Dictionary of preprocessing methods for GaussianCard.
 
-Args:
-- `repo`: The repository instance.
-- `g`: The GaussianCard instance.
-- `stats_tbl`: A SimpleTable containing the Gaussian parameters.
-- `source`: The source table name.
-- `target`: The target table name.
-- `schema`: Optional schema name.
+Keys:
+- `"identity"`: No transformation.
+- `"dayofyear"`: Applies the SQL `dayofyear` function.
+- `"hour"`: Applies the SQL `hour` function.
 
-This function:
-1. Temporarily registers the stats table using `with_table`.
-2. Joins the source table with the stats table using a CROSS JOIN.
-3. Carries over all columns from the source table.
-4. Generates new columns (`gaussian_1`, `gaussian_2`, ...) for the transformed values.
-5. Replaces the target table with the results.
+Values:
+- Functions taking a column name and returning the corresponding SQL transformation.
 """
-function evaluate(
-    repo::Repository, g::GaussianCard, stats_tbl::SimpleTable, (source, target)::Pair; schema = nothing
+const GAUSSIAN_METHODS = Dict(
+    "identity" => identity,  # No transformation
+    "dayofyear" => Fun.dayofyear,  # SQL dayofyear function
+    "hour" => Fun.hour  # SQL hour function
 )
-    # Generate transformed column expressions for each Gaussian
-    converted = [
-        string(g.column, "_", g.suffix, "_", i) => gaussian_transform(
-            Get(g.column),  # Input column
-            Get(Symbol("mean_$i")),  # Gaussian mean column
-            Get(:sigma),  # Sigma column
-            Get(:denominator)  # Denominator column
-        )
-        for i in 1:g.means
-    ]
-
-    # Use with_table to temporarily register the stats table
-    with_table(repo, stats_tbl; schema) do tbl_name
-        # Construct the query to join stats and carry over all source columns
-        query = From(source) |>
-            Join(From(tbl_name), on = true) |>  # CROSS JOIN
-            Define(converted...)  # Add transformed columns while keeping the original ones
-
-        # Replace the target table with the results
-        replace_table(repo, query, target; schema)
-    end
-end

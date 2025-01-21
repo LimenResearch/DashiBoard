@@ -2,6 +2,10 @@
 label = "Suffix"
 placeholder = "Select suffix..."
 
+[output]
+label = "Output"
+placeholder = "Select output name..."
+
 [method]
 label = "Method"
 placeholder = "Select method..."
@@ -62,6 +66,10 @@ placeholder = "Select tiles..."
 multiple = true
 type = "number"
 options = [1, 2]
+
+[percentile]
+label = "Percentile"
+placeholder = "Select percentile..."
 
 [distribution]
 label = "Noise"

@@ -93,17 +93,9 @@ function CardWidget(
         SelectWidget("method"; options),
         SelectWidget("order_by"),
         SelectWidget("by"),
-        TextWidget(
-            key = "output",
-            label = "Output",
-            placeholder = "Select output name...",
-            value = "partition",
-            type = "text",
-        ),
-        NumberWidget(;
-            key = "percentile",
-            label = "Percentile",
-            placeholder = "Select percentile value...",
+        TextWidget("output", value = "partition"),
+        NumberWidget(
+            "percentile";
             percentile.min,
             percentile.max,
             percentile.step,

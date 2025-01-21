@@ -199,7 +199,7 @@ function CardWidget(::Type{RescaleCard})
         SelectWidget("by", visible = Dict("method" => need_group)),
         SelectWidget("columns"),
         SelectWidget("partition"),
-        SuffixWidget(value = "rescaled"),
+        TextWidget("suffix", value = "rescaled"),
     ]
 
     return CardWidget(;

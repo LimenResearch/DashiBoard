@@ -110,7 +110,7 @@ function CardWidget(::Type{GLMCard})
         SelectWidget("distribution", options = collect(keys(NOISE_MODELS))),
         SelectWidget("link", options = collect(keys(LINK_FUNCTIONS))),
         SelectWidget("partition"),
-        SuffixWidget(value = "hat"),
+        TextWidget("suffix", value = "hat"),
     ]
 
     return CardWidget(;

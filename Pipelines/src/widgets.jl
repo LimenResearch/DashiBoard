@@ -2,36 +2,66 @@ widget_config() = TOML.parsefile(joinpath(@__DIR__, "..", "assets", "widgets.tom
 
 abstract type AbstractWidget end
 
-@kwdef struct NumberWidget <: AbstractWidget
-    widget::String = "input"
+struct NumberWidget <: AbstractWidget
+    widget::String
     key::String
     label::String
     placeholder::String
-    value::Union{Float64, Nothing} = nothing
-    min::Union{Float64, Nothing} = nothing
-    max::Union{Float64, Nothing} = nothing
-    step::Union{Float64, Nothing} = nothing
-    type::String = "number"
-    visible::Dict{String, Any} = Dict{String, Any}()
-    required::Dict{String, Any} = Dict{String, Any}()
+    value::Union{Float64, Nothing}
+    min::Union{Float64, Nothing}
+    max::Union{Float64, Nothing}
+    step::Union{Float64, Nothing}
+    type::String
+    visible::Dict{String, Any}
+    required::Dict{String, Any}
 end
 
-@kwdef struct TextWidget <: AbstractWidget
-    widget::String = "input"
+function NumberWidget(
+        key::AbstractString;
+        value::Union{Real, Nothing} = nothing,
+        min::Union{Real, Nothing} = nothing,
+        max::Union{Real, Nothing} = nothing,
+        step::Union{Real, Nothing} = nothing,
+        visible::AbstractDict = Dict{String, Any}(),
+        required::AbstractDict = visible
+    )
+
+    widget = "input"
+    conf = widget_config()[key]
+    label = get(conf, "label", "")
+    placeholder = get(conf, "placeholder", "")
+    type = "number"
+
+    return NumberWidget(
+        widget, key, label, placeholder, value, min, max, step, type, visible, required
+    )
+end
+
+struct TextWidget <: AbstractWidget
+    widget::String
     key::String
     label::String
     placeholder::String
-    value::String = ""
-    type::String = "text"
-    visible::Dict{String, Any} = Dict{String, Any}()
-    required::Dict{String, Any} = Dict{String, Any}()
+    value::String
+    type::String
+    visible::Dict{String, Any}
+    required::Dict{String, Any}
 end
 
-function SuffixWidget(; value::AbstractString)
-    key = "suffix"
-    label = "Suffix"
-    placeholder = "Select suffix..."
-    return TextWidget(; key, label, placeholder, value)
+function TextWidget(
+        key::AbstractString;
+        value::AbstractString = "",
+        visible::AbstractDict = Dict{String, Any}(),
+        required::AbstractDict = visible
+    )
+
+    widget = "input"
+    conf = widget_config()[key]
+    label = get(conf, "label", "")
+    placeholder = get(conf, "placeholder", "")
+    type = "text"
+
+    return TextWidget(widget, key, label, placeholder, value, type, visible, required)
 end
 
 struct SelectWidget <: AbstractWidget

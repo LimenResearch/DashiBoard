@@ -1,6 +1,8 @@
-widget_config() = TOML.parsefile(joinpath(@__DIR__, "..", "assets", "widgets.toml"))
+widget_config(key::AbstractString) = WIDGET_CONFIG[][key]
 
 abstract type AbstractWidget end
+
+# TODO: ensure that required is correct for all widgets
 
 struct NumberWidget <: AbstractWidget
     widget::String
@@ -27,7 +29,7 @@ function NumberWidget(
     )
 
     widget = "input"
-    conf = widget_config()[key]
+    conf = widget_config(key)
     label = get(conf, "label", "")
     placeholder = get(conf, "placeholder", "")
     type = "number"
@@ -56,7 +58,7 @@ function TextWidget(
     )
 
     widget = "input"
-    conf = widget_config()[key]
+    conf = widget_config(key)
     label = get(conf, "label", "")
     placeholder = get(conf, "placeholder", "")
     type = "text"
@@ -85,7 +87,7 @@ function SelectWidget(
     )
 
     widget = "select"
-    conf = widget_config()[key]
+    conf = widget_config(key)
     label = get(conf, "label", "")
     placeholder = get(conf, "placeholder", "")
     options = @something options conf["options"]

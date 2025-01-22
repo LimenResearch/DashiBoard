@@ -12,8 +12,8 @@ struct Widget
     options::Any
     multiple::Bool
     type::String
-    visible::Dict{String, Any}
-    required::Union{Dict{String, Any}, Nothing}
+    visible::Union{Dict{String, Any}, Bool}
+    required::Union{Dict{String, Any}, Bool}
 end
 
 function default_value(widget, type, multiple)
@@ -21,9 +21,6 @@ function default_value(widget, type, multiple)
     widget === "input" && type === "text" && return ""
     return nothing
 end
-
-default_required(visible::AbstractDict, required::Bool) = required ? visible : nothing
-default_required(::AbstractDict, required::AbstractDict) = required
 
 function Widget(
         key::AbstractString,
@@ -38,11 +35,12 @@ function Widget(
         max = get(conf, "max", nothing),
         step = get(conf, "step", nothing),
         options = get(conf, "options", nothing),
-        visible = Dict{String, Any}(),
-        required = true
+        visible = true,
+        required = visible
     )
 
-    required = default_required(visible, required)
+    (visible isa Bool) || (visible = Dict{String, Any}(visible))
+    (required isa Bool) || (required = Dict{String, Any}(required))
 
     return Widget(
         widget,

@@ -4,7 +4,7 @@ import { Input } from "../components/input";
 const selectClass = "text-blue-800 font-semibold py-4 w-full text-left";
 
 function applyFilter(obj, val) {
-    return Object.entries(obj).every(
+    return obj && Object.entries(obj).every(
         ([key, options]) => options.includes(val[key])
     );
 }
@@ -26,6 +26,9 @@ export function AutoWidget(props) {
     const parse = x => (props.type === "number") ? parseNumber(x) : x;
     const parseAll = x => props.multiple ? x.map(parse) : parse(x);
     const updateValue = x => setter(props.key, parseAll(x));
+    const visible = () => applyFilter(props.visible, value());
+    const required = () => applyFilter(props.required, value());
+    const label = () => required() ? props.label + " *" : props.label
 
     let wdg;
     switch (props.widget) {
@@ -34,31 +37,31 @@ export function AutoWidget(props) {
             const wdgProps = createOptions(options);
             wdg = <>
                 <label for={props.id + props.key} class={selectClass}>
-                    {props.label}
+                    {label()}
                 </label>
                 <Select id={props.id + props.key} onChange={updateValue}
                     multiple={props.multiple} class="mb-2" {...wdgProps}
                     placeholder={props.placeholder} initialValue={init[props.key] || ""}
-                    required={applyFilter(props.required || {}, value())}>
+                    required={required()}>
                 </Select>
             </>;
             break;
         case "input":
             wdg = <>
                 <label for={props.id + props.key} class={selectClass}>
-                    {props.label}
+                    {label()}
                 </label>
                 <Input id={props.id + props.key}
                     onChange={ev => updateValue(ev.target.value)}
                     class="w-full mb-2" type={props.type}
                     value={init[props.key]} placeholder={props.placeholder}
                     min={props.min} max={props.max} step={props.step}
-                    required={applyFilter(props.required || {}, value())}>
+                    required={required()}>
                 </Input>
             </>;
             break;
         default:
             console.log("widget not available");
     }
-    return <Show when={applyFilter(props.visible || {}, value())}>{wdg}</Show>;
+    return <Show when={visible()}>{wdg}</Show>;
 }

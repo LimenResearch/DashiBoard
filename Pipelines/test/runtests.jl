@@ -1,6 +1,6 @@
 using Pipelines, DataIngestion, DuckDBUtils
 using DBInterface, DataFrames, GLM, DataInterpolations, Statistics, JSON3
-using OrderedCollections
+using OrderedCollections, Dates, Distributions
 using Test
 
 @testset "evaluation order" begin
@@ -250,6 +250,14 @@ mktempdir() do dir
 
         @test ips[1](float.(df.No)) == df.TEMP_hat
         @test ips[2](float.(df.No)) == df.PRES_hat
+    end
+    
+    @testset "gaussian encoding" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
+        prov = DBInterface.execute(DataFrame, repo, "FROM selection")
+        transform!(prov, [:year, :month, :day] => ByRow((y,m,d) -> Date(y,m,d)) => date)
+        prov[!, "date"]
+
     end
 
     @testset "cards" begin

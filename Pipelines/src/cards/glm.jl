@@ -55,7 +55,7 @@ to_colnames(s::AbstractString) = String[s]
 to_colnames(s::AbstractVector) = reduce(vcat, map(to_colnames, s))
 
 function inputs(g::GLMCard)
-    i = Set{String}()
+    i = OrderedSet{String}()
     for term in g.predictors
         union!(i, to_colnames(term))
     end
@@ -64,7 +64,7 @@ function inputs(g::GLMCard)
     return i
 end
 
-outputs(g::GLMCard) = Set([string(g.target, '_', g.suffix)])
+outputs(g::GLMCard) = OrderedSet([string(g.target, '_', g.suffix)])
 
 function train(
         repo::Repository,

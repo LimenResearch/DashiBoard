@@ -12,14 +12,14 @@ Current implementations:
 abstract type AbstractCard end
 
 """
-    inputs(c::AbstractCard)::Set{String}
+    inputs(c::AbstractCard)::OrderedSet{String}
 
 Return the list of inputs for a given card.
 """
 function inputs end
 
 """
-    outputs(c::AbstractCard)::Set{String}
+    outputs(c::AbstractCard)::OrderedSet{String}
 
 Return the list of outputs for a given card.
 """

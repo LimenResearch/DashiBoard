@@ -54,13 +54,13 @@ Interpolate `targets` based on `predictor`.
 end
 
 function inputs(ic::InterpCard)
-    i = Set{String}()
+    i = OrderedSet{String}()
     push!(i, ic.predictor)
     isnothing(ic.partition) || push!(i, ic.partition)
     return i
 end
 
-outputs(ic::InterpCard) = Set{String}(ic.targets)
+outputs(ic::InterpCard) = OrderedSet{String}(ic.targets)
 
 function train(
         repo::Repository,

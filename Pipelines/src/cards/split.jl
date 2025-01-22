@@ -24,13 +24,13 @@ Currently supported methods are
 end
 
 function inputs(s::SplitCard)
-    i = Set{String}()
+    i = OrderedSet{String}()
     union!(i, s.order_by)
     union!(i, s.by)
     return i
 end
 
-outputs(s::SplitCard) = Set([s.output])
+outputs(s::SplitCard) = OrderedSet([s.output])
 
 function check_order(s::SplitCard)
     if isempty(s.order_by)

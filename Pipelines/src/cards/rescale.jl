@@ -26,14 +26,14 @@ The resulting rescaled variable is added to the table under the name
 end
 
 function inputs(r::RescaleCard)
-    i = Set{String}()
+    i = OrderedSet{String}()
     union!(i, r.by)
     union!(i, r.columns)
     isnothing(r.partition) || push!(i, r.partition)
     return i
 end
 
-outputs(r::RescaleCard) = Set(string.(r.columns, '_', r.suffix))
+outputs(r::RescaleCard) = OrderedSet(string.(r.columns, '_', r.suffix))
 
 GetTransform(col, suffix) = Get(string(col, '_', suffix))
 

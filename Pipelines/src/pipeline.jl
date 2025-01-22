@@ -1,7 +1,7 @@
 mutable struct Node
     const card::Union{AbstractCard, Nothing}
-    const inputs::Set{String}
-    const outputs::Set{String}
+    const inputs::OrderedSet{String}
+    const outputs::OrderedSet{String}
     update::Bool
     model::Any
 end

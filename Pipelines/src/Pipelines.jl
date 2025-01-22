@@ -7,7 +7,7 @@ public train, evaluate, deevaluate
 using TOML: parsefile
 using RelocatableFolders: @path
 
-using OrderedCollections: OrderedDict
+using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface
 using DuckDBUtils: Repository,

@@ -1,5 +1,6 @@
 using Pipelines, DataIngestion, DuckDBUtils
 using DBInterface, DataFrames, GLM, DataInterpolations, Statistics, JSON3
+using OrderedCollections
 using Test
 
 @testset "evaluation order" begin
@@ -7,8 +8,8 @@ using Test
         inputs::Vector{String}
         outputs::Vector{String}
     end
-    Pipelines.inputs(t::TrivialCard) = Set(t.inputs)
-    Pipelines.outputs(t::TrivialCard) = Set(t.outputs)
+    Pipelines.inputs(t::TrivialCard) = OrderedSet(t.inputs)
+    Pipelines.outputs(t::TrivialCard) = OrderedSet(t.outputs)
 
     nodes = [
         Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), true),

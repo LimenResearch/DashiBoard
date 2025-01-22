@@ -102,6 +102,7 @@ stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s
 
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
+# Note: for the moment this evaluates the nodes in order 
 function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
         deevaluate(repo, node.card, node.model, table => table; schema)

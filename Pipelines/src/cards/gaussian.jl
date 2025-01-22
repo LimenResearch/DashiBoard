@@ -18,7 +18,7 @@ Notes:
   - `"dayofyear"`: Assumes the column is a date or timestamp.
   - `"hour"`: Assumes the column is a time or timestamp.
 """
-@kwdef struct GaussianCard <: AbstractCard
+@kwdef struct GaussianEncodingCard <: AbstractCard
     column::String
     means::Int
     max::Float64
@@ -27,8 +27,10 @@ Notes:
     method::String = "identity"  # Default preprocessing method
 end
 
-inputs(g::GaussianCard) = [g.column]
-outputs(g::GaussianCard) = [string(g.column, "_", g.suffix, "_", i) for i in 1:g.means]
+sorted_outputs(g::GaussianCard) = [string(g.column, "_", g.suffix, "_", i) for i in 1:g.means]
+
+inputs(g::GaussianCard) = Set{String}([g.column])
+outputs(g::GaussianCard) = Set{String}(sorted_outputs(g)))
 
 """
 gaussian_train(repo::Repository, g::GaussianCard; schema=nothing) -> SimpleTable
@@ -106,17 +108,14 @@ function evaluate(
     ]
     
     with_table(repo, params_tbl; schema) do tbl_name
-        transform_query = With(
-            :transformed_table => From(source) |>
-                Define(preprocess(Get(g.column)) |> As("_transformed"))
-        )
-        join_query = From(:transformed_table) |>
+        join_query = From(source) |>
+            Define("_transformed" => preprocess(Get(g.column))) |>
             Join(From(tbl_name), on = true) |>  # CROSS JOIN with params table
             Define(converted...) |>
             transform_query
         source_columns = colnames(repo, source; schema)
         select_query = join_query |>
-            Select(Get.(Symbol.(vcat(source_columns, outputs(g))))...)
+            Select(Get.(Symbol.(union(source_columns, sorted_outputs(g))))...)
         replace_table(repo, select_query, target; schema)
     end
 end
@@ -136,7 +135,11 @@ Args:
 Returns:
 - Transformed value as Float64.
 """
-gaussian_transform(x, μ, σ, d) = @. exp(- ((x / d) - μ) * ((x / d) - μ) / σ)
+function gaussian_transform(x, μ, σ, d)
+    c = sqrt(2π)
+    ω = @. ( (x  / d) - μ ) / σ
+    return @. exp( - ω * ω / 2 ) / ( c * σ )
+end
 
 """
 GAUSSIAN_METHODS

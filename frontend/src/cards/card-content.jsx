@@ -7,7 +7,7 @@ export function getOutputs(config, content) {
     const multiple = config.fields.find(x => x.key === field).multiple;
     const output = multiple ? content[field] : [content[field]];
     const names = suffix ? output.map(x => [x, suffix].join('_')) : output;
-    return names.map(x => ({name: x}));
+    return names.map(x => ({ name: x }));
 }
 
 function setKey([value, setValue], k, v) {
@@ -19,14 +19,17 @@ function setKey([value, setValue], k, v) {
 export function initCardContent(config) {
     const content = {};
     content.type = config.type;
-    for (const {key, value} of config.fields) {
+    for (const { key, value } of config.fields) {
         content[key] = value;
     }
     const [value, setValue] = createSignal(content);
     const setter = (k, v) => setKey([value, setValue], k, v);
     const widgets = config.fields.map(x => initAutoWidget(x, value, setter));
 
-    return { input: widgets.map(x => x.input), output: value };
+    const input = widgets.map(x => x.input)
+    const output = () => input.every(x => !x.required() || x.valid()) ? value() : null;
+
+    return { input, output };
 }
 
 export function CardContent(props) {

@@ -28,13 +28,19 @@ export function App() {
         cards: pipelineData.output()
     });
 
+    const isValid = () => spec().cards.every(c => c != null);
+
     // TODO: control-enter to submit?
     // TODO: only update metadata if there was no error
 
     const onSubmit = () => {
-        postRequest("pipeline", spec())
-            .then(x => x.json())    
-            .then(setMetadata);
+        if (isValid()) {
+            postRequest("pipeline", spec())
+                .then(x => x.json())    
+                .then(setMetadata);
+        } else {
+            window.alert("Invalid request, please fill out all required fields.");
+        }
     };
 
     const leftTabs = [

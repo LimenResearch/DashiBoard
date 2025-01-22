@@ -26,14 +26,13 @@ export function Loader(props) {
         postRequest("load", body)
             .then(x => x.json())
             .then(setMetadata)
-            .catch(error => console.log(error))
+            .catch(error => window.alert(error))
             .finally(setLoading(false));
     }
 
     return <div>
         <div class="p-4">
-            <FilePicker multiple onChange={setFiles}>
-            </FilePicker>
+            <FilePicker required multiple onChange={setFiles}></FilePicker>
         </div>
         <div class="p-4">
             <Button

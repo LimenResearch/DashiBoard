@@ -98,7 +98,7 @@ export function AutoWidget(props) {
             </Input>;
             break;
         default:
-            console.log("widget not available");
+            throw new Error("widget not available");
     }
     return <Show when={visible()}>{labelWidget}{inputWidget}</Show>;
 }

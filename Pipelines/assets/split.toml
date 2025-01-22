@@ -1,4 +1,5 @@
 [tiles]
+widget = "select"
 label = "Tiles"
 placeholder = "Select tiles..."
 multiple = true
@@ -6,5 +7,7 @@ type = "number"
 options = [1, 2]
 
 [percentile]
+widget = "input"
 label = "Percentile"
 placeholder = "Select percentile..."
+type = "number"

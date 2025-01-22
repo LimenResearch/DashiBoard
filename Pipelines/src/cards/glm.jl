@@ -104,13 +104,13 @@ end
 function CardWidget(::Type{GLMCard})
 
     fields = [
-        SelectWidget("predictors"),
-        SelectWidget("target"),
-        SelectWidget("weights"),
-        SelectWidget("distribution", options = collect(keys(NOISE_MODELS))),
-        SelectWidget("link", options = collect(keys(LINK_FUNCTIONS))),
-        SelectWidget("partition"),
-        TextWidget("suffix", value = "hat"),
+        Widget("predictors"),
+        Widget("target"),
+        Widget("weights", required = false),
+        Widget("distribution", options = collect(keys(NOISE_MODELS)), required = false),
+        Widget("link", options = collect(keys(LINK_FUNCTIONS)), required = false),
+        Widget("partition", required = false),
+        Widget("suffix", value = "hat"),
     ]
 
     return CardWidget(;

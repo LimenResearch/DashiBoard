@@ -90,18 +90,18 @@ function CardWidget(
     options = ["percentile", "tiles"]
 
     fields = [
-        SelectWidget("method"; options),
-        SelectWidget("order_by"),
-        SelectWidget("by"),
-        TextWidget("output", value = "partition"),
-        NumberWidget(
+        Widget("method"; options),
+        Widget("order_by"),
+        Widget("by", required = false),
+        Widget("output", value = "partition"),
+        Widget(
             "percentile";
             percentile.min,
             percentile.max,
             percentile.step,
             visible = Dict("method" => ["percentile"])
         ),
-        SelectWidget("tiles", visible = Dict("method" => ["tiles"])),
+        Widget("tiles", visible = Dict("method" => ["tiles"])),
     ]
 
     return CardWidget(; type = "split", label = "Split", output = OutputSpec("output"), fields)

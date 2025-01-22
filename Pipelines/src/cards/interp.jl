@@ -119,27 +119,27 @@ function CardWidget(::Type{InterpCard})
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
     fields = [
-        SelectWidget("predictor"),
-        SelectWidget("targets"),
-        SelectWidget("method"; options, value = "linear"),
-        SelectWidget(
+        Widget("predictor"),
+        Widget("targets"),
+        Widget("method"; options, value = "linear"),
+        Widget(
             "extrapolation_left",
             value = "linear",
             options = extrapolation_options
         ),
-        SelectWidget(
+        Widget(
             "extrapolation_right",
             value = "linear",
             options = extrapolation_options
         ),
-        SelectWidget(
+        Widget(
             "dir",
             options = direction_options,
             value = "left",
             visible = Dict("method" => ["constant"])
         ),
-        SelectWidget("partition"),
-        TextWidget("suffix", value = "hat"),
+        Widget("partition", required = false),
+        Widget("suffix", value = "hat"),
     ]
 
     return CardWidget(;

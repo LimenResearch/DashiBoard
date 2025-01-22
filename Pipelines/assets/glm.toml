@@ -1,7 +1,9 @@
 [distribution]
+widget = "select"
 label = "Noise"
 placeholder = "Select noise model..."
 
 [link]
+widget = "select"
 label = "Link"
 placeholder = "Select link function..."

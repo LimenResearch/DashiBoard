@@ -1,11 +1,14 @@
 [extrapolation_left]
+widget = "select"
 label = "Extrapolation (left)"
 placeholder = "Select extrapolation function..."
 
 [extrapolation_right]
+widget = "select"
 label = "Extrapolation (right)"
 placeholder = "Select extrapolation function..."
 
 [dir]
+widget = "select"
 label = "Extrapolation direction"
 placeholder = "Select extrapolation direction..."

@@ -19,29 +19,25 @@ Notes:
   - `"hour"`: Assumes the column is a time or timestamp.
 
 Methods:
-- defined in GAUSSIAN_METHODS Dictionary.
-- Keys:
-- `"identity"`: No transformation.
-- `"dayofyear"`: Applies the SQL `dayofyear` function.
-- `"hour"`: Applies the SQL `hour` function.
-
-Values:
-- Functions taking a column name and returning the corresponding SQL transformation.
+- Defined in the `GAUSSIAN_METHODS` dictionary:
+  - `"identity"`: No transformation.
+  - `"dayofyear"`: Applies the SQL `dayofyear` function.
+  - `"hour"`: Applies the SQL `hour` function.
 
 Train:
 - Returns: SimpleTable (Dict{String, AbstractVector}) with Gaussian parameters:
-- `σ`: Standard deviation for the Gaussian transformations.
-- `d`: Normalization value.
-- `μ_1, μ_2, ..., μ_n`: Gaussian means.
+  - `σ`: Standard deviation for Gaussian transformations.
+  - `d`: Normalization value.
+  - `μ_1, μ_2, ..., μ_n`: Gaussian means.
 
 Evaluate:
--Steps:
-1. Preprocesses the column using the specified method (e.g., `"dayofyear"`, `"hour"`, `"identity"`).
-2. Temporarily registers the Gaussian parameters (`params_tbl`) using `with_table`.
-3. Joins the source table (with preprocessing applied) with the params table via a CROSS JOIN.
-4. Computes Gaussian-transformed columns (`gaussian_1`, `gaussian_2`, ...).
-5. Selects only the required columns (original and transformed), excluding intermediate values.
-6. Replaces the target table with the final results.
+- Steps:
+  1. Preprocesses the column using the specified method.
+  2. Temporarily registers the Gaussian parameters (`params_tbl`) using `with_table`.
+  3. Joins the source table with the params table via a CROSS JOIN.
+  4. Computes Gaussian-transformed columns.
+  5. Selects only the required columns (original and transformed).
+  6. Replaces the target table with the final results.
 """
 @kwdef struct GaussianEncodingCard <: AbstractCard
     column::String
@@ -49,25 +45,23 @@ Evaluate:
     max::Float64
     coef::Float64  = 0.5
     suffix::String = "gaussian"
-    method::String = "identity"  # Default preprocessing method
+    method::String = "identity"
+    function GaussianEncodingCard(column, means, max, coef, suffix, method)
+        if !haskey(GAUSSIAN_METHODS, method)
+            valid_methods = join(keys(GAUSSIAN_METHODS), ", ")
+            throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods"))
+        end
+        means <= 1 && throw(ArgumentError("`means` must be greater than 1. Provided value: $means"))
+        new(column, means, max, coef, suffix, method)
+    end
 end
 
 inputs(g::GaussianEncodingCard) = Set{String}([g.column])
-outputs(g::GaussianEncodingCard) = OrderedSet{String}([string(g.column, "_", g.suffix, "_", i) for i in 1:g.means])
+sorted_outputs(g::GaussianEncodingCard) = [string(g.column, "_", g.suffix, "_", i) for i in 1:g.means]
+outputs(g::GaussianEncodingCard) = Set{String}(sorted_outputs(g))
 
-"""
-gaussian_train(repo::Repository, g::GaussianEncodingCard; schema=nothing) -> SimpleTable
-
-Generates a SimpleTable containing:
-- `σ`: Standard deviation for the Gaussian transformations.
-- `d`: Normalization value.
-- `μ_1, μ_2, ..., μ_n`: Gaussian means.
-
-Returns:
-- A SimpleTable (Dict{String, AbstractVector}) with Gaussian parameters.
-"""
 function gaussian_train(g::GaussianEncodingCard)
-    μs = range(0, stop=1, length=g.means)  # Means normalized between 0 and 1
+    μs = range(0, stop=1, length=g.means)
     σ = round(step(μs) * g.coef, digits=4)
     params = Dict("σ" => [σ], "d" => [g.max])
     for (i, μ) in enumerate(μs)
@@ -76,31 +70,23 @@ function gaussian_train(g::GaussianEncodingCard)
     return SimpleTable(params)
 end
 
-
 train(repo::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing) = gaussian_train(g::GaussianEncodingCard)
 
-function evaluate(
-    repo::Repository, g::GaussianEncodingCard, params_tbl::SimpleTable, (source, target)::Pair; schema = nothing
-)
+function evaluate(repo::Repository, g::GaussianEncodingCard, params_tbl::SimpleTable, (source, target)::Pair; schema = nothing)
     preprocess = get(GAUSSIAN_METHODS, g.method, nothing)
     if isnothing(preprocess)
-        throw(ArgumentError("Method $(g.method) is not supported for GaussianEncodingCard"))
+        throw(ArgumentError("Method $(g.method) is not supported. Valid methods: $(join(keys(GAUSSIAN_METHODS), ", "))"))
     end
-
     transformed_id = string(uuid4())
-
     converted = [
-        string(g.column, "_", g.suffix, "_", i) => gaussian_transform(
-            Get(transformed_id), Get(Symbol("μ_$i")), Get(:σ), Get(:d)
-        ) for i in 1:g.means
+        string(g.column, "_", g.suffix, "_", i) => gaussian_transform(Get(transformed_id), Get(Symbol("μ_$i")), Get(:σ), Get(:d))
+        for i in 1:g.means
     ]
-    
     with_table(repo, params_tbl; schema) do tbl_name
         join_query = From(source) |>
             Define(transformed_id => preprocess(Get(g.column))) |>
-            Join(From(tbl_name), on = true) |>  # CROSS JOIN with params table
-            Define(converted...) |>
-            transform_query
+            Join(From(tbl_name), on = true) |>
+            Define(converted...)
         source_columns = colnames(repo, source; schema)
         select_query = join_query |>
             Select(Get.(Symbol.(union(source_columns, outputs(g))))...)
@@ -108,30 +94,14 @@ function evaluate(
     end
 end
 
-"""
-gaussian_transform(x, μ, σ, d) -> Float64
-
-Computes the Gaussian transformation:
-    1/2(sqrt(2πσ^2)) * exp(-((x / d) - μ)^2)/2σ^2)
-
-Args:
-- `x`: Input value to transform.
-- `μ`: Gaussian mean.
-- `σ`: Standard deviation.
-- `d`: Normalization denominator.
-
-Returns:
-- Transformed value as Float64.
-"""
 function gaussian_transform(x, μ, σ, d)
     c = sqrt(2π)
-    ω = @. ( (x  / d) - μ ) / σ
-    return @. exp( - ω * ω / 2 ) / ( c * σ )
+    ω = @. ((x / d) - μ) / σ
+    return @. exp(-ω * ω / 2) / (c * σ)
 end
 
-
 const GAUSSIAN_METHODS = Dict(
-    "identity" => identity,  # No transformation
-    "dayofyear" => Fun.dayofyear,  # SQL dayofyear function
-    "hour" => Fun.hour  # SQL hour function
+    "identity" => identity,
+    "dayofyear" => Fun.dayofyear,
+    "hour" => Fun.hour
 )

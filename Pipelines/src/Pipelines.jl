@@ -1,6 +1,6 @@
 module Pipelines
 
-export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard
+export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard, InterpCard, GaussianEncodingCard
 
 public train, evaluate, deevaluate
 
@@ -91,7 +91,7 @@ include("pipeline.jl")
 function __init__()
     fns = ["general.toml", "split.toml", "glm.toml", "interp.toml"]
     init = Dict{String, Any}
-    WIDGET_CONFIG[] = mapfoldl(parsefile ∘ config_path, merge!, fns; init)
+    return WIDGET_CONFIG[] = mapfoldl(parsefile ∘ config_path, merge!, fns; init)
 end
 
 end

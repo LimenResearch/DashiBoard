@@ -114,7 +114,7 @@ function evaluate(
             Join(From(tbl_name), on = true) |>  # CROSS JOIN with params table
             Define(converted...) |>
             transform_query
-        source_columns = DuckDBUtils.colnames(repo, source; schema)
+        source_columns = colnames(repo, source; schema)
         select_query = join_query |>
             Select(Get.(Symbol.(vcat(source_columns, outputs(g))))...)
         replace_table(repo, select_query, target; schema)

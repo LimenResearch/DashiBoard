@@ -33,7 +33,10 @@ using FunSQL: render,
     Order,
     Where,
     From,
-    LeftJoin
+    LeftJoin,
+    With,
+    As,
+    Join
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 

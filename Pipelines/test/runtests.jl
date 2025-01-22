@@ -269,3 +269,9 @@ mktempdir() do dir
         # TODO: test zscore values as well
     end
 end
+
+@testset "configurations" begin
+    configs = Pipelines.card_configurations()
+    @test configs isa AbstractVector
+    @test length(configs) == 4
+end

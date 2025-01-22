@@ -59,34 +59,3 @@ label = "Order"
 placeholder = "Select ordering variables..."
 multiple = true
 options = {"-v" = "names"}
-
-[tiles]
-label = "Tiles"
-placeholder = "Select tiles..."
-multiple = true
-type = "number"
-options = [1, 2]
-
-[percentile]
-label = "Percentile"
-placeholder = "Select percentile..."
-
-[distribution]
-label = "Noise"
-placeholder = "Select noise model..."
-
-[link]
-label = "Link"
-placeholder = "Select link function..."
-
-[extrapolation_left]
-label = "Extrapolation (left)"
-placeholder = "Select extrapolation function..."
-
-[extrapolation_right]
-label = "Extrapolation (right)"
-placeholder = "Select extrapolation function..."
-
-[dir]
-label = "Extrapolation direction"
-placeholder = "Select extrapolation direction..."

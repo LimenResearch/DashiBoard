@@ -1,0 +1,11 @@
+[extrapolation_left]
+label = "Extrapolation (left)"
+placeholder = "Select extrapolation function..."
+
+[extrapolation_right]
+label = "Extrapolation (right)"
+placeholder = "Select extrapolation function..."
+
+[dir]
+label = "Extrapolation direction"
+placeholder = "Select extrapolation direction..."

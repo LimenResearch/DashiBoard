@@ -101,7 +101,7 @@ function CardWidget(
             percentile.step,
             visible = Dict("method" => ["percentile"])
         ),
-        SelectWidget("tiles", visible = Dict("method" => ["tiles"]))
+        SelectWidget("tiles", visible = Dict("method" => ["tiles"])),
     ]
 
     return CardWidget(; type = "split", label = "Split", output = OutputSpec("output"), fields)

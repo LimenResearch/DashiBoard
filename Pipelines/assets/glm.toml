@@ -1,0 +1,7 @@
+[distribution]
+label = "Noise"
+placeholder = "Select noise model..."
+
+[link]
+label = "Link"
+placeholder = "Select link function..."

@@ -139,7 +139,7 @@ function CardWidget(::Type{InterpCard})
             visible = Dict("method" => ["constant"])
         ),
         SelectWidget("partition"),
-        TextWidget("suffix", value = "hat")
+        TextWidget("suffix", value = "hat"),
     ]
 
     return CardWidget(;

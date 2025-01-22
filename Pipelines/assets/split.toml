@@ -1,0 +1,10 @@
+[tiles]
+label = "Tiles"
+placeholder = "Select tiles..."
+multiple = true
+type = "number"
+options = [1, 2]
+
+[percentile]
+label = "Percentile"
+placeholder = "Select percentile..."

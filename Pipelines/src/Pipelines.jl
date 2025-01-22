@@ -4,7 +4,7 @@ export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard
 
 public train, evaluate, deevaluate
 
-using TOML: TOML
+using TOML: parsefile
 using RelocatableFolders: @path
 
 using OrderedCollections: OrderedDict
@@ -65,8 +65,9 @@ using DataInterpolations: ExtrapolationType,
     AkimaInterpolation,
     PCHIPInterpolation
 
-const WIDGET_CONFIG_PATH = @path joinpath(@__DIR__, "..",  "assets", "widgets.toml")
 const WIDGET_CONFIG = Ref{Dict{String, Any}}()
+
+config_path(fn) = @path joinpath(@__DIR__, "..", "assets", fn)
 
 include("tables.jl")
 include("widgets.jl")
@@ -80,7 +81,9 @@ include("cards/interp.jl")
 include("pipeline.jl")
 
 function __init__()
-    WIDGET_CONFIG[] = TOML.parsefile(WIDGET_CONFIG_PATH)
+    fns = ["general.toml", "split.toml", "glm.toml", "interp.toml"]
+    init = Dict{String, Any}
+    WIDGET_CONFIG[] = mapfoldl(parsefile ∘ config_path, merge!, fns; init)
 end
 
 end

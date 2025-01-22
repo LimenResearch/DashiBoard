@@ -1,5 +1,5 @@
-import { createSignal } from "solid-js";
-import { AutoWidget } from "./auto-widget";
+import { createSignal, mergeProps } from "solid-js";
+import { AutoWidget, initAutoWidget } from "./auto-widget";
 
 export function getOutputs(config, content) {
     const { field, suffixField } = config.output;
@@ -24,16 +24,17 @@ export function initCardContent(config) {
     }
     const [value, setValue] = createSignal(content);
     const setter = (k, v) => setKey([value, setValue], k, v);
-    return { input: [value, setter], output: value };
+    const widgets = config.fields.map(x => initAutoWidget(x, value, setter));
+
+    return { input: widgets.map(x => x.input), output: value };
 }
 
 export function CardContent(props) {
     const names = () => props.metadata.map(x => x.name);
     const id = crypto.randomUUID();
-    return <For each={props.config.fields}>
-        {itemProps => {
-            return <AutoWidget id={id} input={props.input}
-                names={names()} {...itemProps}></AutoWidget>
+    return <For each={props.input}>
+        {widget => {
+            return <AutoWidget id={id} names={names()} input={widget}></AutoWidget>
         }}
     </For>;
 }

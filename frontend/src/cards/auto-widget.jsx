@@ -19,10 +19,9 @@ function parseNumber(s) {
     return isNaN(x) ? null : x;
 }
 
-export function AutoWidget(props) {
-    const [value, setter] = props.input;
-    const init = value(); // No reactivity here
-    const defaults = () => ({ names: props.names });
+export function initAutoWidget(props, value, setter) {
+    const init = value()[props.key]; // No reactivity here
+
     const parse = x => (props.type === "number") ? parseNumber(x) : x;
     const parseAll = x => props.multiple ? x.map(parse) : parse(x);
     const updateValue = x => setter(props.key, parseAll(x));
@@ -39,38 +38,67 @@ export function AutoWidget(props) {
         }
     }
 
+    const input = {
+        widget: props.widget,
+        key: props.key,
+        label: props.label,
+        placeholder: props.placeholder,
+        init: init,
+        min: props.min,
+        max: props.max,
+        step: props.step,
+        options: props.options,
+        multiple: props.multiple,
+        type: props.type,
+        visible: visible,
+        required: required,
+        id: props.id,
+        valid: valid,
+        updateValue: updateValue,
+    };
+
+    const output = {};
+
+    return { input, output };
+}
+
+export function AutoWidget(props) {
+    const { widget, key, label, placeholder, init, min, max, step, options,
+        multiple, type, visible, required, id, valid, updateValue } = props.input
+
     const starClassList = () => ({
         "invisible": !required(),
         "text-red-800": !valid(),
         "text-blue-800": valid(),
     });
 
-    const label = <label for={props.id + props.key} class={selectClass}>
-        <span classList={starClassList()}>* </span><span>{props.label}</span>
+    const defaults = () => ({ names: props.names });
+
+    const labelWidget = <label for={id + key} class={selectClass}>
+        <span classList={starClassList()}>* </span><span>{label}</span>
     </label>
 
-    let wdg;
-    switch (props.widget) {
+    let inputWidget;
+    switch (widget) {
         case "select":
-            const options = () => applyTemplate(props.options, defaults());
-            const wdgProps = createOptions(options);
-            wdg = <Select id={props.id + props.key} onChange={updateValue}
-                multiple={props.multiple} class="mb-2" {...wdgProps}
-                placeholder={props.placeholder} initialValue={init[props.key] || ""}
+            const wdgProps = createOptions(() => applyTemplate(options, defaults()));
+            inputWidget = <Select id={id + key} onChange={updateValue}
+                multiple={multiple} class="mb-2" {...wdgProps}
+                placeholder={placeholder} initialValue={init || ""}
                 required={required()}>
             </Select>;
             break;
         case "input":
-            wdg = <Input id={props.id + props.key}
+            inputWidget = <Input id={id + key}
                 onChange={ev => updateValue(ev.target.value)}
-                class="w-full mb-2" type={props.type}
-                value={init[props.key]} placeholder={props.placeholder}
-                min={props.min} max={props.max} step={props.step}
+                class="w-full mb-2" type={type}
+                value={init} placeholder={placeholder}
+                min={min} max={max} step={step}
                 required={required()}>
             </Input>;
             break;
         default:
             console.log("widget not available");
     }
-    return <Show when={visible()}>{label}{wdg}</Show>;
+    return <Show when={visible()}>{labelWidget}{inputWidget}</Show>;
 }

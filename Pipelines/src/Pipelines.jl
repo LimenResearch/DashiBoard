@@ -18,7 +18,8 @@ using DuckDBUtils: Repository,
     with_table,
     load_table,
     replace_table,
-    colnames
+    colnames,
+    uuid4
 
 using FunSQL: render,
     SQLNode,

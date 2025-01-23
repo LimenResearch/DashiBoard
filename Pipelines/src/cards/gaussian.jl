@@ -82,15 +82,14 @@ function evaluate(repo::Repository, g::GaussianEncodingCard, params_tbl::SimpleT
         string(g.column, "_", g.suffix, "_", i) => gaussian_transform(Get(transformed_id), Get(Symbol("μ_$i")), Get(:σ), Get(:d))
         for i in 1:g.means
     ]
+    source_columns = colnames(repo, source; schema)
     with_table(repo, params_tbl; schema) do tbl_name
-        join_query = From(source) |>
+        query = From(source) |>
             Define(transformed_id => preprocess(Get(g.column))) |>
             Join(From(tbl_name), on = true) |>
-            Define(converted...)
-        source_columns = colnames(repo, source; schema)
-        select_query = join_query |>
+            Define(converted...) |>
             Select(Get.(Symbol.(union(source_columns, outputs(g))))...)
-        replace_table(repo, select_query, target; schema)
+        replace_table(repo, query, target; schema)
     end
 end
 

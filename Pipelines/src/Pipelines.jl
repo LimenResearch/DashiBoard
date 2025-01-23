@@ -35,8 +35,6 @@ using FunSQL: render,
     Where,
     From,
     LeftJoin,
-    With,
-    As,
     Join
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors

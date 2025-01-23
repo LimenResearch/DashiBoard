@@ -19,7 +19,7 @@
     },
     "hour": {
         "type": "gaussian_encoding",
-        "column": "hour",
+        "column": "time",
         "means": 4,
         "max": 24,
         "coef": 0.5,

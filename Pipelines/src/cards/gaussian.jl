@@ -46,12 +46,19 @@ Evaluate:
     coef::Float64 = 0.5
     suffix::String = "gaussian"
     method::String = "identity"
-    function GaussianEncodingCard(column, means, max, coef, suffix, method)
+    function GaussianEncodingCard(
+            column::AbstractString,
+            means::Integer,
+            max::Real,
+            coef::Real,
+            suffix::AbstractString,
+            method::AbstractString
+        )
         if !haskey(GAUSSIAN_METHODS, method)
             valid_methods = join(keys(GAUSSIAN_METHODS), ", ")
-            throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods"))
+            throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
         end
-        means <= 1 && throw(ArgumentError("`means` must be greater than 1. Provided value: $means"))
+        means <= 1 && throw(ArgumentError("`means` must be greater than `1`. Provided value: `$means`."))
         new(column, means, max, coef, suffix, method)
     end
 end
@@ -77,18 +84,6 @@ function evaluate(
         schema = nothing
     )
 
-    preprocess = get(GAUSSIAN_METHODS, g.method, nothing)
-    if isnothing(preprocess)
-        throw(
-            ArgumentError(
-                """"
-                Method $(g.method) is not supported.
-                Valid methods: $(join(keys(GAUSSIAN_METHODS), ", "))
-                """
-            )
-        )
-    end
-
     col = string(uuid4())
     converted = map(1:g.means) do i
         k = string(g.column, '_', g.suffix, '_', i)
@@ -96,6 +91,7 @@ function evaluate(
         return k => v
     end
 
+    preprocess = GAUSSIAN_METHODS[g.method]
     source_columns = colnames(repo, source; schema)
     target_columns = union(source_columns, first.(converted))
     return with_table(repo, params_tbl; schema) do tbl_name

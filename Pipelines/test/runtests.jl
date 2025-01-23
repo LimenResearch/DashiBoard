@@ -259,81 +259,92 @@ mktempdir() do dir
         filters = DataIngestion.get_filter.(spec["filters"])
         DataIngestion.select(repo, filters)
         selection = DBInterface.execute(DataFrame, repo, "FROM selection")
-        origin = transform(selection, 
-            [:year, :month, :day] => ByRow((y,m,d) -> Date(y,m,d)) => :date,
+        origin = transform(
+            selection,
+            [:year, :month, :day] => ByRow((y, m, d) -> Date(y, m, d)) => :date,
             :hour => ByRow(x -> Time(x, 0)) => :time
-            )
+        )
 
         DuckDBUtils.load_table(repo, origin, "origin")
-        
+
         @testset "GaussianEncodingCard construction" begin
-            base_fields = (column="date", means=3, max=365.0, coef=0.5, suffix="gaussian")
+            base_fields = (column = "date", means = 3, max = 365.0, coef = 0.5, suffix = "gaussian")
 
             for method in keys(Pipelines.GAUSSIAN_METHODS)
-                fields = merge(base_fields, (method=method,))
+                fields = merge(base_fields, (method = method,))
                 card = GaussianEncodingCard(; fields...)
                 @test card.method == method
             end
 
             invalid_method = "nonexistent_method"
-            invalid_fields = merge(base_fields, (method=invalid_method,))
+            invalid_fields = merge(base_fields, (method = invalid_method,))
             @test_throws ArgumentError GaussianEncodingCard(; invalid_fields...)
-            @test_throws ArgumentError GaussianEncodingCard(column="date", means=1, max=365.0, coef=0.5, method="identity")
+            @test_throws ArgumentError GaussianEncodingCard(column = "date", means = 1, max = 365.0, coef = 0.5, method = "identity")
         end
 
-        function train_test(card, params; atol)
-            expected_means = range(0, stop=1, length=card.means)
+        function gauss_train_test(card, params)
+            expected_means = range(0, stop = 1, length = card.means)
             expected_sigma = step(expected_means) * card.coef
             expected_d = card.max
             expected_keys = vcat(["μ_$i" for i in 1:card.means], ["σ", "d"])
 
             @test isempty(setdiff(expected_keys, keys(params)))
             @test all([params["μ_$i"] == [v] for (i, v) in enumerate(expected_means)])
-            @test isapprox(params["σ"][1], expected_sigma; atol)
-            @test isapprox(params["d"][1], expected_d; atol)
+            @test params["σ"][1] ≈ expected_sigma
+            @test params["d"][1] ≈ expected_d
         end
 
-        function evaluate_test(result, card, origin; atol)
-            @test isempty(setdiff(
-                names(result), 
-                union(names(origin), Pipelines.outputs(gaus))
-                )
+        function gauss_evaluate_test(result, card, origin)
+            @test issetequal(
+                names(result),
+                union(names(origin), Pipelines.outputs(card))
             )
 
             origin_column = origin[:, card.column]
             max_value = card.max
             preprocessed_values = [eval(Meta.parse(card.method))(x) for x in origin_column]
-            μs = range(0, stop=1, length=card.means)
-            σ = round(step(μs) * card.coef, digits = 4)
+            μs = range(0, stop = 1, length = card.means)
+            σ = step(μs) * card.coef
             dists = [Normal(μ, σ) for μ in μs]
             for (i, dist) in enumerate(dists)
                 expected_values = [pdf(dist, x / max_value) for x in preprocessed_values]
-                @test all(isapprox.(result[:, "$(card.column)_gaussian_$i"], expected_values; atol))
+                @test result[:, "$(card.column)_gaussian_$i"] ≈ expected_values
             end
         end
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "gaussian.json"))
         gaus = Pipelines.get_card(d["identity"])
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
-        train_test(gaus, params; atol = 1e-3)
+        gauss_train_test(gaus, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        evaluate_test(result, gaus, origin; atol=1e-3)
+        gauss_evaluate_test(result, gaus, origin)
+        @test issetequal(Pipelines.outputs(gaus), ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"])
+        @test only(Pipelines.inputs(gaus)) == "month"
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "gaussian.json"))
         gaus = Pipelines.get_card(d["dayofyear"])
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
-        train_test(gaus, params; atol = 1e-3)
+        gauss_train_test(gaus, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        evaluate_test(result, gaus, origin; atol=1e-3)
-        Pipelines.outputs(gaus)
+        gauss_evaluate_test(result, gaus, origin)
+        @test issetequal(
+            Pipelines.outputs(gaus),
+            [
+                "date_gaussian_1", "date_gaussian_2", "date_gaussian_3", "date_gaussian_4",
+                "date_gaussian_5", "date_gaussian_6", "date_gaussian_7", "date_gaussian_8",
+                "date_gaussian_9", "date_gaussian_10", "date_gaussian_11", "date_gaussian_12",
+            ]
+        )
+        @test only(Pipelines.inputs(gaus)) == "date"
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "gaussian.json"))
         gaus = Pipelines.get_card(d["hour"])
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
-        train_test(gaus, params; atol = 1e-3)
+        gauss_train_test(gaus, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        evaluate_test(result, gaus, origin; atol=1e-3)
-        Pipelines.outputs(gaus)
+        gauss_evaluate_test(result, gaus, origin)
+        @test issetequal(Pipelines.outputs(gaus), ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"])
+        @test only(Pipelines.inputs(gaus)) == "time"
     end
 
     @testset "cards" begin

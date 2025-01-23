@@ -43,7 +43,7 @@ Evaluate:
     column::String
     means::Int
     max::Float64
-    coef::Float64  = 0.5
+    coef::Float64 = 0.5
     suffix::String = "gaussian"
     method::String = "identity"
     function GaussianEncodingCard(column, means, max, coef, suffix, method)
@@ -61,8 +61,8 @@ sorted_outputs(g::GaussianEncodingCard) = [string(g.column, "_", g.suffix, "_", 
 outputs(g::GaussianEncodingCard) = Set{String}(sorted_outputs(g))
 
 function gaussian_train(g::GaussianEncodingCard)
-    μs = range(0, stop=1, length=g.means)
-    σ = round(step(μs) * g.coef, digits=4)
+    μs = range(0, stop = 1, length = g.means)
+    σ = step(μs) * g.coef
     params = Dict("σ" => [σ], "d" => [g.max])
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
@@ -80,10 +80,10 @@ function evaluate(repo::Repository, g::GaussianEncodingCard, params_tbl::SimpleT
     transformed_id = string(uuid4())
     converted = [
         string(g.column, "_", g.suffix, "_", i) => gaussian_transform(Get(transformed_id), Get(Symbol("μ_$i")), Get(:σ), Get(:d))
-        for i in 1:g.means
+            for i in 1:g.means
     ]
     source_columns = colnames(repo, source; schema)
-    with_table(repo, params_tbl; schema) do tbl_name
+    return with_table(repo, params_tbl; schema) do tbl_name
         query = From(source) |>
             Define(transformed_id => preprocess(Get(g.column))) |>
             Join(From(tbl_name), on = true) |>

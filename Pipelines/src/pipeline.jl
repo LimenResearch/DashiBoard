@@ -107,6 +107,7 @@ function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractStri
     for node in nodes
         deevaluate(repo, node.card, node.model, table => table; schema)
     end
+    return
 end
 
 filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)

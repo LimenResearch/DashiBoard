@@ -185,8 +185,8 @@ mktempdir() do dir
 
         card = Pipelines.get_card(d["constant"])
 
-        @test issetequal(Pipelines.inputs(card), ["No", "partition"])
-        @test issetequal(Pipelines.outputs(card), ["TEMP", "PRES"])
+        @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
 
         Pipelines.evaluate(repo, card, "partition" => "interp")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
@@ -220,8 +220,8 @@ mktempdir() do dir
 
         card = Pipelines.get_card(d["quadratic"])
 
-        @test issetequal(Pipelines.inputs(card), ["No", "partition"])
-        @test issetequal(Pipelines.outputs(card), ["TEMP", "PRES"])
+        @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
 
         Pipelines.evaluate(repo, card, "partition" => "interp")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")

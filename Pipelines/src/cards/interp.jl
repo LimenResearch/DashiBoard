@@ -53,9 +53,9 @@ Interpolate `targets` based on `predictor`.
     suffix::String = "hat"
 end
 
-inputs(ic::InterpCard) = stringset(ic.predictor, ic.partition)
+inputs(ic::InterpCard) = stringset(ic.predictor, ic.targets, ic.partition)
 
-outputs(ic::InterpCard) = stringset(ic.targets)
+outputs(ic::InterpCard) = stringset(string.(ic.targets, '_', ic.suffix))
 
 function train(
         repo::Repository,

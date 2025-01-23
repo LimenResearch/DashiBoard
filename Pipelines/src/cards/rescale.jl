@@ -27,7 +27,7 @@ end
 
 inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
 
-outputs(r::RescaleCard) = OrderedSet(string.(r.columns, '_', r.suffix))
+outputs(r::RescaleCard) = stringset(string.(r.columns, '_', r.suffix))
 
 GetTransform(col, suffix) = Get(string(col, '_', suffix))
 

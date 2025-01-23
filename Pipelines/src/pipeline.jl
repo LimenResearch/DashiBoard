@@ -56,6 +56,7 @@ const CARD_TYPES = Dict(
     "rescale" => RescaleCard,
     "glm" => GLMCard,
     "interp" => InterpCard,
+    "gaussian_encoding" => GaussianEncodingCard
 )
 
 """
@@ -100,6 +101,14 @@ _union!(s::AbstractSet{<:AbstractString}, ::Nothing) = s
 stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s), args); s)
 
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
+
+# Note: for the moment this evaluates the nodes in order 
+function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
+    for node in nodes
+        deevaluate(repo, node.card, node.model, table => table; schema)
+    end
+    return
+end
 
 filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
 

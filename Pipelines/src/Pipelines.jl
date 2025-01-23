@@ -1,6 +1,6 @@
 module Pipelines
 
-export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard
+export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard, InterpCard, GaussianEncodingCard
 
 public train, evaluate, deevaluate
 
@@ -18,7 +18,8 @@ using DuckDBUtils: Repository,
     with_table,
     load_table,
     replace_table,
-    colnames
+    colnames,
+    uuid4
 
 using FunSQL: render,
     SQLNode,
@@ -33,7 +34,8 @@ using FunSQL: render,
     Order,
     Where,
     From,
-    LeftJoin
+    LeftJoin,
+    Join
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
@@ -79,13 +81,15 @@ include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
+include("cards/gaussian.jl")
+
 
 include("pipeline.jl")
 
 function __init__()
     fns = ["general.toml", "split.toml", "glm.toml", "interp.toml"]
     init = Dict{String, Any}
-    WIDGET_CONFIG[] = mapfoldl(parsefile ∘ config_path, merge!, fns; init)
+    return WIDGET_CONFIG[] = mapfoldl(parsefile ∘ config_path, merge!, fns; init)
 end
 
 end

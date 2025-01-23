@@ -1,0 +1,29 @@
+{
+    "identity": {
+        "type": "gaussian_encoding",
+        "column": "month",
+        "means": 4,
+        "max": 12,
+        "coef": 0.5,
+        "suffix": "gaussian",
+        "method": "identity"
+    },
+    "dayofyear": {
+        "type": "gaussian_encoding",
+        "column": "date",
+        "means": 12,
+        "max": 365,
+        "coef": 0.5,
+        "suffix": "gaussian",
+        "method": "dayofyear"
+    },
+    "hour": {
+        "type": "gaussian_encoding",
+        "column": "time",
+        "means": 4,
+        "max": 24,
+        "coef": 0.5,
+        "suffix": "gaussian",
+        "method": "hour"
+    }
+}

@@ -56,11 +56,10 @@ Evaluate:
     end
 end
 
-inputs(g::GaussianEncodingCard) = Set{String}([g.column])
-sorted_outputs(g::GaussianEncodingCard) = [string(g.column, "_", g.suffix, "_", i) for i in 1:g.means]
-outputs(g::GaussianEncodingCard) = Set{String}(sorted_outputs(g))
+inputs(g::GaussianEncodingCard) = stringset(g.column)
+outputs(g::GaussianEncodingCard) = stringset(string.(g.column, '_', g.suffix, '_', 1:g.means))
 
-function gaussian_train(g::GaussianEncodingCard)
+function train(repo::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(0, stop = 1, length = g.means)
     σ = step(μs) * g.coef
     params = Dict("σ" => [σ], "d" => [g.max])
@@ -70,25 +69,41 @@ function gaussian_train(g::GaussianEncodingCard)
     return SimpleTable(params)
 end
 
-train(repo::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing) = gaussian_train(g::GaussianEncodingCard)
+function evaluate(
+        repo::Repository,
+        g::GaussianEncodingCard,
+        params_tbl::SimpleTable,
+        (source, target)::Pair;
+        schema = nothing
+    )
 
-function evaluate(repo::Repository, g::GaussianEncodingCard, params_tbl::SimpleTable, (source, target)::Pair; schema = nothing)
     preprocess = get(GAUSSIAN_METHODS, g.method, nothing)
     if isnothing(preprocess)
-        throw(ArgumentError("Method $(g.method) is not supported. Valid methods: $(join(keys(GAUSSIAN_METHODS), ", "))"))
+        throw(
+            ArgumentError(
+                """"
+                Method $(g.method) is not supported.
+                Valid methods: $(join(keys(GAUSSIAN_METHODS), ", "))
+                """
+            )
+        )
     end
-    transformed_id = string(uuid4())
-    converted = [
-        string(g.column, "_", g.suffix, "_", i) => gaussian_transform(Get(transformed_id), Get(Symbol("μ_$i")), Get(:σ), Get(:d))
-            for i in 1:g.means
-    ]
+
+    col = string(uuid4())
+    converted = map(1:g.means) do i
+        k = string(g.column, '_', g.suffix, '_', i)
+        v = gaussian_transform(Get(col), Get(string("μ", '_', i)), Get.σ, Get.d)
+        return k => v
+    end
+
     source_columns = colnames(repo, source; schema)
+    target_columns = union(source_columns, first.(converted))
     return with_table(repo, params_tbl; schema) do tbl_name
         query = From(source) |>
-            Define(transformed_id => preprocess(Get(g.column))) |>
+            Define(col => preprocess(Get(g.column))) |>
             Join(From(tbl_name), on = true) |>
             Define(converted...) |>
-            Select(Get.(Symbol.(union(source_columns, outputs(g))))...)
+            Select(Get.(target_columns)...)
         replace_table(repo, query, target; schema)
     end
 end
@@ -99,7 +114,7 @@ function gaussian_transform(x, μ, σ, d)
     return @. exp(-ω * ω / 2) / (c * σ)
 end
 
-const GAUSSIAN_METHODS = Dict(
+const GAUSSIAN_METHODS = OrderedDict(
     "identity" => identity,
     "dayofyear" => Fun.dayofyear,
     "hour" => Fun.hour

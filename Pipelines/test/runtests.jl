@@ -251,7 +251,7 @@ mktempdir() do dir
         @test ips[1](float.(df.No)) == df.TEMP_hat
         @test ips[2](float.(df.No)) == df.PRES_hat
     end
-    
+
     @testset "gaussian encoding" begin
         spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))
         repo = Repository(joinpath(dir, "db.duckdb"))

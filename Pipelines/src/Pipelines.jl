@@ -4,6 +4,8 @@ export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard
 
 public train, evaluate, deevaluate
 
+using Base: Fix1, Fix2
+
 using TOML: parsefile
 using RelocatableFolders: @path
 

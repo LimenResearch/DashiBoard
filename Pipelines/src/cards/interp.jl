@@ -53,14 +53,9 @@ Interpolate `targets` based on `predictor`.
     suffix::String = "hat"
 end
 
-function inputs(ic::InterpCard)
-    i = OrderedSet{String}()
-    push!(i, ic.predictor)
-    isnothing(ic.partition) || push!(i, ic.partition)
-    return i
-end
+inputs(ic::InterpCard) = stringset(ic.predictor, ic.partition)
 
-outputs(ic::InterpCard) = OrderedSet{String}(ic.targets)
+outputs(ic::InterpCard) = stringset(ic.targets)
 
 function train(
         repo::Repository,

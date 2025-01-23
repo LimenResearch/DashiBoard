@@ -28,7 +28,7 @@ const LINK_FUNCTIONS = OrderedDict(
 
 """
     struct GLMCard <: AbstractCard
-        predictors::Vector{Any} = Any[]
+        predictors::Vector{Any}
         target::String
         weights::Union{String, Nothing} = nothing
         distribution::String = "normal"
@@ -40,7 +40,7 @@ const LINK_FUNCTIONS = OrderedDict(
 Run a Generalized Linear Model (GLM), predicting `target` from `predictors`. 
 """
 @kwdef struct GLMCard <: AbstractCard
-    predictors::Vector{Any} = Any[]
+    predictors::Vector{Any}
     target::String
     weights::Union{String, Nothing} = nothing
     distribution::Union{String, Nothing} = nothing
@@ -55,16 +55,14 @@ to_colnames(s::AbstractString) = String[s]
 to_colnames(s::AbstractVector) = reduce(vcat, map(to_colnames, s))
 
 function inputs(g::GLMCard)
-    i = OrderedSet{String}()
-    for term in g.predictors
-        union!(i, to_colnames(term))
+    inpts = stringset()
+    for pred in g.predictors
+        stringset!(inpts, to_colnames(pred))
     end
-    push!(i, g.target)
-    isnothing(g.partition) || push!(i, g.partition)
-    return i
+    return stringset!(inpts, g.target, g.partition)
 end
 
-outputs(g::GLMCard) = OrderedSet([string(g.target, '_', g.suffix)])
+outputs(g::GLMCard) = stringset(string(g.target, '_', g.suffix))
 
 function train(
         repo::Repository,

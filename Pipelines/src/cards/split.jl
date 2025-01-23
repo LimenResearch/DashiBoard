@@ -23,14 +23,9 @@ Currently supported methods are
     tiles::Vector{Int} = Int[]
 end
 
-function inputs(s::SplitCard)
-    i = OrderedSet{String}()
-    union!(i, s.order_by)
-    union!(i, s.by)
-    return i
-end
+inputs(s::SplitCard) = stringset(s.order_by, s.by)
 
-outputs(s::SplitCard) = OrderedSet([s.output])
+outputs(s::SplitCard) = stringset(s.output)
 
 function check_order(s::SplitCard)
     if isempty(s.order_by)

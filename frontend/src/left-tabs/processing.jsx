@@ -4,7 +4,8 @@ import { CardList } from "../cards/card-list";
 export function initPipeline() {
     const [store, setStore] = createStore({cards: []});
     const input = [store, setStore];
-    const output = () => store.cards.map(card => card.output());
+    // TODO: also use validity info
+    const output = () => store.cards.map(card => card.output.value());
     return {input, output};
 }
 

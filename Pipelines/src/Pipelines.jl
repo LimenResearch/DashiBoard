@@ -5,6 +5,7 @@ export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard, Inte
 public train, evaluate, deevaluate
 
 using Base: Fix1, Fix2
+using Base.ScopedValues: @with, ScopedValue
 
 using TOML: parsefile
 using RelocatableFolders: @path
@@ -69,7 +70,7 @@ using DataInterpolations: ExtrapolationType,
     AkimaInterpolation,
     PCHIPInterpolation
 
-const WIDGET_CONFIG = Ref{Dict{String, Any}}()
+const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
 config_path(fn) = @path joinpath(@__DIR__, "..", "assets", fn)
 
@@ -81,16 +82,8 @@ include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
-include("cards/gaussian.jl")
-
+include("cards/gaussian_encoding.jl")
 
 include("pipeline.jl")
-
-function __init__()
-    fns = ["general.toml", "split.toml", "glm.toml", "interp.toml"]
-    init = Dict{String, Any}
-    WIDGET_CONFIG[] = mapfoldl(parsefile ∘ config_path, merge!, fns; init)
-    return
-end
 
 end

@@ -1,0 +1,17 @@
+[means]
+widget = "input"
+label = "Number of μs"
+placeholder = "Select number of μs..."
+type = "number"
+
+[max]
+widget = "input"
+label = "Maximum value"
+placeholder = "Select maximum value of column..."
+type = "number"
+
+[coef]
+widget = "input"
+label = "Gaussian scaling coefficient"
+placeholder = "Rescale Gaussians by a given factor..."
+type = "number"

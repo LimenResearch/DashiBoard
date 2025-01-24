@@ -28,8 +28,7 @@ export function CardList(props) {
     const metadata = card => {
         const newNames = store.cards
             .filter(x => x !== card)
-            .map(x => getOutputs(x.config, x.output()))
-            .flat();
+            .flatMap(x => getOutputs(x.config, x.output.value()));
         return props.metadata.concat(newNames);
     };
 

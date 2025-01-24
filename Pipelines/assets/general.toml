@@ -13,6 +13,12 @@ widget = "select"
 label = "Method"
 placeholder = "Select method..."
 
+[column]
+widget = "select"
+label = "Column"
+placeholder = "Select column..."
+options = {"-v" = "names"}
+
 [columns]
 widget = "select"
 label = "Columns"

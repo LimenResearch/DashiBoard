@@ -1,10 +1,11 @@
+import * as _ from "lodash"
 import { createOptions, Select } from "@thisbeyond/solid-select";
 import { Input } from "../components/input";
 
 const selectClass = "text-blue-800 font-semibold py-4 w-full text-left";
 
 function applyFilter(obj, val) {
-    return obj && Object.entries(obj).every(
+    return obj && _.entries(obj).every(
         ([key, options]) => options.includes(val[key])
     );
 }

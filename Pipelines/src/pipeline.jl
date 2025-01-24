@@ -119,17 +119,35 @@ function filter_partition(::Nothing, n::Integer = 1)
     return identity
 end
 
+function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
+    return @with WIDGET_CONFIG => merge(d["general"], d[key]) begin
+        card = CARD_TYPES[key]
+        CardWidget(card; kwargs...)
+    end
+end
+
 function card_configurations(;
-        rescale = (;),
         split = (;),
+        rescale = (;),
         glm = (;),
         interp = (;),
+        gaussian_encoding = (;),
+    )
+
+    d = Dict(
+        "general" => parsefile(config_path("general.toml")),
+        "split" => parsefile(config_path("split.toml")),
+        "rescale" => parsefile(config_path("rescale.toml")),
+        "glm" => parsefile(config_path("glm.toml")),
+        "interp" => parsefile(config_path("interp.toml")),
+        "gaussian_encoding" => parsefile(config_path("gaussian_encoding.toml")),
     )
 
     return [
-        CardWidget(SplitCard; split...),
-        CardWidget(RescaleCard; rescale...),
-        CardWidget(GLMCard; glm...),
-        CardWidget(InterpCard; interp...),
+        card_widget(d, "split"; split...),
+        card_widget(d, "rescale"; rescale...),
+        card_widget(d, "glm"; glm...),
+        card_widget(d, "interp"; interp...),
+        card_widget(d, "gaussian_encoding"; gaussian_encoding...),
     ]
 end

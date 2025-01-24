@@ -40,26 +40,26 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 @kwdef struct GaussianEncodingCard <: AbstractCard
+    method::String = "identity"
     column::String
     means::Int
     max::Float64
     coef::Float64 = 0.5
     suffix::String = "gaussian"
-    method::String = "identity"
     function GaussianEncodingCard(
+            method::AbstractString,
             column::AbstractString,
             means::Integer,
             max::Real,
             coef::Real,
             suffix::AbstractString,
-            method::AbstractString
         )
         if !haskey(GAUSSIAN_METHODS, method)
             valid_methods = join(keys(GAUSSIAN_METHODS), ", ")
             throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
         end
         means <= 1 && throw(ArgumentError("`means` must be greater than `1`. Provided value: `$means`."))
-        new(column, means, max, coef, suffix, method)
+        new(method, column, means, max, coef, suffix)
     end
 end
 
@@ -115,3 +115,30 @@ const GAUSSIAN_METHODS = OrderedDict(
     "dayofyear" => Fun.dayofyear,
     "hour" => Fun.hour
 )
+
+function CardWidget(::Type{GaussianEncodingCard})
+
+    options = ["percentile", "tiles"]
+
+    fields = [
+        Widget("method"; options),
+        Widget("order_by"),
+        Widget("by", required = false),
+        Widget("output", value = "partition"),
+        Widget(
+            "percentile";
+            percentile.min,
+            percentile.max,
+            percentile.step,
+            visible = Dict("method" => ["percentile"])
+        ),
+        Widget("tiles", visible = Dict("method" => ["tiles"])),
+    ]
+
+    return CardWidget(;
+        type = "gaussian_encoding",
+        label = "Gaussian Encoding",
+        output = OutputSpec("output"),
+        fields
+    )
+end

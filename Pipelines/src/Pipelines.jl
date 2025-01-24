@@ -82,7 +82,7 @@ include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
-include("cards/gaussian.jl")
+include("cards/gaussian_encoding.jl")
 
 include("pipeline.jl")
 

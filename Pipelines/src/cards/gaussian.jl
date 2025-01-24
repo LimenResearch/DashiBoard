@@ -58,7 +58,7 @@ Evaluate:
             valid_methods = join(keys(GAUSSIAN_METHODS), ", ")
             throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
         end
-        means <= 1 && throw(ArgumentError("`means` must be greater than `1`. Provided value: `$means`."))
+        means < 2 && throw(ArgumentError("`means` must be at least `2`. Provided value: `$means`."))
         new(method, column, means, max, coef, suffix)
     end
 end
@@ -66,6 +66,7 @@ end
 inputs(g::GaussianEncodingCard) = stringset(g.column)
 outputs(g::GaussianEncodingCard) = stringset(string.(g.column, '_', g.suffix, '_', 1:g.means))
 
+# TODO: might be periodic and first and last gaussian are the same?
 function train(repo::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(0, stop = 1, length = g.means)
     σ = step(μs) * g.coef
@@ -116,23 +117,22 @@ const GAUSSIAN_METHODS = OrderedDict(
     "hour" => Fun.hour
 )
 
-function CardWidget(::Type{GaussianEncodingCard})
+function CardWidget(
+        ::Type{GaussianEncodingCard};
+        means = (min = 2, step = 1, max = nothing),
+        max = (min = 0, step = nothing, max = nothing),
+        coef = (min = 0, step = nothing, max = nothing),
+    )
 
-    options = ["percentile", "tiles"]
+    options = collect(keys(GAUSSIAN_METHODS))
 
     fields = [
         Widget("method"; options),
-        Widget("order_by"),
-        Widget("by", required = false),
-        Widget("output", value = "partition"),
-        Widget(
-            "percentile";
-            percentile.min,
-            percentile.max,
-            percentile.step,
-            visible = Dict("method" => ["percentile"])
-        ),
-        Widget("tiles", visible = Dict("method" => ["tiles"])),
+        Widget("column"),
+        Widget("means"; means.min, means.step, means.max),
+        Widget("max"; max.min, max.step, max.max),
+        Widget("coef"; coef.min, coef.step, coef.max),
+        Widget("suffix", value = "gaussian"),
     ]
 
     return CardWidget(;

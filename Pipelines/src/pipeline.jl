@@ -124,6 +124,7 @@ function card_configurations(;
         split = (;),
         glm = (;),
         interp = (;),
+        gaussian = (;),
     )
 
     return [
@@ -131,5 +132,6 @@ function card_configurations(;
         CardWidget(RescaleCard; rescale...),
         CardWidget(GLMCard; glm...),
         CardWidget(InterpCard; interp...),
+        CardWidget(GaussianEncodingCard; gaussian...),
     ]
 end

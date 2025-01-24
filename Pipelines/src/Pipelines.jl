@@ -87,9 +87,20 @@ include("cards/gaussian.jl")
 include("pipeline.jl")
 
 function __init__()
-    fns = ["general.toml", "split.toml", "glm.toml", "interp.toml"]
-    init = Dict{String, Any}
-    WIDGET_CONFIG[] = mapfoldl(parsefile ∘ config_path, merge!, fns; init)
+    # Store all toml in a global dictionary
+    d = Dict{String, Any}()
+    fns = [
+        "general.toml",
+        "split.toml",
+        "glm.toml",
+        "interp.toml",
+        "gaussian.toml",
+    ]
+    for fn in fns
+        path = config_path(fn)
+        merge!(d, parsefile(path))
+    end
+    WIDGET_CONFIG[] = d
     return
 end
 

@@ -138,7 +138,7 @@ function CardWidget(
     return CardWidget(;
         type = "gaussian_encoding",
         label = "Gaussian Encoding",
-        output = OutputSpec("output"),
+        output = OutputSpec("column", "suffix", "means"),
         fields
     )
 end

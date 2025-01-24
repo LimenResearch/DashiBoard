@@ -62,9 +62,12 @@ end
 struct OutputSpec
     field::String
     suffixField::Union{String, Nothing}
+    numberField::Union{String, Nothing}
 end
 
-OutputSpec(field::AbstractString) = OutputSpec(field, nothing)
+function OutputSpec(field::AbstractString, suffixfield::Union{AbstractString, Nothing} = nothing)
+    return OutputSpec(field, suffixfield, nothing)
+end
 
 @kwdef struct CardWidget
     label::String

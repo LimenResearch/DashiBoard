@@ -1,15 +1,11 @@
+import * as _ from "lodash"
 import { createStore } from "solid-js/store";
 
 import { IntervalFilter } from "../filters/interval-filter";
 import { ListFilter } from "../filters/list-filter";
 
 function nonNullEntries(obj) {
-    const res = [];
-    for (const k in obj) {
-        const v = obj[k];
-        (v == null) || res.push([k, v]);
-    }
-    return res
+    return _.entries(obj).filter(([k, v]) => v != null);
 }
 
 function getFilters(store) {
@@ -30,11 +26,11 @@ export function Filters(props) {
 
     const numerical = () => props.metadata
         .filter(entry => entry.type == "numerical")
-        .map(entry => Object.assign({store, setStore}, entry));
+        .map(entry => _.assign({store, setStore}, entry));
 
     const categorical = () => props.metadata
         .filter(entry => entry.type == "categorical")
-        .map(entry => Object.assign({store, setStore}, entry));
+        .map(entry => _.assign({store, setStore}, entry));
 
     return <div class="flex flex-row gap-4 pb-4">
         <div class="basis-1/2"><For each={numerical()}>{IntervalFilter}</For></div>

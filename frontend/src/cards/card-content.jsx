@@ -1,19 +1,25 @@
-import { createSignal, mergeProps } from "solid-js";
+import * as _ from "lodash"
+import { createSignal } from "solid-js";
 import { AutoWidget, initAutoWidget } from "./auto-widget";
 
 export function getOutputs(config, content) {
-    const { field, suffixField } = config.output;
-    const suffix = suffixField ? content[suffixField] : null;
+    const { field, suffixField, numberField } = config.output;
     const multiple = config.fields.find(x => x.key === field).multiple;
-    const output = multiple ? content[field] : [content[field]];
-    const names = suffix ? output.map(x => [x, suffix].join('_')) : output;
-    return names.map(x => ({ name: x }));
-}
 
-function setKey([value, setValue], k, v) {
-    const newValue = Object.assign({}, value());
-    newValue[k] = v;
-    setValue(newValue);
+    let names = multiple ? content[field] : [content[field]];
+
+    if (suffixField != null) {
+        const suffix = content[suffixField];
+        names = names.map(x => [x, suffix].join('_'));
+    }
+
+    if (numberField != null) {
+        const number = content[numberField];
+        const rg = _.range(number).map(x => x + 1); // switch to 1-based indexing
+        names = names.flatMap(n => rg.map(i => [n, i].join('_')));
+    }
+
+    return names.map(x => ({ name: x }));
 }
 
 export function initCardContent(config) {
@@ -23,11 +29,12 @@ export function initCardContent(config) {
         content[key] = value;
     }
     const [value, setValue] = createSignal(content);
-    const setter = (k, v) => setKey([value, setValue], k, v);
+    const setter = (k, v) => setValue(_.assign({}, value(), {[k]: v}));
     const widgets = config.fields.map(x => initAutoWidget(x, value, setter));
 
     const input = widgets.map(x => x.input)
-    const output = () => input.every(x => !x.required() || x.valid()) ? value() : null;
+    const validated = () => input.every(x => !x.required() || x.valid());
+    const output = { value, validated };
 
     return { input, output };
 }

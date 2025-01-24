@@ -18,12 +18,12 @@ function print_argument(io::IO, x::AbstractVector)
 end
 
 function reader_call(reader::AbstractString, N::Integer, options::AbstractDict)
-    placeholders = join(string.('$', 1:N), ", ")
-
     return sprint() do io
         print(io, reader)
         print(io, "(")
-        print(io, placeholders)
+        print(io, "[")
+        join(io, string.('$', 1:N), ", ")
+        print(io, "]")
         for (k, v) in pairs(options)
             if !isnothing(v)
                 print(io, ", ", k, " = ")

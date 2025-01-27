@@ -5,8 +5,17 @@ import { postRequest } from "../requests";
 
 ModuleRegistry.registerModules([InfiniteRowModelModule]);
 
-// TODO: understand why occasionally rows do not update
-// TODO: better formatting
+function formatter(val, eltype) {
+    if (val == null) {
+        return null;
+    }
+    switch (eltype) {
+        case "float":
+            return val.toPrecision(5);
+        default:
+            return val;
+    }
+}
 
 export function TableView(props) {
 
@@ -34,14 +43,17 @@ export function TableView(props) {
     };
 
     const options = () => {
-        const columnDefs = props.metadata.map(x => ({ field: x.name, headerName: x.name }));
+        const columnDefs = props.metadata.map(x => ({
+            field: x.name,
+            headerName: x.name,
+            valueFormatter: params => formatter(params.value, x.eltype),
+        }));
         const datasource = dataSource(columnDefs);
         const suppressFieldDotNotation = true;
         return {datasource, columnDefs, suppressFieldDotNotation};
     }
 
     const gridOptions = {
-        ...options,
         defaultColDef: {
             flex: 1,
             minWidth: 100,

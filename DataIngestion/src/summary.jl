@@ -32,7 +32,19 @@ isnumerical(::Type) = false
 struct VariableSummary
     name::String
     type::String
+    eltype::String
     summary::Any
+end
+
+function stringify_type(::Type{T}) where {T}
+    T <: Bool && return 
+    T <: Integer && return "int"
+    T <: AbstractFloat && return "float"
+    T <: AbstractString && return "string"
+    T <: Date && return "date"
+    T <: Time && return "time"
+    T <: DateTime && return "datetime"
+    return string(T)
 end
 
 """
@@ -47,14 +59,16 @@ The summary of a variable depends on its type, according to the following rules.
 function summarize(repo::Repository, tbl::AbstractString; schema = nothing)
     (; names, types) = table_schema(repo, tbl; schema)
     return map(names, types) do name, eltype
+        T = nonmissingtype(eltype)
         var = string(name)
-        if isnumerical(nonmissingtype(eltype))
+        if isnumerical(T)
             summary = numerical_summary(repo, tbl, var; schema)
             type = "numerical"
         else
             summary = categorical_summary(repo, tbl, var; schema)
             type = "categorical"
         end
-        return VariableSummary(var, type, summary)
+        eltype = stringify_type(T)
+        return VariableSummary(var, type, eltype, summary)
     end
 end

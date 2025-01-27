@@ -137,6 +137,7 @@ end
     No_min, No_max = extrema(df.No)
     @test info[1].name == "No"
     @test info[1].type == "numerical"
+    @test info[1].eltype == "int"
     @test info[1].summary == (
         min = No_min,
         max = No_max,
@@ -145,5 +146,16 @@ end
 
     @test info[10].name == "cbwd"
     @test info[10].type == "categorical"
+    @test info[10].eltype == "string"
     @test info[10].summary == unique(sort(df.cbwd))
+
+    Iws_min, Iws_max = extrema(df.Iws)
+    @test info[11].name == "Iws"
+    @test info[11].type == "numerical"
+    @test info[11].eltype == "float"
+    @test info[11].summary == (
+        min = Iws_min,
+        max = Iws_max,
+        step = round((Iws_max - Iws_min) / 100, sigdigits = 2),
+    )
 end

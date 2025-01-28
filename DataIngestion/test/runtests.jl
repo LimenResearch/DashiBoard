@@ -82,13 +82,19 @@ end
         ["NW", "SE"]
     )
 
-    filters = [f1, f2]
+    f3 = DataIngestion.IntervalFilter(
+        "day",
+        1..15
+    )
+
+    filters = [f1, f2, f3]
 
     DataIngestion.select(repo, filters; schema)
 
     df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")
-    @test unique(sort(df.cbwd)) == ["NW", "SE"]
-    @test unique(sort(df.hour)) == [1, 2, 3]
+    @test issetequal(df.cbwd, ["NW", "SE"])
+    @test issetequal(df.hour, 1:3)
+    @test issetequal(df.day, 1:15)
 end
 
 @testset "dates" begin

@@ -1,9 +1,10 @@
-struct Query
-    node::SQLNode
+struct Condition
+    pred::SQLNode
     params::Dict{String, Any}
 end
 
-Query(node::SQLNode) = Query(node, Dict{String, Any}())
+get_pred(cond::Condition) = cond.pred
+get_params(cond::Condition) = cond.params
 
 """
     abstract type AbstractFilter end
@@ -36,16 +37,14 @@ function IntervalFilter(d::AbstractDict)
     return IntervalFilter(colname, left .. right)
 end
 
-function Query(f::IntervalFilter, prefix::AbstractString)
+function Condition(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
     pleft, pright = string.(prefix, ("left", "right"))
-
     params = Dict(pleft => leftendpoint(interval), pright => rightendpoint(interval))
+    pred = Fun.between(Get(colname), Var(pleft), Var(pright))
 
-    cond = Fun.between(Get(colname), Var(pleft), Var(pright))
-
-    return Query(Where(cond), params)
+    return Condition(pred, params)
 end
 
 """
@@ -67,15 +66,14 @@ function ListFilter(d::AbstractDict)
     return ListFilter{T}(colname, list)
 end
 
-function Query(f::ListFilter, prefix::AbstractString)
+function Condition(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
 
-    ks = [string(prefix, "value", i) for i in eachindex(list)]
+    ks = string.(prefix, "value", eachindex(list))
     params = Dict{String, Any}(zip(ks, list))
+    pred = Fun.in(Get(colname), Var.(ks)...)
 
-    cond = Fun.in(Get(colname), Var.(ks)...)
-
-    return Query(Where(cond), params)
+    return Condition(pred, params)
 end
 
 const FILTER_TYPES = Dict(
@@ -90,16 +88,6 @@ Generate an [`AbstractFilter`](@ref) based on a configuration dictionary.
 """
 get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
 
-function Query(filters::AbstractVector; init)
-    node, params = init, Dict{String, Any}()
-    for (i, f) in enumerate(filters)
-        q = Query(f, string("filter", i, '_'))
-        node = node |> q.node
-        merge!(params, q.params)
-    end
-    return Query(node, params)
-end
-
 """
     select(repo::Repository, filters::AbstractVector; schema = nothing)
 
@@ -111,6 +99,9 @@ The table `TABLE_NAMES.selection` is filled with rows from the table
 Each filter should be an instance of [`AbstractFilter`](@ref).
 """
 function select(repo::Repository, filters::AbstractVector; schema = nothing)
-    (; node, params) = Query(filters, init = From(TABLE_NAMES.source))
+    cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
+    params = merge(get_params.(cs)...)
+    pred = Fun.and(get_pred.(cs)...)
+    node = From(TABLE_NAMES.source) |> Where(pred)
     replace_table(repo, node, params, TABLE_NAMES.selection; schema)
 end

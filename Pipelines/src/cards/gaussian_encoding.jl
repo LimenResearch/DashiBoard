@@ -85,16 +85,16 @@ function evaluate(
         schema = nothing
     )
 
-    col = string(uuid4())
+    source_columns = colnames(repo, source; schema)
+    col = new_name("transformed", source_columns)
     converted = map(1:g.means) do i
         k = join_names(g.column, g.suffix, i)
         v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
+    target_columns = union(source_columns, first.(converted))
 
     preprocess = GAUSSIAN_METHODS[g.method]
-    source_columns = colnames(repo, source; schema)
-    target_columns = union(source_columns, first.(converted))
     return with_table(repo, params_tbl; schema) do tbl_name
         query = From(source) |>
             Define(col => preprocess(Get(g.column))) |>

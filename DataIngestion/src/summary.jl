@@ -37,7 +37,7 @@ struct VariableSummary
 end
 
 function stringify_type(::Type{T}) where {T}
-    T <: Bool && return 
+    T <: Bool && return "bool"
     T <: Integer && return "int"
     T <: AbstractFloat && return "float"
     T <: AbstractString && return "string"

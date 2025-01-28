@@ -431,3 +431,14 @@ end
     @test configs isa AbstractVector
     @test length(configs) == 5
 end
+
+@testset "utils" begin
+    col = "temp"
+    suffix = "hat"
+    i = 3
+    @test Pipelines.join_names(col, suffix, i) == "temp_hat_3"
+    c = Pipelines.new_name("a", ["a_1", "b", "a_3"])
+    @test c == "a_2"
+    c = Pipelines.new_name("a", ["b"])
+    @test c == "a_1"
+end

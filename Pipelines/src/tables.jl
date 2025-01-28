@@ -7,20 +7,11 @@ function fromtable(data)
     return SimpleTable(String(k) => Tables.getcolumn(cols, k) for k in colnames)
 end
 
-mapcols!(f, s::SimpleTable) = (map!(f, values(s)); s)
+join_names(args...) = join(args, '_')
 
-function mergedisjointcols!(s::SimpleTable, t::SimpleTable)
-    if isdisjoint(keys(s), keys(t))
-        return merge!(s, t)
-    else
-        sharedkeys = intersect(keys(s), keys(t))
-        throw(
-            ArgumentError(
-                """
-                Overwriting table is not allowed, the following column names are repeated:
-                $sharedkeys
-                """
-            )
-        )
+function new_name(c::AbstractString, cols::AbstractVector{<:AbstractString})
+    for i in Iterators.countfrom()
+        c′ = join_names(c, i)
+        c′ in cols || return c′
     end
 end

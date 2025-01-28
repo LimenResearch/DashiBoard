@@ -328,7 +328,7 @@ mktempdir() do dir
         DuckDBUtils.load_table(repo, origin, "origin")
 
         @testset "GaussianEncodingCard construction" begin
-            base_fields = (column = "date", means = 3, max = 365.0, coef = 0.5, suffix = "gaussian")
+            base_fields = (column = "date", n_modes = 3, max = 365.0, lambda = 0.5, suffix = "gaussian")
 
             for method in keys(Pipelines.GAUSSIAN_METHODS)
                 fields = merge(base_fields, (method = method,))
@@ -339,14 +339,14 @@ mktempdir() do dir
             invalid_method = "nonexistent_method"
             invalid_fields = merge(base_fields, (method = invalid_method,))
             @test_throws ArgumentError GaussianEncodingCard(; invalid_fields...)
-            @test_throws ArgumentError GaussianEncodingCard(column = "date", means = 1, max = 365.0, coef = 0.5, method = "identity")
+            @test_throws ArgumentError GaussianEncodingCard(column = "date", n_modes = 1, max = 365.0, lambda = 0.5, method = "identity")
         end
 
         function gauss_train_test(card, params)
-            expected_means = range(0, stop = 1, length = card.means)
-            expected_sigma = step(expected_means) * card.coef
+            expected_means = range(0, stop = 1, length = card.n_modes)
+            expected_sigma = step(expected_means) * card.lambda
             expected_d = card.max
-            expected_keys = vcat(["μ_$i" for i in 1:card.means], ["σ", "d"])
+            expected_keys = vcat(["μ_$i" for i in 1:card.n_modes], ["σ", "d"])
 
             @test isempty(setdiff(expected_keys, keys(params)))
             @test all([params["μ_$i"] == [v] for (i, v) in enumerate(expected_means)])
@@ -363,11 +363,11 @@ mktempdir() do dir
             origin_column = origin[:, card.column]
             max_value = card.max
             preprocessed_values = [eval(Meta.parse(card.method))(x) for x in origin_column]
-            μs = range(0, stop = 1, length = card.means)
-            σ = step(μs) * card.coef
+            μs = range(0, stop = 1, length = card.n_modes)
+            σ = step(μs) * card.lambda
             dists = [Normal(μ, σ) for μ in μs]
             for (i, dist) in enumerate(dists)
-                expected_values = [pdf(dist, x / max_value) for x in preprocessed_values]
+                expected_values = [pdf(dist, x / max_value) .* σ for x in preprocessed_values]
                 @test result[:, "$(card.column)_gaussian_$i"] ≈ expected_values
             end
         end

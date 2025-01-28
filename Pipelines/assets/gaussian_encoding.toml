@@ -1,7 +1,7 @@
-[means]
+[n_modes]
 widget = "input"
-label = "Number of μs"
-placeholder = "Select number of μs..."
+label = "Number of modes"
+placeholder = "Select number of modes..."
 type = "number"
 
 [max]
@@ -10,8 +10,8 @@ label = "Maximum value"
 placeholder = "Select maximum value of column..."
 type = "number"
 
-[coef]
+[lambda]
 widget = "input"
-label = "Gaussian scaling coefficient"
-placeholder = "Rescale Gaussians by a given factor..."
+label = "Scaling coefficient"
+placeholder = "Rescale Gaussian curves horizontally by a given factor..."
 type = "number"

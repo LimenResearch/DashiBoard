@@ -5,9 +5,9 @@ Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
 - `column::String`: Name of the column to transform.
-- `means::Int`: Number of Gaussian distributions to generate.
+- `n_modes::Int`: Number of Gaussian curves to generate.
 - `max::Float64`: Maximum value used for normalization (denominator).
-- `coef::Float64`: Coefficient for scaling the standard deviation.
+- `lambda::Float64`: Coefficient for scaling the standard deviation.
 - `suffix::String`: Suffix added to the output column names.
 - `method::String`: Preprocessing method applied to the column (e.g., `"identity"`, `"dayofyear"`, `"hour"`).
 
@@ -42,34 +42,34 @@ Evaluate:
 @kwdef struct GaussianEncodingCard <: AbstractCard
     method::String = "identity"
     column::String
-    means::Int
+    n_modes::Int
     max::Float64
-    coef::Float64 = 0.5
+    lambda::Float64 = 0.5
     suffix::String = "gaussian"
     function GaussianEncodingCard(
             method::AbstractString,
             column::AbstractString,
-            means::Integer,
+            n_modes::Integer,
             max::Real,
-            coef::Real,
+            lambda::Real,
             suffix::AbstractString,
         )
         if !haskey(GAUSSIAN_METHODS, method)
             valid_methods = join(keys(GAUSSIAN_METHODS), ", ")
             throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
         end
-        means < 2 && throw(ArgumentError("`means` must be at least `2`. Provided value: `$means`."))
-        new(method, column, means, max, coef, suffix)
+        n_modes < 2 && throw(ArgumentError("`n_modes` must be at least `2`. Provided value: `$n_modes`."))
+        new(method, column, n_modes, max, lambda, suffix)
     end
 end
 
 inputs(g::GaussianEncodingCard) = stringset(g.column)
-outputs(g::GaussianEncodingCard) = stringset(join_names.(g.column, g.suffix, 1:g.means))
+outputs(g::GaussianEncodingCard) = stringset(join_names.(g.column, g.suffix, 1:g.n_modes))
 
 # TODO: might be periodic and first and last gaussian are the same?
 function train(repo::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
-    μs = range(0, stop = 1, length = g.means)
-    σ = step(μs) * g.coef
+    μs = range(0, stop = 1, length = g.n_modes)
+    σ = step(μs) * g.lambda
     params = Dict("σ" => [σ], "d" => [g.max])
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
@@ -87,7 +87,7 @@ function evaluate(
 
     source_columns = colnames(repo, source; schema)
     col = new_name("transformed", source_columns)
-    converted = map(1:g.means) do i
+    converted = map(1:g.n_modes) do i
         k = join_names(g.column, g.suffix, i)
         v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
@@ -108,7 +108,7 @@ end
 function gaussian_transform(x, μ, σ, d)
     c = sqrt(2π)
     ω = @. ((x / d) - μ) / σ
-    return @. exp(-ω * ω / 2) / (c * σ)
+    return @. exp(-ω * ω / 2) / c
 end
 
 const GAUSSIAN_METHODS = OrderedDict(
@@ -119,9 +119,9 @@ const GAUSSIAN_METHODS = OrderedDict(
 
 function CardWidget(
         ::Type{GaussianEncodingCard};
-        means = (min = 2, step = 1, max = nothing),
+        n_modes = (min = 2, step = 1, max = nothing),
         max = (min = 0, step = nothing, max = nothing),
-        coef = (min = 0, step = nothing, max = nothing),
+        lambda = (min = 0, step = nothing, max = nothing),
     )
 
     options = collect(keys(GAUSSIAN_METHODS))
@@ -129,16 +129,16 @@ function CardWidget(
     fields = [
         Widget("method"; options),
         Widget("column"),
-        Widget("means"; means.min, means.step, means.max),
+        Widget("n_modes"; n_modes.min, n_modes.step, n_modes.max),
         Widget("max"; max.min, max.step, max.max),
-        Widget("coef"; coef.min, coef.step, coef.max),
+        Widget("lambda"; lambda.min, lambda.step, lambda.max),
         Widget("suffix", value = "gaussian"),
     ]
 
     return CardWidget(;
         type = "gaussian_encoding",
         label = "Gaussian Encoding",
-        output = OutputSpec("column", "suffix", "means"),
+        output = OutputSpec("column", "suffix", "n_modes"),
         fields
     )
 end

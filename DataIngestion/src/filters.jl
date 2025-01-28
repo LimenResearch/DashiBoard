@@ -100,8 +100,8 @@ Each filter should be an instance of [`AbstractFilter`](@ref).
 """
 function select(repo::Repository, filters::AbstractVector; schema = nothing)
     cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
-    params = merge(get_params.(cs)...)
-    pred = Fun.and(get_pred.(cs)...)
+    params = mapfoldl(get_params, merge!, cs, init = Dict{String, Any}())
+    pred = Fun.and(Iterators.map(get_pred, cs)...)
     node = From(TABLE_NAMES.source) |> Where(pred)
     replace_table(repo, node, params, TABLE_NAMES.selection; schema)
 end

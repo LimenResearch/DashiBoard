@@ -95,6 +95,11 @@ end
     @test issetequal(df.cbwd, ["NW", "SE"])
     @test issetequal(df.hour, 1:3)
     @test issetequal(df.day, 1:15)
+
+    DataIngestion.select(repo, []; schema)
+    df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")
+    orig = DBInterface.execute(DataFrame, repo, "FROM schm.source")
+    @test nrow(df) == nrow(orig)
 end
 
 @testset "dates" begin

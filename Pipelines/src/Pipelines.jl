@@ -1,6 +1,12 @@
 module Pipelines
 
-export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard, InterpCard, GaussianEncodingCard
+export card_configurations, get_card
+
+export AbstractCard,
+    RescaleCard,
+    SplitCard,
+    InterpCard,
+    GaussianEncodingCard
 
 public train, evaluate, deevaluate
 
@@ -68,6 +74,8 @@ using DataInterpolations: ExtrapolationType,
     CubicSpline,
     AkimaInterpolation,
     PCHIPInterpolation
+
+using StreamlinerCore: StreamlinerCore
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 

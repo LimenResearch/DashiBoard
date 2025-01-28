@@ -55,7 +55,7 @@ end
 
 inputs(ic::InterpCard) = stringset(ic.predictor, ic.targets, ic.partition)
 
-outputs(ic::InterpCard) = stringset(string.(ic.targets, '_', ic.suffix))
+outputs(ic::InterpCard) = stringset(join_names.(ic.targets, ic.suffix))
 
 function train(
         repo::Repository,
@@ -100,7 +100,7 @@ function evaluate(
     x = t[predictor]
 
     for (ip, target) in zip(ips, ic.targets)
-        pred_name = string(target, '_', ic.suffix)
+        pred_name = join_names(target, ic.suffix)
         ŷ = similar(x, float(eltype(x)))
         t[pred_name] = ip(ŷ, x)
     end

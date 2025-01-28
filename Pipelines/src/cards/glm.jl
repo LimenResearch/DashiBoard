@@ -62,7 +62,7 @@ function inputs(g::GLMCard)
     return stringset!(inpts, g.target, g.partition)
 end
 
-outputs(g::GLMCard) = stringset(string(g.target, '_', g.suffix))
+outputs(g::GLMCard) = stringset(join_names(g.target, g.suffix))
 
 function train(
         repo::Repository,
@@ -93,7 +93,7 @@ function evaluate(
 
     t = DBInterface.execute(fromtable, repo, From(source); schema)
 
-    pred_name = string(g.target, '_', g.suffix)
+    pred_name = join_names(g.target, g.suffix)
     t[pred_name] = predict(model, t)
 
     load_table(repo, t, dest; schema)

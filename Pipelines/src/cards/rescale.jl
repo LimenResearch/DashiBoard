@@ -27,14 +27,14 @@ end
 
 inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
 
-outputs(r::RescaleCard) = stringset(string.(r.columns, '_', r.suffix))
+outputs(r::RescaleCard) = stringset(join_names.(r.columns, r.suffix))
 
-GetTransform(col, suffix) = Get(string(col, '_', suffix))
+GetTransform(col, suffix) = Get(join_names(col, suffix))
 
 GetStats(name) = Get(name, over = Get.stats)
 
 function GetStats(col, st)
-    name = string(col, '_', st)
+    name = join_names(col, st)
     return GetStats(name)
 end
 
@@ -124,7 +124,7 @@ function pair_wise_group_by(
 
     select = filter_partition(partition)
     key = getindex.(Get, by)
-    val = [string(col, '_', name) => f(Get(col)) for col in cols for (name, f) in fs]
+    val = [join_names(col, name) => f(Get(col)) for col in cols for (name, f) in fs]
     query = From(source) |> select |> Group(by = key) |> Select(key..., val...) |> Order(by = key)
     DBInterface.execute(fromtable, repo, query; schema)
 end
@@ -153,9 +153,9 @@ function evaluate(
 
     available_columns = colnames(repo, source; schema)
     rescaled = if invert
-        [c => invtransform(c, suffix) for c in columns if string(c, '_', suffix) in available_columns]
+        [c => invtransform(c, suffix) for c in columns if join_names(c, suffix) in available_columns]
     else
-        [string(c, '_', suffix) => transform(c) for c in columns if c in available_columns]
+        [join_names(c, suffix) => transform(c) for c in columns if c in available_columns]
     end
 
     if isempty(stats)

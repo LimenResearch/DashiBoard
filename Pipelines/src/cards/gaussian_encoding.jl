@@ -64,7 +64,7 @@ Evaluate:
 end
 
 inputs(g::GaussianEncodingCard) = stringset(g.column)
-outputs(g::GaussianEncodingCard) = stringset(string.(g.column, '_', g.suffix, '_', 1:g.means))
+outputs(g::GaussianEncodingCard) = stringset(join_names.(g.column, g.suffix, 1:g.means))
 
 # TODO: might be periodic and first and last gaussian are the same?
 function train(repo::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
@@ -87,8 +87,8 @@ function evaluate(
 
     col = string(uuid4())
     converted = map(1:g.means) do i
-        k = string(g.column, '_', g.suffix, '_', i)
-        v = gaussian_transform(Get(col), Get(string("μ", '_', i)), Get.σ, Get.d)
+        k = join_names(g.column, g.suffix, i)
+        v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
 

@@ -29,8 +29,6 @@ inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
 
 outputs(r::RescaleCard) = stringset(join_names.(r.columns, r.suffix))
 
-GetTransform(col, suffix) = Get(join_names(col, suffix))
-
 GetStats(name) = Get(name, over = Get.stats)
 
 function GetStats(col, st)
@@ -45,8 +43,8 @@ function zscore_transform(col)
     return @. (x - μ) / σ
 end
 
-function zscore_invtransform(col, suffix)
-    y = GetTransform(col, suffix)
+function zscore_invtransform(col, col′)
+    y = Get(col′)
     μ = GetStats(col, "mean")
     σ = GetStats(col, "std")
     return @. μ + σ * y
@@ -58,8 +56,8 @@ function maxabs_transform(col)
     return @. x / m
 end
 
-function maxabs_invtransform(col, suffix)
-    y = GetTransform(col, suffix)
+function maxabs_invtransform(col, col′)
+    y = Get(col′)
     m = GetStats(col, "maxabs")
     return @. m * y
 end
@@ -70,8 +68,8 @@ function minmax_transform(col)
     return @. (x - x₀) / (x₁ - x₀)
 end
 
-function minmax_invtransform(col, suffix)
-    y = GetTransform(col, suffix)
+function minmax_invtransform(col, col′)
+    y = Get(col′)
     x₀, x₁ = GetStats(col, "min"), GetStats(col, "max")
     return @. x₀ + (x₁ - x₀) * y
 end
@@ -83,8 +81,8 @@ function log_transform(col)
     return @. ln(x)
 end
 
-function log_invtransform(col, suffix)
-    y = GetTransform(col, suffix)
+function log_invtransform(_, col′)
+    y = Get(col′)
     return @. exp(y)
 end
 
@@ -93,8 +91,8 @@ function logistic_transform(col)
     return @. 1 / (1 + exp(-x))
 end
 
-function logistic_invtransform(col)
-    y = GetTransform(col, suffix)
+function logistic_invtransform(_, col′)
+    y = Get(col′)
     return @. ln(y / (1 - y))
 end
 
@@ -152,10 +150,12 @@ function evaluate(
     (; stats, transform, invtransform) = RESCALERS[method]
 
     available_columns = colnames(repo, source; schema)
+    iter = ((c, join_names(c, suffix)) for c in columns)
+
     rescaled = if invert
-        [c => invtransform(c, suffix) for c in columns if join_names(c, suffix) in available_columns]
+        [c => invtransform(c, c′) for (c, c′) in iter if c′ in available_columns]
     else
-        [join_names(c, suffix) => transform(c) for c in columns if c in available_columns]
+        [c′ => transform(c) for (c, c′) in iter if c in available_columns]
     end
 
     if isempty(stats)

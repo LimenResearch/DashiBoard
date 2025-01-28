@@ -40,7 +40,7 @@
         "method": "logistic",
         "by": [],
         "columns": [
-            "TEMP"
+            "hour"
         ],
         "suffix": "rescaled"
     }

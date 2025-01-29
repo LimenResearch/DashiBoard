@@ -13,6 +13,8 @@ struct Processor{N, D}
     device::D
 end
 
+# TODO: consider adding ID field?
+
 function (p::Processor)(cols)
     (; predictors, targets) = p.data
     extract_column(k) = Tables.getcolumn(cols, Symbol(k))

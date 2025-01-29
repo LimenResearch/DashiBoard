@@ -1,4 +1,4 @@
-using Pipelines, DataIngestion, DuckDBUtils
+using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
 using DBInterface, DataFrames, GLM, DataInterpolations, Statistics, JSON3
 using OrderedCollections, Dates, Distributions
 using Test
@@ -41,10 +41,11 @@ end
     DataIngestion.load_files(repo, spec["data"]["files"]; schema)
     Pipelines.evaluate(repo, card, "source" => "split"; schema)
 
-    dt = Pipelines.DBData{2}(
+    data = Pipelines.DBData{2}(
         repository = repo,
         schema = schema,
         table = "split",
+        sorters = ["No"],
         predictors = ["TEMP", "PRES"],
         targets = ["Iws"],
         partition = "_tiled_partition"
@@ -52,21 +53,53 @@ end
 
     df = DBInterface.execute(DataFrame, repo, "FROM schm.split")
 
-    @test StreamlinerCore.get_nsamples(dt, 1) === count(==(1), df._tiled_partition)
-    @test StreamlinerCore.get_nsamples(dt, 2) === count(==(2), df._tiled_partition)
+    @test StreamlinerCore.get_nsamples(data, 1) === count(==(1), df._tiled_partition)
+    @test StreamlinerCore.get_nsamples(data, 2) === count(==(2), df._tiled_partition)
 
-    @test StreamlinerCore.get_templates(dt) === (
+    @test StreamlinerCore.get_templates(data) === (
         input = StreamlinerCore.Template(Float32, (2,)),
         output = StreamlinerCore.Template(Float32, (1,)),
     )
 
-    @test StreamlinerCore.get_metadata(dt) == Dict(
+    @test StreamlinerCore.get_metadata(data) == Dict(
         "schema" => schema,
         "table" => "split",
+        "sorters" => ["No"],
         "predictors" => ["TEMP", "PRES"],
         "targets" => ["Iws"],
         "partition" => "_tiled_partition",
     )
+
+    parser = StreamlinerCore.default_parser()
+    d = open(JSON3.read, joinpath(@__DIR__, "static", "streaming.json"))
+    
+    streaming = Streaming(parser, d["shuffled"])
+    len = cld(count(==(1), df._tiled_partition), 32)
+    len′ = StreamlinerCore.stream(length, data, 1, streaming)
+    batches = StreamlinerCore.stream(collect, data, 1, streaming)
+    @test len == len′ == length(batches)
+
+    len = cld(count(==(2), df._tiled_partition), 32)
+    len′ = StreamlinerCore.stream(length, data, 2, streaming)
+    batches = StreamlinerCore.stream(collect, data, 2, streaming)
+    @test len == len′ == length(batches)
+
+    batches′ = StreamlinerCore.stream(collect, data, 2, streaming)
+    @test batches′[1].input != batches[1].input # ensure randomness
+
+    streaming = Streaming(parser, d["unshuffled"])
+    len = cld(count(==(1), df._tiled_partition), 32)
+    len′ = StreamlinerCore.stream(length, data, 1, streaming)
+    batches = StreamlinerCore.stream(collect, data, 1, streaming)
+    @test len == len′ == length(batches)
+
+    len = cld(count(==(2), df._tiled_partition), 32)
+    len′ = StreamlinerCore.stream(length, data, 2, streaming)
+    batches = StreamlinerCore.stream(collect, data, 2, streaming)
+    @test len == len′ == length(batches)
+
+    batches′ = StreamlinerCore.stream(collect, data, 2, streaming)
+    @test batches′[1].input == batches[1].input # ensure determinism
 end
 
 mktempdir() do dir

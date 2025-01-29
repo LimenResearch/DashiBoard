@@ -83,6 +83,8 @@ include("cards/rescale.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")
+include("cards/windowed_rescale.jl")
+
 
 include("pipeline.jl")
 

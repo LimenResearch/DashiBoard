@@ -30,6 +30,45 @@ using Test
     @test Pipelines.evaluation_order!(nodes) == [4, 3, 2]
 end
 
+@testset "basic funnel" begin
+    spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))
+    schema = "schm"
+    repo = Repository()
+    DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
+    d = open(JSON3.read, joinpath(@__DIR__, "static", "split.json"))
+    card = Pipelines.get_card(d["tiles"])
+    
+    DataIngestion.load_files(repo, spec["data"]["files"]; schema)
+    Pipelines.evaluate(repo, card, "source" => "split"; schema)
+
+    dt = Pipelines.DBData{2}(
+        repository = repo,
+        schema = schema,
+        table = "split",
+        predictors = ["TEMP", "PRES"],
+        targets = ["Iws"],
+        partition = "_tiled_partition"
+    )
+
+    df = DBInterface.execute(DataFrame, repo, "FROM schm.split")
+
+    @test StreamlinerCore.get_nsamples(dt, 1) === count(==(1), df._tiled_partition)
+    @test StreamlinerCore.get_nsamples(dt, 2) === count(==(2), df._tiled_partition)
+
+    @test StreamlinerCore.get_templates(dt) === (
+        input = StreamlinerCore.Template(Float32, (2,)),
+        output = StreamlinerCore.Template(Float32, (1,)),
+    )
+
+    @test StreamlinerCore.get_metadata(dt) == Dict(
+        "schema" => schema,
+        "table" => "split",
+        "predictors" => ["TEMP", "PRES"],
+        "targets" => ["Iws"],
+        "partition" => "_tiled_partition",
+    )
+end
+
 mktempdir() do dir
     spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))
     repo = Repository(joinpath(dir, "db.duckdb"))

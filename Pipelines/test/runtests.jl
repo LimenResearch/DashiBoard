@@ -37,7 +37,7 @@ end
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
     d = open(JSON3.read, joinpath(@__DIR__, "static", "split.json"))
     card = Pipelines.get_card(d["tiles"])
-    
+
     DataIngestion.load_files(repo, spec["data"]["files"]; schema)
     Pipelines.evaluate(repo, card, "source" => "split"; schema)
 
@@ -72,7 +72,7 @@ end
 
     parser = StreamlinerCore.default_parser()
     d = open(JSON3.read, joinpath(@__DIR__, "static", "streaming.json"))
-    
+
     streaming = Streaming(parser, d["shuffled"])
     len = cld(count(==(1), df._tiled_partition), 32)
     len′ = StreamlinerCore.stream(length, data, 1, streaming)
@@ -112,7 +112,7 @@ end
     @test len == len′ == length(batches)
 
     dd = subset(df, "_tiled_partition" => x -> x .== 2)
-    
+
     @test size(batches[1].input) == (2, 32)
     @test size(batches[1].target) == (1, 32)
     @test batches[1].input == Float32.(Matrix(dd[1:32, ["TEMP", "PRES"]])')

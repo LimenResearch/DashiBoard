@@ -84,7 +84,7 @@ end
 
     f3 = DataIngestion.IntervalFilter(
         "day",
-        1..15
+        1 .. 15
     )
 
     filters = [f1, f2, f3]

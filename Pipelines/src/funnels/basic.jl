@@ -16,8 +16,8 @@ end
 function (p::Processor)(cols)
     (; predictors, targets) = p.data
     extract_column(k) = Tables.getcolumn(cols, Symbol(k))
-    input::Array{Float32, 2} = stack(extract_column, predictors)
-    target::Array{Float32, 2} = stack(extract_column, targets)
+    input::Array{Float32, 2} = stack(extract_column, predictors, dims = 1)
+    target::Array{Float32, 2} = stack(extract_column, targets, dims = 1)
     return (; input, target)
 end
 

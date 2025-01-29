@@ -51,7 +51,7 @@ end
         partition = "_tiled_partition"
     )
 
-    df = DBInterface.execute(DataFrame, repo, "FROM schm.split")
+    df = DBInterface.execute(DataFrame, repo, "FROM schm.split ORDER BY No")
 
     @test StreamlinerCore.get_nsamples(data, 1) === count(==(1), df._tiled_partition)
     @test StreamlinerCore.get_nsamples(data, 2) === count(==(2), df._tiled_partition)
@@ -79,10 +79,16 @@ end
     batches = StreamlinerCore.stream(collect, data, 1, streaming)
     @test len == len′ == length(batches)
 
+    @test size(batches[1].input) == (2, 32)
+    @test size(batches[1].target) == (1, 32)
+
     len = cld(count(==(2), df._tiled_partition), 32)
     len′ = StreamlinerCore.stream(length, data, 2, streaming)
     batches = StreamlinerCore.stream(collect, data, 2, streaming)
     @test len == len′ == length(batches)
+
+    @test size(batches[1].input) == (2, 32)
+    @test size(batches[1].target) == (1, 32)
 
     batches′ = StreamlinerCore.stream(collect, data, 2, streaming)
     @test batches′[1].input != batches[1].input # ensure randomness
@@ -93,10 +99,24 @@ end
     batches = StreamlinerCore.stream(collect, data, 1, streaming)
     @test len == len′ == length(batches)
 
+    dd = subset(df, "_tiled_partition" => x -> x .== 1)
+
+    @test size(batches[1].input) == (2, 32)
+    @test size(batches[1].target) == (1, 32)
+    @test batches[1].input == Float32.(Matrix(dd[1:32, ["TEMP", "PRES"]])')
+    @test batches[1].target == Float32.(Matrix(dd[1:32, ["Iws"]])')
+
     len = cld(count(==(2), df._tiled_partition), 32)
     len′ = StreamlinerCore.stream(length, data, 2, streaming)
     batches = StreamlinerCore.stream(collect, data, 2, streaming)
     @test len == len′ == length(batches)
+
+    dd = subset(df, "_tiled_partition" => x -> x .== 2)
+    
+    @test size(batches[1].input) == (2, 32)
+    @test size(batches[1].target) == (1, 32)
+    @test batches[1].input == Float32.(Matrix(dd[1:32, ["TEMP", "PRES"]])')
+    @test batches[1].target == Float32.(Matrix(dd[1:32, ["Iws"]])')
 
     batches′ = StreamlinerCore.stream(collect, data, 2, streaming)
     @test batches′[1].input == batches[1].input # ensure determinism

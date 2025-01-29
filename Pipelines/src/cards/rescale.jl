@@ -121,7 +121,7 @@ function pair_wise_group_by(
     )
 
     select = filter_partition(partition)
-    key = getindex.(Get, by)
+    key = Get.(by)
     val = [join_names(col, name) => f(Get(col)) for col in cols for (name, f) in fs]
     query = From(source) |> select |> Group(by = key) |> Select(key..., val...) |> Order(by = key)
     DBInterface.execute(fromtable, repo, query; schema)

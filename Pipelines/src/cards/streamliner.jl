@@ -26,9 +26,6 @@ inputs(s::StreamlinerCard) = stringset(s.predictors, s.targets, s.partition)
 
 outputs(s::StreamlinerCard) = stringset(join_names.(s.targets, s.suffix))
 
-struct Data
-
-end
 
 function train(
         repo::Repository,

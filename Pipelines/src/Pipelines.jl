@@ -1,6 +1,12 @@
 module Pipelines
 
-export card_configurations, get_card, AbstractCard, RescaleCard, SplitCard, InterpCard, GaussianEncodingCard
+export card_configurations, get_card
+
+export AbstractCard,
+    RescaleCard,
+    SplitCard,
+    InterpCard,
+    GaussianEncodingCard
 
 public train, evaluate, deevaluate
 
@@ -14,6 +20,9 @@ using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface
 using DuckDBUtils: Repository,
+    Batches,
+    StreamResult,
+    render_params,
     get_catalog,
     with_connection,
     with_table,
@@ -29,6 +38,7 @@ using FunSQL: render,
     Agg,
     Fun,
     Get,
+    Var,
     Define,
     Select,
     Order,
@@ -69,12 +79,18 @@ using DataInterpolations: ExtrapolationType,
     AkimaInterpolation,
     PCHIPInterpolation
 
+using StreamlinerCore: AbstractData, Template, Streaming, StreamlinerCore
+
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
 config_path(fn) = @path joinpath(@__DIR__, "..", "assets", fn)
 
 include("tables.jl")
 include("widgets.jl")
+
+include("funnels/basic.jl")
+
+
 include("card.jl")
 
 include("cards/split.jl")

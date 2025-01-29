@@ -14,9 +14,11 @@ JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 Pipelines = "12f58945-0960-453a-85e3-e4614e9748b9"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 DataIngestion = {path = "../../DataIngestion/"}
 DuckDBUtils = {path = "../../DuckDBUtils/"}
 Pipelines = {path = ".."}
+StreamlinerCore = {path = "../../StreamlinerCore"}

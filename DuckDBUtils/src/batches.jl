@@ -23,7 +23,9 @@ Initialize an empty table with the same schema as the column-based table `cols`.
 function _init(cols)
     assert_columnaccess(cols)
     ns = Tables.columnnames(cols)
-    return OrderedDict{Symbol, AbstractVector}(n => similar(Tables.getcolumn(cols, n), 0) for n in ns)
+    return OrderedDict{Symbol, AbstractVector}(
+        n => similar(Tables.getcolumn(cols, n), 0) for n in ns
+    )
 end
 
 """

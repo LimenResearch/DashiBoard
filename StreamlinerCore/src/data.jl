@@ -35,7 +35,8 @@ and `N = 2` to train models via a training and a validation datasets.
 Subtypes of `AbstractData` are meant to implement the following methods:
 - [`stream`](@ref),
 - [`get_templates`](@ref),
-- [`get_metadata`](@ref).
+- [`get_metadata`](@ref),
+- [`get_nsamples`](@ref).
 """
 abstract type AbstractData{N} end
 
@@ -122,9 +123,7 @@ function get_templates end
     get_metadata(x)::Dict{String, Any}
 
 Extract metadata for `x`.
-`metadata` should be a dictionary of information that identifies `x`
-univoquely.
-After training, it will be stored in the MongoDB together.
+`metadata` should be a dictionary of information that identifies `x` univoquely.
 `get_metadata` has methods for [`AbstractData`](@ref), [`Model`](@ref), and [`Training`](@ref).
 """
 function get_metadata end

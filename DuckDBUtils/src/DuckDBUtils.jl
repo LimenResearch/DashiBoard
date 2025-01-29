@@ -6,6 +6,8 @@ export Repository, acquire_connection, release_connection, with_connection, with
 
 export get_catalog
 
+export StreamResult, MaterializedResult
+
 public colnames, to_sql
 
 public load_table, delete_table, replace_table
@@ -14,7 +16,13 @@ public render_params
 
 using UUIDs: uuid4
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, LIT
-using DuckDB: DBInterface, DuckDB, register_table, unregister_table
+using DuckDB: DuckDB,
+    register_table,
+    unregister_table,
+    StreamResult,
+    MaterializedResult
+
+using DBInterface: DBInterface
 using ConcurrentUtilities: Pool, acquire, release
 using Tables: Tables
 using OrderedCollections: OrderedDict

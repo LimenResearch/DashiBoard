@@ -79,7 +79,13 @@ using DataInterpolations: ExtrapolationType,
     AkimaInterpolation,
     PCHIPInterpolation
 
-using StreamlinerCore: AbstractData, Template, Streaming, StreamlinerCore
+using StreamlinerCore: StreamlinerCore,
+    AbstractData,
+    Model,
+    Streaming,
+    Training,
+    Template,
+    default_parser
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
@@ -90,7 +96,6 @@ include("widgets.jl")
 
 include("funnels/basic.jl")
 
-
 include("card.jl")
 
 include("cards/split.jl")
@@ -98,6 +103,7 @@ include("cards/rescale.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")
+include("cards/streamliner.jl")
 
 include("pipeline.jl")
 

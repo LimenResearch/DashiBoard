@@ -91,9 +91,6 @@ function evaluate(repo::Repository, cards::AbstractVector, table::AbstractString
     return nodes
 end
 
-# TODO: similar method for `deevaluate`?
-# TODO: `deevaluate(repo, node.card, node.model, source => target; schema)`
-
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractVector) = union!(s, x)
 _union!(s::AbstractSet{<:AbstractString}, ::Nothing) = s
@@ -103,6 +100,7 @@ stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
 # Note: for the moment this evaluates the nodes in order
+# TODO: finalize deevaluate interface
 function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
         deevaluate(repo, node.card, node.model, table => table; schema)

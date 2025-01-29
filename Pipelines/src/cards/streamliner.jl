@@ -23,32 +23,33 @@ Run a Streamliner model, predicting `targets` from `predictors`.
     partition::Union{String, Nothing} = nothing
     suffix::String = "hat"
 end
+# TODO: consider more complete parsing here?
 
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
-function streamlinercard(;
-        sorters::AbstractVector{<:AbstractString} = String[],
-        predictors::AbstractVector{<:AbstractString} = String[],
-        targets::AbstractVector{<:AbstractString} = String[],
-        model::AbstractString,
-        training::AbstractString,
-        suffix::AbstractString = "hat",
-        options...
-    )
+function fromdict(::Type{StreamlinerCard}, d::AbstractDict)
+    sorters = get(d, "sorters", String[])
+    predictors = get(d, "predictors", String[])
+    targets = get(d, "targets", String[])
 
-    d = Dict(String(k) => v for (k, v) in pairs(options))
+    model_file = joinpath(MODEL_DIR[], d["model"])
+    model_params = get(d, "model_params", Dict{String, Any}())
+    training_file = joinpath(TRAINING_DIR[], d["training"])
+    training_params = get(d, "training_params", Dict{String, Any}())
 
+    partition = get(d, "partition", nothing)
+    
     return StreamlinerCard(;
         sorters,
         predictors,
         targets,
-        model_file = joinpath(MODEL_DIR[], model),
-        model_params = d,
-        training_file = joinpath(TRAINING_DIR[], training),
-        training_params = d,
-        partition = nothing,
-        suffix = suffix
+        model_file,
+        model_params,
+        training_file,
+        training_params,
+        partition,
+        suffix
     )
 end
 

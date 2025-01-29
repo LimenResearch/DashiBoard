@@ -13,6 +13,8 @@ public train, evaluate, deevaluate
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue
 
+using EasyConfig: Config
+
 using TOML: parsefile
 using RelocatableFolders: @path
 

@@ -65,9 +65,10 @@ const CARD_TYPES = Dict(
 Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
 """
 function get_card(d::AbstractDict)
-    sd = Dict(Symbol(k) => v for (k, v) in pairs(d))
-    type = pop!(sd, :type)
-    return CARD_TYPES[type](; sd...)
+    c = Config(d)
+    (; type) = c
+    delete!(c, :type)
+    return fromdict(CARD_TYPES[type], c)
 end
 
 """

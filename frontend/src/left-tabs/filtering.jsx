@@ -5,7 +5,7 @@ import { IntervalFilter } from "../filters/interval-filter";
 import { ListFilter } from "../filters/list-filter";
 
 function nonNullEntries(obj) {
-    return _.entries(obj).filter(([k, v]) => v != null);
+    return _.toPairs(obj).filter(([k, v]) => v != null);
 }
 
 function getFilters(store) {

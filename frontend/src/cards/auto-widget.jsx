@@ -5,7 +5,7 @@ import { Input } from "../components/input";
 const selectClass = "text-blue-800 font-semibold py-4 w-full text-left";
 
 function applyFilter(obj, val) {
-    return obj && _.entries(obj).every(
+    return obj && _.toPairs(obj).every(
         ([key, options]) => options.includes(val[key])
     );
 }
@@ -58,7 +58,7 @@ export function initAutoWidget(props, value, setter) {
         updateValue: updateValue,
     };
 
-    const output = {};
+    const output = { key: props.key, visible, required, valid };
 
     return { input, output };
 }

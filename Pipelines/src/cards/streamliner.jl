@@ -24,6 +24,34 @@ Run a Streamliner model, predicting `targets` from `predictors`.
     suffix::String = "hat"
 end
 
+const MODEL_DIR = ScopedValue{String}()
+const TRAINING_DIR = ScopedValue{String}()
+
+function streamlinercard(;
+        sorters::AbstractVector{<:AbstractString} = String[],
+        predictors::AbstractVector{<:AbstractString} = String[],
+        targets::AbstractVector{<:AbstractString} = String[],
+        model::AbstractString,
+        training::AbstractString,
+        suffix::AbstractString = "hat",
+        options...
+    )
+
+    d = Dict(String(k) => v for (k, v) in pairs(options))
+
+    return StreamlinerCard(;
+        sorters,
+        predictors,
+        targets,
+        model_file = joinpath(MODEL_DIR[], model),
+        model_params = d,
+        training_file = joinpath(TRAINING_DIR[], training),
+        training_params = d,
+        partition = nothing,
+        suffix = suffix
+    )
+end
+
 inputs(s::StreamlinerCard) = stringset(s.sorters, s.predictors, s.targets, s.partition)
 
 outputs(s::StreamlinerCard) = stringset(join_names.(s.targets, s.suffix))

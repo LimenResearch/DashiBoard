@@ -32,9 +32,16 @@ export function initCardContent(config) {
     const setter = (k, v) => setValue(_.assign({}, value(), {[k]: v}));
     const widgets = config.fields.map(x => initAutoWidget(x, value, setter));
 
-    const input = widgets.map(x => x.input)
-    const validated = () => input.every(x => !x.required() || x.valid());
-    const output = { value, validated };
+    const widgetOutputs = widgets.map(x => x.output)
+    const validated = () => widgetOutputs.every(x => !x.required() || x.valid());
+    const outputValue = () => {
+        const val = value();
+        const pairs = widgetOutputs
+            .filter(x => x.visible() && x.valid()) // should we keep invalid fields?
+            .map(x => [x.key, val[x.key]]);
+        return _.fromPairs(pairs);
+    }
+    const output = { value: outputValue, validated };
 
     return { input, output };
 }

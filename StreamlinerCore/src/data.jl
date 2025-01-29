@@ -124,6 +124,7 @@ function get_templates end
 
 Extract metadata for `x`.
 `metadata` should be a dictionary of information that identifies `x` univoquely.
+`get_metadata` has methods for [`AbstractData`](@ref), [`Model`](@ref), and [`Training`](@ref).
 """
 function get_metadata end
 

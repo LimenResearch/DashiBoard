@@ -417,7 +417,7 @@ mktempdir() do dir
             base_fields = Config(column = "date", n_modes = 3, max = 365.0, lambda = 0.5, suffix = "gaussian")
 
             for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING)
-                config = merge(base_fields, Config(method = k,))
+                config = merge(base_fields, Config(method = k))
                 card = GaussianEncodingCard(config)
                 @test string(card.processed_column) == string(v(Get("date")))
             end

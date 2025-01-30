@@ -1,6 +1,7 @@
 using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
 using DBInterface, DataFrames, GLM, DataInterpolations, Statistics, JSON3
-using OrderedCollections, Dates, Distributions
+using OrderedCollections, EasyConfig, Dates, Distributions
+using FunSQL: Get
 using Test
 
 @testset "evaluation order" begin
@@ -157,8 +158,7 @@ mktempdir() do dir
         @test count(==(2), df._percentile_partition) == 4383
         # TODO: port TimeFunnelUtils tests
 
-        card = Pipelines.SplitCard("percentile", String[], ["cbwd"], "_percentile_partition", 0.9, Int[])
-        @test_throws ArgumentError Pipelines.evaluate(repo, card, "selection" => "split")
+        @test_throws ArgumentError Pipelines.get_card(d["unsorted"])
     end
 
     # TODO: also test partitioned version
@@ -405,11 +405,6 @@ mktempdir() do dir
     end
 
     @testset "gaussian encoding" begin
-        spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))
-        repo = Repository(joinpath(dir, "db.duckdb"))
-        DataIngestion.load_files(repo, spec["data"]["files"])
-        filters = DataIngestion.get_filter.(spec["filters"])
-        DataIngestion.select(repo, filters)
         selection = DBInterface.execute(DataFrame, repo, "FROM selection")
         origin = transform(
             selection,
@@ -420,18 +415,20 @@ mktempdir() do dir
         DuckDBUtils.load_table(repo, origin, "origin")
 
         @testset "GaussianEncodingCard construction" begin
-            base_fields = (column = "date", n_modes = 3, max = 365.0, lambda = 0.5, suffix = "gaussian")
+            base_fields = Config(column = "date", n_modes = 3, max = 365.0, lambda = 0.5, suffix = "gaussian")
 
-            for method in keys(Pipelines.GAUSSIAN_METHODS)
-                fields = merge(base_fields, (method = method,))
-                card = GaussianEncodingCard(; fields...)
-                @test card.method == method
+            for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING)
+                config = merge(base_fields, Config(method = k))
+                card = GaussianEncodingCard(config)
+                @test string(card.processed_column) == string(v(Get("date")))
             end
 
             invalid_method = "nonexistent_method"
-            invalid_fields = merge(base_fields, (method = invalid_method,))
-            @test_throws ArgumentError GaussianEncodingCard(; invalid_fields...)
-            @test_throws ArgumentError GaussianEncodingCard(column = "date", n_modes = 1, max = 365.0, lambda = 0.5, method = "identity")
+            invalid_config = merge(base_fields, Config(method = invalid_method))
+            @test_throws ArgumentError GaussianEncodingCard(invalid_config)
+
+            invalid_config = Config(column = "date", n_modes = 1, max = 365.0, lambda = 0.5, method = "identity")
+            @test_throws ArgumentError GaussianEncodingCard(invalid_config)
         end
 
         function gauss_train_test(card, params)
@@ -446,7 +443,7 @@ mktempdir() do dir
             @test params["d"][1] ≈ expected_d
         end
 
-        function gauss_evaluate_test(result, card, origin)
+        function gauss_evaluate_test(result, card, origin; processing)
             @test issetequal(
                 names(result),
                 union(names(origin), Pipelines.outputs(card))
@@ -454,7 +451,7 @@ mktempdir() do dir
 
             origin_column = origin[:, card.column]
             max_value = card.max
-            preprocessed_values = [eval(Meta.parse(card.method))(x) for x in origin_column]
+            preprocessed_values = [processing(x) for x in origin_column]
             μs = range(0, stop = 1, length = card.n_modes)
             σ = step(μs) * card.lambda
             dists = [Normal(μ, σ) for μ in μs]
@@ -469,7 +466,7 @@ mktempdir() do dir
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
         gauss_train_test(gaus, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        gauss_evaluate_test(result, gaus, origin)
+        gauss_evaluate_test(result, gaus, origin; processing = identity)
         @test issetequal(Pipelines.outputs(gaus), ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"])
         @test only(Pipelines.inputs(gaus)) == "month"
 
@@ -478,7 +475,7 @@ mktempdir() do dir
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
         gauss_train_test(gaus, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        gauss_evaluate_test(result, gaus, origin)
+        gauss_evaluate_test(result, gaus, origin; processing = dayofyear)
         @test issetequal(
             Pipelines.outputs(gaus),
             [
@@ -494,7 +491,7 @@ mktempdir() do dir
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
         gauss_train_test(gaus, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        gauss_evaluate_test(result, gaus, origin)
+        gauss_evaluate_test(result, gaus, origin; processing = hour)
         @test issetequal(Pipelines.outputs(gaus), ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"])
         @test only(Pipelines.inputs(gaus)) == "time"
     end
@@ -514,7 +511,6 @@ mktempdir() do dir
         @test count(==(2), df._tiled_partition) == 14606
         @test count(==(1), df._percentile_partition) == 39441
         @test count(==(2), df._percentile_partition) == 4383
-        # TODO: test zscore values as well
     end
 end
 

@@ -58,7 +58,7 @@ export function initAutoWidget(props, value, setter) {
         updateValue: updateValue,
     };
 
-    const output = {};
+    const output = { key: props.key, visible, required, valid };
 
     return { input, output };
 }

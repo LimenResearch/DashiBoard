@@ -28,41 +28,51 @@ const LINK_FUNCTIONS = OrderedDict(
 
 """
     struct GLMCard <: AbstractCard
-        predictors::Vector{Any}
-        target::String
-        weights::Union{String, Nothing} = nothing
-        distribution::String = "normal"
-        link::Union{String, Nothing} = nothing
-        link_params::Vector{Any} = Any[]
-        suffix::String = "hat"
+        formula::FormulaTerm
+        weights::Union{String, Nothing}
+        distribution::Distribution
+        link::Link
+        partition::Union{String, Nothing}
+        suffix::String
     end
 
-Run a Generalized Linear Model (GLM), predicting `target` from `predictors`. 
+Run a Generalized Linear Model (GLM) based on `formula`.
 """
-@kwdef struct GLMCard <: AbstractCard
-    predictors::Vector{Any}
-    target::String
-    weights::Union{String, Nothing} = nothing
-    distribution::Union{String, Nothing} = nothing
-    link::Union{String, Nothing} = nothing
-    link_params::Vector{Any} = Any[]
-    partition::Union{String, Nothing} = nothing
-    suffix::String = "hat"
+struct GLMCard <: AbstractCard
+    formula::FormulaTerm
+    weights::Union{String, Nothing}
+    distribution::Distribution
+    link::Link
+    partition::Union{String, Nothing}
+    suffix::String
 end
 
-to_colnames(::Number) = String[]
-to_colnames(s::AbstractString) = String[s]
-to_colnames(s::AbstractVector) = reduce(vcat, map(to_colnames, s))
+function GLMCard(c::Config)
+    predictors::Vector{Any} = c.predictors
+    target::String = c.target
+    formula::FormulaTerm = to_target(target) ~ to_predictors(predictors)
+    weights::Union{String, Nothing} = get(c, :weights, nothing)
+    distribution::Distribution = NOISE_MODELS[get(c, :distribution, "normal")]
+    link::Link = if haskey(c, :link)
+        link_params = get(c, :link_params, ())
+        LINK_FUNCTIONS[c.link](link_params...)
+    else
+        canonicallink(distribution)
+    end
+    partition::Union{String, Nothing} = get(c, :partition, nothing)
+    suffix::String = get(c, :suffix, "hat")
+
+    return GLMCard(formula, weights, distribution, link, partition, suffix)
+end
 
 function inputs(g::GLMCard)
-    inpts = stringset()
-    for pred in g.predictors
-        stringset!(inpts, to_colnames(pred))
-    end
-    return stringset!(inpts, g.target, g.partition)
+    formula_vars = [termnames(t) for t in terms(g.formula) if t isa Term]
+    return stringset(formula_vars, g.weights, g.partition)
 end
 
-outputs(g::GLMCard) = stringset(join_names(g.target, g.suffix))
+targetname(g::GLMCard) = termnames(g.formula.lhs)
+
+outputs(g::GLMCard) = stringset(join_names(targetname(g), g.suffix))
 
 function train(
         repo::Repository,
@@ -75,12 +85,11 @@ function train(
     q = From(source) |> select
     t = DBInterface.execute(fromtable, repo, q; schema)
 
-    formula = to_target(g.target) ~ to_predictors(g.predictors)
-    dist = NOISE_MODELS[something(g.distribution, "normal")]
-    link = isnothing(g.link) ? canonicallink(dist) : LINK_FUNCTIONS[g.link](g.link_params...)
-    weights = isnothing(g.weights) ? similar(t[g.target], 0) : t[g.weights]
+    (; formula, distribution, link) = g
+    # `weights` cannot yet be passed as a symbol
+    weights = isnothing(g.weights) ? similar(t[targetname(g)], 0) : t[g.weights]
     # TODO save slim version with no data
-    return fit(GeneralizedLinearModel, formula, t, dist, link, wts = weights)
+    return fit(GeneralizedLinearModel, formula, t, distribution, link, wts = weights)
 end
 
 function evaluate(
@@ -93,7 +102,7 @@ function evaluate(
 
     t = DBInterface.execute(fromtable, repo, From(source); schema)
 
-    pred_name = join_names(g.target, g.suffix)
+    pred_name = join_names(targetname(g), g.suffix)
     t[pred_name] = predict(model, t)
 
     load_table(repo, t, dest; schema)

@@ -65,9 +65,10 @@ const CARD_TYPES = Dict(
 Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
 """
 function get_card(d::AbstractDict)
-    sd = Dict(Symbol(k) => v for (k, v) in pairs(d))
-    type = pop!(sd, :type)
-    return CARD_TYPES[type](; sd...)
+    c = Config(d)
+    (; type) = c
+    delete!(c, :type)
+    return CARD_TYPES[type](c)
 end
 
 """
@@ -91,9 +92,6 @@ function evaluate(repo::Repository, cards::AbstractVector, table::AbstractString
     return nodes
 end
 
-# TODO: similar method for `deevaluate`?
-# TODO: `deevaluate(repo, node.card, node.model, source => target; schema)`
-
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractVector) = union!(s, x)
 _union!(s::AbstractSet{<:AbstractString}, ::Nothing) = s
@@ -103,6 +101,7 @@ stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
 # Note: for the moment this evaluates the nodes in order
+# TODO: finalize deevaluate interface
 function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
         deevaluate(repo, node.card, node.model, table => table; schema)
@@ -117,6 +116,19 @@ function filter_partition(::Nothing, n::Integer = 1)
         throw(ArgumentError("Data has not been split"))
     end
     return identity
+end
+
+function check_order(c::Config)
+    order_by = get(c, :order_by, String[])
+    if isempty(order_by)
+        throw(
+            ArgumentError(
+                """
+                At least one sorter is required.
+                """
+            )
+        )
+    end
 end
 
 function card_widget(d::AbstractDict, key::AbstractString; kwargs...)

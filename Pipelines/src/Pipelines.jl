@@ -13,6 +13,8 @@ public train, evaluate, deevaluate
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue
 
+using EasyConfig: Config
+
 using TOML: parsefile
 using RelocatableFolders: @path
 
@@ -49,16 +51,18 @@ using FunSQL: render,
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
-using StatsModels: Term, ConstantTerm
+using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
 using StatsAPI: fit, predict
-using GLM: GeneralizedLinearModel,
-    RegressionModel,
-    canonicallink,
+using Distributions: Distribution,
     Normal,
     Binomial,
     Gamma,
     InverseGaussian,
-    Poisson,
+    Poisson
+using GLM: GeneralizedLinearModel,
+    RegressionModel,
+    canonicallink,
+    Link,
     CauchitLink,
     CloglogLink,
     IdentityLink,
@@ -79,7 +83,13 @@ using DataInterpolations: ExtrapolationType,
     AkimaInterpolation,
     PCHIPInterpolation
 
-using StreamlinerCore: AbstractData, Template, Streaming, StreamlinerCore
+using StreamlinerCore: StreamlinerCore,
+    AbstractData,
+    Model,
+    Streaming,
+    Training,
+    Template,
+    default_parser
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
@@ -89,7 +99,6 @@ include("tables.jl")
 include("widgets.jl")
 
 include("funnels/basic.jl")
-
 
 include("card.jl")
 

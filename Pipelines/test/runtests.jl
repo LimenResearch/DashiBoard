@@ -286,47 +286,47 @@ mktempdir() do dir
         @test df′.hour ≈ df.hour
     end
 
-#     @testset "glm" begin
-#         d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
+    @testset "glm" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
 
-#         part_card = Pipelines.get_card(d["partition"])
-#         Pipelines.evaluate(repo, part_card, "selection" => "partition")
+        part_card = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
-#         card = Pipelines.get_card(d["hasPartition"])
+        card = Pipelines.get_card(d["hasPartition"])
 
-#         @test issetequal(Pipelines.inputs(card), ["cbwd", "year", "No", "TEMP", "partition"])
-#         @test issetequal(Pipelines.outputs(card), ["TEMP_hat"])
+        @test issetequal(Pipelines.inputs(card), ["cbwd", "year", "No", "TEMP", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP_hat"])
 
-#         Pipelines.evaluate(repo, card, "partition" => "glm")
-#         df = DBInterface.execute(DataFrame, repo, "FROM glm")
-#         @test issetequal(
-#             names(df),
-#             [
-#                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-#                 "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
-#             ]
-#         )
-#         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
-#         m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
-#         @test predict(m, df) == df.TEMP_hat
+        Pipelines.evaluate(repo, card, "partition" => "glm")
+        df = DBInterface.execute(DataFrame, repo, "FROM glm")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
+            ]
+        )
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
+        m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
+        @test predict(m, df) == df.TEMP_hat
 
-#         d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
 
-#         card = Pipelines.get_card(d["hasWeights"])
+        card = Pipelines.get_card(d["hasWeights"])
 
-#         Pipelines.evaluate(repo, card, "partition" => "glm")
-#         df = DBInterface.execute(DataFrame, repo, "FROM glm")
-#         @test issetequal(
-#             names(df),
-#             [
-#                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-#                 "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
-#             ]
-#         )
-#         train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
-#         m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(), wts = train_df.TEMP)
-#         @test predict(m, df) == df.PRES_hat
-#     end
+        Pipelines.evaluate(repo, card, "partition" => "glm")
+        df = DBInterface.execute(DataFrame, repo, "FROM glm")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
+            ]
+        )
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
+        m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(), wts = train_df.TEMP)
+        @test predict(m, df) == df.PRES_hat
+    end
 
 #     @testset "interp" begin
 #         d = open(JSON3.read, joinpath(@__DIR__, "static", "interp.json"))

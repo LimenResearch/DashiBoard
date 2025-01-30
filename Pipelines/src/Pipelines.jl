@@ -51,16 +51,18 @@ using FunSQL: render,
 
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
-using StatsModels: Term, ConstantTerm
+using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
 using StatsAPI: fit, predict
-using GLM: GeneralizedLinearModel,
-    RegressionModel,
-    canonicallink,
+using Distributions: Distribution,
     Normal,
     Binomial,
     Gamma,
     InverseGaussian,
-    Poisson,
+    Poisson
+using GLM: GeneralizedLinearModel,
+    RegressionModel,
+    canonicallink,
+    Link,
     CauchitLink,
     CloglogLink,
     IdentityLink,

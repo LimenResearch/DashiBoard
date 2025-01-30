@@ -1,3 +1,9 @@
+const TEMPORAL_PREPROCESSING = OrderedDict(
+    "identity" => identity,
+    "dayofyear" => Fun.dayofyear,
+    "hour" => Fun.hour
+)
+
 """
     struct GaussianEncodingCard <: AbstractCard
 
@@ -5,11 +11,11 @@ Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
 - `column::String`: Name of the column to transform.
+- `processed_column::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
 - `n_modes::Int`: Number of Gaussian curves to generate.
 - `max::Float64`: Maximum value used for normalization (denominator).
 - `lambda::Float64`: Coefficient for scaling the standard deviation.
 - `suffix::String`: Suffix added to the output column names.
-- `method::String`: Preprocessing method applied to the column (e.g., `"identity"`, `"dayofyear"`, `"hour"`).
 
 Notes:
 - The `method` field determines the preprocessing applied to the column.
@@ -19,7 +25,7 @@ Notes:
   - `"hour"`: Assumes the column is a time or timestamp.
 
 Methods:
-- Defined in the `GAUSSIAN_METHODS` dictionary:
+- Defined in the `TEMPORAL_PREPROCESSING` dictionary:
   - `"identity"`: No transformation.
   - `"dayofyear"`: Applies the SQL `dayofyear` function.
   - `"hour"`: Applies the SQL `hour` function.
@@ -39,28 +45,29 @@ Evaluate:
   5. Selects only the required columns (original and transformed).
   6. Replaces the target table with the final results.
 """
-@kwdef struct GaussianEncodingCard <: AbstractCard
-    method::String = "identity"
+struct GaussianEncodingCard <: AbstractCard
     column::String
+    processed_column::SQLNode
     n_modes::Int
     max::Float64
-    lambda::Float64 = 0.5
-    suffix::String = "gaussian"
-    function GaussianEncodingCard(
-            method::AbstractString,
-            column::AbstractString,
-            n_modes::Integer,
-            max::Real,
-            lambda::Real,
-            suffix::AbstractString,
-        )
-        if !haskey(GAUSSIAN_METHODS, method)
-            valid_methods = join(keys(GAUSSIAN_METHODS), ", ")
-            throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
-        end
-        n_modes < 2 && throw(ArgumentError("`n_modes` must be at least `2`. Provided value: `$n_modes`."))
-        new(method, column, n_modes, max, lambda, suffix)
+    lambda::Float64
+    suffix::String
+end
+
+function GaussianEncodingCard(c::Config)
+    column::String = c.column
+    method::String = get(c, :method, "identity")
+    if !haskey(TEMPORAL_PREPROCESSING, method)
+        valid_methods = join(keys(TEMPORAL_PREPROCESSING), ", ")
+        throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
+    processed_column::SQLNode = TEMPORAL_PREPROCESSING[method](Get(column))
+    n_modes::Int = c.n_modes
+    n_modes < 2 && throw(ArgumentError("`n_modes` must be at least `2`. Provided value: `$n_modes`."))
+    max::Float64 = c.max
+    lambda::Float64 = get(c, :lambda, 0.5)
+    suffix::String = get(c, :suffix, "gaussian")
+    return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
 end
 
 inputs(g::GaussianEncodingCard) = stringset(g.column)
@@ -75,6 +82,12 @@ function train(repo::Repository, g::GaussianEncodingCard, source::AbstractString
         params["μ_$i"] = [μ]
     end
     return SimpleTable(params)
+end
+
+function gaussian_transform(x, μ, σ, d)
+    c = sqrt(2π)
+    ω = @. ((x / d) - μ) / σ
+    return @. exp(-ω * ω / 2) / c
 end
 
 function evaluate(
@@ -94,28 +107,15 @@ function evaluate(
     end
     target_columns = union(source_columns, first.(converted))
 
-    preprocess = GAUSSIAN_METHODS[g.method]
     return with_table(repo, params_tbl; schema) do tbl_name
         query = From(source) |>
-            Define(col => preprocess(Get(g.column))) |>
+            Define(col => g.processed_column) |>
             Join(From(tbl_name), on = true) |>
             Define(converted...) |>
             Select(Get.(target_columns)...)
         replace_table(repo, query, target; schema)
     end
 end
-
-function gaussian_transform(x, μ, σ, d)
-    c = sqrt(2π)
-    ω = @. ((x / d) - μ) / σ
-    return @. exp(-ω * ω / 2) / c
-end
-
-const GAUSSIAN_METHODS = OrderedDict(
-    "identity" => identity,
-    "dayofyear" => Fun.dayofyear,
-    "hour" => Fun.hour
-)
 
 function CardWidget(
         ::Type{GaussianEncodingCard};
@@ -124,7 +124,7 @@ function CardWidget(
         lambda = (min = 0, step = nothing, max = nothing),
     )
 
-    options = collect(keys(GAUSSIAN_METHODS))
+    options = collect(keys(TEMPORAL_PREPROCESSING))
 
     fields = [
         Widget("method"; options),

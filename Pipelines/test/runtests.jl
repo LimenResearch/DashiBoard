@@ -32,11 +32,11 @@ using Test
 end
 
 @testset "basic funnel" begin
-    spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))
+    spec = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "spec.json"))
     schema = "schm"
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
-    d = open(JSON3.read, joinpath(@__DIR__, "static", "split.json"))
+    d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "split.json"))
     card = Pipelines.get_card(d["tiles"])
 
     DataIngestion.load_files(repo, spec["data"]["files"]; schema)
@@ -72,7 +72,7 @@ end
     )
 
     parser = StreamlinerCore.default_parser()
-    d = open(JSON3.read, joinpath(@__DIR__, "static", "streaming.json"))
+    d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "streaming.json"))
 
     streaming = Streaming(parser, d["shuffled"])
     len = cld(count(==(1), df._tiled_partition), 32)
@@ -124,14 +124,14 @@ end
 end
 
 mktempdir() do dir
-    spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))
+    spec = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "spec.json"))
     repo = Repository(joinpath(dir, "db.duckdb"))
     DataIngestion.load_files(repo, spec["data"]["files"])
     filters = DataIngestion.get_filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 
     @testset "split" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "split.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "split.json"))
         card = Pipelines.get_card(d["tiles"])
 
         @test issetequal(Pipelines.inputs(card), ["No", "cbwd"])
@@ -163,7 +163,7 @@ mktempdir() do dir
 
     # TODO: also test partitioned version
     @testset "rescale" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "rescale.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
         card = Pipelines.get_card(d["zscore"])
 
@@ -288,7 +288,7 @@ mktempdir() do dir
     end
 
     @testset "glm" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "glm.json"))
 
         part_card = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
@@ -311,7 +311,7 @@ mktempdir() do dir
         m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
         @test predict(m, df) == df.TEMP_hat
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "glm.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "glm.json"))
 
         card = Pipelines.get_card(d["hasWeights"])
 
@@ -330,7 +330,7 @@ mktempdir() do dir
     end
 
     @testset "interp" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "interp.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "interp.json"))
 
         part_card = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
@@ -461,7 +461,7 @@ mktempdir() do dir
             end
         end
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "gaussian.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         gaus = Pipelines.get_card(d["identity"])
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
         gauss_train_test(gaus, params)
@@ -470,7 +470,7 @@ mktempdir() do dir
         @test issetequal(Pipelines.outputs(gaus), ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"])
         @test only(Pipelines.inputs(gaus)) == "month"
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "gaussian.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         gaus = Pipelines.get_card(d["dayofyear"])
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
         gauss_train_test(gaus, params)
@@ -486,7 +486,7 @@ mktempdir() do dir
         )
         @test only(Pipelines.inputs(gaus)) == "date"
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "gaussian.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         gaus = Pipelines.get_card(d["hour"])
         params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
         gauss_train_test(gaus, params)
@@ -496,8 +496,12 @@ mktempdir() do dir
         @test only(Pipelines.inputs(gaus)) == "time"
     end
 
+    @testset "streamlinre" begin
+
+    end
+
     @testset "cards" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "cards.json"))
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "cards.json"))
         cards = Pipelines.get_card.(d)
         Pipelines.evaluate(repo, cards, "selection")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")

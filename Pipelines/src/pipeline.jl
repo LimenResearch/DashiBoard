@@ -68,7 +68,7 @@ function get_card(d::AbstractDict)
     c = Config(d)
     (; type) = c
     delete!(c, :type)
-    return fromdict(CARD_TYPES[type], c)
+    return CARD_TYPES[type](c)
 end
 
 """
@@ -116,6 +116,19 @@ function filter_partition(::Nothing, n::Integer = 1)
         throw(ArgumentError("Data has not been split"))
     end
     return identity
+end
+
+function check_order(c::Config)
+    order_by = get(c, :order_by, String[])
+    if isempty(order_by)
+        throw(
+            ArgumentError(
+                """
+                At least one sorter is required.
+                """
+            )
+        )
+    end
 end
 
 function card_widget(d::AbstractDict, key::AbstractString; kwargs...)

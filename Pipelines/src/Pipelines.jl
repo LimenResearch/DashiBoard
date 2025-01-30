@@ -105,7 +105,6 @@ include("cards/rescale.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")
-include("cards/streamliner.jl")
 
 include("pipeline.jl")
 

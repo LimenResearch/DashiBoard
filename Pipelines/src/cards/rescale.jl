@@ -1,6 +1,12 @@
+struct Rescaler
+    stats::Vector{Pair}
+    transform::Base.Callable
+    invtransform::Union{Base.Callable, Nothing}
+end
+
 """
     struct RescaleCard <: AbstractCard
-        method::String
+        method::Rescaler
         by::Vector{String} = String[]
         columns::Vector{String}
         suffix::String = "rescaled"
@@ -17,17 +23,13 @@ The supported methods are
 The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`. 
 """
-@kwdef struct RescaleCard <: AbstractCard
-    method::String
-    by::Vector{String} = String[]
+struct RescaleCard <: AbstractCard
+    method::Rescaler
+    by::Vector{String}
     columns::Vector{String}
-    partition::Union{String, Nothing} = nothing
-    suffix::String = "rescaled"
+    partition::Union{String, Nothing}
+    suffix::String
 end
-
-inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
-
-outputs(r::RescaleCard) = stringset(join_names.(r.columns, r.suffix))
 
 GetStats(name) = Get(name, over = Get.stats)
 
@@ -96,12 +98,6 @@ function logistic_invtransform(_, col′)
     return @. ln(y / (1 - y))
 end
 
-struct Rescaler
-    stats::Vector{Pair}
-    transform::Base.Callable
-    invtransform::Union{Base.Callable, Nothing}
-end
-
 const RESCALERS = OrderedDict{String, Rescaler}(
     "zscore" => Rescaler(Pair["mean" => Agg.mean, "std" => Agg.stddev_pop], zscore_transform, zscore_invtransform),
     "maxabs" => Rescaler(Pair["maxabs" => Agg.max ∘ Fun.abs], maxabs_transform, maxabs_invtransform),
@@ -109,6 +105,25 @@ const RESCALERS = OrderedDict{String, Rescaler}(
     "log" => Rescaler(Pair[], log_transform, log_invtransform),
     "logistic" => Rescaler(Pair[], logistic_transform, logistic_invtransform)
 )
+
+function RescaleCard(c::Config)
+    method = RESCALERS[c.method]
+    by = get(c, :by, String[])
+    columns = c.columns
+    partition = get(c, :partition, nothing)
+    suffix = get(c, :suffix, "rescaled")
+    return RescaleCard(
+        method,
+        by,
+        columns,
+        partition,
+        suffix
+    )
+end
+
+inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
+
+outputs(r::RescaleCard) = stringset(join_names.(r.columns, r.suffix))
 
 function pair_wise_group_by(
         repo::Repository,
@@ -129,7 +144,7 @@ end
 
 function train(repo::Repository, r::RescaleCard, source::AbstractString; schema = nothing)
     (; by, columns, method) = r
-    (; stats) = RESCALERS[method]
+    (; stats) = method
     return if isempty(stats)
         SimpleTable()
     else
@@ -147,7 +162,7 @@ function evaluate(
     )
 
     (; by, columns, method, suffix) = r
-    (; stats, transform, invtransform) = RESCALERS[method]
+    (; stats, transform, invtransform) = method
 
     available_columns = colnames(repo, source; schema)
     iter = ((c, join_names(c, suffix)) for c in columns)

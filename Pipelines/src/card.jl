@@ -48,7 +48,3 @@ function evaluate(repo::Repository, card::AbstractCard, (source, dest)::Pair; sc
     evaluate(repo, card, m, source => dest; schema)
     return m
 end
-
-function fromdict(::Type{T}, options::AbstractDict) where {T<:AbstractCard}
-    return T(; options...)
-end

@@ -1,11 +1,9 @@
 """
     struct SplitCard <: AbstractCard
-        method::String
+        method::SQLNode
         order_by::Vector{String}
-        by::Vector{String} = String[]
+        by::Vector{String}
         output::String
-        percentile::Union{Float64, Nothing} = nothing
-        tiles::Vector{Int} = Int[]
     end
 
 Card to split the data into two groups according to a given `method`.
@@ -14,44 +12,42 @@ Currently supported methods are
 - `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
-@kwdef struct SplitCard <: AbstractCard
-    method::String
+struct SplitCard <: AbstractCard
+    method::SQLNode
     order_by::Vector{String}
-    by::Vector{String} = String[]
+    by::Vector{String}
     output::String
-    percentile::Union{Float64, Nothing} = nothing
-    tiles::Vector{Int} = Int[]
+end
+
+function splitter(c::Config)
+    method = c.method
+
+    # TODO: add randomized methods
+    if method == "tiles"
+        check_order(c)
+        tiles::Vector{Int} = c.tiles
+        N = length(tiles)
+        return Fun.list_extract(Fun.list_value(tiles...), Agg.ntile(N))
+    elseif method == "percentile"
+        check_order(c)
+        percentile::Float64 = c.percentile
+        return Fun.case(Agg.percent_rank() .<= percentile, 1, 2)
+    else
+        throw(ArgumentError("method $method is not supported"))
+    end
+end
+
+function SplitCard(c::Config)
+    method::SQLNode = splitter(c)
+    order_by::Vector{String} = get(c, :order_by, String[])
+    by::Vector{String} = get(c, :by, String[])
+    output::String = c.output
+    return SplitCard(method, order_by, by, output)
 end
 
 inputs(s::SplitCard) = stringset(s.order_by, s.by)
 
 outputs(s::SplitCard) = stringset(s.output)
-
-function check_order(s::SplitCard)
-    if isempty(s.order_by)
-        throw(
-            ArgumentError(
-                """
-                At least one sorter is required.
-                """
-            )
-        )
-    end
-end
-
-function splitter(s::SplitCard)
-    method = s.method
-
-    # TODO: add randomized methods
-    if method == "tiles"
-        N = length(s.tiles)
-        return Fun.list_extract(Fun.list_value(s.tiles...), Agg.ntile(N))
-    elseif method == "percentile"
-        return Fun.case(Agg.percent_rank() .<= s.percentile, 1, 2)
-    else
-        throw(ArgumentError("method $method is not supported"))
-    end
-end
 
 function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
     return nothing
@@ -65,14 +61,12 @@ function evaluate(
         schema = nothing
     )
 
-    check_order(s)
-
     by = Get.(s.by)
     order_by = Get.(s.order_by)
 
     query = From(source) |>
         Partition(; by, order_by) |>
-        Define(s.output => splitter(s))
+        Define(s.output => s.method)
 
     replace_table(repo, query, dest; schema)
 end

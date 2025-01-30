@@ -30,27 +30,49 @@ const INTERPOLATORS = OrderedDict(
 
 """
     struct InterpCard <: AbstractCard
+        interpolator::Interpolator
         predictor::String
         targets::Vector{String}
-        method::String = "linear"
-        extrapolation_left::String = "none"
-        extrapolation_right::String = "none"
-        dir::String = "left"
+        extrapolation_left::ExtrapolationType.T
+        extrapolation_right::ExtrapolationType.T
+        dir::Union{Symbol, Nothing} = nothing
         partition::Union{String, Nothing} = nothing
         suffix::String = "hat"
     end
 
 Interpolate `targets` based on `predictor`.
 """
-@kwdef struct InterpCard <: AbstractCard
+struct InterpCard <: AbstractCard
+    interpolator::Interpolator
     predictor::String
     targets::Vector{String}
-    method::String = "linear"
-    extrapolation_left::Union{String, Nothing} = nothing
-    extrapolation_right::Union{String, Nothing} = nothing
-    dir::Union{String, Nothing} = nothing
-    partition::Union{String, Nothing} = nothing
-    suffix::String = "hat"
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+    dir::Union{Symbol, Nothing}
+    partition::Union{String, Nothing}
+    suffix::String
+end
+
+function InterpCard(c::Config)
+    method::String = c.method
+    interpolator::Interpolator = INTERPOLATORS[method]
+    predictor::String = c.predictor
+    targets::Vector{String} = c.targets
+    extrapolation_left::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, :extrapolation_left, "none")]
+    extrapolation_right::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, :extrapolation_right, "none")]
+    dir::Union{Symbol, Nothing} = haskey(c, :dir) ? DIRECTION_OPTIONS[c.dir] : nothing
+    partition::Union{String, Nothing} = get(c, :partition, nothing)
+    suffix::String = get(c, :suffix, "hat")
+    return InterpCard(
+        interpolator,
+        predictor,
+        targets,
+        extrapolation_left,
+        extrapolation_right,
+        dir,
+        partition,
+        suffix
+    )
 end
 
 inputs(ic::InterpCard) = stringset(ic.predictor, ic.targets, ic.partition)
@@ -64,20 +86,18 @@ function train(
         schema = nothing
     )
 
-    select = filter_partition(ic.partition)
+    (; interpolator, extrapolation_left, extrapolation_right, dir, targets, predictor, partition) = ic
+
+    select = filter_partition(partition)
     q = From(source) |>
         select |>
-        Select(Get(ic.predictor), Get.(ic.targets)...) |>
-        Order(Get(ic.predictor))
+        Select(Get(predictor), Get.(targets)...) |>
+        Order(Get(predictor))
     t = DBInterface.execute(fromtable, repo, q; schema)
 
-    extrapolation_left = EXTRAPOLATION_OPTIONS[something(ic.extrapolation_left, "none")]
-    extrapolation_right = EXTRAPOLATION_OPTIONS[something(ic.extrapolation_right, "none")]
-    dir = DIRECTION_OPTIONS[something(ic.dir, "left")]
-
-    return map(ic.targets) do target
-        ip = INTERPOLATORS[ic.method]
-        predictor = ic.predictor
+    return map(targets) do target
+        ip = interpolator
+        predictor = predictor
         y, x = t[target], t[predictor]
         return if ip.has_dir
             ip.method(y, x; extrapolation_left, extrapolation_right, dir)
@@ -95,12 +115,12 @@ function evaluate(
         schema = nothing
     )
 
-    t = DBInterface.execute(fromtable, repo, From(source) |> Order(Get(ic.predictor)); schema)
-    predictor = ic.predictor
+    (; targets, predictor, suffix) = ic
+    t = DBInterface.execute(fromtable, repo, From(source) |> Order(Get(predictor)); schema)
     x = t[predictor]
 
-    for (ip, target) in zip(ips, ic.targets)
-        pred_name = join_names(target, ic.suffix)
+    for (ip, target) in zip(ips, targets)
+        pred_name = join_names(target, suffix)
         ŷ = similar(x, float(eltype(x)))
         t[pred_name] = ip(ŷ, x)
     end

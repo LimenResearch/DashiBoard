@@ -328,80 +328,80 @@ mktempdir() do dir
         @test predict(m, df) == df.PRES_hat
     end
 
-#     @testset "interp" begin
-#         d = open(JSON3.read, joinpath(@__DIR__, "static", "interp.json"))
+    @testset "interp" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "interp.json"))
 
-#         part_card = Pipelines.get_card(d["partition"])
-#         Pipelines.evaluate(repo, part_card, "selection" => "partition")
+        part_card = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
-#         card = Pipelines.get_card(d["constant"])
+        card = Pipelines.get_card(d["constant"])
 
-#         @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
-#         @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
+        @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
 
-#         Pipelines.evaluate(repo, card, "partition" => "interp")
-#         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
-#         @test issetequal(
-#             names(df),
-#             [
-#                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-#                 "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
-#             ]
-#         )
-#         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
-#         ips = [
-#             ConstantInterpolation(
-#                 train_df.TEMP,
-#                 train_df.No,
-#                 extrapolation_left = ExtrapolationType.Extension,
-#                 extrapolation_right = ExtrapolationType.Extension,
-#                 dir = :right
-#             ),
-#             ConstantInterpolation(
-#                 train_df.PRES,
-#                 train_df.No,
-#                 extrapolation_left = ExtrapolationType.Extension,
-#                 extrapolation_right = ExtrapolationType.Extension,
-#                 dir = :right
-#             ),
-#         ]
+        Pipelines.evaluate(repo, card, "partition" => "interp")
+        df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+            ]
+        )
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
+        ips = [
+            ConstantInterpolation(
+                train_df.TEMP,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Extension,
+                extrapolation_right = ExtrapolationType.Extension,
+                dir = :right
+            ),
+            ConstantInterpolation(
+                train_df.PRES,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Extension,
+                extrapolation_right = ExtrapolationType.Extension,
+                dir = :right
+            ),
+        ]
 
-#         @test ips[1](float.(df.No)) == df.TEMP_hat
-#         @test ips[2](float.(df.No)) == df.PRES_hat
+        @test ips[1](float.(df.No)) == df.TEMP_hat
+        @test ips[2](float.(df.No)) == df.PRES_hat
 
-#         card = Pipelines.get_card(d["quadratic"])
+        card = Pipelines.get_card(d["quadratic"])
 
-#         @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
-#         @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
+        @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
 
-#         Pipelines.evaluate(repo, card, "partition" => "interp")
-#         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
-#         @test issetequal(
-#             names(df),
-#             [
-#                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-#                 "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
-#             ]
-#         )
-#         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
-#         ips = [
-#             QuadraticInterpolation(
-#                 train_df.TEMP,
-#                 train_df.No,
-#                 extrapolation_left = ExtrapolationType.Linear,
-#                 extrapolation_right = ExtrapolationType.Linear
-#             ),
-#             QuadraticInterpolation(
-#                 train_df.PRES,
-#                 train_df.No,
-#                 extrapolation_left = ExtrapolationType.Linear,
-#                 extrapolation_right = ExtrapolationType.Linear
-#             ),
-#         ]
+        Pipelines.evaluate(repo, card, "partition" => "interp")
+        df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+            ]
+        )
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
+        ips = [
+            QuadraticInterpolation(
+                train_df.TEMP,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Linear,
+                extrapolation_right = ExtrapolationType.Linear
+            ),
+            QuadraticInterpolation(
+                train_df.PRES,
+                train_df.No,
+                extrapolation_left = ExtrapolationType.Linear,
+                extrapolation_right = ExtrapolationType.Linear
+            ),
+        ]
 
-#         @test ips[1](float.(df.No)) == df.TEMP_hat
-#         @test ips[2](float.(df.No)) == df.PRES_hat
-#     end
+        @test ips[1](float.(df.No)) == df.TEMP_hat
+        @test ips[2](float.(df.No)) == df.PRES_hat
+    end
 
 #     @testset "gaussian encoding" begin
 #         spec = open(JSON3.read, joinpath(@__DIR__, "static", "spec.json"))

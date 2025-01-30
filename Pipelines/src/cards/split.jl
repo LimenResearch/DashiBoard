@@ -1,26 +1,5 @@
-"""
-    struct SplitCard <: AbstractCard
-        method::SQLNode
-        order_by::Vector{String}
-        by::Vector{String}
-        output::String
-    end
-
-Card to split the data into two groups according to a given `method`.
-
-Currently supported methods are
-- `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
-- `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
-"""
-struct SplitCard <: AbstractCard
-    method::SQLNode
-    order_by::Vector{String}
-    by::Vector{String}
-    output::String
-end
-
-function splitter(c::Config)
-    method = c.method
+function get_splitter(c::Config)
+    method::String = c.method
 
     # TODO: add randomized methods
     if method == "tiles"
@@ -37,12 +16,33 @@ function splitter(c::Config)
     end
 end
 
+"""
+    struct SplitCard <: AbstractCard
+        splitter::SQLNode
+        order_by::Vector{String}
+        by::Vector{String}
+        output::String
+    end
+
+Card to split the data into two groups according to a given function `splitter`.
+
+Currently supported methods are
+- `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
+- `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
+"""
+struct SplitCard <: AbstractCard
+    splitter::SQLNode
+    order_by::Vector{String}
+    by::Vector{String}
+    output::String
+end
+
 function SplitCard(c::Config)
-    method::SQLNode = splitter(c)
+    splitter::SQLNode = get_splitter(c)
     order_by::Vector{String} = get(c, :order_by, String[])
     by::Vector{String} = get(c, :by, String[])
     output::String = c.output
-    return SplitCard(method, order_by, by, output)
+    return SplitCard(splitter, order_by, by, output)
 end
 
 inputs(s::SplitCard) = stringset(s.order_by, s.by)
@@ -66,7 +66,7 @@ function evaluate(
 
     query = From(source) |>
         Partition(; by, order_by) |>
-        Define(s.output => s.method)
+        Define(s.output => s.splitter)
 
     replace_table(repo, query, dest; schema)
 end

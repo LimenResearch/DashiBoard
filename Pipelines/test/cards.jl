@@ -337,43 +337,60 @@ mktempdir() do dir
         end
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-        gaus = Pipelines.get_card(d["identity"])
-        params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
-        gauss_train_test(gaus, params)
+        card = Pipelines.get_card(d["identity"])
+        params = Pipelines.evaluate(repo, card, "origin" => "encoded")
+        gauss_train_test(card, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        gauss_evaluate_test(result, gaus, origin; processing = identity)
-        @test issetequal(Pipelines.outputs(gaus), ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"])
-        @test only(Pipelines.inputs(gaus)) == "month"
+        gauss_evaluate_test(result, card, origin; processing = identity)
+        @test issetequal(Pipelines.outputs(card), ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"])
+        @test only(Pipelines.inputs(card)) == "month"
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-        gaus = Pipelines.get_card(d["dayofyear"])
-        params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
-        gauss_train_test(gaus, params)
+        card = Pipelines.get_card(d["dayofyear"])
+        params = Pipelines.evaluate(repo, card, "origin" => "encoded")
+        gauss_train_test(card, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        gauss_evaluate_test(result, gaus, origin; processing = dayofyear)
+        gauss_evaluate_test(result, card, origin; processing = dayofyear)
         @test issetequal(
-            Pipelines.outputs(gaus),
+            Pipelines.outputs(card),
             [
                 "date_gaussian_1", "date_gaussian_2", "date_gaussian_3", "date_gaussian_4",
                 "date_gaussian_5", "date_gaussian_6", "date_gaussian_7", "date_gaussian_8",
                 "date_gaussian_9", "date_gaussian_10", "date_gaussian_11", "date_gaussian_12",
             ]
         )
-        @test only(Pipelines.inputs(gaus)) == "date"
+        @test only(Pipelines.inputs(card)) == "date"
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-        gaus = Pipelines.get_card(d["hour"])
-        params = Pipelines.evaluate(repo, gaus, "origin" => "encoded")
-        gauss_train_test(gaus, params)
+        card = Pipelines.get_card(d["hour"])
+        params = Pipelines.evaluate(repo, card, "origin" => "encoded")
+        gauss_train_test(card, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-        gauss_evaluate_test(result, gaus, origin; processing = hour)
-        @test issetequal(Pipelines.outputs(gaus), ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"])
-        @test only(Pipelines.inputs(gaus)) == "time"
+        gauss_evaluate_test(result, card, origin; processing = hour)
+        @test issetequal(Pipelines.outputs(card), ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"])
+        @test only(Pipelines.inputs(card)) == "time"
     end
 
     @testset "streamliner" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "streamliner.json"))
 
+        part_card = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(repo, part_card, "selection" => "partition")
+
+        model_dir = joinpath(@__DIR__, "static", "model")
+        training_dir = joinpath(@__DIR__, "static", "training")
+        card = @with(
+            Pipelines.MODEL_DIR => model_dir,
+            Pipelines.TRAINING_DIR => training_dir,
+            Pipelines.get_card(d["basic"]),
+        )
+
+        res = Pipelines.train(repo, card, "partition")
+        @test res.iteration == 4
+        @test !res.resumed
+        @test length(res.stats[1]) == length(res.stats[2]) == 2
+        @test res.successful
+        @test res.trained
     end
 
     @testset "cards" begin

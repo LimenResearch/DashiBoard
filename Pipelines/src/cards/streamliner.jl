@@ -33,13 +33,15 @@ function StreamlinerCard(c::Config)
 
     parser = default_parser()
 
-    model_file::String = c.model
-    model_params::Dict{String, Any} = to_string_dict(c.model_options)
+    model_name::String = c.model
+    model_file = string(model_name, ".toml")
+    model_params = to_string_dict(c.model_options)
     model = Model(parser, joinpath(MODEL_DIR[], model_file), model_params)
 
-    training_file::String = c.training
-    training_params::Dict{String, Any} = to_string_dict(c.training_options)
-    model = Training(parser, joinpath(TRAINING_DIR[], training_file), training_params)
+    training_name::String = c.training
+    training_file = string(training_name, ".toml")
+    training_params = to_string_dict(c.training_options)
+    training = Training(parser, joinpath(TRAINING_DIR[], training_file), training_params)
 
     partition = get(c, :partition, nothing)
     suffix = get(c, :suffix, "hat")

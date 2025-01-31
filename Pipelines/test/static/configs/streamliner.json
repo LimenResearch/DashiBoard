@@ -4,11 +4,20 @@
         "sorters": ["No"],
         "predictors": ["TEMP", "PRES"],
         "targets": ["Iws"],
-        "partition": "_tiled_partition",
+        "partition": "partition",
         "suffix": "hat",
         "model": "dense",
         "model_options": {"features": 5},
         "training": "batched",
         "training_options": {"iterations": 4}
+    },
+    "partition": {
+        "type": "split",
+        "method": "percentile",
+        "order_by": [
+            "No"
+        ],
+        "percentile": 0.9,
+        "output": "partition"
     }
 }

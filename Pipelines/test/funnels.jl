@@ -26,7 +26,7 @@
 
     @test StreamlinerCore.get_templates(data) === (
         input = StreamlinerCore.Template(Float32, (2,)),
-        output = StreamlinerCore.Template(Float32, (1,)),
+        target = StreamlinerCore.Template(Float32, (1,)),
     )
 
     @test StreamlinerCore.get_metadata(data) == Dict(

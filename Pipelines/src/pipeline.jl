@@ -56,7 +56,8 @@ const CARD_TYPES = Dict(
     "rescale" => RescaleCard,
     "glm" => GLMCard,
     "interp" => InterpCard,
-    "gaussian_encoding" => GaussianEncodingCard
+    "gaussian_encoding" => GaussianEncodingCard,
+    "streamliner" => StreamlinerCard,
 )
 
 """
@@ -138,6 +139,7 @@ function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
     end
 end
 
+# FIXME: add StreamlinerCard
 function card_configurations(;
         split = (;),
         rescale = (;),

@@ -24,6 +24,8 @@ struct StreamlinerCard <: AbstractCard
     suffix::String
 end
 
+to_string_dict(d) = Dict{String, Any}(String(k) => v for (k, v) in pairs(d))
+
 function StreamlinerCard(c::Config)
     sorters::Vector{String} = get(c, :sorters, String[])
     predictors::Vector{String} = get(c, :predictors, String[])
@@ -32,11 +34,11 @@ function StreamlinerCard(c::Config)
     parser = default_parser()
 
     model_file::String = c.model
-    model_params = Dict{String, Any}(String(k) => v for (k, v) in pairs(c.model_options))
+    model_params::Dict{String, Any} = to_string_dict(c.model_options)
     model = Model(parser, joinpath(MODEL_DIR[], model_file), model_params)
 
     training_file::String = c.training
-    training_params = Dict{String, Any}(String(k) => v for (k, v) in pairs(c.training_options))
+    training_params::Dict{String, Any} = to_string_dict(c.training_options)
     model = Training(parser, joinpath(TRAINING_DIR[], training_file), training_params)
 
     partition = get(c, :partition, nothing)
@@ -79,3 +81,5 @@ function train(
         StreamlinerCore.train(path, model, data, training)
     end
 end
+
+# FIXME: implement `evaluate`

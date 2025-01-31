@@ -122,6 +122,8 @@ function RescaleCard(c::Config)
     )
 end
 
+invertible(::RescaleCard) = true
+
 inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
 
 outputs(r::RescaleCard) = stringset(join_names.(r.columns, r.suffix))

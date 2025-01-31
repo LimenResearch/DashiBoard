@@ -70,6 +70,8 @@ function GaussianEncodingCard(c::Config)
     return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
 end
 
+invertible(::GaussianEncodingCard) = false
+
 inputs(g::GaussianEncodingCard) = stringset(g.column)
 outputs(g::GaussianEncodingCard) = stringset(join_names.(g.column, g.suffix, 1:g.n_modes))
 

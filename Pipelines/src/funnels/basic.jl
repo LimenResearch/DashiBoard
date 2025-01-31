@@ -25,8 +25,8 @@ end
 
 function StreamlinerCore.get_templates(data::DBData)
     input = Template(Float32, (length(data.predictors),))
-    output = Template(Float32, (length(data.targets),))
-    return (; input, output)
+    target = Template(Float32, (length(data.targets),))
+    return (; input, target)
 end
 
 # TODO: understand role of `get_metadata` in the presence of cards?

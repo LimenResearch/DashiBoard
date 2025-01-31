@@ -28,7 +28,7 @@ function outputs end
 """
     invertible(c::AbstractCard)::Bool
 
-Return `true` for invertible cards, `false` otherwise
+Return `true` for invertible cards, `false` otherwise.
 """
 function invertible end
 

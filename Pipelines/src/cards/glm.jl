@@ -65,6 +65,8 @@ function GLMCard(c::Config)
     return GLMCard(formula, weights, distribution, link, partition, suffix)
 end
 
+invertible(::GLMCard) = false
+
 function inputs(g::GLMCard)
     formula_vars = [termnames(t) for t in terms(g.formula) if t isa Term]
     return stringset(formula_vars, g.weights, g.partition)

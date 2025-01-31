@@ -8,7 +8,7 @@ export AbstractCard,
     InterpCard,
     GaussianEncodingCard
 
-public train, evaluate, deevaluate
+public train, evaluate, deevaluate, inputs, outputs, invertible
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 

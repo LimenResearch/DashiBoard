@@ -75,6 +75,8 @@ function InterpCard(c::Config)
     )
 end
 
+invertible(::InterpCard) = false
+
 inputs(ic::InterpCard) = stringset(ic.predictor, ic.targets, ic.partition)
 
 outputs(ic::InterpCard) = stringset(join_names.(ic.targets, ic.suffix))

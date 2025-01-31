@@ -14,6 +14,7 @@ Pipelines.train
 Pipelines.evaluate
 Pipelines.inputs
 Pipelines.outputs
+Pipelines.invertible
 ```
 
 ## Pipeline computation

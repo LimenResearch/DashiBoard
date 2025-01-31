@@ -8,6 +8,7 @@ mktempdir() do dir
     @testset "split" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "split.json"))
         card = Pipelines.get_card(d["tiles"])
+        @test !Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["No", "cbwd"])
         @test issetequal(Pipelines.outputs(card), ["_tiled_partition"])
@@ -41,6 +42,7 @@ mktempdir() do dir
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
         card = Pipelines.get_card(d["zscore"])
+        @test Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["cbwd", "TEMP"])
         @test issetequal(Pipelines.outputs(card), ["TEMP_rescaled"])
@@ -169,6 +171,7 @@ mktempdir() do dir
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
         card = Pipelines.get_card(d["hasPartition"])
+        @test !Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["cbwd", "year", "No", "TEMP", "partition"])
         @test issetequal(Pipelines.outputs(card), ["TEMP_hat"])
@@ -211,6 +214,7 @@ mktempdir() do dir
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
         card = Pipelines.get_card(d["constant"])
+        @test !Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
         @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
@@ -338,6 +342,7 @@ mktempdir() do dir
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["identity"])
+        @test !Pipelines.invertible(card)
         params = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, params)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
@@ -385,6 +390,7 @@ mktempdir() do dir
             Pipelines.TRAINING_DIR => training_dir,
             Pipelines.get_card(d["basic"]),
         )
+        @test !Pipelines.invertible(card)
 
         res = Pipelines.train(repo, card, "partition")
         @test res.iteration == 4

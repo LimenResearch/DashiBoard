@@ -26,6 +26,13 @@ Return the list of outputs for a given card.
 function outputs end
 
 """
+    invertible(c::AbstractCard)::Bool
+
+Return `true` for invertible cards, `false` otherwise.
+"""
+function invertible end
+
+"""
     train(repo::Repository, card::AbstractCard, source; schema = nothing)
 
 Return a trained model for a given `card` on a table `table` in the database `repo.db`.

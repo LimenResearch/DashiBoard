@@ -45,6 +45,8 @@ function SplitCard(c::Config)
     return SplitCard(splitter, order_by, by, output)
 end
 
+invertible(::SplitCard) = false
+
 inputs(s::SplitCard) = stringset(s.order_by, s.by)
 
 outputs(s::SplitCard) = stringset(s.output)

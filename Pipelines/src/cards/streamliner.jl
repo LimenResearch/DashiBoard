@@ -1,6 +1,8 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
+to_string_dict(d::AbstractDict) = Dict{String, Any}(String(k) => v for (k, v) in pairs(d))
+
 """
     struct StreamlinerCard <: AbstractCard
     model::Model
@@ -23,8 +25,6 @@ struct StreamlinerCard <: AbstractCard
     partition::Union{String, Nothing}
     suffix::String
 end
-
-to_string_dict(d) = Dict{String, Any}(String(k) => v for (k, v) in pairs(d))
 
 function StreamlinerCard(c::Config)
     sorters::Vector{String} = get(c, :sorters, String[])
@@ -56,6 +56,8 @@ function StreamlinerCard(c::Config)
         suffix
     )
 end
+
+invertible(::StreamlinerCard) = false
 
 inputs(s::StreamlinerCard) = stringset(s.sorters, s.predictors, s.targets, s.partition)
 

@@ -3,8 +3,11 @@ const SimpleTable = OrderedDict{String, AbstractVector}
 
 function fromtable(data)
     cols = Tables.columns(data)
-    colnames = Tables.columnnames(cols)
-    return SimpleTable(String(k) => Tables.getcolumn(cols, k) for k in colnames)
+    tbl = SimpleTable()
+    for k in Tables.columnnames(cols)
+        tbl[String(k)] = Tables.getcolumn(cols, k)
+    end
+    return tbl
 end
 
 join_names(args...) = join(args, '_')

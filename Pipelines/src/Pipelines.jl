@@ -10,6 +10,8 @@ export AbstractCard,
 
 public train, evaluate, deevaluate
 
+public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
+
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue
 
@@ -89,7 +91,8 @@ using StreamlinerCore: StreamlinerCore,
     Streaming,
     Training,
     Template,
-    default_parser
+    default_parser,
+    PARSER
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 

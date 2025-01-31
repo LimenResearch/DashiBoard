@@ -31,7 +31,7 @@ function StreamlinerCard(c::Config)
     predictors::Vector{String} = get(c, :predictors, String[])
     targets::Vector{String} = get(c, :targets, String[])
 
-    parser = default_parser()
+    parser = PARSER[]
 
     model_name::String = c.model
     model_file = string(model_name, ".toml")

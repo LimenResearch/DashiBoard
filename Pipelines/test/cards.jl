@@ -380,6 +380,7 @@ mktempdir() do dir
         model_dir = joinpath(@__DIR__, "static", "model")
         training_dir = joinpath(@__DIR__, "static", "training")
         card = @with(
+            Pipelines.PARSER => Pipelines.default_parser(),
             Pipelines.MODEL_DIR => model_dir,
             Pipelines.TRAINING_DIR => training_dir,
             Pipelines.get_card(d["basic"]),

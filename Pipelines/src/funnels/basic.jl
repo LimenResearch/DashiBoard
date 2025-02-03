@@ -9,7 +9,7 @@
     id::String = "_id"
 end
 
-# Maybe impose a column like this on load?
+# Maybe create a column like this on load?
 function id_table(data::DBData)
     return From(data.table) |>
         Partition() |>
@@ -120,6 +120,8 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     end
     DuckDBUtils.close(appender)
 
+    ns = colnames(data.repository, data.table; data.schema)
+    old_vars = ns .=> Get.(ns)
     new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
     query = id_table(data) |>
         Join(
@@ -127,6 +129,6 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
             on = Get(data.id) .== Get(data.id, over = Get.eval),
             right = true
         ) |>
-        Define(new_vars...)
+        Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)
 end

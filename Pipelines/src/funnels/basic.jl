@@ -123,12 +123,13 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     ns = colnames(data.repository, data.table; data.schema)
     old_vars = ns .=> Get.(ns)
     new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
+    join_clause = Join(
+        "eval" => From(destination),
+        on = Get(data.id) .== Get(data.id, over = Get.eval),
+        right = true
+    )
     query = id_table(data) |>
-        Join(
-            "eval" => From(destination),
-            on = Get(data.id) .== Get(data.id, over = Get.eval),
-            right = true
-        ) |>
+        join_clause |>
         Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)
 end

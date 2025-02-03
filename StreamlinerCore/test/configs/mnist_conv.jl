@@ -12,6 +12,15 @@ function test_mnist_conv(dir)
 
     wts = joinpath(dir, "wts.jld2")
     result = train(wts, model, train_regression_data, training)
+    @test length(result) == 5
+    @test eltype(result) == Pair{Symbol, Any}
+    @test collect(result) == [
+        "iteration" => result.iteration 
+        "stats" => result.stats 
+        "trained" => result.trained 
+        "resumed" => result.resumed 
+        "successful" => result.successful 
+    ]
     @test StreamlinerCore.has_weights(result)
     @test result.trained
 

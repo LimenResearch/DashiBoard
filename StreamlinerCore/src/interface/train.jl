@@ -20,7 +20,7 @@ Stores configuration of model, metrics, and information on the location of the m
     successful::Maybe{Bool} = nothing
 end
 
-Base.eltype(::Type{Result{N}}) where {N} = Pair{String, Any}
+Base.eltype(::Type{Result{N}}) where {N} = Pair{Symbol, Any}
 
 Base.length(::Result) = fieldcount(Result)
 
@@ -28,7 +28,7 @@ function Base.iterate(r::Result, i::Int = 1)
     return if i ≤ length(r)
         k = fieldname(Result, i)
         v = getfield(r, i)
-        return Pair{String, Any}(String(k), v), i + 1
+        return Pair{Symbol, Any}(k, v), i + 1
     else
         return nothing
     end

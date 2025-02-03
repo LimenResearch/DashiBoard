@@ -1,7 +1,7 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
-to_string_dict(d::AbstractDict) = Dict{String, Any}(String(k) => v for (k, v) in pairs(d))
+to_string_dict(d) = Dict{String, Any}(String(k) => v for (k, v) in d)
 
 """
     struct StreamlinerCard <: AbstractCard
@@ -35,12 +35,12 @@ function StreamlinerCard(c::Config)
 
     model_name::String = c.model
     model_file = string(model_name, ".toml")
-    model_params = to_string_dict(c.model_options)
+    model_params = to_string_dict(pairs(c.model_options))
     model = Model(parser, joinpath(MODEL_DIR[], model_file), model_params)
 
     training_name::String = c.training
     training_file = string(training_name, ".toml")
-    training_params = to_string_dict(c.training_options)
+    training_params = to_string_dict(pairs(c.training_options))
     training = Training(parser, joinpath(TRAINING_DIR[], training_file), training_params)
 
     partition = get(c, :partition, nothing)
@@ -86,7 +86,7 @@ function train(
         result = StreamlinerCore.train(path, model, data, training)
         return CardState(
             content = read(io),
-            metadata = Dict{String, Any}(result)
+            metadata = to_string_dict(result)
         )
     end
 end

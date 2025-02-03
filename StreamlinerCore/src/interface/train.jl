@@ -1,7 +1,7 @@
 # Result management
 
 """
-    @kwdef struct Result{N, P, M<:Model}
+    @kwdef struct Result{N}
         iteration::Int
         stats::NTuple{N, Vector{Float64}}
         trained::Bool

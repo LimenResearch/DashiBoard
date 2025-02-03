@@ -91,4 +91,27 @@ function train(
     end
 end
 
-# FIXME: implement `evaluate`
+function evaluate(
+        repo::Repository,
+        s::StreamlinerCard,
+        state::CardState,
+        (source, dest)::Pair;
+        schema = nothing
+    )
+
+    data = DBData{1}(;
+        table = source,
+        repository = repo,
+        schema,
+        s.sorters,
+        s.predictors,
+        s.targets,
+    )
+
+    (; model, training) = s
+
+    return mktemp() do path, io
+        write(io, state.content)
+        StreamlinerCore.evaluate(path, model, data, training)
+    end
+end

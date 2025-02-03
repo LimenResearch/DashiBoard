@@ -82,7 +82,7 @@ inputs(ic::InterpCard) = stringset(ic.predictor, ic.targets, ic.partition)
 outputs(ic::InterpCard) = stringset(join_names.(ic.targets, ic.suffix))
 
 function train(
-        repo::Repository,
+        repository::Repository,
         ic::InterpCard,
         source::AbstractString;
         schema = nothing
@@ -94,7 +94,7 @@ function train(
         filter_partition(partition) |>
         Select(Get(predictor), Get.(targets)...) |>
         Order(Get(predictor))
-    t = DBInterface.execute(fromtable, repo, q; schema)
+    t = DBInterface.execute(fromtable, repository, q; schema)
 
     ips = map(targets) do target
         ip = interpolator
@@ -109,16 +109,17 @@ function train(
 end
 
 function evaluate(
-        repo::Repository,
+        repository::Repository,
         ic::InterpCard,
         state::CardState,
-        (source, dest)::Pair;
+        (source, destination)::Pair;
         schema = nothing
     )
 
     ips = jlddeserialize(state.content)
     (; targets, predictor, suffix) = ic
-    t = DBInterface.execute(fromtable, repo, From(source) |> Order(Get(predictor)); schema)
+    query = From(source) |> Order(Get(predictor))
+    t = DBInterface.execute(fromtable, repository, query; schema)
     x = t[predictor]
 
     for (ip, target) in zip(ips, targets)
@@ -127,7 +128,7 @@ function evaluate(
         t[pred_name] = ip(ŷ, x)
     end
 
-    load_table(repo, t, dest; schema)
+    load_table(repository, t, destination; schema)
 end
 
 function CardWidget(::Type{InterpCard})

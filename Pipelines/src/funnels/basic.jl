@@ -1,7 +1,8 @@
 @kwdef struct DBData{N} <: AbstractData{N}
     repository::Repository
     schema::Union{String, Nothing}
-    table::String
+    source::String
+    destination::Union{String, Nothing} = nothing
     sorters::Vector{String}
     predictors::Vector{String}
     targets::Vector{String}
@@ -33,7 +34,7 @@ end
 function StreamlinerCore.get_metadata(data::DBData)
     return Dict(
         "schema" => data.schema,
-        "table" => data.table,
+        "source" => data.source,
         "sorters" => data.sorters,
         "predictors" => data.predictors,
         "targets" => data.targets,
@@ -42,8 +43,8 @@ function StreamlinerCore.get_metadata(data::DBData)
 end
 
 function StreamlinerCore.get_nsamples(data::DBData, i::Int)
-    (; repository, schema, partition, table) = data
-    q = From(table) |>
+    (; repository, schema, partition, source) = data
+    q = From(source) |>
         filter_partition(partition, i) |>
         Group() |>
         Select("count" => Agg.count())
@@ -52,7 +53,7 @@ end
 
 function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
-    (; repository, schema, partition, table) = data
+    (; repository, schema, partition, source) = data
 
     if isnothing(batchsize)
         throw(ArgumentError("Unbatched streaming is not supported."))
@@ -63,7 +64,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         order_by = shuffle ? [Fun.random()] : Get.(data.sorters)
-        stream_query = From(table) |>
+        stream_query = From(source) |>
             filter_partition(partition, i) |>
             Order(by = order_by)
 

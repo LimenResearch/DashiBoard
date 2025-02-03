@@ -77,14 +77,14 @@ targetname(g::GLMCard) = termnames(g.formula.lhs)
 outputs(g::GLMCard) = stringset(join_names(targetname(g), g.suffix))
 
 function train(
-        repo::Repository,
+        repository::Repository,
         g::GLMCard,
         source::AbstractString;
         schema = nothing
     )
 
     q = From(source) |> filter_partition(g.partition)
-    t = DBInterface.execute(fromtable, repo, q; schema)
+    t = DBInterface.execute(fromtable, repository, q; schema)
 
     (; formula, distribution, link) = g
     # `weights` cannot yet be passed as a symbol
@@ -97,21 +97,21 @@ function train(
 end
 
 function evaluate(
-        repo::Repository,
+        repository::Repository,
         g::GLMCard,
         state::CardState,
-        (source, dest)::Pair;
+        (source, destination)::Pair;
         schema = nothing
     )
 
     model = jlddeserialize(state.content)
 
-    t = DBInterface.execute(fromtable, repo, From(source); schema)
+    t = DBInterface.execute(fromtable, repository, From(source); schema)
 
     pred_name = join_names(targetname(g), g.suffix)
     t[pred_name] = predict(model, t)
 
-    load_table(repo, t, dest; schema)
+    load_table(repository, t, destination; schema)
 end
 
 function CardWidget(::Type{GLMCard})

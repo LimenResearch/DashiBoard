@@ -47,7 +47,7 @@ mktempdir() do dir
         @test issetequal(Pipelines.inputs(card), ["cbwd", "TEMP"])
         @test issetequal(Pipelines.outputs(card), ["TEMP_rescaled"])
 
-        m = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -69,12 +69,12 @@ mktempdir() do dir
             SELECT cbwd, TEMP_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaluate(repo, card, m, "tbl" => "inverted", invert = true)
+        Pipelines.evaluate(repo, card, state, "tbl" => "inverted", invert = true)
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
         card = Pipelines.get_card(d["maxabs"])
-        m = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -95,12 +95,12 @@ mktempdir() do dir
             SELECT year, month, cbwd, TEMP_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaluate(repo, card, m, "tbl" => "inverted", invert = true)
+        Pipelines.evaluate(repo, card, state, "tbl" => "inverted", invert = true)
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
         card = Pipelines.get_card(d["minmax"])
-        m = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -117,12 +117,12 @@ mktempdir() do dir
             SELECT TEMP_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaluate(repo, card, m, "tbl" => "inverted", invert = true)
+        Pipelines.evaluate(repo, card, state, "tbl" => "inverted", invert = true)
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
         card = Pipelines.get_card(d["log"])
-        m = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -138,12 +138,12 @@ mktempdir() do dir
             SELECT PRES_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaluate(repo, card, m, "tbl" => "inverted", invert = true)
+        Pipelines.evaluate(repo, card, state, "tbl" => "inverted", invert = true)
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.PRES ≈ df.PRES
 
         card = Pipelines.get_card(d["logistic"])
-        m = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -159,7 +159,7 @@ mktempdir() do dir
             SELECT hour_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaluate(repo, card, m, "tbl" => "inverted", invert = true)
+        Pipelines.evaluate(repo, card, state, "tbl" => "inverted", invert = true)
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.hour ≈ df.hour
     end

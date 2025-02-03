@@ -71,7 +71,7 @@ function train(
     )
 
     data = DBData{2}(;
-        source,
+        table = source,
         repository,
         schema,
         s.sorters,
@@ -101,8 +101,7 @@ function evaluate(
     isnothing(state.content) && throw(ArgumentError("Invalid state"))
 
     data = DBData{1}(;
-        source,
-        destination,
+        table = source,
         repository,
         schema,
         s.sorters,

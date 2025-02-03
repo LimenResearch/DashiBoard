@@ -87,3 +87,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
         end
     end
 end
+
+function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select)
+    return collect(eval_stream)
+end

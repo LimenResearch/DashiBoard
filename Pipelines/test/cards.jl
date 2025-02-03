@@ -400,6 +400,8 @@ mktempdir() do dir
         @test length(res["stats"][1]) == length(res["stats"][2]) == 2
         @test res["successful"]
         @test res["trained"]
+
+        Pipelines.evaluate(repo, card, "partition" => "prediction")
     end
 
     @testset "cards" begin

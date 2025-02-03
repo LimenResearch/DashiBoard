@@ -162,7 +162,7 @@ function stream(f, data::Data, partition::Int, streaming::Streaming)
     return f(batches)
 end
 
-ingest(::Data{1}, stream, select::SymbolTuple) = Iterators.map(NamedTuple{select}, stream)
+ingest(::Data{1}, stream, select) = Iterators.map(NamedTuple{select}, stream)
 
 get_templates(data::Data) = data.templates
 

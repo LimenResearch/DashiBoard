@@ -71,7 +71,7 @@ function train(
     )
 
     data = DBData{2}(;
-        source,
+        table = source,
         repository,
         schema,
         s.sorters,
@@ -84,10 +84,9 @@ function train(
 
     return mktemp() do path, io
         result = StreamlinerCore.train(path, model, data, training)
-        return CardState(
-            content = read(io),
-            metadata = to_string_dict(result)
-        )
+        content = StreamlinerCore.has_weights(result) ? read(io) : nothing
+        metadata = to_string_dict(result)
+        return CardState(; content, metadata)
     end
 end
 
@@ -99,20 +98,24 @@ function evaluate(
         schema = nothing
     )
 
+    isnothing(state.content) && throw(ArgumentError("Invalid state"))
+
     data = DBData{1}(;
-        source,
-        destination,
+        table = source,
         repository,
         schema,
         s.sorters,
         s.predictors,
         s.targets,
+        partition = nothing
     )
 
-    (; model, training) = s
+    (; model, training, suffix) = s
+    streaming = Streaming(; training.device, training.batchsize)
 
     return mktemp() do path, io
         write(io, state.content)
-        StreamlinerCore.evaluate(path, model, data, training)
+        seekstart(io)
+        StreamlinerCore.evaluate(path, model, data, streaming; destination, suffix)
     end
 end

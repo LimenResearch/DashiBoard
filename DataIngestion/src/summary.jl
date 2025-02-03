@@ -1,21 +1,21 @@
 # Helpers to query table created by DataIngestion
 
-function table_schema(repo::Repository, tbl::AbstractString; schema = nothing)
+function table_schema(repository::Repository, tbl::AbstractString; schema = nothing)
     query = From(tbl) |> Limit(0)
-    return DBInterface.execute(Tables.schema, repo, query; schema)
+    return DBInterface.execute(Tables.schema, repository, query; schema)
 end
 
-function categorical_summary(repo::Repository, tbl::AbstractString, var::AbstractString; schema = nothing)
+function categorical_summary(repository::Repository, tbl::AbstractString, var::AbstractString; schema = nothing)
     query = From(tbl) |> Group(Get(var)) |> Order(Get(var))
-    return DBInterface.execute(res -> map(only, res), repo, query; schema)
+    return DBInterface.execute(res -> map(only, res), repository, query; schema)
 end
 
 function numerical_summary(
-        repo::Repository, tbl::AbstractString, var::AbstractString;
+        repository::Repository, tbl::AbstractString, var::AbstractString;
         schema = nothing, length = 100, sigdigits = 2
     )
     query = From(tbl) |> Select("x0" => Fun.min(Get(var)), "x1" => Fun.max(Get(var)))
-    (; x0, x1) = DBInterface.execute(first, repo, query; schema)
+    (; x0, x1) = DBInterface.execute(first, repository, query; schema)
     diff = x1 - x0
     step = if x0 isa Integer && diff ≤ length
         1
@@ -48,24 +48,24 @@ function stringify_type(::Type{T}) where {T}
 end
 
 """
-    summarize(repo::Repository, tbl::AbstractString; schema = nothing)
+    summarize(repository::Repository, tbl::AbstractString; schema = nothing)
 
-Compute summaries of variables in table `tbl` within the database `repo.db`.
+Compute summaries of variables in table `tbl` within the database `repository.db`.
 The summary of a variable depends on its type, according to the following rules.
 
 - Categorical variable => list of unique types.
 - Continuous variable => extrema.
 """
-function summarize(repo::Repository, tbl::AbstractString; schema = nothing)
-    (; names, types) = table_schema(repo, tbl; schema)
+function summarize(repository::Repository, tbl::AbstractString; schema = nothing)
+    (; names, types) = table_schema(repository, tbl; schema)
     return map(names, types) do name, eltype
         T = nonmissingtype(eltype)
         var = string(name)
         if isnumerical(T)
-            summary = numerical_summary(repo, tbl, var; schema)
+            summary = numerical_summary(repository, tbl, var; schema)
             type = "numerical"
         else
-            summary = categorical_summary(repo, tbl, var; schema)
+            summary = categorical_summary(repository, tbl, var; schema)
             type = "categorical"
         end
         eltype = stringify_type(T)

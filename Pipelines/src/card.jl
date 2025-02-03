@@ -33,26 +33,26 @@ Return `true` for invertible cards, `false` otherwise.
 function invertible end
 
 """
-    train(repo::Repository, card::AbstractCard, source; schema = nothing)::CardState
+    train(repository::Repository, card::AbstractCard, source; schema = nothing)::CardState
 
-Return a trained model for a given `card` on a table `table` in the database `repo.db`.
+Return a trained model for a given `card` on a table `table` in the database `repository.db`.
 """
 function train end
 
 """
-    evaluate(repo::Repository, card::AbstractCard, m, (source, dest)::Pair; schema = nothing)
+    evaluate(repository::Repository, card::AbstractCard, state, (source, destination)::Pair; schema = nothing)
 
-Replace table `dest` in the database `repo.db` with the outcome of executing the `card`
+Replace table `destination` in the database `repository.db` with the outcome of executing the `card`
 on the table `source`.
 
-Here, `m` represents the result of `train(repo, card, source; schema)`.
+Here, `state` represents the result of `train(repository, card, source; schema)`.
 See also [`train`](@ref).
 """
 function evaluate end
 
-function evaluate(repo::Repository, card::AbstractCard, (source, dest)::Pair; schema = nothing)
-    state = train(repo, card, source; schema)::CardState
-    evaluate(repo, card, state, source => dest; schema)
+function evaluate(repository::Repository, card::AbstractCard, (source, destination)::Pair; schema = nothing)
+    state = train(repository, card, source; schema)::CardState
+    evaluate(repository, card, state, source => destination; schema)
     return state
 end
 

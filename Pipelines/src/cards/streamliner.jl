@@ -64,15 +64,15 @@ inputs(s::StreamlinerCard) = stringset(s.sorters, s.predictors, s.targets, s.par
 outputs(s::StreamlinerCard) = stringset(join_names.(s.targets, s.suffix))
 
 function train(
-        repo::Repository,
+        repository::Repository,
         s::StreamlinerCard,
         source::AbstractString;
         schema = nothing
     )
 
     data = DBData{2}(;
-        table = source,
-        repository = repo,
+        source,
+        repository,
         schema,
         s.sorters,
         s.predictors,
@@ -91,4 +91,28 @@ function train(
     end
 end
 
-# FIXME: implement `evaluate`
+function evaluate(
+        repository::Repository,
+        s::StreamlinerCard,
+        state::CardState,
+        (source, destination)::Pair;
+        schema = nothing
+    )
+
+    data = DBData{1}(;
+        source,
+        destination,
+        repository,
+        schema,
+        s.sorters,
+        s.predictors,
+        s.targets,
+    )
+
+    (; model, training) = s
+
+    return mktemp() do path, io
+        write(io, state.content)
+        StreamlinerCore.evaluate(path, model, data, training)
+    end
+end

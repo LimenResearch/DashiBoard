@@ -21,6 +21,7 @@ using TOML: parsefile
 using RelocatableFolders: @path
 
 using JLD2: jldopen
+using StructTypes: constructfrom
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables

@@ -52,7 +52,7 @@ function default_callback(m, trace::Trace; gc = true)
         iteration,
         "\ttraining: {",
         training,
-        "}", 
+        "}",
         "\tvalidation: {",
         validation,
         "}"

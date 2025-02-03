@@ -6,7 +6,7 @@
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
-    id::String = "_id"
+    id::String = "rowid"
 end
 
 # Maybe create a column like this on load?

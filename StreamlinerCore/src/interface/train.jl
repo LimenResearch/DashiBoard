@@ -37,13 +37,26 @@ end
 
 format(k::Symbol, x::Number) = @sprintf "%s: %f" string(k) x
 
+function format_metrics(trace::Trace, p::DataPartition.T)
+    (; stats, metrics) = trace
+    return join(format.(metricname.(metrics), stats[Int(p)]), ", ")
+end
+
 function default_callback(m, trace::Trace; gc = true)
-    (; stats, metrics, iteration) = trace
+    iteration = trace.iteration
+    training = format_metrics(trace, DataPartition.training)
+    validation = format_metrics(trace, DataPartition.validation)
 
-    local training = join(format.(metricname.(metrics), stats[Int(DataPartition.training)]), ", ")
-    local validation = join(format.(metricname.(metrics), stats[Int(DataPartition.validation)]), ", ")
-
-    print("iteration: $iteration\ttraining: {$training}\tvalidation: {$validation}\n")
+    println(
+        "iteration: ",
+        iteration,
+        "\ttraining: {",
+        training,
+        "}", 
+        "\tvalidation: {",
+        validation,
+        "}"
+    )
 
     gc && GC.gc(false)
 end

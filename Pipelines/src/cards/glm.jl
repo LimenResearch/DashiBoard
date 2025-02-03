@@ -91,16 +91,21 @@ function train(
     # `weights` cannot yet be passed as a symbol
     weights = isnothing(g.weights) ? similar(t[targetname(g)], 0) : t[g.weights]
     # TODO save slim version with no data
-    return fit(GeneralizedLinearModel, formula, t, distribution, link, wts = weights)
+    m = fit(GeneralizedLinearModel, formula, t, distribution, link, wts = weights)
+    return CardState(
+        content = jldserialize(m)
+    )
 end
 
 function evaluate(
         repo::Repository,
         g::GLMCard,
-        model::RegressionModel,
+        state::CardState,
         (source, dest)::Pair;
         schema = nothing
     )
+
+    model = jlddeserialize(state.content)
 
     t = DBInterface.execute(fromtable, repo, From(source); schema)
 

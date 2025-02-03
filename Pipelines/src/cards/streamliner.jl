@@ -1,7 +1,7 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
-to_string_dict(d::AbstractDict) = Dict{String, Any}(String(k) => v for (k, v) in pairs(d))
+to_string_dict(d) = constructfrom(Dict{String, Any}, d)
 
 """
     struct StreamlinerCard <: AbstractCard
@@ -81,8 +81,13 @@ function train(
     )
 
     (; model, training) = s
-    return mktemp() do path, _
-        StreamlinerCore.train(path, model, data, training)
+
+    return mktemp() do path, io
+        result = StreamlinerCore.train(path, model, data, training)
+        return CardState(
+            content = read(io),
+            metadata = to_string_dict(result)
+        )
     end
 end
 

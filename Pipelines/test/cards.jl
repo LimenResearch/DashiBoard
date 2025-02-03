@@ -400,6 +400,19 @@ mktempdir() do dir
         @test length(res["stats"][1]) == length(res["stats"][2]) == 2
         @test res["successful"]
         @test res["trained"]
+
+        Pipelines.evaluate(repo, card, "partition" => "prediction")
+        origin = DBInterface.execute(DataFrame, repo, "FROM partition")
+        result = DBInterface.execute(DataFrame, repo, "FROM prediction")
+        @test issetequal(
+            names(result),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "Iws_hat",
+            ]
+        )
+        @test all(!ismissing, result.Iws_hat)
+        @test nrow(origin) == nrow(result)
     end
 
     @testset "cards" begin

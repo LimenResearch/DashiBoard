@@ -1,12 +1,22 @@
 @kwdef struct DBData{N} <: AbstractData{N}
     repository::Repository
     schema::Union{String, Nothing}
-    source::String
-    destination::Union{String, Nothing} = nothing
+    table::String
     sorters::Vector{String}
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
+    id::String = "rowid"
+end
+
+# Maybe create a column like this on load?
+function id_table(data::DBData)
+    if data.id in colnames(data.repository, data.table; data.schema)
+        throw(ArgumentError("Invalid `data.id` field: '$(data.id)' is already a column."))
+    end
+    return From(data.table) |>
+        Partition() |>
+        Define(data.id => Agg.row_number())
 end
 
 struct Processor{N, D}
@@ -14,14 +24,13 @@ struct Processor{N, D}
     device::D
 end
 
-# TODO: consider adding ID field?
-
 function (p::Processor)(cols)
     (; predictors, targets) = p.data
     extract_column(k) = Tables.getcolumn(cols, Symbol(k))
     input::Array{Float32, 2} = stack(extract_column, predictors, dims = 1)
     target::Array{Float32, 2} = stack(extract_column, targets, dims = 1)
-    return (; input, target)
+    id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.data.id))
+    return (; id, input = p.device(input), target = p.device(target))
 end
 
 function StreamlinerCore.get_templates(data::DBData)
@@ -34,7 +43,7 @@ end
 function StreamlinerCore.get_metadata(data::DBData)
     return Dict(
         "schema" => data.schema,
-        "source" => data.source,
+        "table" => data.table,
         "sorters" => data.sorters,
         "predictors" => data.predictors,
         "targets" => data.targets,
@@ -43,8 +52,8 @@ function StreamlinerCore.get_metadata(data::DBData)
 end
 
 function StreamlinerCore.get_nsamples(data::DBData, i::Int)
-    (; repository, schema, partition, source) = data
-    q = From(source) |>
+    (; repository, schema, partition, table) = data
+    q = From(table) |>
         filter_partition(partition, i) |>
         Group() |>
         Select("count" => Agg.count())
@@ -53,7 +62,7 @@ end
 
 function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
-    (; repository, schema, partition, source) = data
+    (; repository, schema, sorters, partition) = data
 
     if isnothing(batchsize)
         throw(ArgumentError("Unbatched streaming is not supported."))
@@ -63,8 +72,8 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
     with_connection(repository) do con
         catalog = get_catalog(repository; schema)
-        order_by = shuffle ? [Fun.random()] : Get.(data.sorters)
-        stream_query = From(source) |>
+        order_by = shuffle ? [Fun.random()] : Get.(sorters)
+        stream_query = id_table(data) |>
             filter_partition(partition, i) |>
             Order(by = order_by)
 
@@ -86,4 +95,44 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
             DBInterface.close!(result)
         end
     end
+end
+
+function append_batch(appender::DuckDBUtils.Appender, id, v)
+    for i in eachindex(id)
+        DuckDBUtils.append(appender, id[i])
+        for j in axes(v, 1)
+            DuckDBUtils.append(appender, v[j, i])
+        end
+        DuckDBUtils.end_row(appender)
+    end
+end
+
+function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination)
+    select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
+    tbl = SimpleTable()
+    tbl[data.id] = Int64[]
+    for k in data.targets
+        tbl[k] = Float32[]
+    end
+    load_table(data.repository, tbl, destination; data.schema)
+
+    appender = DuckDBUtils.Appender(data.repository.db, destination, data.schema)
+    for batch in eval_stream
+        v = collect(batch.prediction)
+        append_batch(appender, batch.id, v)
+    end
+    DuckDBUtils.close(appender)
+
+    ns = colnames(data.repository, data.table; data.schema)
+    old_vars = ns .=> Get.(ns)
+    new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
+    join_clause = Join(
+        "eval" => From(destination),
+        on = Get(data.id) .== Get(data.id, over = Get.eval),
+        right = true
+    )
+    query = id_table(data) |>
+        join_clause |>
+        Select(old_vars..., new_vars...)
+    replace_table(data.repository, query, destination; data.schema)
 end

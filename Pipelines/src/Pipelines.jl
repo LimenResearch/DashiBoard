@@ -26,7 +26,8 @@ using StructTypes: constructfrom
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface
-using DuckDBUtils: Repository,
+using DuckDBUtils: DuckDBUtils,
+    Repository,
     Batches,
     StreamResult,
     render_params,

@@ -8,6 +8,8 @@ export get_catalog
 
 export StreamResult, MaterializedResult
 
+public Appender, append, end_row, close
+
 public colnames, to_sql
 
 public load_table, delete_table, replace_table
@@ -20,7 +22,11 @@ using DuckDB: DuckDB,
     register_table,
     unregister_table,
     StreamResult,
-    MaterializedResult
+    MaterializedResult,
+    Appender,
+    append,
+    end_row,
+    close
 
 using DBInterface: DBInterface
 using ConcurrentUtilities: Pool, acquire, release

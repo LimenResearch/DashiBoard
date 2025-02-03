@@ -99,7 +99,6 @@ function train(
 
     return map(targets) do target
         ip = interpolator
-        predictor = predictor
         y, x = t[target], t[predictor]
         return if ip.has_dir
             ip.method(y, x; extrapolation_left, extrapolation_right, dir)

@@ -11,6 +11,9 @@ end
 
 # Maybe create a column like this on load?
 function id_table(data::DBData)
+    if data.id in colnames(data.repository, data.table; data.schema)
+        throw(ArgumentError("Invalid `data.id` field: '$(data.id)' is already a column."))
+    end
     return From(data.table) |>
         Partition() |>
         Define(data.id => Agg.row_number())

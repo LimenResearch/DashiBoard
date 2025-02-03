@@ -89,10 +89,10 @@ end
 
 function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination)
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
-    d = SimpleTable()
-    d["_id"] = Int64[]
+    tbl = SimpleTable()
+    tbl["_id"] = Int64[]
     for k in data.predictors
-        d[join_names(k, suffix)] = Float32[]
+        tbl[join_names(k, suffix)] = Float32[]
     end
-    load_table(repo, d, destination; data.schema)
+    load_table(data.repository, tbl, destination; data.schema)
 end

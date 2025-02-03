@@ -110,12 +110,12 @@ function evaluate(
         partition = nothing
     )
 
-    (; model, training) = s
+    (; model, training, suffix) = s
     streaming = Streaming(; training.device, training.batchsize)
 
     return mktemp() do path, io
         write(io, state.content)
         seekstart(io)
-        StreamlinerCore.evaluate(path, model, data, streaming)
+        StreamlinerCore.evaluate(path, model, data, streaming; destination, suffix)
     end
 end

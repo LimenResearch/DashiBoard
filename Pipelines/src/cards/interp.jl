@@ -90,9 +90,8 @@ function train(
 
     (; interpolator, extrapolation_left, extrapolation_right, dir, targets, predictor, partition) = ic
 
-    select = filter_partition(partition)
     q = From(source) |>
-        select |>
+        filter_partition(partition) |>
         Select(Get(predictor), Get.(targets)...) |>
         Order(Get(predictor))
     t = DBInterface.execute(fromtable, repo, q; schema)

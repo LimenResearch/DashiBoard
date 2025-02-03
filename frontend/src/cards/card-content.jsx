@@ -10,13 +10,13 @@ export function getOutputs(config, content) {
 
     if (suffixField != null) {
         const suffix = content[suffixField];
-        names = names.map(x => [x, suffix].join('_'));
+        names = names.map(x => [x, suffix].join("_"));
     }
 
     if (numberField != null) {
         const number = content[numberField];
         const rg = _.range(number).map(x => x + 1); // switch to 1-based indexing
-        names = names.flatMap(n => rg.map(i => [n, i].join('_')));
+        names = names.flatMap(n => rg.map(i => [n, i].join("_")));
     }
 
     return names.map(x => ({ name: x }));

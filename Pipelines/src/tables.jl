@@ -10,7 +10,7 @@ function fromtable(data)
     return tbl
 end
 
-join_names(args...) = join(args, '_')
+join_names(args...) = join(args, "_")
 
 function new_name(c::AbstractString, cols::AbstractVector{<:AbstractString})
     for i in Iterators.countfrom()

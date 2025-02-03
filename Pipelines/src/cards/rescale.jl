@@ -129,7 +129,7 @@ inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
 outputs(r::RescaleCard) = stringset(join_names.(r.columns, r.suffix))
 
 function pair_wise_group_by(
-        repo::Repository,
+        repository::Repository,
         source::AbstractString,
         by::AbstractVector,
         cols::AbstractVector,
@@ -145,16 +145,16 @@ function pair_wise_group_by(
         Group(by = key) |>
         Select(key..., val...) |>
         Order(by = key)
-    DBInterface.execute(fromtable, repo, query; schema)
+    DBInterface.execute(fromtable, repository, query; schema)
 end
 
-function train(repo::Repository, r::RescaleCard, source::AbstractString; schema = nothing)
+function train(repository::Repository, r::RescaleCard, source::AbstractString; schema = nothing)
     (; by, columns, rescaler) = r
     (; stats) = rescaler
     tbl = if isempty(stats)
         SimpleTable()
     else
-        pair_wise_group_by(repo, source, by, columns, stats...; schema, r.partition)
+        pair_wise_group_by(repository, source, by, columns, stats...; schema, r.partition)
     end
     return CardState(
         content = jldserialize(tbl)
@@ -162,10 +162,10 @@ function train(repo::Repository, r::RescaleCard, source::AbstractString; schema 
 end
 
 function evaluate(
-        repo::Repository,
+        repository::Repository,
         r::RescaleCard,
         state::CardState,
-        (source, dest)::Pair;
+        (source, destination)::Pair;
         schema = nothing,
         invert = false
     )
@@ -173,7 +173,7 @@ function evaluate(
     (; by, columns, rescaler, suffix) = r
     (; stats, transform, invtransform) = rescaler
 
-    available_columns = colnames(repo, source; schema)
+    available_columns = colnames(repository, source; schema)
     iter = ((c, join_names(c, suffix)) for c in columns)
 
     rescaled = if invert
@@ -186,27 +186,27 @@ function evaluate(
 
     if isempty(stats)
         query = From(source) |> Define(rescaled...)
-        replace_table(repo, query, dest; schema)
+        replace_table(repository, query, destination; schema)
     else
-        with_table(repo, stats_tbl; schema) do tbl_name
+        with_table(repository, stats_tbl; schema) do tbl_name
             eqs = (.==).(Get.(by), GetStats.(by))
             query = From(source) |>
                 LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Define(rescaled...)
-            replace_table(repo, query, dest; schema)
+            replace_table(repository, query, destination; schema)
         end
     end
 end
 
 function deevaluate(
-        repo::Repository,
+        repository::Repository,
         r::RescaleCard,
         stats_tbl::SimpleTable,
-        (source, dest)::Pair;
+        (source, destination)::Pair;
         schema = nothing
     )
 
-    evaluate(repo, r, stats_tbl, source => dest; schema, invert = true)
+    evaluate(repository, r, stats_tbl, source => destination; schema, invert = true)
 end
 
 function CardWidget(::Type{RescaleCard})

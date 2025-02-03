@@ -12,7 +12,7 @@
     data = Pipelines.DBData{2}(
         repository = repo,
         schema = schema,
-        table = "split",
+        source = "split",
         sorters = ["No"],
         predictors = ["TEMP", "PRES"],
         targets = ["Iws"],
@@ -31,7 +31,7 @@
 
     @test StreamlinerCore.get_metadata(data) == Dict(
         "schema" => schema,
-        "table" => "split",
+        "source" => "split",
         "sorters" => ["No"],
         "predictors" => ["TEMP", "PRES"],
         "targets" => ["Iws"],

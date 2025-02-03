@@ -64,15 +64,15 @@ inputs(s::StreamlinerCard) = stringset(s.sorters, s.predictors, s.targets, s.par
 outputs(s::StreamlinerCard) = stringset(join_names.(s.targets, s.suffix))
 
 function train(
-        repo::Repository,
+        repository::Repository,
         s::StreamlinerCard,
         source::AbstractString;
         schema = nothing
     )
 
     data = DBData{2}(;
-        table = source,
-        repository = repo,
+        source,
+        repository,
         schema,
         s.sorters,
         s.predictors,
@@ -92,16 +92,17 @@ function train(
 end
 
 function evaluate(
-        repo::Repository,
+        repository::Repository,
         s::StreamlinerCard,
         state::CardState,
-        (source, dest)::Pair;
+        (source, destination)::Pair;
         schema = nothing
     )
 
     data = DBData{1}(;
-        table = source,
-        repository = repo,
+        source,
+        destination,
+        repository,
         schema,
         s.sorters,
         s.predictors,

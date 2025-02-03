@@ -21,7 +21,7 @@ Pipelines.invertible
 
 ```@docs
 Pipelines.get_card
-Pipelines.evaluate(repo::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
+Pipelines.evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
 ```
 
 ## Cards

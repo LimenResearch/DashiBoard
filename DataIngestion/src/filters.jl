@@ -89,19 +89,19 @@ Generate an [`AbstractFilter`](@ref) based on a configuration dictionary.
 get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
 
 """
-    select(repo::Repository, filters::AbstractVector; schema = nothing)
+    select(repository::Repository, filters::AbstractVector; schema = nothing)
 
-Create a table with name `TABLE_NAMES.selection` within the database `repo.db`,
-where `repo` is a [`Repository`](@ref).
+Create a table with name `TABLE_NAMES.selection` within the database `repository.db`,
+where `repository` is a [`Repository`](@ref).
 The table `TABLE_NAMES.selection` is filled with rows from the table
 `TABLE_NAMES.source` that are kept by the filters in `filters`.
 
 Each filter should be an instance of [`AbstractFilter`](@ref).
 """
-function select(repo::Repository, filters::AbstractVector; schema = nothing)
+function select(repository::Repository, filters::AbstractVector; schema = nothing)
     cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
     params = mapfoldl(get_params, merge!, cs, init = Dict{String, Any}())
     pred = Fun.and(Iterators.map(get_pred, cs)...)
     node = From(TABLE_NAMES.source) |> Where(pred)
-    replace_table(repo, node, params, TABLE_NAMES.selection; schema)
+    replace_table(repository, node, params, TABLE_NAMES.selection; schema)
 end

@@ -76,7 +76,7 @@ inputs(g::GaussianEncodingCard) = stringset(g.column)
 outputs(g::GaussianEncodingCard) = stringset(join_names.(g.column, g.suffix, 1:g.n_modes))
 
 # TODO: might be periodic and first and last gaussian are the same?
-function train(repo::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
+function train(::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(0, stop = 1, length = g.n_modes)
     σ = step(μs) * g.lambda
     params = Dict("σ" => [σ], "d" => [g.max])
@@ -96,7 +96,7 @@ function gaussian_transform(x, μ, σ, d)
 end
 
 function evaluate(
-        repo::Repository,
+        repository::Repository,
         g::GaussianEncodingCard,
         state::CardState,
         (source, target)::Pair;
@@ -105,7 +105,7 @@ function evaluate(
 
     params_tbl = jlddeserialize(state.content)
 
-    source_columns = colnames(repo, source; schema)
+    source_columns = colnames(repository, source; schema)
     col = new_name("transformed", source_columns)
     converted = map(1:g.n_modes) do i
         k = join_names(g.column, g.suffix, i)
@@ -114,13 +114,13 @@ function evaluate(
     end
     target_columns = union(source_columns, first.(converted))
 
-    return with_table(repo, params_tbl; schema) do tbl_name
+    return with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
             Define(col => g.processed_column) |>
             Join(From(tbl_name), on = true) |>
             Define(converted...) |>
             Select(Get.(target_columns)...)
-        replace_table(repo, query, target; schema)
+        replace_table(repository, query, target; schema)
     end
 end
 

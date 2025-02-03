@@ -73,19 +73,19 @@ function get_card(d::AbstractDict)
 end
 
 """
-    evaluate(repo::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
+    evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
 
-Replace `table` in the database `repo.db` with the outcome of executing all
+Replace `table` in the database `repository.db` with the outcome of executing all
 the transformations in `cards`.
 """
-function evaluate(repo::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
+function evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
     nodes = Node.(cards, true)
     if any(get_update, nodes)
         order = evaluation_order!(nodes)
         for idx in order
             node = nodes[idx]
-            state = evaluate(repo, node.card, table => table; schema)
+            state = evaluate(repository, node.card, table => table; schema)
             set_state!(node, state)
             set_update!(node, false)
         end
@@ -103,9 +103,9 @@ stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
 # Note: for the moment this evaluates the nodes in order
 # TODO: finalize deevaluate interface
-function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
+function deevaluate(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
-        deevaluate(repo, node.card, node.state, table => table; schema)
+        deevaluate(repository, node.card, node.state, table => table; schema)
     end
     return
 end

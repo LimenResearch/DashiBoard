@@ -56,10 +56,10 @@ function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
 end
 
 function evaluate(
-        repo::Repository,
+        repository::Repository,
         s::SplitCard,
         ::CardState,
-        (source, dest)::Pair;
+        (source, destination)::Pair;
         schema = nothing
     )
 
@@ -70,7 +70,7 @@ function evaluate(
         Partition(; by, order_by) |>
         Define(s.output => s.splitter)
 
-    replace_table(repo, query, dest; schema)
+    replace_table(repository, query, destination; schema)
 end
 
 function CardWidget(

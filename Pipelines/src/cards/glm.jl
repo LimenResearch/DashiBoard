@@ -83,8 +83,7 @@ function train(
         schema = nothing
     )
 
-    select = filter_partition(g.partition)
-    q = From(source) |> select
+    q = From(source) |> filter_partition(g.partition)
     t = DBInterface.execute(fromtable, repo, q; schema)
 
     (; formula, distribution, link) = g

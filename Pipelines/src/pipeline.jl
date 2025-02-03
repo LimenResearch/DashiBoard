@@ -3,7 +3,7 @@ mutable struct Node
     const inputs::OrderedSet{String}
     const outputs::OrderedSet{String}
     update::Bool
-    model::Any
+    state::CardState
 end
 
 function Node(card::AbstractCard, update::Bool)
@@ -12,15 +12,15 @@ function Node(card::AbstractCard, update::Bool)
         inputs(card),
         outputs(card),
         update,
-        nothing
+        CardState()
     )
 end
 
 get_update(node::Node) = node.update
 set_update!(node::Node, update::Bool) = setproperty!(node, :update, update)
 
-get_model(node::Node) = node.model
-set_model!(node::Node, m) = setproperty!(node, :model, m)
+get_state(node::Node) = node.state
+set_state!(node::Node, m) = setproperty!(node, :state, m)
 
 get_card(node::Node) = node.card
 
@@ -85,8 +85,8 @@ function evaluate(repo::Repository, cards::AbstractVector, table::AbstractString
         order = evaluation_order!(nodes)
         for idx in order
             node = nodes[idx]
-            m = evaluate(repo, node.card, table => table; schema)
-            set_model!(node, m)
+            state = evaluate(repo, node.card, table => table; schema)
+            set_state!(node, state)
             set_update!(node, false)
         end
     end
@@ -105,7 +105,7 @@ stringset(args...) = stringset!(OrderedSet{String}(), args...)
 # TODO: finalize deevaluate interface
 function deevaluate(repo::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
-        deevaluate(repo, node.card, node.model, table => table; schema)
+        deevaluate(repo, node.card, node.state, table => table; schema)
     end
     return
 end

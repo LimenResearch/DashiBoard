@@ -83,7 +83,10 @@ function train(repo::Repository, g::GaussianEncodingCard, source::AbstractString
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
     end
-    return SimpleTable(params)
+    tbl = SimpleTable(params)
+    return CardState(
+        content = jldserialize(tbl)
+    )
 end
 
 function gaussian_transform(x, μ, σ, d)
@@ -95,10 +98,12 @@ end
 function evaluate(
         repo::Repository,
         g::GaussianEncodingCard,
-        params_tbl::SimpleTable,
+        state::CardState,
         (source, target)::Pair;
         schema = nothing
     )
+
+    params_tbl = jlddeserialize(state.content)
 
     source_columns = colnames(repo, source; schema)
     col = new_name("transformed", source_columns)

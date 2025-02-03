@@ -97,7 +97,7 @@ function train(
         Order(Get(predictor))
     t = DBInterface.execute(fromtable, repo, q; schema)
 
-    return map(targets) do target
+    ips = map(targets) do target
         ip = interpolator
         y, x = t[target], t[predictor]
         return if ip.has_dir
@@ -106,16 +106,18 @@ function train(
             ip.method(y, x; extrapolation_left, extrapolation_right)
         end
     end
+    return CardState(content = jldserialize(ips))
 end
 
 function evaluate(
         repo::Repository,
         ic::InterpCard,
-        ips::AbstractVector,
+        state::CardState,
         (source, dest)::Pair;
         schema = nothing
     )
 
+    ips = jlddeserialize(state.content)
     (; targets, predictor, suffix) = ic
     t = DBInterface.execute(fromtable, repo, From(source) |> Order(Get(predictor)); schema)
     x = t[predictor]

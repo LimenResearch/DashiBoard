@@ -52,13 +52,13 @@ inputs(s::SplitCard) = stringset(s.order_by, s.by)
 outputs(s::SplitCard) = stringset(s.output)
 
 function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
-    return nothing
+    return CardState()
 end
 
 function evaluate(
         repo::Repository,
         s::SplitCard,
-        ::Nothing,
+        ::CardState,
         (source, dest)::Pair;
         schema = nothing
     )

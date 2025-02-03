@@ -9,20 +9,24 @@
     id::String = "_id"
 end
 
+# Maybe impose a column like this on load?
+function id_table(data::DBData)
+    return From(data.table) |>
+        Partition() |>
+        Define(data.id => Agg.row_number())
+end
+
 struct Processor{N, D}
     data::DBData{N}
     device::D
-    id::String
 end
-
-# TODO: consider adding ID field?
 
 function (p::Processor)(cols)
     (; predictors, targets) = p.data
     extract_column(k) = Tables.getcolumn(cols, Symbol(k))
     input::Array{Float32, 2} = stack(extract_column, predictors, dims = 1)
     target::Array{Float32, 2} = stack(extract_column, targets, dims = 1)
-    id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
+    id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.data.id))
     return (; id, input = p.device(input), target = p.device(target))
 end
 
@@ -55,7 +59,7 @@ end
 
 function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
-    (; repository, schema, partition, table, id) = data
+    (; repository, schema, sorters, partition) = data
 
     if isnothing(batchsize)
         throw(ArgumentError("Unbatched streaming is not supported."))
@@ -65,12 +69,10 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
     with_connection(repository) do con
         catalog = get_catalog(repository; schema)
-        order_by = shuffle ? Fun.random() : Get(id)
-        stream_query = From(table) |>
-            Partition(order_by = Get.(data.sorters)) |>
-            Define(id => Agg.row_number()) |>
+        order_by = shuffle ? [Fun.random()] : Get.(sorters)
+        stream_query = id_table(data) |>
             filter_partition(partition, i) |>
-            Order(order_by)
+            Order(by = order_by)
 
         if shuffle
             seed = 2rand(rng) - 1
@@ -84,7 +86,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
         try
             batches = Batches(Tables.partitions(result), batchsize, nrows)
-            stream = Iterators.map(Processor(data, device, id), batches)
+            stream = Iterators.map(Processor(data, device), batches)
             f(stream)
         finally
             DBInterface.close!(result)
@@ -119,9 +121,7 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     DuckDBUtils.close(appender)
 
     new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
-    query = From(data.table) |>
-        Partition(order_by = Get.(data.sorters)) |>
-        Define(data.id => Agg.row_number()) |>
+    query = id_table(data) |>
         Join(
             "eval" => From(destination),
             on = Get(data.id) .== Get(data.id, over = Get.eval),

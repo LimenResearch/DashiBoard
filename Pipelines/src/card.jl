@@ -40,7 +40,7 @@ Return a trained model for a given `card` on a table `table` in the database `re
 function train end
 
 """
-    evaluate(repository::Repository, card::AbstractCard, state, (source, destination)::Pair; schema = nothing)
+    evaluate(repository::Repository, card::AbstractCard, state::CardState, (source, destination)::Pair; schema = nothing)
 
 Replace table `destination` in the database `repository.db` with the outcome of executing the `card`
 on the table `source`.

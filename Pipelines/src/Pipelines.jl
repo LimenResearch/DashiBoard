@@ -20,6 +20,8 @@ using EasyConfig: Config
 using TOML: parsefile
 using RelocatableFolders: @path
 
+using JLD2: jldopen
+
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface

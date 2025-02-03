@@ -148,17 +148,20 @@ end
 function train(repo::Repository, r::RescaleCard, source::AbstractString; schema = nothing)
     (; by, columns, rescaler) = r
     (; stats) = rescaler
-    return if isempty(stats)
+    tbl = if isempty(stats)
         SimpleTable()
     else
         pair_wise_group_by(repo, source, by, columns, stats...; schema, r.partition)
     end
+    return CardState(
+        content = jldserialize(tbl)
+    )
 end
 
 function evaluate(
         repo::Repository,
         r::RescaleCard,
-        stats_tbl::SimpleTable,
+        state::CardState,
         (source, dest)::Pair;
         schema = nothing,
         invert = false
@@ -175,6 +178,8 @@ function evaluate(
     else
         [c′ => transform(c) for (c, c′) in iter if c in available_columns]
     end
+
+    stats_tbl = jlddeserialize(state.content)
 
     if isempty(stats)
         query = From(source) |> Define(rescaled...)

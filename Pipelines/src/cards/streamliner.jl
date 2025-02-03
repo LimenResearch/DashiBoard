@@ -81,8 +81,13 @@ function train(
     )
 
     (; model, training) = s
-    return mktemp() do path, _
-        StreamlinerCore.train(path, model, data, training)
+
+    return mktemp() do path, io
+        result = StreamlinerCore.train(path, model, data, training)
+        return CardState(
+            content = read(io),
+            metadata = Dict{String, Any}(result)
+        )
     end
 end
 

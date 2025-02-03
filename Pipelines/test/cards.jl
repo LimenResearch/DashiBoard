@@ -310,12 +310,13 @@ mktempdir() do dir
             @test_throws ArgumentError GaussianEncodingCard(invalid_config)
         end
 
-        function gauss_train_test(card, params)
+        function gauss_train_test(card, state)
             expected_means = range(0, stop = 1, length = card.n_modes)
             expected_sigma = step(expected_means) * card.lambda
             expected_d = card.max
             expected_keys = vcat(["μ_$i" for i in 1:card.n_modes], ["σ", "d"])
 
+            params = Pipelines.jlddeserialize(state.content)
             @test isempty(setdiff(expected_keys, keys(params)))
             @test all([params["μ_$i"] == [v] for (i, v) in enumerate(expected_means)])
             @test params["σ"][1] ≈ expected_sigma
@@ -343,8 +344,8 @@ mktempdir() do dir
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["identity"])
         @test !Pipelines.invertible(card)
-        params = Pipelines.evaluate(repo, card, "origin" => "encoded")
-        gauss_train_test(card, params)
+        state = Pipelines.evaluate(repo, card, "origin" => "encoded")
+        gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = identity)
         @test issetequal(Pipelines.outputs(card), ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"])
@@ -352,8 +353,8 @@ mktempdir() do dir
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["dayofyear"])
-        params = Pipelines.evaluate(repo, card, "origin" => "encoded")
-        gauss_train_test(card, params)
+        state = Pipelines.evaluate(repo, card, "origin" => "encoded")
+        gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = dayofyear)
         @test issetequal(
@@ -368,8 +369,8 @@ mktempdir() do dir
 
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["hour"])
-        params = Pipelines.evaluate(repo, card, "origin" => "encoded")
-        gauss_train_test(card, params)
+        state = Pipelines.evaluate(repo, card, "origin" => "encoded")
+        gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = hour)
         @test issetequal(Pipelines.outputs(card), ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"])
@@ -392,12 +393,13 @@ mktempdir() do dir
         )
         @test !Pipelines.invertible(card)
 
-        res = Pipelines.train(repo, card, "partition")
-        @test res.iteration == 4
-        @test !res.resumed
-        @test length(res.stats[1]) == length(res.stats[2]) == 2
-        @test res.successful
-        @test res.trained
+        state = Pipelines.train(repo, card, "partition")
+        res = state.metadata
+        @test res["iteration"] == 4
+        @test !res["resumed"]
+        @test length(res["stats"][1]) == length(res["stats"][2]) == 2
+        @test res["successful"]
+        @test res["trained"]
     end
 
     @testset "cards" begin

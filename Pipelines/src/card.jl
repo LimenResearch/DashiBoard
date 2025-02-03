@@ -33,7 +33,7 @@ Return `true` for invertible cards, `false` otherwise.
 function invertible end
 
 """
-    train(repo::Repository, card::AbstractCard, source; schema = nothing)
+    train(repo::Repository, card::AbstractCard, source; schema = nothing)::CardState
 
 Return a trained model for a given `card` on a table `table` in the database `repo.db`.
 """
@@ -51,7 +51,30 @@ See also [`train`](@ref).
 function evaluate end
 
 function evaluate(repo::Repository, card::AbstractCard, (source, dest)::Pair; schema = nothing)
-    m = train(repo, card, source; schema)
-    evaluate(repo, card, m, source => dest; schema)
-    return m
+    state = train(repo, card, source; schema)::CardState
+    evaluate(repo, card, state, source => dest; schema)
+    return state
+end
+
+@kwdef struct CardState
+    content::Union{Nothing, Vector{UInt8}} = nothing
+    metadata::Dict{String, Any} = Dict{String, Any}()
+end
+
+function jldserialize(file::Union{IO, AbstractString}, m)
+    jldopen(file, "w") do io
+        io["model_state"] = m
+    end
+end
+
+function jldserialize(m)
+    io = IOBuffer()
+    jldserialize(io, m)
+    return take!(io)
+end
+
+function jlddeserialize(v::AbstractVector{UInt8})
+    jldopen(IOBuffer(v)) do io
+        io["model_state"]
+    end
 end

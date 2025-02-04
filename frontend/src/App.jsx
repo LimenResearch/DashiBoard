@@ -1,5 +1,7 @@
 import { createSignal } from "solid-js";
 
+import { WindowEventListener } from "@solid-primitives/event-listener";
+
 import { postRequest } from "./requests";
 
 import { Loader, initLoader } from "./left-tabs/loading";
@@ -59,6 +61,7 @@ export function App() {
         overflow-y-auto scrollbar-gutter-stable`;
 
     return <div class={outerClass}>
+        <WindowEventListener onBeforeunload={e => e.preventDefault()}></WindowEventListener>
         <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
             <div class="col-span-2">
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>

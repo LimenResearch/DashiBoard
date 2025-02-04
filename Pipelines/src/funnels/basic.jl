@@ -6,22 +6,19 @@
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
-    id::String = "rowid"
 end
 
-# Maybe create a column like this on load?
-function id_table(data::DBData)
-    if data.id in colnames(data.repository, data.table; data.schema)
-        throw(ArgumentError("Invalid `data.id` field: '$(data.id)' is already a column."))
-    end
+# note: with empty partition, DuckDB preserves order
+function id_table(data::DBData, col)
     return From(data.table) |>
         Partition() |>
-        Define(data.id => Agg.row_number())
+        Define(col => Agg.row_number())
 end
 
 struct Processor{N, D}
     data::DBData{N}
     device::D
+    id::String
 end
 
 function (p::Processor)(cols)
@@ -29,7 +26,7 @@ function (p::Processor)(cols)
     extract_column(k) = Tables.getcolumn(cols, Symbol(k))
     input::Array{Float32, 2} = stack(extract_column, predictors, dims = 1)
     target::Array{Float32, 2} = stack(extract_column, targets, dims = 1)
-    id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.data.id))
+    id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
     return (; id, input = p.device(input), target = p.device(target))
 end
 
@@ -60,6 +57,8 @@ function StreamlinerCore.get_nsamples(data::DBData, i::Int)
     return DBInterface.execute(x -> only(x).count, repository, q; schema)
 end
 
+get_id_col(ns) = new_name("id", ns)
+
 function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
     (; repository, schema, sorters, partition) = data
@@ -69,11 +68,13 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     end
 
     nrows = StreamlinerCore.get_nsamples(data, i)
+    ns = colnames(data.repository, data.table; data.schema)
+    id_col = get_id_col(ns)
 
     with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         order_by = shuffle ? [Fun.random()] : Get.(sorters)
-        stream_query = id_table(data) |>
+        stream_query = id_table(data, id_col) |>
             filter_partition(partition, i) |>
             Order(by = order_by)
 
@@ -89,7 +90,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
         try
             batches = Batches(Tables.partitions(result), batchsize, nrows)
-            stream = Iterators.map(Processor(data, device), batches)
+            stream = Iterators.map(Processor(data, device, id_col), batches)
             f(stream)
         finally
             DBInterface.close!(result)
@@ -109,8 +110,11 @@ end
 
 function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination)
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
+    ns = colnames(data.repository, data.table; data.schema)
+    id_col = get_id_col(ns)
+
     tbl = SimpleTable()
-    tbl[data.id] = Int64[]
+    tbl[id_col] = Int64[]
     for k in data.targets
         tbl[k] = Float32[]
     end
@@ -123,15 +127,14 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     end
     DuckDBUtils.close(appender)
 
-    ns = colnames(data.repository, data.table; data.schema)
     old_vars = ns .=> Get.(ns)
     new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
     join_clause = Join(
         "eval" => From(destination),
-        on = Get(data.id) .== Get(data.id, over = Get.eval),
+        on = Get(id_col) .== Get(id_col, over = Get.eval),
         right = true
     )
-    query = id_table(data) |>
+    query = id_table(data, id_col) |>
         join_clause |>
         Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)

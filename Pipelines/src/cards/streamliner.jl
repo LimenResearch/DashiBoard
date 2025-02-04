@@ -7,7 +7,7 @@ to_string_dict(d) = constructfrom(Dict{String, Any}, d)
     struct StreamlinerCard <: AbstractCard
     model::Model
     training::Training
-    sorters::Vector{String}
+    order_by::Vector{String}
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing} = nothing
@@ -19,7 +19,7 @@ Run a Streamliner model, predicting `targets` from `predictors`.
 struct StreamlinerCard <: AbstractCard
     model::Model
     training::Training
-    sorters::Vector{String}
+    order_by::Vector{String}
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
@@ -27,7 +27,7 @@ struct StreamlinerCard <: AbstractCard
 end
 
 function StreamlinerCard(c::Config)
-    sorters::Vector{String} = get(c, :sorters, String[])
+    order_by::Vector{String} = get(c, :order_by, String[])
     predictors::Vector{String} = get(c, :predictors, String[])
     targets::Vector{String} = get(c, :targets, String[])
 
@@ -49,7 +49,7 @@ function StreamlinerCard(c::Config)
     return StreamlinerCard(
         model,
         training,
-        sorters,
+        order_by,
         predictors,
         targets,
         partition,
@@ -59,7 +59,7 @@ end
 
 invertible(::StreamlinerCard) = false
 
-inputs(s::StreamlinerCard) = stringset(s.sorters, s.predictors, s.targets, s.partition)
+inputs(s::StreamlinerCard) = stringset(s.order_by, s.predictors, s.targets, s.partition)
 
 outputs(s::StreamlinerCard) = stringset(join_names.(s.targets, s.suffix))
 
@@ -74,7 +74,7 @@ function train(
         table = source,
         repository,
         schema,
-        s.sorters,
+        s.order_by,
         s.predictors,
         s.targets,
         s.partition,
@@ -104,7 +104,7 @@ function evaluate(
         table = source,
         repository,
         schema,
-        s.sorters,
+        s.order_by,
         s.predictors,
         s.targets,
         partition = nothing
@@ -118,4 +118,33 @@ function evaluate(
         seekstart(io)
         StreamlinerCore.evaluate(path, model, data, streaming; destination, suffix)
     end
+end
+
+function list_tomls(dir)
+    fls = Iterators.map(splitext, readdir(dir))
+    return [f for (f, ext) in fls if ext == ".toml"]
+end
+
+function CardWidget(
+        ::Type{StreamlinerCard};
+        model_directory,
+        training_directory
+    )
+    
+    fields = [
+        Widget("model", options = list_tomls(model_directory)),
+        Widget("training", options = list_tomls(training_directory)),
+        Widget("order_by"),
+        Widget("predictors"),
+        Widget("targets"),
+        Widget("partition"),
+        Widget("suffix", value = "hat"),
+    ]
+
+    return CardWidget(;
+        type = "streamliner",
+        label = "Streamliner",
+        output = OutputSpec("targets", "suffix"),
+        fields
+    )
 end

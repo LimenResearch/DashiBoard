@@ -6,5 +6,5 @@
         )
     )
     @test configs isa AbstractVector
-    @test length(configs) == 5
+    @test length(configs) == 6
 end

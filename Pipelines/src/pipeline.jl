@@ -146,6 +146,7 @@ function card_configurations(;
         glm = (;),
         interp = (;),
         gaussian_encoding = (;),
+        streamliner = (;),
     )
 
     d = Dict(
@@ -155,6 +156,7 @@ function card_configurations(;
         "glm" => parsefile(config_path("glm.toml")),
         "interp" => parsefile(config_path("interp.toml")),
         "gaussian_encoding" => parsefile(config_path("gaussian_encoding.toml")),
+        "streamliner" => parsefile(config_path("streamliner.toml")),
     )
 
     return [
@@ -163,5 +165,6 @@ function card_configurations(;
         card_widget(d, "glm"; glm...),
         card_widget(d, "interp"; interp...),
         card_widget(d, "gaussian_encoding"; gaussian_encoding...),
+        card_widget(d, "streamliner"; streamliner...),
     ]
 end

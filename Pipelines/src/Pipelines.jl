@@ -10,7 +10,7 @@ export AbstractCard,
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 
-public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
+public to_config, default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue

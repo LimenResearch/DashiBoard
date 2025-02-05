@@ -26,7 +26,15 @@ function acceptable_files(data_directory)
     end
 end
 
-function launch(data_directory; options...)
+function launch(
+        data_directory;
+        host = "127.0.0.1",
+        port = 8080,
+        async = false,
+        training_directory,
+        model_directory,
+    )
+
     # TODO: clarify `post` vs `get`
     @post "/list" function (req::HTTP.Request)
         files = collect(String, acceptable_files(data_directory))
@@ -43,7 +51,12 @@ function launch(data_directory; options...)
 
     @post "/card-configurations" function (req::HTTP.Request)
         spec = json(req) |> to_config
-        configs = Pipelines.card_configurations(; spec...)
+        configs = @with(
+            Pipelines.PARSER => Pipelines.default_parser(),
+            Pipelines.MODEL_DIR => model_directory,
+            Pipelines.TRAINING_DIR => training_directory,
+            Pipelines.card_configurations(; spec...)
+        )
         return JSON3.write(configs)
     end
 
@@ -77,5 +90,5 @@ function launch(data_directory; options...)
         return String(take!(io))
     end
 
-    serve(; middleware = [CorsHandler], options...)
+    serve(; middleware = [CorsHandler], host, port, async)
 end

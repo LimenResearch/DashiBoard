@@ -1,7 +1,7 @@
 # architecture helpers
 
 function get_architecture(config::AbstractDict)
-    name, components = config = config[:name], config[:components]
+    name, components = config[:name], config[:components]
     return PARSER[].models[name](components)
 end
 

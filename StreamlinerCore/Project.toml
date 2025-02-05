@@ -6,7 +6,6 @@ version = "1.0.0-DEV"
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-EasyConfig = "acab07b0-f158-46d4-8913-50acef6d41fe"
 EnumX = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
@@ -26,7 +25,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 ChainRulesCore = "1"
-EasyConfig = "0.1"
 EnumX = "1.0.4"
 Flux = "0.14, 0.15, 0.16"
 JLD2 = "0.5.10"

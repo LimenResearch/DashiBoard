@@ -15,8 +15,6 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue
 
-using EasyConfig: Config
-
 using TOML: parsefile
 using RelocatableFolders: @path
 
@@ -95,8 +93,10 @@ using StreamlinerCore: StreamlinerCore,
     Streaming,
     Training,
     Template,
+    Parser,
     default_parser,
-    PARSER
+    PARSER,
+    to_config
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 

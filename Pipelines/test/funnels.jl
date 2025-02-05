@@ -13,7 +13,7 @@
         repository = repo,
         schema = schema,
         table = "split",
-        sorters = ["No"],
+        order_by = ["No"],
         predictors = ["TEMP", "PRES"],
         targets = ["Iws"],
         partition = "_tiled_partition"
@@ -32,7 +32,7 @@
     @test StreamlinerCore.get_metadata(data) == Dict(
         "schema" => schema,
         "table" => "split",
-        "sorters" => ["No"],
+        "order_by" => ["No"],
         "predictors" => ["TEMP", "PRES"],
         "targets" => ["Iws"],
         "partition" => "_tiled_partition",

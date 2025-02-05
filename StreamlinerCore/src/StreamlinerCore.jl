@@ -5,13 +5,12 @@ export default_parser
 export get_templates, get_metadata, get_nsamples
 export stream, finetune, train, loadmodel, validate, evaluate, summarize
 
-public has_weights
+public has_weights, to_config
 
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std
 using Random: AbstractRNG, Xoshiro, seed!
 using TOML: TOML
-using EasyConfig: Config
 using Dates: now, DateTime
 using Tables: Tables
 using NNlib: upsample_linear, upsample_nearest

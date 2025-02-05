@@ -30,9 +30,9 @@ const TrainingPair{T} = Pair{Training, TrainingState{T}}
 
 get_metadata(training::Training) = training.metadata
 
-get_iterations(config::Config) = get(config, :iterations, 1000)
-get_seed(config::Config) = get(config, :seed, nothing)
-get_options(config::Config) = SymbolDict(config.options)
+get_iterations(config::AbstractDict) = get(config, :iterations, 1000)
+get_seed(config::AbstractDict) = get(config, :seed, nothing)
+get_options(config::AbstractDict) = get_config(config, :options)
 
 """
     Training(parser::Parser, metadata::AbstractDict)
@@ -47,7 +47,7 @@ fill the template given in `path`.
 The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
 """
 function Training(parser::Parser, metadata::AbstractDict)
-    config = Config(metadata)
+    config = to_config(metadata)
 
     return @with PARSER => parser begin
         optimizer = get_optimizer(config)

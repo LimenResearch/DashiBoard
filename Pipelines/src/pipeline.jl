@@ -60,10 +60,6 @@ const CARD_TYPES = Dict(
     "streamliner" => StreamlinerCard,
 )
 
-to_config(d::AbstractDict) = Dict{Symbol, Any}(k => to_config(v) for (k, v) in pairs(d))
-to_config(v::AbstractVector) = map(to_config, v)
-to_config(x) = x
-
 """
     get_card(d::AbstractDict)
 

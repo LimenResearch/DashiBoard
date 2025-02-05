@@ -42,7 +42,7 @@ function launch(data_directory; options...)
     end
 
     @post "/card-configurations" function (req::HTTP.Request)
-        spec = json(req) |> Config
+        spec = json(req) |> to_config
         configs = Pipelines.card_configurations(; spec...)
         return JSON3.write(configs)
     end

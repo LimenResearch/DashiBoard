@@ -7,7 +7,6 @@ using MLUtils: flatten, numobs, getobs, DataLoader
 using Optimisers: Adam
 using ParameterSchedulers: CosAnneal
 using MLDatasets: MNIST
-using EasyConfig
 using ChainRulesTestUtils
 using Test, Random
 

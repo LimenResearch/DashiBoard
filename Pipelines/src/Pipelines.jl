@@ -95,7 +95,8 @@ using StreamlinerCore: StreamlinerCore,
     Template,
     Parser,
     default_parser,
-    PARSER
+    PARSER,
+    to_config
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 

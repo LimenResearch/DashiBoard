@@ -54,19 +54,18 @@ metricname(m::Metric) = nameof(m.loss)
 
 # Parsing
 
-get_loss(config::Config) = get_metric(config.loss)
+get_loss(config::AbstractDict) = get_metric(config[:loss])
 
-function get_metric(config::Config)
-    params = SymbolDict(config)
-
-    metric = PARSER[].metrics[pop!(params, :name)]
-    agg = PARSER[].aggregators[pop!(params, :agg, "mean")]
+function get_metric(config::AbstractDict)
+    params, name, agg_name = pop(config, :name, :agg => "mean")
+    metric = PARSER[].metrics[name]
+    agg = PARSER[].aggregators[agg_name]
 
     return metric(; agg, params...)
 end
 
-function get_metrics(config::Config)
-    configs = get(config, :metrics, Config[])
+function get_metrics(config::AbstractDict)
+    configs = get_configs(config, :metrics)
     return Tuple(get_metric.(configs))
 end
 

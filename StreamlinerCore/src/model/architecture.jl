@@ -1,19 +1,18 @@
 # architecture helpers
 
-function get_architecture(config::Config)
-    (; name, components) = config
+function get_architecture(config::AbstractDict)
+    name, components = config = config[:name], config[:components]
     return PARSER[].models[name](components)
 end
 
-function get_layer(config::Config)
-    params = SymbolDict(config)
-    name = pop!(params, :name)
+function get_layer(config::AbstractDict)
+    params, name = pop(config, :name)
     return PARSER[].layers[name](; params...)
 end
 
 # constructor helpers
 
-function architecture(::Type{T}, config::Config) where {T}
+function architecture(::Type{T}, config::AbstractDict) where {T}
     modules = map(fieldnames(T)) do k
         configs = get(config, k, nothing)
         if isnothing(configs) || isempty(configs)
@@ -30,6 +29,6 @@ end
 
 # additional context
 
-get_context(config::Config) = SymbolDict(config.options)
+get_context(config::AbstractDict) = get_config(config, :options)
 
 const MODEL_CONTEXT = ScopedValue{SymbolDict}()

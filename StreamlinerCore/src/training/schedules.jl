@@ -1,8 +1,7 @@
-function get_schedules(config::Config)
-    schedules = SymbolDict(config.schedules)
+function get_schedules(config::AbstractDict)
+    schedules = copy(get_config(config, :schedules))
     map!(values(schedules)) do config
-        params = SymbolDict(config)
-        name = pop!(params, :name)
+        params, name = pop(config, :name)
         return PARSER[].schedules[name](; params...)
     end
     return schedules

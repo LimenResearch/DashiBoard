@@ -133,15 +133,11 @@ function list_tomls(dir)
     return [f for (f, ext) in fls if ext == ".toml"]
 end
 
-function CardWidget(
-        ::Type{StreamlinerCard};
-        model_directory,
-        training_directory
-    )
-    
+function CardWidget(::Type{StreamlinerCard})
+
     fields = [
-        Widget("model", options = list_tomls(model_directory)),
-        Widget("training", options = list_tomls(training_directory)),
+        Widget("model", options = list_tomls(MODEL_DIR[])),
+        Widget("training", options = list_tomls(TRAINING_DIR[])),
         Widget("order_by"),
         Widget("predictors"),
         Widget("targets"),

@@ -12,6 +12,14 @@ function (@main)(ARGS)
         help = "port number"
         arg_type = Int
         default = 8080
+        "--model_directory"
+        help = "directory containing model configuration files"
+        arg_type = String
+        default = "."
+        "--training_directory"
+        help = "directory containing training configuration files"
+        arg_type = String
+        default = "."
         "data_directory"
         help = "directory containing data files"
         required = true
@@ -19,5 +27,11 @@ function (@main)(ARGS)
 
     d = parse_args(ARGS, s)
 
-    launch(d["data_directory"], host = d["host"], port = d["port"])
+    launch(
+        d["data_directory"],
+        host = d["host"],
+        port = d["port"],
+        training_directory = d["training_directory"],
+        model_directory = d["model_directory"]
+    )
 end

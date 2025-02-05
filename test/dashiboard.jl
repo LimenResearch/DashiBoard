@@ -29,7 +29,16 @@ mktempdir() do data_dir
         @test "_percentile_partition" in names(res)
     end
 
-    server = DashiBoard.launch(data_dir; async = true)
+    pipelines_static = joinpath(@__DIR__, "..", "Pipelines", "test", "static")
+    model_directory = joinpath(pipelines_static, "model")
+    training_directory = joinpath(pipelines_static, "training")
+
+    server = DashiBoard.launch(
+        data_dir;
+        async = true,
+        model_directory,
+        training_directory
+    )
 
     @testset "request" begin
         url = "http://127.0.0.1:8080/"
@@ -38,7 +47,7 @@ mktempdir() do data_dir
         resp = HTTP.post(url * "card-configurations", body = body)
         configs = JSON3.read(resp.body)
         @test configs isa AbstractVector
-        @test length(configs) == 5
+        @test length(configs) == 6
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load", body = body)

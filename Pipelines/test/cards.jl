@@ -395,12 +395,12 @@ mktempdir() do dir
         part_card = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
-        model_dir = joinpath(@__DIR__, "static", "model")
-        training_dir = joinpath(@__DIR__, "static", "training")
+        model_directory = joinpath(@__DIR__, "static", "model")
+        training_directory = joinpath(@__DIR__, "static", "training")
         card = @with(
             Pipelines.PARSER => Pipelines.default_parser(),
-            Pipelines.MODEL_DIR => model_dir,
-            Pipelines.TRAINING_DIR => training_dir,
+            Pipelines.MODEL_DIR => model_directory,
+            Pipelines.TRAINING_DIR => training_directory,
             Pipelines.get_card(d["basic"]),
         )
         @test !Pipelines.invertible(card)

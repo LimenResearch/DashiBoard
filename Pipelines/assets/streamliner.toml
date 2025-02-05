@@ -1,0 +1,9 @@
+[model]
+widget = "select"
+label = "Model configuration"
+placeholder = "Select a model configuration..."
+
+[training]
+widget = "select"
+label = "Training configuration"
+placeholder = "Select a training configuration..."

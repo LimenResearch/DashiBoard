@@ -1,7 +1,7 @@
 {
     "basic": {
         "type": "streamliner",
-        "sorters": ["No"],
+        "order_by": ["No"],
         "predictors": ["TEMP", "PRES"],
         "targets": ["Iws"],
         "partition": "partition",

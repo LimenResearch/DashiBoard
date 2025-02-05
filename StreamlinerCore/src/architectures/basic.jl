@@ -24,4 +24,4 @@ function instantiate(b::BasicSpec, templates)
     return Basic(; model)
 end
 
-basic(components::Config) = architecture(BasicSpec, components)
+basic(components::AbstractDict) = architecture(BasicSpec, components)

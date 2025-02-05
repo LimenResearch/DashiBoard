@@ -3,11 +3,26 @@ const TRAINING_DIR = ScopedValue{String}()
 
 to_string_dict(d) = constructfrom(Dict{String, Any}, d)
 
+function parse_config(
+        ::Type{T},
+        parser::Parser,
+        dir::AbstractString,
+        name::AbstractString,
+        options::AbstractDict
+    ) where {T}
+
+    file = string(name, ".toml")
+    config = parsefile(joinpath(dir, file))
+    delete!(config, "widgets")
+    params = to_string_dict(options)
+    return T(parser, config, params)
+end
+
 """
     struct StreamlinerCard <: AbstractCard
     model::Model
     training::Training
-    sorters::Vector{String}
+    order_by::Vector{String}
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing} = nothing
@@ -19,29 +34,22 @@ Run a Streamliner model, predicting `targets` from `predictors`.
 struct StreamlinerCard <: AbstractCard
     model::Model
     training::Training
-    sorters::Vector{String}
+    order_by::Vector{String}
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
     suffix::String
 end
 
-function StreamlinerCard(c::Config)
-    sorters::Vector{String} = get(c, :sorters, String[])
+function StreamlinerCard(c::AbstractDict)
+    order_by::Vector{String} = get(c, :order_by, String[])
     predictors::Vector{String} = get(c, :predictors, String[])
     targets::Vector{String} = get(c, :targets, String[])
 
     parser = PARSER[]
 
-    model_name::String = c.model
-    model_file = string(model_name, ".toml")
-    model_params = to_string_dict(c.model_options)
-    model = Model(parser, joinpath(MODEL_DIR[], model_file), model_params)
-
-    training_name::String = c.training
-    training_file = string(training_name, ".toml")
-    training_params = to_string_dict(c.training_options)
-    training = Training(parser, joinpath(TRAINING_DIR[], training_file), training_params)
+    model = parse_config(Model, parser, MODEL_DIR[], c[:model], c[:model_options])
+    training = parse_config(Training, parser, TRAINING_DIR[], c[:training], c[:training_options])
 
     partition = get(c, :partition, nothing)
     suffix = get(c, :suffix, "hat")
@@ -49,7 +57,7 @@ function StreamlinerCard(c::Config)
     return StreamlinerCard(
         model,
         training,
-        sorters,
+        order_by,
         predictors,
         targets,
         partition,
@@ -59,7 +67,7 @@ end
 
 invertible(::StreamlinerCard) = false
 
-inputs(s::StreamlinerCard) = stringset(s.sorters, s.predictors, s.targets, s.partition)
+inputs(s::StreamlinerCard) = stringset(s.order_by, s.predictors, s.targets, s.partition)
 
 outputs(s::StreamlinerCard) = stringset(join_names.(s.targets, s.suffix))
 
@@ -74,7 +82,7 @@ function train(
         table = source,
         repository,
         schema,
-        s.sorters,
+        s.order_by,
         s.predictors,
         s.targets,
         s.partition,
@@ -104,7 +112,7 @@ function evaluate(
         table = source,
         repository,
         schema,
-        s.sorters,
+        s.order_by,
         s.predictors,
         s.targets,
         partition = nothing
@@ -118,4 +126,33 @@ function evaluate(
         seekstart(io)
         StreamlinerCore.evaluate(path, model, data, streaming; destination, suffix)
     end
+end
+
+function list_tomls(dir)
+    fls = Iterators.map(splitext, readdir(dir))
+    return [f for (f, ext) in fls if ext == ".toml"]
+end
+
+function CardWidget(
+        ::Type{StreamlinerCard};
+        model_directory,
+        training_directory
+    )
+    
+    fields = [
+        Widget("model", options = list_tomls(model_directory)),
+        Widget("training", options = list_tomls(training_directory)),
+        Widget("order_by"),
+        Widget("predictors"),
+        Widget("targets"),
+        Widget("partition"),
+        Widget("suffix", value = "hat"),
+    ]
+
+    return CardWidget(;
+        type = "streamliner",
+        label = "Streamliner",
+        output = OutputSpec("targets", "suffix"),
+        fields
+    )
 end

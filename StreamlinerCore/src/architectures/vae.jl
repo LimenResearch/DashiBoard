@@ -63,4 +63,4 @@ function instantiate(v::VAESpec, templates)
     return VAE(; embedding, model_μ, model_logvar, projection)
 end
 
-vae(components::Config) = architecture(VAESpec, components)
+vae(components::AbstractDict) = architecture(VAESpec, components)

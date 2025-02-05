@@ -53,14 +53,15 @@ struct InterpCard <: AbstractCard
     suffix::String
 end
 
-function InterpCard(c::Config)
-    method::String = c.method
+function InterpCard(c::AbstractDict)
+    method::String = c[:method]
     interpolator::Interpolator = INTERPOLATORS[method]
-    predictor::String = c.predictor
-    targets::Vector{String} = c.targets
+    predictor::String = c[:predictor]
+    targets::Vector{String} = c[:targets]
     extrapolation_left::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, :extrapolation_left, "none")]
     extrapolation_right::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, :extrapolation_right, "none")]
-    dir::Union{Symbol, Nothing} = haskey(c, :dir) ? DIRECTION_OPTIONS[c.dir] : nothing
+    dir_key::Union{String, Nothing} = get(c, :dir, nothing)
+    dir::Union{Symbol, Nothing} = isnothing(dir_key) ? nothing : DIRECTION_OPTIONS[dir_key]
     partition::Union{String, Nothing} = get(c, :partition, nothing)
     suffix::String = get(c, :suffix, "hat")
     return InterpCard(

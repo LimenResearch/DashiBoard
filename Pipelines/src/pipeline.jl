@@ -66,9 +66,8 @@ const CARD_TYPES = Dict(
 Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
 """
 function get_card(d::AbstractDict)
-    c = Config(d)
-    (; type) = c
-    delete!(c, :type)
+    c = to_config(d)
+    type = pop!(c, :type)
     return CARD_TYPES[type](c)
 end
 
@@ -119,7 +118,7 @@ function filter_partition(::Nothing, n::Integer = 1)
     return identity
 end
 
-function check_order(c::Config)
+function check_order(c::AbstractDict)
     order_by = get(c, :order_by, String[])
     if isempty(order_by)
         throw(
@@ -146,6 +145,7 @@ function card_configurations(;
         glm = (;),
         interp = (;),
         gaussian_encoding = (;),
+        streamliner = (;),
     )
 
     d = Dict(
@@ -155,6 +155,7 @@ function card_configurations(;
         "glm" => parsefile(config_path("glm.toml")),
         "interp" => parsefile(config_path("interp.toml")),
         "gaussian_encoding" => parsefile(config_path("gaussian_encoding.toml")),
+        "streamliner" => parsefile(config_path("streamliner.toml")),
     )
 
     return [
@@ -163,5 +164,6 @@ function card_configurations(;
         card_widget(d, "glm"; glm...),
         card_widget(d, "interp"; interp...),
         card_widget(d, "gaussian_encoding"; gaussian_encoding...),
+        card_widget(d, "streamliner"; streamliner...),
     ]
 end

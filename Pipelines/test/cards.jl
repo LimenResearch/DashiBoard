@@ -294,19 +294,31 @@ mktempdir() do dir
         DuckDBUtils.load_table(repo, origin, "origin")
 
         @testset "GaussianEncodingCard construction" begin
-            base_fields = Config(column = "date", n_modes = 3, max = 365.0, lambda = 0.5, suffix = "gaussian")
+            base_fields = Dict(
+                :column => "date",
+                :n_modes => 3,
+                :max => 365.0,
+                :lambda => 0.5,
+                :suffix => "gaussian"
+            )
 
             for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING)
-                config = merge(base_fields, Config(method = k))
+                config = merge(base_fields, Dict(:method => k))
                 card = GaussianEncodingCard(config)
                 @test string(card.processed_column) == string(v(Get("date")))
             end
 
             invalid_method = "nonexistent_method"
-            invalid_config = merge(base_fields, Config(method = invalid_method))
+            invalid_config = merge(base_fields, Dict(:method => invalid_method))
             @test_throws ArgumentError GaussianEncodingCard(invalid_config)
 
-            invalid_config = Config(column = "date", n_modes = 1, max = 365.0, lambda = 0.5, method = "identity")
+            invalid_config = Dict(
+                :column => "date",
+                :n_modes => 1,
+                :max => 365.0,
+                :lambda => 0.5,
+                :method => "identity"
+            )
             @test_throws ArgumentError GaussianEncodingCard(invalid_config)
         end
 

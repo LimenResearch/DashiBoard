@@ -8,8 +8,6 @@ using Oxygen: json, @post, serve
 
 using Scratch: @get_scratch!
 
-using EasyConfig: Config
-
 using JSON3: JSON3
 
 using JSONTables: arraytable
@@ -22,7 +20,7 @@ using DuckDBUtils: Repository
 
 using DataIngestion: is_supported, get_filter, DataIngestion
 
-using Pipelines: get_card, Pipelines
+using Pipelines: get_card, to_config, Pipelines
 
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()

@@ -1,15 +1,15 @@
-function get_splitter(c::Config)
-    method::String = c.method
+function get_splitter(c::AbstractDict)
+    method::String = c[:method]
 
     # TODO: add randomized methods
     if method == "tiles"
         check_order(c)
-        tiles::Vector{Int} = c.tiles
+        tiles::Vector{Int} = c[:tiles]
         N = length(tiles)
         return Fun.list_extract(Fun.list_value(tiles...), Agg.ntile(N))
     elseif method == "percentile"
         check_order(c)
-        percentile::Float64 = c.percentile
+        percentile::Float64 = c[:percentile]
         return Fun.case(Agg.percent_rank() .<= percentile, 1, 2)
     else
         throw(ArgumentError("method $method is not supported"))
@@ -37,11 +37,11 @@ struct SplitCard <: AbstractCard
     output::String
 end
 
-function SplitCard(c::Config)
+function SplitCard(c::AbstractDict)
     splitter::SQLNode = get_splitter(c)
     order_by::Vector{String} = get(c, :order_by, String[])
     by::Vector{String} = get(c, :by, String[])
-    output::String = c.output
+    output::String = c[:output]
     return SplitCard(splitter, order_by, by, output)
 end
 

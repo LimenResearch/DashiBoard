@@ -60,15 +60,18 @@ const CARD_TYPES = Dict(
     "streamliner" => StreamlinerCard,
 )
 
+to_config(d::AbstractDict) = Dict{Symbol, Any}(k => to_config(v) for (k, v) in pairs(d))
+to_config(v::AbstractVector) = map(to_config, v)
+to_config(x) = x
+
 """
     get_card(d::AbstractDict)
 
 Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
 """
 function get_card(d::AbstractDict)
-    c = Config(d)
-    (; type) = c
-    delete!(c, :type)
+    c = to_config(d)
+    type = pop!(c, :type)
     return CARD_TYPES[type](c)
 end
 
@@ -119,7 +122,7 @@ function filter_partition(::Nothing, n::Integer = 1)
     return identity
 end
 
-function check_order(c::Config)
+function check_order(c::AbstractDict)
     order_by = get(c, :order_by, String[])
     if isempty(order_by)
         throw(

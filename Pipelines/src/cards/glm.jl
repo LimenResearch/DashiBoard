@@ -47,17 +47,17 @@ struct GLMCard <: AbstractCard
     suffix::String
 end
 
-function GLMCard(c::Config)
-    predictors::Vector{Any} = c.predictors
-    target::String = c.target
+function GLMCard(c::AbstractDict)
+    predictors::Vector{Any} = c[:predictors]
+    target::String = c[:target]
     formula::FormulaTerm = to_target(target) ~ to_predictors(predictors)
     weights::Union{String, Nothing} = get(c, :weights, nothing)
     distribution::Distribution = NOISE_MODELS[get(c, :distribution, "normal")]
-    link::Link = if haskey(c, :link)
-        link_params = get(c, :link_params, ())
-        LINK_FUNCTIONS[c.link](link_params...)
-    else
+    link_key::Union{String, Nothing} = get(c, :link, nothing)
+    link::Link = if isnothing(link_key)
         canonicallink(distribution)
+    else
+        LINK_FUNCTIONS[link_key](get(c, :link_params, ())...)
     end
     partition::Union{String, Nothing} = get(c, :partition, nothing)
     suffix::String = get(c, :suffix, "hat")

@@ -54,17 +54,17 @@ struct GaussianEncodingCard <: AbstractCard
     suffix::String
 end
 
-function GaussianEncodingCard(c::Config)
-    column::String = c.column
+function GaussianEncodingCard(c::AbstractDict)
+    column::String = c[:column]
     method::String = get(c, :method, "identity")
     if !haskey(TEMPORAL_PREPROCESSING, method)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
     processed_column::SQLNode = TEMPORAL_PREPROCESSING[method](Get(column))
-    n_modes::Int = c.n_modes
+    n_modes::Int = c[:n_modes]
     n_modes < 2 && throw(ArgumentError("`n_modes` must be at least `2`. Provided value: `$n_modes`."))
-    max::Float64 = c.max
+    max::Float64 = c[:max]
     lambda::Float64 = get(c, :lambda, 0.5)
     suffix::String = get(c, :suffix, "gaussian")
     return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)

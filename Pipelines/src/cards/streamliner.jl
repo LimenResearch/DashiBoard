@@ -8,7 +8,7 @@ function parse_config(
         parser::Parser,
         dir::AbstractString,
         name::AbstractString,
-        options::Config
+        options::AbstractDict
     ) where {T}
 
     file = string(name, ".toml")
@@ -41,15 +41,15 @@ struct StreamlinerCard <: AbstractCard
     suffix::String
 end
 
-function StreamlinerCard(c::Config)
+function StreamlinerCard(c::AbstractDict)
     order_by::Vector{String} = get(c, :order_by, String[])
     predictors::Vector{String} = get(c, :predictors, String[])
     targets::Vector{String} = get(c, :targets, String[])
 
     parser = PARSER[]
 
-    model = parse_config(Model, parser, MODEL_DIR[], c.model, c.model_options)
-    training = parse_config(Training, parser, TRAINING_DIR[], c.training, c.training_options)
+    model = parse_config(Model, parser, MODEL_DIR[], c[:model], c[:model_options])
+    training = parse_config(Training, parser, TRAINING_DIR[], c[:training], c[:training_options])
 
     partition = get(c, :partition, nothing)
     suffix = get(c, :suffix, "hat")

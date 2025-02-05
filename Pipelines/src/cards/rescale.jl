@@ -106,11 +106,11 @@ struct RescaleCard <: AbstractCard
     suffix::String
 end
 
-function RescaleCard(c::Config)
-    method::String = c.method
+function RescaleCard(c::AbstractDict)
+    method::String = c[:method]
     rescaler::Rescaler = RESCALERS[method]
     by::Vector{String} = get(c, :by, String[])
-    columns::Vector{String} = c.columns
+    columns::Vector{String} = c[:columns]
     partition::Union{String, Nothing} = get(c, :partition, nothing)
     suffix::String = get(c, :suffix, "rescaled")
     return RescaleCard(

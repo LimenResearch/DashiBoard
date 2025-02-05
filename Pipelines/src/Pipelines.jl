@@ -95,6 +95,7 @@ using StreamlinerCore: StreamlinerCore,
     Streaming,
     Training,
     Template,
+    Parser,
     default_parser,
     PARSER
 

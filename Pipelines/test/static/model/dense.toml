@@ -15,3 +15,12 @@ agg = "mean"
 [[metrics]]
 name = "mae"
 agg = "mean"
+
+[widgets.features]
+widget = "input"
+label = "Iterations"
+placeholder = "Select number of iterations"
+type = "number"
+min = 1
+step = 1
+value = 5

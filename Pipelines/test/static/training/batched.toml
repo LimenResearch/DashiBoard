@@ -7,3 +7,12 @@ shuffle = false
 [optimizer]
 name = "Adam"
 eta = 1e-2
+
+[widgets.iterations]
+widget = "input"
+label = "Iterations"
+placeholder = "Select number of iterations"
+type = "number"
+min = 1
+step = 1
+value = 10

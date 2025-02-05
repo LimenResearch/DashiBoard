@@ -52,9 +52,18 @@ end
 macro parsable(T)
     local T′ = esc(T)
     return quote
-        function $T′(parser::Parser, path::AbstractString, vars::Maybe{AbstractDict} = nothing)
-            metadata::StringDict = TOML.parsefile(path)
+        function $T′(parser::Parser, metadata::AbstractDict, vars::AbstractDict)
             return $T′(parser, replace_variables(metadata, vars))
+        end
+
+        function $T′(parser::Parser, path::AbstractString, vars::AbstractDict)
+            metadata::StringDict = TOML.parsefile(path)
+            return $T′(parser, metadata, vars)
+        end
+
+        function $T′(parser::Parser, path::AbstractString)
+            metadata::StringDict = TOML.parsefile(path)
+            return $T′(parser, metadata)
         end
     end
 end

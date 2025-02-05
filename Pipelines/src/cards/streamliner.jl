@@ -3,6 +3,21 @@ const TRAINING_DIR = ScopedValue{String}()
 
 to_string_dict(d) = constructfrom(Dict{String, Any}, d)
 
+function parse_config(
+        ::Type{T},
+        parser::Parser,
+        dir::AbstractString,
+        name::AbstractString,
+        options::Config
+    ) where {T}
+
+    file = string(name, ".toml")
+    config = parsefile(joinpath(dir, file))
+    delete!(config, "widgets")
+    params = to_string_dict(options)
+    return T(parser, config, params)
+end
+
 """
     struct StreamlinerCard <: AbstractCard
     model::Model
@@ -33,15 +48,8 @@ function StreamlinerCard(c::Config)
 
     parser = PARSER[]
 
-    model_name::String = c.model
-    model_file = string(model_name, ".toml")
-    model_params = to_string_dict(c.model_options)
-    model = Model(parser, joinpath(MODEL_DIR[], model_file), model_params)
-
-    training_name::String = c.training
-    training_file = string(training_name, ".toml")
-    training_params = to_string_dict(c.training_options)
-    training = Training(parser, joinpath(TRAINING_DIR[], training_file), training_params)
+    model = parse_config(Model, parser, MODEL_DIR[], c.model, c.model_options)
+    training = parse_config(Training, parser, TRAINING_DIR[], c.training, c.training_options)
 
     partition = get(c, :partition, nothing)
     suffix = get(c, :suffix, "hat")

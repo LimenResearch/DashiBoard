@@ -15,8 +15,6 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue
 
-using EasyConfig: Config
-
 using TOML: parsefile
 using RelocatableFolders: @path
 

@@ -24,7 +24,6 @@ export function App() {
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
     const spreadsheetTab = <Spreadsheet source={loaderData.output()} selection={metadata()}></Spreadsheet>;
-    const onBeforeunload = e => e.preventDefault();
 
     const spec = () => ({
         filters: filtersData.output(),
@@ -62,7 +61,7 @@ export function App() {
         overflow-y-auto scrollbar-gutter-stable`;
 
     return <div class={outerClass}>
-        <WindowEventListener onBeforeunload={onBeforeunload}></WindowEventListener>
+        <WindowEventListener onBeforeunload={e => e.preventDefault()}></WindowEventListener>
         <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
             <div class="col-span-2">
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>

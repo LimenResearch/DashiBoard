@@ -27,6 +27,7 @@ using Pipelines: get_card, to_config, Pipelines
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
 
+# TODO: should we also write output in cache scratch space?
 const OUTPUT = Ref{String}()
 
 include("launch.jl")

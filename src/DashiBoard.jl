@@ -6,7 +6,7 @@ using Base.ScopedValues: @with
 
 using HTTP: HTTP
 
-using Oxygen: json, @post, dynamicfiles, serve
+using Oxygen: json, @post, serve
 
 using Scratch: @get_scratch!
 

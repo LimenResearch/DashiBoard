@@ -23,6 +23,7 @@
     "@ag-grid-community/styles": "^32.3.3",
     "@solid-primitives/event-listener": "^2.4.0",
     "@thisbeyond/solid-select": "^0.15.0",
+    "downloadjs": "^1.4.7",
     "lodash": "^4.17.21",
     "solid-js": "^1.9.4"
   }

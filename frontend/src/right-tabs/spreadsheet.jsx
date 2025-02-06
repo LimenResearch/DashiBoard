@@ -1,8 +1,16 @@
-import { A } from "../components/button";
+import download from "downloadjs";
+import { Button } from "../components/button";
 import { TableView } from "../components/table-view";
-import { downloadURL } from "../requests";
+import { postRequest } from "../requests";
 
 const headerClass = "text-xl font-semibold text-left py-2 text-blue-800";
+
+// TODO use streams
+function downloadData() {
+    postRequest("download", {})
+        .then(res => res.blob())
+        .then(blob => download(blob));
+}
 
 export function Spreadsheet(props) {
     return <div>
@@ -11,9 +19,9 @@ export function Spreadsheet(props) {
         <p class={headerClass}>Selection</p>
         <TableView metadata={props.selection} processed={true}></TableView>
         <div class="mt-4">
-            <A href={downloadURL("pollution.csv")} download>
+            <Button onClick={downloadData} positive>
                 Download processed data
-            </A>
+            </Button>
         </div>
     </div>
 }

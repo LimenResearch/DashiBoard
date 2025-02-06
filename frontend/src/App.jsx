@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 
 import { WindowEventListener } from "@solid-primitives/event-listener";
 
-import { downloadURL, postRequest } from "./requests";
+import { postRequest } from "./requests";
 
 import { Loader, initLoader } from "./left-tabs/loading";
 import { Filters, initFilters } from "./left-tabs/filtering";
@@ -24,13 +24,7 @@ export function App() {
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
     const spreadsheetTab = <Spreadsheet source={loaderData.output()} selection={metadata()}></Spreadsheet>;
-    const onBeforeunload = (e) => {
-        const href = document.activeElement.href;
-        const isDownload = href && href.startsWith(downloadURL());
-        if (!isDownload) {
-            e.preventDefault();
-        }
-    };
+    const onBeforeunload = e => e.preventDefault();
 
     const spec = () => ({
         filters: filtersData.output(),

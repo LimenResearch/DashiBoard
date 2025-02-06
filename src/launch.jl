@@ -35,8 +35,6 @@ function launch(
         model_directory,
     )
 
-    dynamicfiles(data_directory, "output")
-
     # TODO: clarify `post` vs `get`
     @post "/list" function (req::HTTP.Request)
         files = collect(String, acceptable_files(data_directory))
@@ -90,6 +88,11 @@ function launch(
         )
         print(io, " , \"length\": ", count.nrows, "}")
         return String(take!(io))
+    end
+
+    @post "/download" function (req::HTTP.Request)
+        # FIXME: export CSV from DuckDB and stream it
+        return "test"
     end
 
     serve(; middleware = [CorsHandler], host, port, async)

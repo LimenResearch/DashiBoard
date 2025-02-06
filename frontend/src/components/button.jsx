@@ -37,14 +37,3 @@ export function Button(props) {
         {props.children}
     </button>;
 }
-
-export function A(props) {
-    const disabled = false;
-    const positive = true;
-    return <a
-            href={props.href}
-            download={props.download}
-            classList={classList(positive, disabled)}>
-        {props.children}
-    </a>;
-}

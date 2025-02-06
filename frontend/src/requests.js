@@ -12,3 +12,7 @@ export function postRequest(page, body) {
 
     return response;
 }
+
+export function downloadURL(name) {
+    return "http://" + host + ":" + port + "/output/" + (name || "");
+}

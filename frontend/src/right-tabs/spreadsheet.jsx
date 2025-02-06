@@ -1,4 +1,6 @@
+import { A } from "../components/button";
 import { TableView } from "../components/table-view";
+import { downloadURL } from "../requests";
 
 const headerClass = "text-xl font-semibold text-left py-2 text-blue-800";
 
@@ -8,5 +10,10 @@ export function Spreadsheet(props) {
         <TableView metadata={props.source} processed={false}></TableView>
         <p class={headerClass}>Selection</p>
         <TableView metadata={props.selection} processed={true}></TableView>
+        <div class="mt-4">
+            <A href={downloadURL("pollution.csv")} download>
+                Download processed data
+            </A>
+        </div>
     </div>
 }

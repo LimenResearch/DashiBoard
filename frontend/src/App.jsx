@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 
 import { WindowEventListener } from "@solid-primitives/event-listener";
 
-import { postRequest } from "./requests";
+import { downloadURL, postRequest } from "./requests";
 
 import { Loader, initLoader } from "./left-tabs/loading";
 import { Filters, initFilters } from "./left-tabs/filtering";
@@ -24,6 +24,13 @@ export function App() {
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
     const spreadsheetTab = <Spreadsheet source={loaderData.output()} selection={metadata()}></Spreadsheet>;
+    const onBeforeunload = (e) => {
+        const href = document.activeElement.href;
+        const isDownload = href && href.startsWith(downloadURL());
+        if (!isDownload) {
+            e.preventDefault();
+        }
+    };
 
     const spec = () => ({
         filters: filtersData.output(),
@@ -61,7 +68,7 @@ export function App() {
         overflow-y-auto scrollbar-gutter-stable`;
 
     return <div class={outerClass}>
-        <WindowEventListener onBeforeunload={e => e.preventDefault()}></WindowEventListener>
+        <WindowEventListener onBeforeunload={onBeforeunload}></WindowEventListener>
         <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
             <div class="col-span-2">
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>

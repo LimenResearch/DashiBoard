@@ -35,6 +35,8 @@ function launch(
         model_directory,
     )
 
+    dynamicfiles(data_directory, "output")
+
     # TODO: clarify `post` vs `get`
     @post "/list" function (req::HTTP.Request)
         files = collect(String, acceptable_files(data_directory))

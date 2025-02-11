@@ -76,8 +76,27 @@ function load_files(
     replace_table(repository, sql, files, TABLE_NAMES.source; schema)
 end
 
-function export_selection(repository::Repository, path::AbstractString; schema = nothing, format = "csv")
-    source = in_schema(TABLE_NAMES.selection, schema)
+# TODO: test table export
+
+function stream_file(stream::IO, path::AbstractString; chunksize::Integer = 2^12)
+    buffer = Vector{UInt8}(undef, chunksize)
+    open(path, "r") do io
+        while !eof(io)
+            n = readbytes!(io, buffer, chunksize)
+            write(stream, view(buffer, 1:n))
+        end
+    end
+end
+
+function export_table(
+        repository::Repository,
+        path::AbstractString,
+        tablename::Symbol = :selection;
+        schema::Union{<:AbstractString, Nothing} = nothing,
+        format::AbstractString = "csv"
+    )
+
+    source = in_schema(TABLE_NAMES[tablename], schema)
     fmt = DEFAULT_FORMATS[format]
 
     query = """
@@ -85,4 +104,19 @@ function export_selection(repository::Repository, path::AbstractString; schema =
     """
 
     DBInterface.execute(Returns(nothing), repository, query)
+end
+
+function stream_table(
+        stream::IO,
+        repository::Repository,
+        tablename::Symbol = :selection;
+        schema::Union{<:AbstractString, Nothing} = nothing,
+        format::AbstractString = "csv",
+        chunksize::Integer = 2^12
+    )
+
+    mktemp() do path, _
+        export_table(repository, path, tablename; schema, format)
+        stream_file(stream, path; chunksize)
+    end
 end

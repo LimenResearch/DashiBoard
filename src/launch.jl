@@ -26,14 +26,6 @@ function acceptable_files(data_directory)
     end
 end
 
-function stream_file(stream::HTTP.Stream, io::IO; chunksize = 2^12)
-    buffer = Vector{UInt8}(undef, chunksize)
-    while !eof(io)
-        n = readbytes!(io, buffer, chunksize)
-        write(stream, view(buffer, 1:n))
-    end
-end
-
 function launch(
         data_directory;
         host = "127.0.0.1",
@@ -104,12 +96,7 @@ function launch(
         HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
 
         startwrite(stream)
-
-        mktemp(cache_directory()) do path, io
-            export_selection(REPOSITORY[], path)
-            stream_file(stream, io)
-        end
-
+        stream_table(stream, REPOSITORY[], :selection)
         closewrite(stream)
     end
 

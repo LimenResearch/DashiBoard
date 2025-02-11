@@ -1,8 +1,10 @@
+import * as _ from "lodash";
+
 import { createSignal } from "solid-js";
 
 import { WindowEventListener } from "@solid-primitives/event-listener";
 
-import { postRequest } from "./requests";
+import { getURL, postRequest } from "./requests";
 
 import { Loader, initLoader } from "./left-tabs/loading";
 import { Filters, initFilters } from "./left-tabs/filtering";
@@ -45,6 +47,14 @@ export function App() {
         }
     };
 
+    const onBeforeunload = e => {
+        const href = _.get(document, "activeElement.href", "");
+        const toSamePage = href.startsWith(getURL(""));
+        if (!toSamePage) {
+            e.preventDefault();
+        }
+    }
+
     const leftTabs = [
         {key: "Load", value: loadingTab},
         {key: "Filter", value: filteringTab},
@@ -61,7 +71,7 @@ export function App() {
         overflow-y-auto scrollbar-gutter-stable`;
 
     return <div class={outerClass}>
-        <WindowEventListener onBeforeunload={e => e.preventDefault()}></WindowEventListener>
+        <WindowEventListener onBeforeunload={onBeforeunload}></WindowEventListener>
         <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
             <div class="col-span-2">
                 <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>

@@ -77,6 +77,7 @@ function load_files(
 end
 
 # TODO: test table export
+# TODO: support `COPY` options when writing a file
 
 function stream_file(stream::IO, path::AbstractString; chunksize::Integer = 2^12)
     buffer = Vector{UInt8}(undef, chunksize)

@@ -28,12 +28,20 @@ function classList(positive, disabled) {
 }
 
 export function Button(props) {
-    const disabled = () => (props.disabled != null) && props.disabled;
-    const positive = () => props.positive;
     return <button
             onClick={props.onClick}
-            disabled={disabled()}
-            classList={classList(positive(), disabled())}>
+            disabled={props.disabled}
+            classList={classList(props.positive, props.disabled)}>
         {props.children}
     </button>;
+}
+
+export function A(props) {
+    return <a
+            href={props.href}
+            download={props.download}
+            disabled={props.disabled}
+            classList={classList(props.positive, props.disabled)}>
+        {props.children}
+    </a>;
 }

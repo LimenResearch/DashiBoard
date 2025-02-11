@@ -2,7 +2,7 @@ module DataIngestion
 
 export get_filter, AbstractFilter, ListFilter, IntervalFilter
 
-public is_supported, load_files, summarize, select
+public is_supported, load_files, summarize, select, export_table, stream_table
 
 using FunSQL: SQLNode,
     Fun,
@@ -15,7 +15,7 @@ using FunSQL: SQLNode,
     Order,
     Group
 using DBInterface: DBInterface
-using DuckDBUtils: Repository, get_catalog, replace_table, to_sql
+using DuckDBUtils: Repository, get_catalog, replace_table, to_sql, in_schema
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint, :..
 using IterTools: flagfirst
 using Tables: Tables

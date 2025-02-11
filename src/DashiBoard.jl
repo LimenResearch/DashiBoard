@@ -4,9 +4,9 @@ public launch
 
 using Base.ScopedValues: @with
 
-using HTTP: HTTP
+using HTTP: HTTP, startwrite, closewrite
 
-using Oxygen: json, @post, serve
+using Oxygen: json, @post, @stream, serve
 
 using Scratch: @get_scratch!
 
@@ -20,9 +20,11 @@ using Tables: Tables
 
 using DuckDBUtils: Repository
 
-using DataIngestion: is_supported, get_filter, DataIngestion
+using DataIngestion: is_supported, get_filter, stream_table, DataIngestion
 
 using Pipelines: get_card, to_config, Pipelines
+
+const cache_directory() = @get_scratch!("cache")
 
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
@@ -30,7 +32,7 @@ const REPOSITORY = Ref{Repository}()
 include("launch.jl")
 
 function __init__()
-    cache = @get_scratch!("cache")
+    cache = cache_directory()
     REPOSITORY[] = Repository(joinpath(cache, "db.duckdb"))
 end
 

@@ -15,11 +15,11 @@ function (@main)(ARGS)
         "--model_directory"
         help = "directory containing model configuration files"
         arg_type = String
-        default = "."
+        default = "static/model"
         "--training_directory"
         help = "directory containing training configuration files"
         arg_type = String
-        default = "."
+        default = "static/training"
         "data_directory"
         help = "directory containing data files"
         required = true

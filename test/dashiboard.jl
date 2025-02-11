@@ -29,9 +29,9 @@ mktempdir() do data_dir
         @test "_percentile_partition" in names(res)
     end
 
-    pipelines_static = joinpath(@__DIR__, "..", "Pipelines", "test", "static")
-    model_directory = joinpath(pipelines_static, "model")
-    training_directory = joinpath(pipelines_static, "training")
+    static_directory = joinpath(@__DIR__, "..", "static")
+    model_directory = joinpath(static_directory, "model")
+    training_directory = joinpath(static_directory, "training")
 
     server = DashiBoard.launch(
         data_dir;

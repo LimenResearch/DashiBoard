@@ -1,7 +1,7 @@
-const allowed_origins = ["Access-Control-Allow-Origin" => "*"]
+const ALLOWED_ORIGINS = ["Access-Control-Allow-Origin" => "*"]
 
-const cors_headers = [
-    allowed_origins...,
+const CORS_HEADERS = [
+    ALLOWED_ORIGINS...,
     "Access-Control-Allow-Headers" => "*",
     "Access-Control-Allow-Methods" => "GET, POST",
 ]
@@ -10,10 +10,10 @@ function CorsHandler(handle)
     return function (req::HTTP.Request)
         # return headers on OPTIONS request
         if HTTP.method(req) == "OPTIONS"
-            return HTTP.Response(200, cors_headers)
+            return HTTP.Response(200, CORS_HEADERS)
         else
             r = handle(req)
-            append!(r.headers, allowed_origins)
+            append!(r.headers, ALLOWED_ORIGINS)
             return r
         end
     end
@@ -88,6 +88,16 @@ function launch(
         )
         print(io, " , \"length\": ", count.nrows, "}")
         return String(take!(io))
+    end
+
+    @stream "/processed-data" function (stream::HTTP.Stream)
+
+        HTTP.setheader(stream, "Content-Type" => "text/csv")
+        HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
+
+        startwrite(stream)
+        stream_table(stream, REPOSITORY[], :selection)
+        closewrite(stream)
     end
 
     serve(; middleware = [CorsHandler], host, port, async)

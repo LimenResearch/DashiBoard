@@ -26,6 +26,14 @@ function acceptable_files(data_directory)
     end
 end
 
+function stream_file(stream::HTTP.Stream, io::IO; chunksize = 2^12)
+    buffer = Vector{UInt8}(undef, chunksize)
+    while !eof(io)
+        n = readbytes!(io, buffer, chunksize)
+        write(stream, view(buffer, 1:n))
+    end
+end
+
 function launch(
         data_directory;
         host = "127.0.0.1",
@@ -97,16 +105,12 @@ function launch(
 
         startwrite(stream)
 
-        data = ["a", "b", "c"]
-        for chunk in data
-            write(stream, chunk)
+        mktemp(cache_directory()) do path, io
+            export_selection(REPOSITORY[], path)
+            stream_file(stream, io)
         end
 
-        # Close the stream to end the HTTP response properly
         closewrite(stream)
-
-        # FIXME: export CSV from DuckDB and stream it
-        return "test"
     end
 
     serve(; middleware = [CorsHandler], host, port, async)

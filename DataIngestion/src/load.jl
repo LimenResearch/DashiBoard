@@ -6,6 +6,14 @@ const DEFAULT_READERS = Dict(
     "parquet" => parquet_reader,
 )
 
+const DEFAULT_FORMATS = Dict(
+    "csv" => "CSV",
+    "tsv" => "CSV",
+    "txt" => "CSV",
+    "json" => "JSON",
+    "parquet" => "PARQUET",
+)
+
 const TABLE_NAMES = (
     source = "source",
     selection = "selection",
@@ -66,4 +74,15 @@ function load_files(
     """
 
     replace_table(repository, sql, files, TABLE_NAMES.source; schema)
+end
+
+function export_selection(repository::Repository, path::AbstractString; schema = nothing, format = "csv")
+    source = in_schema(TABLE_NAMES.selection, schema)
+    fmt = DEFAULT_FORMATS[format]
+
+    query = """
+    COPY (FROM $source) TO '$path' (FORMAT $fmt);
+    """
+
+    DBInterface.execute(Returns(nothing), repository, query)
 end

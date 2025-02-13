@@ -59,6 +59,23 @@ mktempdir() do data_dir
         summaries = JSON3.read(resp.body)
 
         @test summaries[end]["name"] == "_percentile_partition"
+
+        HTTP.open(:GET, url * "processed-data", headers = Dict("Connection" => "close")) do stream
+            r = startread(stream)
+            io = IOBuffer()
+            while !eof(stream)
+                write(io, readavailable(stream))
+            end
+            data = take!(io)
+
+            @test length(data) == 360326
+            @test r.headers == [
+                "Connection" => "close",
+                "Content-Type" => "text/csv",
+                "Transfer-Encoding" => "chunked",
+                "Content-Length" => "360326",
+            ]
+        end
     end
 
     close(server)

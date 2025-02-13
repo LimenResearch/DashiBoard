@@ -26,6 +26,35 @@ function acceptable_files(data_directory)
     end
 end
 
+function stream_file(stream::IO, path::AbstractString, chunksize::Integer)
+    buffer = Vector{UInt8}(undef, chunksize)
+    open(path, "r") do io
+        while !eof(io)
+            n = readbytes!(io, buffer)
+            write(stream, view(buffer, 1:n))
+        end
+    end
+end
+
+function stream_data(
+        stream::HTTP.Stream,
+        repository::Repository,
+        path::AbstractString;
+        chunksize::Integer = 2^12,
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+
+    export_table(repository, path; schema)
+
+    HTTP.setheader(stream, "Content-Type" => "text/csv")
+    HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
+    HTTP.setheader(stream, "Content-Length" => filesize(path))
+
+    startwrite(stream)
+    stream_file(stream, path, chunksize)
+    closewrite(stream)
+end
+
 function launch(
         data_directory;
         host = "127.0.0.1",
@@ -91,13 +120,10 @@ function launch(
     end
 
     @stream "/processed-data" function (stream::HTTP.Stream)
-
-        HTTP.setheader(stream, "Content-Type" => "text/csv")
-        HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
-
-        startwrite(stream)
-        stream_table(stream, REPOSITORY[], :selection)
-        closewrite(stream)
+        mktempdir() do dir
+            path = joinpath(dir, "processed-data.csv")
+            stream_data(stream, REPOSITORY[], path)
+        end
     end
 
     serve(; middleware = [CorsHandler], host, port, async)

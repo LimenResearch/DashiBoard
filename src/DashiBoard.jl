@@ -20,7 +20,7 @@ using Tables: Tables
 
 using DuckDBUtils: Repository
 
-using DataIngestion: is_supported, get_filter, stream_table, DataIngestion
+using DataIngestion: is_supported, get_filter, export_table, DataIngestion
 
 using Pipelines: get_card, to_config, Pipelines
 

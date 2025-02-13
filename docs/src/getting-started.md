@@ -14,7 +14,7 @@ Open a terminal at the top-level of the repository.
 Install all required dependencies with the following command:
 
 ```
-julia --project -e 'using Pkg; Pkg.add(Pkg.PackageSpec(name="DuckDB", rev="main")); Pkg.instantiate()'
+julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 
 Then, launch the server with the following command:

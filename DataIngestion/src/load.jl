@@ -6,14 +6,6 @@ const DEFAULT_READERS = Dict(
     "parquet" => parquet_reader,
 )
 
-const DEFAULT_FORMATS = Dict(
-    "csv" => "CSV",
-    "tsv" => "CSV",
-    "txt" => "CSV",
-    "json" => "JSON",
-    "parquet" => "PARQUET",
-)
-
 const TABLE_NAMES = (
     source = "source",
     selection = "selection",
@@ -79,45 +71,18 @@ end
 # TODO: test table export
 # TODO: support `COPY` options when writing a file
 
-function stream_file(stream::IO, path::AbstractString; chunksize::Integer = 2^12)
-    buffer = Vector{UInt8}(undef, chunksize)
-    open(path, "r") do io
-        while !eof(io)
-            n = readbytes!(io, buffer, chunksize)
-            write(stream, view(buffer, 1:n))
-        end
-    end
-end
-
 function export_table(
         repository::Repository,
         path::AbstractString,
         tablename::Symbol = :selection;
-        schema::Union{<:AbstractString, Nothing} = nothing,
-        format::AbstractString = "csv"
+        schema::Union{<:AbstractString, Nothing} = nothing
     )
 
     source = in_schema(TABLE_NAMES[tablename], schema)
-    fmt = DEFAULT_FORMATS[format]
 
     query = """
-    COPY (FROM $source) TO '$path' (FORMAT $fmt);
+    COPY (FROM $source) TO '$path';
     """
 
-    DBInterface.execute(Returns(nothing), repository, query)
-end
-
-function stream_table(
-        stream::IO,
-        repository::Repository,
-        tablename::Symbol = :selection;
-        schema::Union{<:AbstractString, Nothing} = nothing,
-        format::AbstractString = "csv",
-        chunksize::Integer = 2^12
-    )
-
-    mktemp() do path, _
-        export_table(repository, path, tablename; schema, format)
-        stream_file(stream, path; chunksize)
-    end
+    return DBInterface.execute(x -> only(x).Count, repository, query)
 end

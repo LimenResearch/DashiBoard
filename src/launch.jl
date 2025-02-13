@@ -26,6 +26,16 @@ function acceptable_files(data_directory)
     end
 end
 
+function stream_file(stream::IO, path::AbstractString; chunksize::Integer = 2^12)
+    buffer = Vector{UInt8}(undef, chunksize)
+    open(path) do io
+        while !eof(io)
+            n = readbytes!(io, buffer)
+            write(stream, view(buffer, 1:n))
+        end
+    end
+end
+
 function launch(
         data_directory;
         host = "127.0.0.1",
@@ -35,7 +45,6 @@ function launch(
         model_directory,
     )
 
-    # TODO: clarify `post` vs `get`
     @post "/list" function (req::HTTP.Request)
         files = collect(String, acceptable_files(data_directory))
         return JSON3.write(files)
@@ -91,13 +100,18 @@ function launch(
     end
 
     @stream "/processed-data" function (stream::HTTP.Stream)
+        mktempdir() do dir
+            path = joinpath(dir, "processed-data.csv")
+            export_table(REPOSITORY[], path)
 
-        HTTP.setheader(stream, "Content-Type" => "text/csv")
-        HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
-
-        startwrite(stream)
-        stream_table(stream, REPOSITORY[], :selection)
-        closewrite(stream)
+            HTTP.setheader(stream, "Content-Type" => "text/csv")
+            HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
+            HTTP.setheader(stream, "Content-Length" => string(filesize(path)))
+        
+            startwrite(stream)
+            stream_file(stream, path)
+            closewrite(stream)
+        end
     end
 
     serve(; middleware = [CorsHandler], host, port, async)

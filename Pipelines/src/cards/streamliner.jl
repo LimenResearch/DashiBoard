@@ -123,7 +123,7 @@ function evaluate(
 
     return mktemp() do path, io
         write(io, state.content)
-        seekstart(io)
+        flush(io)
         StreamlinerCore.evaluate(path, model, data, streaming; destination, suffix)
     end
 end

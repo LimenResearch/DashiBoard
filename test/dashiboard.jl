@@ -60,7 +60,7 @@ mktempdir() do data_dir
 
         @test summaries[end]["name"] == "_percentile_partition"
 
-        HTTP.open(:GET, url * "processed-data", headers = Dict("Connection" => "close")) do stream
+        HTTP.open("GET", url * "processed-data", headers = Dict("Connection" => "close")) do stream
             r = startread(stream)
             io = IOBuffer()
             while !eof(stream)

@@ -6,7 +6,7 @@ mutable struct Node
     state::CardState
 end
 
-function Node(card::AbstractCard, update::Bool)
+function Node(card::AbstractCard, update::Bool = true)
     return Node(
         card,
         inputs(card),
@@ -17,7 +17,7 @@ function Node(card::AbstractCard, update::Bool)
 end
 
 # TODO: test constructor
-function Node(config::AbstractDict, update::Bool)
+function Node(config::AbstractDict, update::Bool = true)
     card = get_card(config[:card])
     node = Node(card, update)
     state = CardState(
@@ -91,7 +91,7 @@ the transformations in `cards`.
 """
 function evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
-    nodes = Node.(cards, true)
+    nodes = Node.(cards)
     if any(get_update, nodes)
         order = evaluation_order!(nodes)
         for idx in order
@@ -115,7 +115,7 @@ stringset(args...) = stringset!(OrderedSet{String}(), args...)
 # Note: for the moment this evaluates the nodes in order
 # TODO: finalize (de)evaluatenodes interface
 
-# pass `nodes = Node.(Config.(configs), true)` as argument
+# pass `nodes = Node.(Config.(configs))` as argument
 function evaluatenodes(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
         evaluate(repository, node.card, node.state, table => table; schema)

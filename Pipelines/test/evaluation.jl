@@ -63,4 +63,25 @@ mktempdir() do dir
         @test count(==(1), df._percentile_partition) == 39441
         @test count(==(2), df._percentile_partition) == 4383
     end
+
+    @testset "nodes" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "rescale.json"))
+
+        card = Pipelines.get_card(d["zscore"])
+        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+
+        node = Pipelines.Node(
+            Dict(
+                "card" => d["zscore"],
+                "state" => Dict("content" => state.content, "metadata" => state.metadata)
+            )
+        )
+
+        @test node.card isa Pipelines.RescaleCard
+        for k in fieldnames(Pipelines.RescaleCard)
+            @test getfield(node.card, k) == getfield(card, k)
+        end
+        @test node.state.content == state.content
+        @test node.state.metadata == state.metadata
+    end
 end

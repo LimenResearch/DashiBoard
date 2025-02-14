@@ -17,7 +17,8 @@ function Node(card::AbstractCard, update::Bool = true)
 end
 
 # TODO: test constructor
-function Node(config::AbstractDict, update::Bool = true)
+function Node(d::AbstractDict, update::Bool = true)
+    config = to_config(d)
     card = get_card(config[:card])
     node = Node(card, update)
     state = CardState(
@@ -115,7 +116,7 @@ stringset(args...) = stringset!(OrderedSet{String}(), args...)
 # Note: for the moment this evaluates the nodes in order
 # TODO: finalize (de)evaluatenodes interface
 
-# pass `nodes = Node.(Config.(configs))` as argument
+# pass `nodes = Node.(configs)` as argument
 function evaluatenodes(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
         evaluate(repository, node.card, node.state, table => table; schema)

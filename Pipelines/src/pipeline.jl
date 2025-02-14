@@ -16,11 +16,23 @@ function Node(card::AbstractCard, update::Bool)
     )
 end
 
+# TODO: test constructor
+function Node(config::AbstractDict, update::Bool)
+    card = get_card(config[:card])
+    node = Node(card, update)
+    state = CardState(
+        content = config[:state][:content],
+        metadata = config[:state][:metadata]
+    )
+    set_state!(node, state)
+    return node
+end
+
 get_update(node::Node) = node.update
 set_update!(node::Node, update::Bool) = setproperty!(node, :update, update)
 
 get_state(node::Node) = node.state
-set_state!(node::Node, m) = setproperty!(node, :state, m)
+set_state!(node::Node, state) = setproperty!(node, :state, state)
 
 get_card(node::Node) = node.card
 
@@ -101,8 +113,17 @@ stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
 # Note: for the moment this evaluates the nodes in order
-# TODO: finalize deevaluate interface
-function deevaluate(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
+# TODO: finalize (de)evaluatenodes interface
+
+# pass `nodes = Node.(Config.(configs), true)` as argument
+function evaluatenodes(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
+    for node in nodes
+        evaluate(repository, node.card, node.state, table => table; schema)
+    end
+    return
+end
+
+function deevaluatenodes(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
         deevaluate(repository, node.card, node.state, table => table; schema)
     end

@@ -10,6 +10,8 @@ export AbstractCard,
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 
+public evaluatenodes, deevaluatenodes
+
 public to_config, default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2

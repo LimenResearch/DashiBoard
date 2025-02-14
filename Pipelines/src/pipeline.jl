@@ -16,7 +16,6 @@ function Node(card::AbstractCard, update::Bool = true)
     )
 end
 
-# TODO: test constructor
 function Node(d::AbstractDict, update::Bool = true)
     config = to_config(d)
     card = get_card(config[:card])

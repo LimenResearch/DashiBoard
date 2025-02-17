@@ -36,7 +36,7 @@ function Widget(
         step = get(conf, "step", nothing),
         options = get(conf, "options", nothing),
         visible = get(conf, "visible", true),
-        required = visible
+        required = get(conf, "required", visible)
     )
 
     (visible isa Bool) || (visible = Dict{String, Any}(visible))

@@ -12,13 +12,14 @@ function loadmodel(::Nothing, model::Model, data::AbstractData, device)
 end
 
 """
-    loadmodel(path::AbstractString, model::Model, data::AbstractData, device)
+    loadmodel(dirname::AbstractString, model::Model, data::AbstractData, device)
 
 Load model encoded in `result` on the `device`.
 The object `data` is required as the model can only be initialized once the data
 dimensions are known.
 """
-function loadmodel(path::AbstractString, model::Model, data::AbstractData, device)
+function loadmodel(dirname::AbstractString, model::Model, data::AbstractData, device)
+    path = output_path(dirname)
 
     m = model(data)
 

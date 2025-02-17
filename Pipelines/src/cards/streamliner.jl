@@ -90,9 +90,10 @@ function train(
 
     (; model, training) = s
 
-    return mktemp() do path, io
-        result = StreamlinerCore.train(path, model, data, training)
-        content = StreamlinerCore.has_weights(result) ? read(io) : nothing
+    return mktempdir() do dir
+        result = StreamlinerCore.train(dir, model, data, training)
+        path = StreamlinerCore.output_path(dir)
+        content = StreamlinerCore.has_weights(result) ? read(path) : nothing
         metadata = to_string_dict(result)
         return CardState(; content, metadata)
     end
@@ -121,10 +122,10 @@ function evaluate(
     (; model, training, suffix) = s
     streaming = Streaming(; training.device, training.batchsize)
 
-    return mktemp() do path, io
-        write(io, state.content)
-        flush(io)
-        StreamlinerCore.evaluate(path, model, data, streaming; destination, suffix)
+    return mktempdir() do dir
+        path = StreamlinerCore.output_path(dir)
+        write(path, state.content)
+        StreamlinerCore.evaluate(dir, model, data, streaming; destination, suffix)
     end
 end
 

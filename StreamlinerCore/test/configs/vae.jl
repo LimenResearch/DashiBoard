@@ -8,20 +8,20 @@ function test_vae(dir)
 
     println(StreamlinerCore.summarize(model, train_regression_data, training))
 
-    wts = joinpath(dir, "wts.jld2")
-    result = train(wts, model, train_autoencoder_data, training)
+    outputdir = joinpath(dir, "output")
+    result = train(outputdir, model, train_autoencoder_data, training)
 
     @info "Completed MNIST training of convolutional network using Variational Auto Encoder"
     @show result.stats
     println()
 
-    result′ = validate(wts, model, test_autoencoder_data, streaming)
+    result′ = validate(outputdir, model, test_autoencoder_data, streaming)
 
     @info "Completed MNIST validation of convolutional network"
     @show result′.stats
     println()
 
-    res = evaluate(wts, model, test_autoencoder_data, streaming)
+    res = evaluate(outputdir, model, test_autoencoder_data, streaming)
     @show size.(getproperty.(res, :prediction))
     println()
 end

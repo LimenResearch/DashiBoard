@@ -62,8 +62,8 @@ end
 end
 
 function jldserialize(file::Union{IO, AbstractString}, m)
-    jldopen(file, "w") do io
-        io["model_state"] = m
+    jldopen(file, "w") do file
+        file["model_state"] = m
     end
 end
 
@@ -74,7 +74,7 @@ function jldserialize(m)
 end
 
 function jlddeserialize(v::AbstractVector{UInt8})
-    jldopen(IOBuffer(v)) do io
-        io["model_state"]
+    jldopen(IOBuffer(v)) do file
+        file["model_state"]
     end
 end

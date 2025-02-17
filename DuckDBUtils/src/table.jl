@@ -88,7 +88,7 @@ function replace_table(
 end
 
 """
-    delete(
+    delete_table(
         repository::Repository,
         name::AbstractString;
         schema = nothing,
@@ -117,7 +117,7 @@ function delete_table(
 end
 
 """
-    load(
+    load_table(
         repository::Repository,
         table,
         name::AbstractString;

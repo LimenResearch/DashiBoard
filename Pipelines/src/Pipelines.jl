@@ -17,6 +17,8 @@ public to_config, default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue
 
+using UUIDs: uuid4
+
 using TOML: parsefile
 using RelocatableFolders: @path
 
@@ -36,6 +38,7 @@ using DuckDBUtils: DuckDBUtils,
     with_table,
     load_table,
     replace_table,
+    delete_table,
     colnames
 
 using FunSQL: render,

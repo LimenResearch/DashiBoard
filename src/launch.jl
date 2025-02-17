@@ -45,6 +45,13 @@ function launch(
         model_directory,
     )
 
+    with_scoped_values(f) = with(
+        f,
+        Pipelines.PARSER => Pipelines.default_parser(),
+        Pipelines.MODEL_DIR => model_directory,
+        Pipelines.TRAINING_DIR => training_directory,
+    )
+
     @post "/list" function (req::HTTP.Request)
         files = collect(String, acceptable_files(data_directory))
         return JSON3.write(files)
@@ -60,19 +67,14 @@ function launch(
 
     @post "/card-configurations" function (req::HTTP.Request)
         spec = json(req) |> to_config
-        configs = @with(
-            Pipelines.PARSER => Pipelines.default_parser(),
-            Pipelines.MODEL_DIR => model_directory,
-            Pipelines.TRAINING_DIR => training_directory,
-            Pipelines.card_configurations(; spec...)
-        )
+        configs = with_scoped_values(() -> Pipelines.card_configurations(; spec...))
         return JSON3.write(configs)
     end
 
     @post "/pipeline" function (req::HTTP.Request)
         spec = json(req)
         filters = get_filter.(spec["filters"])
-        cards = get_card.(spec["cards"])
+        cards = with_scoped_values(() -> get_card.(spec["cards"]))
         DataIngestion.select(REPOSITORY[], filters)
         Pipelines.evaluate(REPOSITORY[], cards, "selection")
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")

@@ -21,8 +21,10 @@ StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
 StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [sources]
+DataIngestion = {path = "../DataIngestion"}
 DuckDBUtils = {path = "../DuckDBUtils"}
 StreamlinerCore = {path = "../StreamlinerCore"}
 
@@ -41,4 +43,5 @@ StatsModels = "0.7.4"
 StructTypes = "1.11.0"
 TOML = "1.0.3"
 Tables = "1.12.0"
+UUIDs = "1.11.0"
 julia = "1.11"

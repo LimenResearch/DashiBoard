@@ -8,7 +8,8 @@ shuffle = false
 name = "Adam"
 eta = 1e-2
 
-[widgets.iterations]
+[[widgets]]
+key = "iterations"
 widget = "input"
 label = "Iterations"
 placeholder = "Select number of iterations"

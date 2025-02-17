@@ -20,20 +20,20 @@ end
 
 """
     evaluate(
-        filename::AbstractString,
+        dirname::AbstractString,
         model::Model, data::AbstractData{1}, streaming::Streaming,
         select::SymbolTuple = (:prediction,)
     )
 
-Load `model` with weights saved in `filename` and evaluate it on `data`
+Load `model` with weights saved in `dirname` and evaluate it on `data`
 using streaming settings `streaming`.
 """
 function evaluate(
-        filename::AbstractString,
+        dirname::AbstractString,
         model::Model, data::AbstractData{1}, streaming::Streaming,
         select::SymbolTuple = (:prediction,);
         options...
     )
-    device_m = loadmodel(filename, model, data, streaming.device)
+    device_m = loadmodel(dirname, model, data, streaming.device)
     return evaluate(device_m, data, streaming, select; options...)
 end

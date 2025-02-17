@@ -10,8 +10,8 @@ function test_mnist_conv(dir)
     # Check data volume
     println(StreamlinerCore.summarize(model, train_regression_data, training))
 
-    wts = joinpath(dir, "wts.jld2")
-    result = train(wts, model, train_regression_data, training)
+    outputdir = joinpath(dir, "output")
+    result = train(outputdir, model, train_regression_data, training)
     @test StreamlinerCore.has_weights(result)
     @test result.trained
 
@@ -19,14 +19,14 @@ function test_mnist_conv(dir)
     @show result.stats
     println()
 
-    wts′ = joinpath(dir, "wts′.jld2")
-    result′ = finetune(wts => wts′, model, train_regression_data, training, init = result)
+    outputdir′ = joinpath(dir, "output′")
+    result′ = finetune(outputdir => outputdir′, model, train_regression_data, training, init = result)
     @test result′.trained
     @test result′.resumed
 
     @info "Finetuned training"
 
-    result′ = validate(wts, model, test_regression_data, streaming)
+    result′ = validate(outputdir, model, test_regression_data, streaming)
     @test !StreamlinerCore.has_weights(result′)
     @test !result′.trained
 
@@ -34,13 +34,13 @@ function test_mnist_conv(dir)
     @show result′.stats
     println()
 
-    res = evaluate(wts, model, test_regression_data, streaming)
+    res = evaluate(outputdir, model, test_regression_data, streaming)
     @show size.(getproperty.(res, :prediction))
     println()
 
     # Load trained model using optimal weights
     # Can be used as alternative to `evaluate` below
-    m′ = loadmodel(wts, model, test_regression_data, streaming.device)
+    m′ = loadmodel(outputdir, model, test_regression_data, streaming.device)
     @info "Trained model"
     @show m′
     println()
@@ -48,6 +48,6 @@ function test_mnist_conv(dir)
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "null.toml"))
 
-    result = train(wts, model, train_regression_data, training)
+    result = train(outputdir, model, train_regression_data, training)
     @test !StreamlinerCore.has_weights(result)
 end

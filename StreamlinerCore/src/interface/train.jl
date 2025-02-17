@@ -82,7 +82,9 @@ function finalize_callback(
     valid_loss, best_valid_loss = get_valid_loss(stats), get_valid_loss(best_stats)
 
     if valid_loss < best_valid_loss
-        jldopen(dst, "w") do file
+        mkpath(dst)
+        path = joinpath(dst, "model.jld2")
+        jldopen(path, "w") do file
             file["model_state"] = Flux.cpu(Flux.state(device_m))
         end
         best_N, best_stats = N, stats
@@ -254,13 +256,13 @@ end
 
 """
     train(
-        filename::AbstractString,
+        dir::AbstractString,
         model::Model, data::AbstractData{2}, training::Training;
         callback = default_callback
     )
 
 Train `model` using the `training` configuration on `data`.
-Save the resulting weights in `filename`.
+Save the resulting weights in `dir`.
 
 After every epoch, `callback(m, trace)`.
 
@@ -272,11 +274,11 @@ The arguments of `callback` work as follows.
     - `iteration`.
 """
 function train(
-        filename::AbstractString,
+        dir::AbstractString,
         model::Model, data::AbstractData{2}, training::Training;
         callback = default_callback
     )
-    return _train(nothing => filename, model, data, training; callback)
+    return _train(nothing => dir, model, data, training; callback)
 end
 
 """

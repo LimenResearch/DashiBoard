@@ -19,7 +19,7 @@ The object `data` is required as the model can only be initialized once the data
 dimensions are known.
 """
 function loadmodel(dirname::AbstractString, model::Model, data::AbstractData, device)
-    path = joinpath(dirname, "model.jld2")
+    path = output_path(dirname)
 
     m = model(data)
 

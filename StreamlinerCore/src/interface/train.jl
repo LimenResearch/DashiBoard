@@ -82,12 +82,16 @@ function finalize_callback(
     valid_loss, best_valid_loss = get_valid_loss(stats), get_valid_loss(best_stats)
 
     if valid_loss < best_valid_loss
-        mkpath(dst)
-        path = joinpath(dst, "model.jld2")
+        path = output_path(dst)
         jldopen(path, "w") do file
             file["model_state"] = Flux.cpu(Flux.state(device_m))
         end
         best_N, best_stats = N, stats
+    end
+
+    open(stats_path(dst), "a") do io
+        write(io, stats[1])
+        write(io, stats[2])
     end
 
     return any(Fix1(|>, valid_loss), training_state.stoppers), best_N => best_stats
@@ -113,15 +117,16 @@ function unbatched_train!(
     vars = Ref{Any}(nothing)
 
     optimizer = training.optimizer
+    N = Ref(init_N)
     best = Ref(init_N => init_stats)
 
     function enriched_callback(trace)
         epoch = trace.iteration
         epoch == 0 && return false
-        N = epoch + init_N
+        N[] = epoch + init_N
         θ = trace.metadata["x"]
         train_stats = compute_metric((vars[].loss, model.metrics...), vars[].output)
-        current = N => train_stats
+        current = N[] => train_stats
         stop, best[] = finalize_callback(
             dst, model => re(θ), [valid_data], training => training_state,
             best[], current; callback
@@ -151,7 +156,7 @@ function unbatched_train!(
     # Here, we are saving the weights to the buffer
     Optim.optimize(Optim.only_fg!(fg!), θ₀, optimizer, options)
 
-    return best[]
+    return best[], N[]
 end
 
 function epoch_train!(
@@ -187,6 +192,7 @@ function batched_train!(
         (init_N, init_stats)::Pair; callback
     )
 
+    N = init_N
     best = init_N => init_stats
 
     train_streaming = Streaming(training)
@@ -209,7 +215,7 @@ function batched_train!(
         end
         stop && break
     end
-    return best
+    return best, N
 end
 
 function _train(
@@ -218,13 +224,25 @@ function _train(
         init::Maybe{Result} = nothing, callback = default_callback
     )
 
+    # set up output directory
+    mkpath(dst)
+    jldopen(Returns(nothing), output_path(dst), "w")
+    open(Returns(nothing), stats_path(dst), "w")
+
     device_m = loadmodel(src, model, data, training.device)
+    nstats = 1 + length(model.metrics)
 
     resumed = !isnothing(init)
     init_N, init_stats = if resumed
+        # write initial stats to file
+        open(stats_path(dst), "w") do io
+            jldopen(output_path(src)) do file
+                stats_tensor = readmmap(get_dataset(file, "stats"))
+                write(io, stats_tensor)
+            end
+        end
         init.iteration => init.stats
     else
-        nstats = 1 + length(model.metrics)
         # We assume that untrained model has `Inf` loss
         0 => (fill(Inf, nstats), fill(Inf, nstats))
     end
@@ -236,7 +254,7 @@ function _train(
     training_state = TrainingState(setup(training.optimizer, device_m), stoppers)
     training_pair = training => training_state
 
-    best_N, best_stats = if is_batched(training)
+    (best_N, best_stats), N = if is_batched(training)
         batched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
     else
         unbatched_train!(dst, model_pair, data, training_pair, init_N => init_stats; callback)
@@ -244,6 +262,13 @@ function _train(
 
     best_valid_loss = get_valid_loss(best_stats)
     successful = best_valid_loss < init_valid_loss
+
+    open(stats_path(dst)) do io
+        jldopen(output_path(dst), "a") do file
+            file["stats"] = mmap(io, Array{Float64, 3}, (nstats, 2, N))
+        end
+    end
+    rm(stats_path(dst))
 
     return Result(;
         iteration = best_N,

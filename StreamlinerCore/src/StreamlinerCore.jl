@@ -5,9 +5,10 @@ export default_parser
 export get_templates, get_metadata, get_nsamples
 export stream, finetune, train, loadmodel, validate, evaluate, summarize
 
-public has_weights, to_config
+public has_weights, to_config, output_path
 
 using Base: Fix1, Fix2, front, tail
+using Mmap: mmap
 using Statistics: mean, std
 using Random: AbstractRNG, Xoshiro, seed!
 using TOML: TOML
@@ -44,7 +45,7 @@ using Optimisers: trainables,
 using Base.ScopedValues: @with, ScopedValue
 using EnumX: @enumx
 using Primes: factor
-using JLD2: jldopen
+using JLD2: jldopen, get_dataset, readmmap
 using Printf: @sprintf
 
 include("utils.jl")

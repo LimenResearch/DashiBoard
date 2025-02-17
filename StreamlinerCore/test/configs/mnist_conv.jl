@@ -18,6 +18,12 @@ function test_mnist_conv(dir)
     @info "Completed MNIST training of convolutional network"
     @show result.stats
     println()
+    stats = jldopen(StreamlinerCore.output_path(outputdir)) do file
+        file["stats"]
+    end
+    @test size(stats) == (2, 2, 5)
+    show(stdout, MIME"text/plain"(), stats[1, :, :]')
+    println()
 
     outputdir′ = joinpath(dir, "output′")
     result′ = finetune(outputdir => outputdir′, model, train_regression_data, training, init = result)

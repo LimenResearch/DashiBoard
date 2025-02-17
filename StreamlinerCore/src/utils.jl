@@ -9,10 +9,6 @@ const Maybe{T} = Union{Nothing, T}
 
 tuplify_list(v) = v isa AbstractVector ? Tuple(v) : v
 
-# Code from Flux.jl to avoid depending on internals
-expand(_, x::Tuple) = x
-expand(N, x::Int) = ntuple(Returns(x), N)
-
 get_rng(::Nothing = nothing) = Xoshiro()
 get_rng(seed::Integer) = Xoshiro(seed)
 
@@ -29,3 +25,14 @@ end
 get_config(d::AbstractDict{Symbol}, k::Symbol) = get(d, k, SymbolDict())
 
 get_configs(d::AbstractDict{Symbol}, k::Symbol) = get(d, k, SymbolDict[])
+
+# Default directory structure
+
+output_path(dir::AbstractString) = joinpath(dir, "output.jld2")
+
+stats_path(dir::AbstractString) = joinpath(dir, "stats.bin")
+
+# Code from Flux.jl to avoid depending on internals
+
+expand(_, x::Tuple) = x
+expand(N, x::Int) = ntuple(Returns(x), N)

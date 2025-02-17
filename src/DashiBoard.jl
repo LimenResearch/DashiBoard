@@ -2,7 +2,7 @@ module DashiBoard
 
 public launch
 
-using Base.ScopedValues: @with
+using Base.ScopedValues: with
 
 using HTTP: HTTP, startwrite, closewrite
 

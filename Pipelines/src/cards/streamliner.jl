@@ -136,15 +136,38 @@ end
 
 function CardWidget(::Type{StreamlinerCard})
 
-    fields = [
-        Widget("model", options = list_tomls(MODEL_DIR[])),
-        Widget("training", options = list_tomls(TRAINING_DIR[])),
+    model_tomls = list_tomls(MODEL_DIR[])
+    training_tomls = list_tomls(TRAINING_DIR[])
+
+    fields = Widget[
+        Widget("model", options = model_tomls),
+        Widget("training", options = training_tomls),
         Widget("order_by"),
         Widget("predictors"),
         Widget("targets"),
         Widget("partition"),
         Widget("suffix", value = "hat"),
     ]
+
+    for m in model_tomls
+        model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
+        for wdg in get(model_config, "widgets", [])
+            key = pop!(wdg, "key")
+            get!(wdg, "visible", Dict("model" => [m]))
+            key′ = string("model", ".", m, ".", key)
+            push!(fields, Widget(key′, wdg))
+        end
+    end
+
+    for t in training_tomls
+        training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
+        for wdg in get(training_config, "widgets", [])
+            key = pop!(wdg, "key")
+            get!(wdg, "visible", Dict("training" => [t]))
+            key′ = string("training", ".", t, ".", key)
+            push!(fields, Widget(key′, wdg))
+        end
+    end
 
     return CardWidget(;
         type = "streamliner",

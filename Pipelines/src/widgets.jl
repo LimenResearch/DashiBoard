@@ -30,12 +30,12 @@ function Widget(
         label = get(conf, "label", ""),
         placeholder = get(conf, "placeholder", ""),
         multiple = get(conf, "multiple", false),
-        value = default_value(widget, type, multiple),
+        value = get(conf, "value", default_value(widget, type, multiple)),
         min = get(conf, "min", nothing),
         max = get(conf, "max", nothing),
         step = get(conf, "step", nothing),
         options = get(conf, "options", nothing),
-        visible = true,
+        visible = get(conf, "visible", true),
         required = visible
     )
 

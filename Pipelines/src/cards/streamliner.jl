@@ -18,6 +18,23 @@ function parse_config(
     return T(parser, config, params)
 end
 
+function extract_options(c::AbstractDict, typ::Symbol)
+    name = c[typ]
+    opt_name = string(typ, "_", "options")
+    r = Regex(string("^\\Q", opt_name, ".", name, ".", "\\E", "(.*)\$"))
+    options = get(c, Symbol(opt_name)) do
+        d = Dict{Symbol, Any}()
+        for (k, v) in pairs(c)
+            m = match(r, String(k))
+            if !isnothing(m)
+                d[Symbol(m[1])] = v
+            end
+        end
+        return d
+    end
+    return name, options
+end
+
 """
     struct StreamlinerCard <: AbstractCard
     model::Model
@@ -48,8 +65,11 @@ function StreamlinerCard(c::AbstractDict)
 
     parser = PARSER[]
 
-    model = parse_config(Model, parser, MODEL_DIR[], c[:model], c[:model_options])
-    training = parse_config(Training, parser, TRAINING_DIR[], c[:training], c[:training_options])
+    model_name, model_options = extract_options(c, :model)
+    model = parse_config(Model, parser, MODEL_DIR[], model_name, model_options)
+
+    training_name, training_options = extract_options(c, :training)
+    training = parse_config(Training, parser, TRAINING_DIR[], training_name, training_options)
 
     partition = get(c, :partition, nothing)
     suffix = get(c, :suffix, "hat")
@@ -154,7 +174,7 @@ function CardWidget(::Type{StreamlinerCard})
         for wdg in get(model_config, "widgets", [])
             key = pop!(wdg, "key")
             get!(wdg, "visible", Dict("model" => [m]))
-            key′ = string("model", ".", m, ".", key)
+            key′ = string("model_options", ".", m, ".", key)
             push!(fields, Widget(key′, wdg))
         end
     end
@@ -164,7 +184,7 @@ function CardWidget(::Type{StreamlinerCard})
         for wdg in get(training_config, "widgets", [])
             key = pop!(wdg, "key")
             get!(wdg, "visible", Dict("training" => [t]))
-            key′ = string("training", ".", t, ".", key)
+            key′ = string("training_options", ".", t, ".", key)
             push!(fields, Widget(key′, wdg))
         end
     end

@@ -113,14 +113,16 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     ns = colnames(data.repository, data.table; data.schema)
     id_col = get_id_col(ns)
 
+    tmp = string(uuid4())
+
     tbl = SimpleTable()
     tbl[id_col] = Int64[]
     for k in data.targets
         tbl[k] = Float32[]
     end
-    load_table(data.repository, tbl, destination; data.schema)
+    load_table(data.repository, tbl, tmp; data.schema)
 
-    appender = DuckDBUtils.Appender(data.repository.db, destination, data.schema)
+    appender = DuckDBUtils.Appender(data.repository.db, tmp, data.schema)
     for batch in eval_stream
         v = collect(batch.prediction)
         append_batch(appender, batch.id, v)
@@ -130,7 +132,7 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     old_vars = ns .=> Get.(ns)
     new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
     join_clause = Join(
-        "eval" => From(destination),
+        "eval" => From(tmp),
         on = Get(id_col) .== Get(id_col, over = Get.eval),
         right = true
     )
@@ -138,4 +140,5 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
         join_clause |>
         Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)
+    delete_table(data.repository, tmp; data.schema)
 end

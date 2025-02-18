@@ -5,9 +5,17 @@ end
 const TEMPORAL_PREPROCESSING = OrderedDict(
     "identity" => identity,
     "dayofyear" => Fun.dayofyear,
-    "hour" => Fun.hour,
+    "hourofday" => Fun.hour,
     "minuteofday" => minuteofday
 )
+
+const TEMPORAL_MAX = OrderedDict(
+    "identity" => 1,
+    "dayofyear" => 366,
+    "hourofday" => 24,
+    "minuteofday" => 1440
+) 
+
 
 """
     struct GaussianEncodingCard <: AbstractCard
@@ -27,13 +35,13 @@ Notes:
 - No automatic selection based on column type. The user must ensure compatibility:
   - `"identity"`: Assumes the column is numeric.
   - `"dayofyear"`: Assumes the column is a date or timestamp.
-  - `"hour"`: Assumes the column is a time or timestamp.
+  - `"hourofday"`: Assumes the column is a time or timestamp.
 
 Methods:
 - Defined in the `TEMPORAL_PREPROCESSING` dictionary:
   - `"identity"`: No transformation.
   - `"dayofyear"`: Applies the SQL `dayofyear` function.
-  - `"hour"`: Applies the SQL `hour` function.
+  - `"hourofday"`: Applies the SQL `hour` function.
 
 Train:
 - Returns: SimpleTable (Dict{String, AbstractVector}) with Gaussian parameters:
@@ -69,7 +77,7 @@ function GaussianEncodingCard(c::AbstractDict)
     processed_column::SQLNode = TEMPORAL_PREPROCESSING[method](Get(column))
     n_modes::Int = c[:n_modes]
     n_modes < 2 && throw(ArgumentError("`n_modes` must be at least `2`. Provided value: `$n_modes`."))
-    max::Float64 = c[:max]
+    max::Float64 = get(c, :max, TEMPORAL_MAX[method])
     lambda::Float64 = get(c, :lambda, 0.5)
     suffix::String = get(c, :suffix, "gaussian")
     return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)

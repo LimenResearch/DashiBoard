@@ -1,6 +1,9 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
+const MODEL_OPTIONS_REGEX = r"^model_options\.(.*)_[0-9]*$"
+const TRAINING_OPTIONS_REGEX = r"^training_options\.(.*)_[0-9]*$"
+
 to_string_dict(d) = constructfrom(Dict{String, Any}, d)
 
 function parse_config(
@@ -18,21 +21,18 @@ function parse_config(
     return T(parser, config, params)
 end
 
-function extract_options(c::AbstractDict, typ::Symbol)
-    name = c[typ]
-    opt_name = string(typ, "_", "options")
-    r = Regex(string("^\\Q", opt_name, ".", name, ".", "\\E", "(.*)\$"))
-    options = get(c, Symbol(opt_name)) do
+function extract_options(c::AbstractDict, key::Symbol, r::Regex)
+    return get(c, key) do
         d = Dict{Symbol, Any}()
         for (k, v) in pairs(c)
-            m = match(r, String(k))
+            m = match(r, string(k))
             if !isnothing(m)
+                # TODO: assert that key does not exist?
                 d[Symbol(m[1])] = v
             end
         end
         return d
     end
-    return name, options
 end
 
 """
@@ -65,11 +65,11 @@ function StreamlinerCard(c::AbstractDict)
 
     parser = PARSER[]
 
-    model_name, model_options = extract_options(c, :model)
-    model = parse_config(Model, parser, MODEL_DIR[], model_name, model_options)
+    model_options = extract_options(c, :model_options, MODEL_OPTIONS_REGEX)
+    model = parse_config(Model, parser, MODEL_DIR[], c[:model], model_options)
 
-    training_name, training_options = extract_options(c, :training)
-    training = parse_config(Training, parser, TRAINING_DIR[], training_name, training_options)
+    training_options = extract_options(c, :training_options, TRAINING_OPTIONS_REGEX)
+    training = parse_config(Training, parser, TRAINING_DIR[], c[:training], training_options)
 
     partition = get(c, :partition, nothing)
     suffix = get(c, :suffix, "hat")
@@ -154,6 +154,24 @@ function list_tomls(dir)
     return [f for (f, ext) in fls if ext == ".toml"]
 end
 
+function push_generated_widgets!(
+        fields::AbstractVector{Widget},
+        ks::AbstractSet{<:AbstractString},
+        wdgs::AbstractVector,
+        type::Symbol,
+        name::AbstractString
+    )
+
+    for wdg in wdgs
+        get!(wdg, "visible", Dict(string(type) => [name]))
+        k = pop!(wdg, "key")
+        key = string(type, "_", "options", ".", k)
+        key′ = new_name(key, ks)
+        push!(fields, Widget(key′, wdg))
+        push!(ks, key′)
+    end
+end
+
 function CardWidget(::Type{StreamlinerCard})
 
     model_tomls = list_tomls(MODEL_DIR[])
@@ -169,24 +187,18 @@ function CardWidget(::Type{StreamlinerCard})
         Widget("suffix", value = "hat"),
     ]
 
+    ks = Set{String}(wdg.key for wdg in fields)
+
     for m in model_tomls
         model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
-        for wdg in get(model_config, "widgets", [])
-            key = pop!(wdg, "key")
-            get!(wdg, "visible", Dict("model" => [m]))
-            key′ = string("model_options", ".", m, ".", key)
-            push!(fields, Widget(key′, wdg))
-        end
+        wdgs = get(model_config, "widgets", [])
+        push_generated_widgets!(fields, ks, wdgs, :model, m)
     end
 
     for t in training_tomls
         training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
-        for wdg in get(training_config, "widgets", [])
-            key = pop!(wdg, "key")
-            get!(wdg, "visible", Dict("training" => [t]))
-            key′ = string("training_options", ".", t, ".", key)
-            push!(fields, Widget(key′, wdg))
-        end
+        wdgs = get(training_config, "widgets", [])
+        push_generated_widgets!(fields, ks, wdgs, :training, t)
     end
 
     return CardWidget(;

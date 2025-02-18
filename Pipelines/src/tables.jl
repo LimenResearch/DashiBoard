@@ -5,14 +5,14 @@ function fromtable(data)
     cols = Tables.columns(data)
     tbl = SimpleTable()
     for k in Tables.columnnames(cols)
-        tbl[String(k)] = Tables.getcolumn(cols, k)
+        tbl[string(k)] = Tables.getcolumn(cols, k)
     end
     return tbl
 end
 
 join_names(args...) = join(args, "_")
 
-function new_name(c::AbstractString, cols::AbstractVector{<:AbstractString})
+function new_name(c::AbstractString, cols)
     for i in Iterators.countfrom()
         c′ = join_names(c, i)
         c′ in cols || return c′

@@ -1,7 +1,12 @@
+function minuteofday(x)
+    @. hour(x) * 60 + minute(x)
+end
+
 const TEMPORAL_PREPROCESSING = OrderedDict(
     "identity" => identity,
     "dayofyear" => Fun.dayofyear,
-    "hour" => Fun.hour
+    "hour" => Fun.hour,
+    "minuteofday" => minuteofday
 )
 
 """

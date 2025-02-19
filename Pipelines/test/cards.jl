@@ -314,7 +314,7 @@ mktempdir() do dir
 
             invalid_config = Dict(
                 :column => "date",
-                :n_modes => 1,
+                :n_modes => 0,
                 :max => 365.0,
                 :lambda => 0.5,
                 :method => "identity"
@@ -323,7 +323,7 @@ mktempdir() do dir
         end
 
         function gauss_train_test(card, state)
-            expected_means = range(0, stop = 1, length = card.n_modes)
+            expected_means = range(0, step = 1 / card.n_modes, length = card.n_modes)
             expected_sigma = step(expected_means) * card.lambda
             expected_d = card.max
             expected_keys = vcat(["μ_$i" for i in 1:card.n_modes], ["σ", "d"])
@@ -335,6 +335,7 @@ mktempdir() do dir
             @test params["d"][1] ≈ expected_d
         end
 
+        _rem(x) = rem(x, 1, RoundNearest)
         function gauss_evaluate_test(result, card, origin; processing)
             @test issetequal(
                 names(result),
@@ -343,12 +344,11 @@ mktempdir() do dir
 
             origin_column = origin[:, card.column]
             max_value = card.max
-            preprocessed_values = [processing(x) for x in origin_column]
-            μs = range(0, stop = 1, length = card.n_modes)
+            preprocessed_values = processing.(origin_column)
+            μs = range(0, step = 1 / card.n_modes, length = card.n_modes)
             σ = step(μs) * card.lambda
-            dists = [Normal(μ, σ) for μ in μs]
-            for (i, dist) in enumerate(dists)
-                expected_values = [pdf(dist, x / max_value) .* σ for x in preprocessed_values]
+            for (i, μ) in enumerate(μs)
+                expected_values = pdf.(Normal(0, σ), _rem.(preprocessed_values ./ max_value .- μ)) .* σ
                 @test result[:, "$(card.column)_gaussian_$i"] ≈ expected_values
             end
         end
@@ -386,6 +386,15 @@ mktempdir() do dir
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = hour)
         @test issetequal(Pipelines.outputs(card), ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"])
+        @test only(Pipelines.inputs(card)) == "time"
+
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+        card = Pipelines.get_card(d["minute"])
+        state = Pipelines.evaluate(repo, card, "origin" => "encoded")
+        gauss_train_test(card, state)
+        result = DBInterface.execute(DataFrame, repo, "FROM encoded")
+        gauss_evaluate_test(result, card, origin; processing = minute)
+        @test issetequal(Pipelines.outputs(card), ["time_gaussian_1"])
         @test only(Pipelines.inputs(card)) == "time"
     end
 

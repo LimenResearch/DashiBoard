@@ -16,7 +16,8 @@ agg = "mean"
 name = "mae"
 agg = "mean"
 
-[widgets.features]
+[[widgets]]
+key = "features"
 widget = "input"
 label = "Iterations"
 placeholder = "Select number of iterations"

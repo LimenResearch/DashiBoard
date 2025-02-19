@@ -24,6 +24,15 @@
         "max": 24,
         "lambda": 0.5,
         "suffix": "gaussian",
-        "method": "hour"
+        "method": "hourofday"
+    },
+    "minute": {
+        "type": "gaussian_encoding",
+        "column": "time",
+        "n_modes": 1,
+        "max": 24,
+        "lambda": 0.5,
+        "suffix": "gaussian",
+        "method": "minuteofhour"
     }
 }

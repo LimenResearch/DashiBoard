@@ -1,21 +1,22 @@
-function minuteofday(x)
-    @. hour(x) * 60 + minute(x)
-end
+minuteofday(x) = @. hour(x) * 60 + minute(x)
+
+minuteofhour(x) = @. minute(x)
 
 const TEMPORAL_PREPROCESSING = OrderedDict(
     "identity" => identity,
     "dayofyear" => Fun.dayofyear,
     "hourofday" => Fun.hour,
-    "minuteofday" => minuteofday
+    "minuteofday" => minuteofday,
+    "minuteofhour" => minuteofhour,
 )
 
 const TEMPORAL_MAX = OrderedDict(
     "identity" => 1,
     "dayofyear" => 366,
     "hourofday" => 24,
-    "minuteofday" => 1440
-) 
-
+    "minuteofday" => 1440,
+    "minuteofhour" => 60,
+)
 
 """
     struct GaussianEncodingCard <: AbstractCard
@@ -76,7 +77,9 @@ function GaussianEncodingCard(c::AbstractDict)
     end
     processed_column::SQLNode = TEMPORAL_PREPROCESSING[method](Get(column))
     n_modes::Int = c[:n_modes]
-    n_modes < 2 && throw(ArgumentError("`n_modes` must be at least `2`. Provided value: `$n_modes`."))
+    if n_modes ≤ 0
+        throw(ArgumentError("`n_modes` must be greater than `0`. Provided value: `$n_modes`."))
+    end
     max::Float64 = get(c, :max, TEMPORAL_MAX[method])
     lambda::Float64 = get(c, :lambda, 0.5)
     suffix::String = get(c, :suffix, "gaussian")
@@ -90,7 +93,7 @@ outputs(g::GaussianEncodingCard) = stringset(join_names.(g.column, g.suffix, 1:g
 
 # TODO: might be periodic and first and last gaussian are the same?
 function train(::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
-    μs = range(0, stop = 1, length = g.n_modes)
+    μs = range(start = 0, step = 1 / g.n_modes, length = g.n_modes)
     σ = step(μs) * g.lambda
     params = Dict("σ" => [σ], "d" => [g.max])
     for (i, μ) in enumerate(μs)
@@ -104,8 +107,9 @@ end
 
 function gaussian_transform(x, μ, σ, d)
     c = sqrt(2π)
-    ω = @. ((x / d) - μ) / σ
-    return @. exp(-ω * ω / 2) / c
+    η = @. (x / d) - μ
+    ω = @. abs(η - round(η)) / σ
+    return @. exp(- ω * ω / 2) / c
 end
 
 function evaluate(

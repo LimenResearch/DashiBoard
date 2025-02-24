@@ -10,7 +10,7 @@ export AbstractCard,
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 
-public evaluatenodes, deevaluatenodes, Node
+public evaluatenodes, deevaluatenodes, visualize, Node
 
 public to_config, default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
@@ -104,6 +104,12 @@ using StreamlinerCore: StreamlinerCore,
     to_config
 
 using Dates: hour, minute
+
+function _visualize end
+
+function visualize(nodes::AbstractVector)
+    return applicable(_visualize, nodes) ? _visualize(nodes) : "Visualization not available."
+end
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 

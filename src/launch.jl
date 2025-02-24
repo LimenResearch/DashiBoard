@@ -36,6 +36,10 @@ function stream_file(stream::IO, path::AbstractString; chunksize::Integer = 2^12
     end
 end
 
+function compute_visualization(nodes)
+    return "..."
+end
+
 function launch(
         data_directory;
         host = "127.0.0.1",
@@ -76,9 +80,10 @@ function launch(
         filters = get_filter.(spec["filters"])
         cards = with_scoped_values(() -> get_card.(spec["cards"]))
         DataIngestion.select(REPOSITORY[], filters)
-        Pipelines.evaluate(REPOSITORY[], cards, "selection")
+        nodes = Pipelines.evaluate(REPOSITORY[], cards, "selection")
+        visualization = compute_visualization(nodes)
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-        return JSON3.write(summaries)
+        return JSON3.write((; summaries, visualization))
     end
 
     @post "/fetch" function (req::HTTP.Request)

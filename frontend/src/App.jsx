@@ -19,13 +19,13 @@ export function App() {
     const filtersData = initFilters();
     const pipelineData = initPipeline();
 
-    const [metadata, setMetadata] = createSignal([]);
+    const [result, setResult] = createSignal({summaries: [], visualization: []})
 
     const loadingTab = <Loader input={loaderData.input}></Loader>;
     const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
-    const spreadsheetTab = <Spreadsheet source={loaderData.output()} selection={metadata()}></Spreadsheet>;
+    const spreadsheetTab = <Spreadsheet sourceMetadata={loaderData.output()} selectionMetadata={result().summaries}></Spreadsheet>;
 
     const spec = () => ({
         filters: filtersData.output(),
@@ -41,7 +41,7 @@ export function App() {
         if (isValid()) {
             postRequest("pipeline", spec())
                 .then(x => x.json())    
-                .then(setMetadata);
+                .then(setResult);
         } else {
             window.alert("Invalid request, please fill out all required fields.");
         }

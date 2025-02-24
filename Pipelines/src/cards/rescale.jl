@@ -201,7 +201,7 @@ end
 function deevaluate(
         repository::Repository,
         r::RescaleCard,
-        stats_tbl::SimpleTable,
+        stats_tbl::CardState,
         (source, destination)::Pair;
         schema = nothing
     )

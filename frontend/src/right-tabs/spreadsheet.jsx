@@ -15,5 +15,5 @@ export function Spreadsheet(props) {
                 Download processed data
             </A>
         </div>
-    </div>
+    </div>;
 }

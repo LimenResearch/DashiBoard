@@ -13,6 +13,7 @@ import { Pipeline, initPipeline } from "./left-tabs/processing";
 import { Spreadsheet } from "./right-tabs/spreadsheet";
 
 import { Tabs } from "./components/tabs";
+import { Visualization } from "./right-tabs/visualization";
 
 export function App() {
     const loaderData = initLoader();
@@ -26,6 +27,7 @@ export function App() {
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
     const spreadsheetTab = <Spreadsheet sourceMetadata={loaderData.output()} selectionMetadata={result().summaries}></Spreadsheet>;
+    const visualizationTab = <Visualization visualization={result().visualization}></Visualization>;
 
     const spec = () => ({
         filters: filtersData.output(),
@@ -63,6 +65,7 @@ export function App() {
 
     const rightTabs = [
         {key: "Spreadsheet", value: spreadsheetTab},
+        {key: "Visualization", value: visualizationTab},
         {key: "Chart", value: "TODO"},
         {key: "Pipeline", value: "TODO"},
     ];

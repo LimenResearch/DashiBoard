@@ -36,7 +36,7 @@ function stream_file(stream::IO, path::AbstractString; chunksize::Integer = 2^12
     end
 end
 
-stringify_visualization(x::AbstractString) = x
+stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
 function launch(
@@ -80,7 +80,8 @@ function launch(
         cards = with_scoped_values(() -> get_card.(spec["cards"]))
         DataIngestion.select(REPOSITORY[], filters)
         nodes = Pipelines.evaluate(REPOSITORY[], cards, "selection")
-        visualization = stringify_visualization(Pipelines.visualize(nodes))
+        vs = Pipelines.visualize(REPOSITORY[], nodes)
+        visualization = stringify_visualization.(vs)
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
         return JSON3.write((; summaries, visualization))
     end

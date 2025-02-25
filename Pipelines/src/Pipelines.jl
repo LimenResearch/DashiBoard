@@ -105,12 +105,6 @@ using StreamlinerCore: StreamlinerCore,
 
 using Dates: hour, minute
 
-function _visualize end
-
-function visualize(nodes::AbstractVector)
-    return applicable(_visualize, nodes) ? _visualize(nodes) : "Visualization not available."
-end
-
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
 config_path(fn) = @path joinpath(@__DIR__, "..", "assets", fn)

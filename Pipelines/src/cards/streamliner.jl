@@ -115,10 +115,6 @@ function train(
         path = StreamlinerCore.output_path(dir)
         content = StreamlinerCore.has_weights(result) ? read(path) : nothing
         metadata = to_string_dict(result)
-        # TODO: standardize procedure below
-        metadata["card"] = "streamliner"
-        metadata["targets"] = s.targets
-        metadata["outputs"] = join_names.(s.targets, s.suffix)
         return CardState(; content, metadata)
     end
 end

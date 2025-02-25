@@ -3,7 +3,8 @@ module PipelinesMakieExt
 using CairoMakie: Figure, scatter
 using AlgebraOfGraphics: AlgebraOfGraphics
 
-using Pipelines: Pipelines
+using Pipelines: Pipelines, CardState, StreamlinerCard
+using DuckDBUtils: Repository
 
 include("visualize.jl")
 

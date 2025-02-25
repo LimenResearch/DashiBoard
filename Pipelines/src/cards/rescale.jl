@@ -201,12 +201,12 @@ end
 function deevaluate(
         repository::Repository,
         r::RescaleCard,
-        stats_tbl::SimpleTable,
+        state::CardState,
         (source, destination)::Pair;
         schema = nothing
     )
 
-    evaluate(repository, r, stats_tbl, source => destination; schema, invert = true)
+    evaluate(repository, r, state, source => destination; schema, invert = true)
 end
 
 function CardWidget(::Type{RescaleCard})

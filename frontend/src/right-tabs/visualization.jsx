@@ -1,3 +1,10 @@
+import { For } from "solid-js";
+
 export function Visualization(props) {
-    return <div innerHTML={props.visualization}></div>;
+    return <For
+        each={props.visualization.filter(x => x != null)}
+        fallback={<div>No visualization available</div>}>
+
+        {item => <div innerHTML={item}></div>}
+    </For>;
 }

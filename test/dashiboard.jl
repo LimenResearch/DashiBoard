@@ -56,7 +56,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
         resp = HTTP.post(url * "pipeline", body = body)
-        summaries = JSON3.read(resp.body)
+        summaries = JSON3.read(resp.body)["summaries"]
 
         @test summaries[end]["name"] == "_percentile_partition"
 

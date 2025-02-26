@@ -16,7 +16,7 @@ DuckDBUtils = {path = "../DuckDBUtils"}
 
 [compat]
 DBInterface = "2.6.1"
-FunSQL = "0.14.3"
+FunSQL = "0.14.3, 0.15"
 IntervalSets = "0.7.10"
 IterTools = "1"
 Tables = "1"

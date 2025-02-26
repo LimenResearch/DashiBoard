@@ -5,9 +5,7 @@ function Pipelines.visualize(
     )
 
     # TODO: create richer visualization and test
-    stats = jldopen(IOBuffer(state.content)) do file
-        file["stats"]
-    end
+    stats = Pipelines.jlddeserialize(state.content, "stats")
 
     fig = Figure()
     ax = Axis(fig[1, 1], title = "Loss")

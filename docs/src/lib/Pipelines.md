@@ -24,6 +24,12 @@ Pipelines.get_card
 Pipelines.evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
 ```
 
+## Pipeline visualization
+
+```@docs
+Pipelines.visualize
+```
+
 ## Cards
 
 ```@docs

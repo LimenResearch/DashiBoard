@@ -61,26 +61,39 @@ end
     metadata::Dict{String, Any} = Dict{String, Any}()
 end
 
-function jldserialize(file::Union{IO, AbstractString}, m)
-    jldopen(file, "w") do file
-        file["model_state"] = m
-    end
-end
-
 function jldserialize(m)
-    io = IOBuffer()
-    jldserialize(io, m)
-    return take!(io)
-end
-
-function jlddeserialize(v::AbstractVector{UInt8})
-    jldopen(IOBuffer(v)) do file
-        file["model_state"]
+    return mktemp() do path, io
+        jldopen(path, "w") do file
+            file["model_state"] = m
+        end
+        return read(io)
     end
 end
 
-visualize(::Repository, ::AbstractCard, ::CardState) = nothing
+function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
+    return mktemp() do path, io
+        write(io, v)
+        flush(io)
+        jldopen(path) do file
+            file[k]
+        end
+    end
+end
 
+"""
+    visualize(repository::Repository, nodes::AbstractVector)
+
+Create default visualizations for all `nodes` referring to a given `repository`.
+Each node must be of type `Node`.
+"""
 function visualize(repository::Repository, nodes::AbstractVector)
     return visualize.(Ref(repository), get_card.(nodes), get_state.(nodes))
 end
+
+"""
+    visualize(::Repository, ::AbstractCard, ::CardState)
+
+Overload this method (replacing `AbstractCard` with a specific card type)
+to implement a default visualization for a given card type.
+"""
+visualize(::Repository, ::AbstractCard, ::CardState) = nothing

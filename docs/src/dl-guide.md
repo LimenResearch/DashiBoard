@@ -21,3 +21,5 @@ Below we see a typical deep learning pipeline, comprised of the following steps:
 - data partition,
 - data normalization,
 - model training and evaluation.
+
+![deep learning pipeline](assets/dl-pipeline.png)

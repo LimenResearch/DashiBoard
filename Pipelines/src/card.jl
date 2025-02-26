@@ -79,8 +79,20 @@ function jlddeserialize(v::AbstractVector{UInt8})
     end
 end
 
-visualize(::Repository, ::AbstractCard, ::CardState) = nothing
+"""
+    visualize(repository::Repository, nodes::AbstractVector)
 
+Create default visualizations for all `nodes` referring to a given `repository`.
+Each node must be of type `Node`.
+"""
 function visualize(repository::Repository, nodes::AbstractVector)
     return visualize.(Ref(repository), get_card.(nodes), get_state.(nodes))
 end
+
+"""
+    visualize(::Repository, ::AbstractCard, ::CardState)
+
+Overload this method (replacing `AbstractCard` with a specific card type)
+to implement a default visualization for a given card type.
+"""
+visualize(::Repository, ::AbstractCard, ::CardState) = nothing

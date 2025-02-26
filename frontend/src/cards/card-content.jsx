@@ -7,6 +7,8 @@ export function getOutputs(config, content) {
     const multiple = config.fields.find(x => x.key === field).multiple;
 
     let names = multiple ? content[field] : [content[field]];
+    // interpret null option as empty list
+    names = names || [];
 
     if (suffixField != null) {
         const suffix = content[suffixField];

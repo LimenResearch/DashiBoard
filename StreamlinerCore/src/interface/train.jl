@@ -83,6 +83,7 @@ function finalize_callback(
 
     if valid_loss < best_valid_loss
         path = output_path(dst)
+        rm(path)
         jldopen(path, "w") do file
             file["model_state"] = Flux.cpu(Flux.state(device_m))
         end
@@ -264,8 +265,9 @@ function _train(
     successful = best_valid_loss < init_valid_loss
 
     open(stats_path(dst)) do io
+        v = mmap(io, Array{Float64, 3}, (nstats, 2, N))
         jldopen(output_path(dst), "a") do file
-            file["stats"] = mmap(io, Array{Float64, 3}, (nstats, 2, N))
+            file["stats"] = v
         end
     end
     rm(stats_path(dst))

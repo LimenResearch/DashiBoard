@@ -61,21 +61,22 @@ end
     metadata::Dict{String, Any} = Dict{String, Any}()
 end
 
-function jldserialize(file::Union{IO, AbstractString}, m)
-    jldopen(file, "w") do file
-        file["model_state"] = m
+function jldserialize(m)
+    return mktemp() do path, io
+        jldopen(path, "w") do file
+            file["model_state"] = m
+        end
+        return read(io)
     end
 end
 
-function jldserialize(m)
-    io = IOBuffer()
-    jldserialize(io, m)
-    return take!(io)
-end
-
-function jlddeserialize(v::AbstractVector{UInt8})
-    jldopen(IOBuffer(v)) do file
-        file["model_state"]
+function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
+    return mktemp() do path, io
+        write(io, v)
+        flush(io)
+        jldopen(path) do file
+            file[k]
+        end
     end
 end
 

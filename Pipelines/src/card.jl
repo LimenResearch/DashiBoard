@@ -78,3 +78,9 @@ function jlddeserialize(v::AbstractVector{UInt8})
         file["model_state"]
     end
 end
+
+visualize(::Repository, ::AbstractCard, ::CardState) = nothing
+
+function visualize(repository::Repository, nodes::AbstractVector)
+    return visualize.(Ref(repository), get_card.(nodes), get_state.(nodes))
+end

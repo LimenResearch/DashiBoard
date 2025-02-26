@@ -22,7 +22,9 @@ using DuckDBUtils: Repository
 
 using DataIngestion: is_supported, get_filter, export_table, DataIngestion
 
-using Pipelines: get_card, to_config, Pipelines
+using Pipelines: get_card, get_state, to_config, Pipelines
+
+import AlgebraOfGraphics, CairoMakie
 
 const cache_directory() = @get_scratch!("cache")
 

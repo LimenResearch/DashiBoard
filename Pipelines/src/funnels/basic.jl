@@ -129,8 +129,10 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     end
     DuckDBUtils.close(appender)
 
-    old_vars = ns .=> Get.(ns)
     new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
+    # avoid selecting overlapping columns (TODO: is this needed?)
+    old_ns = setdiff(ns, first.(new_vars))
+    old_vars = old_ns .=> Get.(old_ns)
     join_clause = Join(
         "eval" => From(tmp),
         on = Get(id_col) .== Get(id_col, over = Get.eval),

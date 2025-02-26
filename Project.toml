@@ -4,7 +4,9 @@ authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
 version = "1.0.0-DEV"
 
 [deps]
+AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 ConcurrentUtilities = "f0e56b4a-5159-44fe-b623-3e5288b988bb"
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -26,7 +28,9 @@ Pipelines = {path = "Pipelines"}
 StreamlinerCore = {path = "StreamlinerCore"}
 
 [compat]
+AlgebraOfGraphics = "0.9.3"
 ArgParse = "1.2.0"
+CairoMakie = "0.13.1"
 ConcurrentUtilities = "2"
 DBInterface = "2.6.1"
 DataFrames = "1.7.0"

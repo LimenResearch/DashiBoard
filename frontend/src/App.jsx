@@ -13,19 +13,21 @@ import { Pipeline, initPipeline } from "./left-tabs/processing";
 import { Spreadsheet } from "./right-tabs/spreadsheet";
 
 import { Tabs } from "./components/tabs";
+import { Visualization } from "./right-tabs/visualization";
 
 export function App() {
     const loaderData = initLoader();
     const filtersData = initFilters();
     const pipelineData = initPipeline();
 
-    const [metadata, setMetadata] = createSignal([]);
+    const [result, setResult] = createSignal({summaries: [], visualization: []})
 
     const loadingTab = <Loader input={loaderData.input}></Loader>;
     const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
-    const spreadsheetTab = <Spreadsheet source={loaderData.output()} selection={metadata()}></Spreadsheet>;
+    const spreadsheetTab = <Spreadsheet sourceMetadata={loaderData.output()} selectionMetadata={result().summaries}></Spreadsheet>;
+    const visualizationTab = <Visualization visualization={result().visualization}></Visualization>;
 
     const spec = () => ({
         filters: filtersData.output(),
@@ -41,7 +43,7 @@ export function App() {
         if (isValid()) {
             postRequest("pipeline", spec())
                 .then(x => x.json())    
-                .then(setMetadata);
+                .then(setResult);
         } else {
             window.alert("Invalid request, please fill out all required fields.");
         }
@@ -63,6 +65,7 @@ export function App() {
 
     const rightTabs = [
         {key: "Spreadsheet", value: spreadsheetTab},
+        {key: "Visualization", value: visualizationTab},
         {key: "Chart", value: "TODO"},
         {key: "Pipeline", value: "TODO"},
     ];

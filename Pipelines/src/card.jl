@@ -75,7 +75,7 @@ function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
         write(io, v)
         flush(io)
         jldopen(path) do file
-            file[k]
+            return file[k]
         end
     end
 end

@@ -26,15 +26,7 @@ function acceptable_files(data_directory)
     end
 end
 
-function stream_file(stream::IO, path::AbstractString; chunksize::Integer = 2^12)
-    buffer = Vector{UInt8}(undef, chunksize)
-    open(path) do io
-        while !eof(io)
-            n = readbytes!(io, buffer)
-            write(stream, view(buffer, 1:n))
-        end
-    end
-end
+stream_file(stream::IO, path::AbstractString) = open(io -> write(stream, io), path)
 
 stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)

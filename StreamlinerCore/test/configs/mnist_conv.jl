@@ -19,7 +19,7 @@ function test_mnist_conv(dir)
     @show result.stats
     println()
     stats = jldopen(StreamlinerCore.output_path(outputdir)) do file
-        file["stats"]
+        return file["stats"]
     end
     @test size(stats) == (2, 2, 5)
     show(stdout, MIME"text/plain"(), stats[1, :, :]')

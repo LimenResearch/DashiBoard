@@ -63,9 +63,7 @@ mktempdir() do data_dir
         HTTP.open("GET", url * "processed-data", headers = Dict("Connection" => "close")) do stream
             r = startread(stream)
             io = IOBuffer()
-            while !eof(stream)
-                write(io, readavailable(stream))
-            end
+            write(io, stream)
             data = take!(io)
 
             @test length(data) == 360326

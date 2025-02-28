@@ -91,8 +91,7 @@ function finalize_callback(
     end
 
     open(stats_path(dst), "a") do io
-        write(io, stats[1])
-        write(io, stats[2])
+        write(io, stats...)
     end
 
     return any(Fix1(|>, valid_loss), training_state.stoppers), best_N => best_stats

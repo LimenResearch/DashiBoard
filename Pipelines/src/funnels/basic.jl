@@ -30,18 +30,18 @@ function train!(data::DBData)
     return data
 end
 
-struct Processor{N, D}
+struct Processor{N}
     data::DBData{N}
-    device::D
     id::String
 end
 
+# TODO: consider returning a special struct to signal that `id` should not be moved to gpu
 function (p::Processor)(cols)
     (; predictors, targets, uvals) = p.data
     input::Array{Float32, 2} = encode_columns(cols, predictors, uvals)
     target::Array{Float32, 2} = encode_columns(cols, targets, uvals)
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
-    return (; id, input = p.device(input), target = p.device(target))
+    return (; id, input, target)
 end
 
 function StreamlinerCore.get_templates(data::DBData)
@@ -105,7 +105,9 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
         try
             batches = Batches(result, batchsize, nrows)
-            stream = Iterators.map(Processor(data, device, id_col), batches)
+            stream = Iterators.map(Processor(data, id_col), batches)
+            iter = Iterators.map(Processor(data, id_col), batches)
+            stream = DeviceIterator(device, iter)
             f(stream)
         finally
             DBInterface.close!(result)

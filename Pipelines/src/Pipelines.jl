@@ -116,6 +116,8 @@ using Clustering: assignments, kmeans, dbscan
 
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
+using MLDataDevices: DeviceIterator
+
 using Dates: hour, minute
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()

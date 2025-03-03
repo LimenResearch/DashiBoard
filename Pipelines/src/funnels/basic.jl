@@ -15,19 +15,19 @@ function id_table(data::DBData, col)
         Define(col => Agg.row_number())
 end
 
-struct Processor{N, D}
+struct Processor{N}
     data::DBData{N}
-    device::D
     id::String
 end
 
+# TODO: consider returning a special struct to signal that `id` should not be moved to gpu
 function (p::Processor)(cols)
     (; predictors, targets) = p.data
     extract_column(k) = Tables.getcolumn(cols, Symbol(k))
     input::Array{Float32, 2} = stack(extract_column, predictors, dims = 1)
     target::Array{Float32, 2} = stack(extract_column, targets, dims = 1)
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
-    return (; id, input = p.device(input), target = p.device(target))
+    return (; id, input, target)
 end
 
 function StreamlinerCore.get_templates(data::DBData)
@@ -90,7 +90,8 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
         try
             batches = Batches(Tables.partitions(result), batchsize, nrows)
-            stream = Iterators.map(Processor(data, device, id_col), batches)
+            iter = Iterators.map(Processor(data, id_col), batches)
+            stream = DeviceIterator(device, iter)
             f(stream)
         finally
             DBInterface.close!(result)

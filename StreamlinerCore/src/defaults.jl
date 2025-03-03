@@ -117,10 +117,8 @@ const DEFAULT_PARSER = let
     )
 
     devices = StringDict(
-        "cpu" => Flux.cpu,
-        "gpu" => Flux.gpu,
-        "f32" => Flux.f32,
-        "f64" => Flux.f64,
+        "cpu" => cpu_device,
+        "gpu" => gpu_device,
     )
 
     Parser(;

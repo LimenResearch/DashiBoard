@@ -1,7 +1,7 @@
 struct Training
     metadata::StringDict
     optimizer::Any
-    device::Any
+    device::AbstractDevice
     shuffle::Bool
     batchsize::Maybe{Int}
     iterations::Int

@@ -11,7 +11,7 @@
     @test schedules[:eta] == CosAnneal(l0 = 1.0e-2, l1 = 1.0e-3, period = 10, restart = true)
     @test batchsize == 32
     @test length(stoppers) == 2
-    @test device == cpu
+    @test device == CPUDevice()
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -52,7 +52,7 @@ end
     @test isempty(schedules)
     @test batchsize == 32
     @test isempty(stoppers)
-    @test device == cpu
+    @test device == CPUDevice()
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -79,7 +79,7 @@ end
     @test isempty(schedules)
     @test batchsize == 32
     @test length(stoppers) == 0
-    @test device == cpu
+    @test device == CPUDevice()
 
     r = device(m)((; input, target))
     prediction = r.prediction

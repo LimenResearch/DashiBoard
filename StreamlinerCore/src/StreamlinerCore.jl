@@ -17,7 +17,7 @@ using NNlib: upsample_linear, upsample_nearest
 using Flux: Dense, RNN, LSTM, GRU, Conv, ConvTranspose, MaxPool, MeanPool
 using Flux: @layer, withgradient, destructure, loadmodel!, Losses, Flux
 using MLUtils: numobs, obsview, flatten, group_indices, randn_like, DataLoader, MLUtils
-using MLDataDevices: DeviceIterator, cpu_device, gpu_device
+using MLDataDevices: AbstractDevice, cpu_device, gpu_device
 using ParameterSchedulers: ParameterSchedulers as PS
 using ProgressLogging: @withprogress, @logprogress
 using ChainRulesCore: AbstractZero, NoTangent, unthunk, ChainRulesCore

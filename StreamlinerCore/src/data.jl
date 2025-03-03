@@ -43,7 +43,7 @@ abstract type AbstractData{N} end
 @enumx DataPartition training = 1 validation = 2
 
 @kwdef struct Streaming
-    device::Any
+    device::AbstractDevice
     batchsize::Maybe{Int}
     shuffle::Bool = false
     rng::AbstractRNG = get_rng()
@@ -51,7 +51,7 @@ end
 
 @parsable Streaming
 
-get_device(config::AbstractDict) = PARSER[].devices[get(config, :device, "cpu")]
+get_device(config::AbstractDict) = PARSER[].devices[get(config, :device, "cpu")]()
 get_batchsize(config::AbstractDict) = get(config, :batchsize, nothing)
 get_shuffle(config::AbstractDict) = get(config, :shuffle, false)
 
@@ -151,13 +151,16 @@ function Data{N}(streams::NTuple{N, S}, templates::T, metadata::AbstractDict) wh
     return Data{N, S, T}(streams, templates, metadata)
 end
 
+# work around https://github.com/FluxML/Flux.jl/issues/2592
+to_device(device::AbstractDevice, x) = invoke(device, Tuple{Any}, x)
+
 function stream(f, data::Data, partition::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
     batches = if isnothing(batchsize)
         (device(data.streams[partition]),)
     else
         dl = DataLoader(data.streams[partition]; batchsize, rng, shuffle)
-        Iterators.map(device, dl)
+        to_device(device, dl)
     end
     return f(batches)
 end

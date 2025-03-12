@@ -105,7 +105,6 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
         try
             batches = Batches(result, batchsize, nrows)
-            stream = Iterators.map(Processor(data, id_col), batches)
             iter = Iterators.map(Processor(data, id_col), batches)
             stream = DeviceIterator(device, iter)
             f(stream)

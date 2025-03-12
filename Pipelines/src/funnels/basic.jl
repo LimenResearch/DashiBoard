@@ -89,7 +89,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
         result = DBInterface.execute(con, stream_sql, StreamResult)
 
         try
-            batches = Batches(Tables.partitions(result), batchsize, nrows)
+            batches = Batches(result, batchsize, nrows)
             stream = Iterators.map(Processor(data, device, id_col), batches)
             f(stream)
         finally

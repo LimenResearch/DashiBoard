@@ -40,23 +40,21 @@ end
 
 # Stream DuckDB data
 
-struct Batches{T}
+struct Batches{T, names, types}
     chunks::T
-    names::Vector{Symbol}
-    types::Vector{Type}
+    schema::Tables.Schema{names, types}
     batchsize::Int
     nrows::Int
-end
 
-function Batches{T}(
-        chunks::T,
-        names::AbstractVector,
-        types::AbstractVector,
-        batchsize::Integer,
-        nrows::Integer
-    ) where {T}
+    function Batches(
+            chunks::T,
+            schema::Tables.Schema{names, types},
+            batchsize::Integer,
+            nrows::Integer
+        ) where {T, names, types}
 
-    return Batches{T}(chunks, names, types, batchsize, nrows)
+        return new{T, names, types}(chunks, schema, batchsize, nrows)
+    end
 end
 
 """
@@ -66,10 +64,8 @@ Construct a `Batches` iterator based on a table `tbl` with `nrows` in total.
 The resulting object iterates column-based tables with `batchsize` rows each.
 """
 function Batches(tbl, batchsize::Integer, nrows::Integer)
-    schm = Tables.schema(tbl)
-    names, types = collect(Symbol, schm.names), collect(Type, schm.types)
-    chunks = Tables.partitions(tbl)
-    return Batches(chunks, names, types, batchsize, nrows)
+    chunks, schema = Tables.partitions(tbl), Tables.schema(tbl)
+    return Batches(chunks, schema, batchsize, nrows)
 end
 
 function Base.eltype(::Type{Batches{T}}) where {T}
@@ -83,8 +79,7 @@ Base.size(r::Batches) = (length(r),)
 function Base.iterate(r::Batches, (res, j) = (iterate(r.chunks), 0))
     isnothing(res) && return nothing
     chunk, st = res
-    schm = Tables.Schema(r.names, r.types)
-    batch = _init(schm)
+    batch = _init(r.schema)
     cols = Tables.columns(chunk)
     while _numobs(batch) < r.batchsize
         if _numobs(cols) ≤ j

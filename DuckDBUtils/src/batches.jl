@@ -21,9 +21,7 @@ end
 Initialize an empty table with schema `schm`.
 """
 function _init(schm::Tables.Schema)
-    return OrderedDict{Symbol, AbstractVector}(
-        n => T[] for (n, T) in zip(schm.names, schm.types)
-    )
+    return OrderedDict{Symbol, Vector}(n => T[] for (n, T) in zip(schm.names, schm.types))
 end
 
 """
@@ -75,7 +73,8 @@ Base.size(r::Batches) = (length(r),)
 function Base.iterate(r::Batches, (res, j) = (iterate(r.chunks), 0))
     isnothing(res) && return nothing
     chunk, st = res
-    batch = _init(Tables.schema(r.chunks.q)) # FIXME!! There should be a cleaner way to access the schema
+    schm = Tables.Schema(r.names, r.types)
+    batch = _init(schm)
     cols = Tables.columns(chunk)
     while _numobs(batch) < r.batchsize
         if _numobs(cols) ≤ j

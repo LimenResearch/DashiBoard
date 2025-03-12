@@ -16,15 +16,13 @@ function _numobs(cols)
 end
 
 """
-    _init(cols)
+    _init(schm::Tables.Schema)
 
-Initialize an empty table with the same schema as the column-based table `cols`.
+Initialize an empty table with schema `schm`.
 """
-function _init(cols)
-    assert_columnaccess(cols)
-    ns = Tables.columnnames(cols)
+function _init(schm::Tables.Schema)
     return OrderedDict{Symbol, AbstractVector}(
-        n => similar(Tables.getcolumn(cols, n), 0) for n in ns
+        n => T[] for (n, T) in zip(schm.names, schm.types)
     )
 end
 
@@ -74,8 +72,8 @@ Base.size(r::Batches) = (length(r),)
 function Base.iterate(r::Batches, (res, j) = (iterate(r.chunks), 0))
     isnothing(res) && return nothing
     chunk, st = res
+    batch = _init(Tables.schema(r.chunks.q)) # FIXME!! There should be a cleaner way to access the schema
     cols = Tables.columns(chunk)
-    batch = _init(cols)
     while _numobs(batch) < r.batchsize
         if _numobs(cols) ≤ j
             res, j = iterate(r.chunks, st), 0

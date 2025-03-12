@@ -48,6 +48,17 @@ struct Batches{T}
     nrows::Int
 end
 
+function Batches{T}(
+        chunks::T,
+        names::AbstractVector,
+        types::AbstractVector,
+        batchsize::Integer,
+        nrows::Integer
+    ) where {T}
+
+    return Batches{T}(chunks, names, types, batchsize, nrows)
+end
+
 """
     Batches(tbl, batchsize::Integer, nrows::Integer)
 
@@ -55,15 +66,14 @@ Construct a `Batches` iterator based on a table `tbl` with `nrows` in total.
 The resulting object iterates column-based tables with `batchsize` rows each.
 """
 function Batches(tbl, batchsize::Integer, nrows::Integer)
-    chunks = Tables.partitions(tbl)
-    T = typeof(chunks)
-    schm = Tables.schema(chunks)
+    schm = Tables.schema(tbl)
     names, types = collect(Symbol, schm.names), collect(Type, schm.types)
-    return Batches{T}(chunks, names, types, batchsize, nrows)
+    chunks = Tables.partitions(tbl)
+    return Batches(chunks, names, types, batchsize, nrows)
 end
 
 function Base.eltype(::Type{Batches{T}}) where {T}
-    return OrderedDict{Symbol, AbstractVector}
+    return OrderedDict{Symbol, Vector}
 end
 
 Base.length(r::Batches) = cld(r.nrows, r.batchsize)

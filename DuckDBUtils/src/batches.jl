@@ -42,23 +42,26 @@ end
 
 # Stream DuckDB data
 
-"""
-    struct Batches{T}
-        chunks::T
-        batchsize::Int
-        nrows::Int
-    end
-
-Let `chunks` be a partitioned table with `nrows` in total.
-Then, return an iterator of column-based tables with `batchsize` rows each.
-
-!!! note
-    `chunks` can in general be obtained as the output of `Tables.partitions`.
-"""
 struct Batches{T}
     chunks::T
+    names::Vector{Symbol}
+    types::Vector{Type}
     batchsize::Int
     nrows::Int
+end
+
+"""
+    Batches(tbl, batchsize::Integer, nrows::Integer)
+
+Construct a `Batches` iterator based on a table `tbl` with `nrows` in total.
+The resulting object iterates column-based tables with `batchsize` rows each.
+"""
+function Batches(tbl, batchsize::Integer, nrows::Integer)
+    chunks = Tables.partitions(tbl)
+    T = typeof(chunks)
+    schm = Tables.schema(chunks)
+    names, types = collect(Symbol, schm.names), collect(Type, schm.types)
+    return Batches{T}(chunks, names, types, batchsize, nrows)
 end
 
 function Base.eltype(::Type{Batches{T}}) where {T}

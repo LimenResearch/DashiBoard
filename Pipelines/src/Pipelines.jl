@@ -103,6 +103,8 @@ using StreamlinerCore: StreamlinerCore,
     PARSER,
     to_config
 
+using Clustering: kmeans, kmedoids, dbscan
+
 using Dates: hour, minute
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
@@ -111,6 +113,7 @@ config_path(fn) = @path joinpath(@__DIR__, "..", "assets", fn)
 
 include("tables.jl")
 include("widgets.jl")
+include("utils.jl")
 
 include("funnels/basic.jl")
 

@@ -239,6 +239,7 @@ function _train(
             jldopen(output_path(src)) do file
                 stats_tensor = readmmap(get_dataset(file, "stats"))
                 write(io, stats_tensor)
+                finalize(get_memory(stats_tensor))
             end
         end
         init.iteration => init.stats
@@ -264,9 +265,10 @@ function _train(
     successful = best_valid_loss < init_valid_loss
 
     open(stats_path(dst)) do io
-        v = mmap(io, Array{Float64, 3}, (nstats, 2, N))
         jldopen(output_path(dst), "a") do file
+            v = mmap(io, Array{Float64, 3}, (nstats, 2, N))
             file["stats"] = v
+            finalize(get_memory(v))
         end
     end
     rm(stats_path(dst))

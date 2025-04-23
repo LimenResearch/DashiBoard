@@ -113,6 +113,10 @@ function train(
     return mktempdir() do dir
         result = StreamlinerCore.train(dir, model, data, training)
         path = StreamlinerCore.output_path(dir)
+        # TODO: where to keep stats tensor?
+        jldopen(path, "a") do file
+            file["stats"] = StreamlinerCore.stats_tensor(result, dir)
+        end
         content = StreamlinerCore.has_weights(result) ? read(path) : nothing
         metadata = to_string_dict(result)
         return CardState(; content, metadata)

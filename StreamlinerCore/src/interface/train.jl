@@ -1,9 +1,10 @@
 # Result management
 
 """
-    @kwdef struct Result{N}
+    @kwdef struct Result{P}
         iteration::Int
-        stats::NTuple{N, Vector{Float64}}
+        iterations::Int
+        stats::NTuple{P, Vector{Float64}}
         trained::Bool
         resumed::Maybe{Bool} = nothing
         successful::Maybe{Bool} = nothing
@@ -12,9 +13,10 @@
 Structure to encode the result of [`train`](@ref), [`finetune`](@ref), or [`validate`](@ref).
 Stores configuration of model, metrics, and information on the location of the model weights.
 """
-@kwdef struct Result{N}
+@kwdef struct Result{P}
     iteration::Int
-    stats::NTuple{N, Vector{Float64}}
+    iterations::Int
+    stats::NTuple{P, Vector{Float64}}
     trained::Bool
     resumed::Maybe{Bool} = nothing
     successful::Maybe{Bool} = nothing
@@ -82,9 +84,7 @@ function finalize_callback(
     valid_loss, best_valid_loss = get_valid_loss(stats), get_valid_loss(best_stats)
 
     if valid_loss < best_valid_loss
-        path = output_path(dst)
-        rm(path)
-        jldopen(path, "w") do file
+        jldopen(output_path(dst), "w") do file
             file["model_state"] = Flux.cpu(Flux.state(device_m))
         end
         best_N, best_stats = N, stats
@@ -227,23 +227,19 @@ function _train(
     # set up output directory
     mkpath(dst)
     jldopen(Returns(nothing), output_path(dst), "w")
-    open(Returns(nothing), stats_path(dst), "w")
 
     device_m = loadmodel(src, model, data, training.device)
     nstats = 1 + length(model.metrics)
 
     resumed = !isnothing(init)
     init_N, init_stats = if resumed
-        # write initial stats to file
-        open(stats_path(dst), "w") do io
-            jldopen(output_path(src)) do file
-                stats_tensor = readmmap(get_dataset(file, "stats"))
-                write(io, stats_tensor)
-                finalize(get_memory(stats_tensor))
-            end
-        end
+        # port over initial stats
+        cp(stats_path(src), stats_path(dst))
+        # initialize iteration and stats
         init.iteration => init.stats
     else
+        # generate empty stats storage file
+        open(Returns(nothing), stats_path(dst), "w")
         # We assume that untrained model has `Inf` loss
         0 => (fill(Inf, nstats), fill(Inf, nstats))
     end
@@ -264,22 +260,22 @@ function _train(
     best_valid_loss = get_valid_loss(best_stats)
     successful = best_valid_loss < init_valid_loss
 
-    open(stats_path(dst)) do io
-        jldopen(output_path(dst), "a") do file
-            v = mmap(io, Array{Float64, 3}, (nstats, 2, N))
-            file["stats"] = v
-            finalize(get_memory(v))
-        end
-    end
-    rm(stats_path(dst))
-
     return Result(;
         iteration = best_N,
+        iterations = N,
         stats = best_stats,
         trained = true,
         resumed,
         successful
     )
+end
+
+function stats_tensor(result::Result{2}, dir::AbstractString)
+    (; stats, iterations) = result
+    nstats = length(first(stats))
+    v = Array{Float64, 3}(undef, (nstats, 2, iterations))
+    read!(stats_path(dir), v)
+    return v
 end
 
 """

@@ -23,6 +23,6 @@ function validate(
         valid_stats = compute_metrics((loss, metrics...), device_m, data_stream)
         stats = (collect(Float64, valid_stats),)
 
-        return Result(; stats, iteration = 0, trained = false)
+        return Result(; stats, iteration = 0, iterations = 0, trained = false)
     end
 end

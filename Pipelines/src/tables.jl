@@ -18,3 +18,12 @@ function new_name(c::AbstractString, cols)
         c′ in cols || return c′
     end
 end
+
+get_id_col(ns) = new_name("id", ns)
+
+# note: with empty partition, DuckDB preserves order
+function id_table(table::AbstractString, col)
+    return From(table) |>
+        Partition() |>
+        Define(col => Agg.row_number())
+end

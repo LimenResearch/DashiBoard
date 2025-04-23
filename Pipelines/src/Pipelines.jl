@@ -103,7 +103,7 @@ using StreamlinerCore: StreamlinerCore,
     PARSER,
     to_config
 
-using Clustering: kmeans, kmedoids, dbscan
+using Clustering: assignments, kmeans, dbscan
 
 using Dates: hour, minute
 
@@ -121,6 +121,7 @@ include("card.jl")
 
 include("cards/split.jl")
 include("cards/rescale.jl")
+include("cards/cluster.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")

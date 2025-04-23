@@ -19,12 +19,13 @@ function extract_options(c::AbstractDict, key::Symbol, r::Regex)
 end
 
 function generate_widget(
-    wdg::AbstractDict,
-    type::Symbol,
-    name::AbstractString,
-    idx::Integer)
+        conf::AbstractDict,
+        type::Symbol,
+        name::AbstractString,
+        idx::Integer
+    )
 
-    key = string(type, "_", "options", ".", idx, ".", wdg["key"])
+    key = string(type, "_", "options", ".", idx, ".", conf["key"])
     visible = Dict(string(type) => [name])
-    return Widget(key; wdg, visible)
+    return Widget(key, conf; visible)
 end

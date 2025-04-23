@@ -36,7 +36,3 @@ stats_path(dir::AbstractString) = joinpath(dir, "stats.bin")
 
 expand(_, x::Tuple) = x
 expand(N, x::Int) = ntuple(Returns(x), N)
-
-# helper to acces memory from array
-# FIXME: in future julia use `parent(Base.cconvert(Ptr, a))`
-get_memory(a::Array) = a.ref.mem

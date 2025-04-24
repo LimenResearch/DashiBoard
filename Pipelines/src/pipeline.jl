@@ -66,6 +66,7 @@ end
 const CARD_TYPES = Dict(
     "split" => SplitCard,
     "rescale" => RescaleCard,
+    "cluster" => ClusterCard,
     "glm" => GLMCard,
     "interp" => InterpCard,
     "gaussian_encoding" => GaussianEncodingCard,
@@ -159,10 +160,10 @@ function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
     end
 end
 
-# FIXME: add StreamlinerCard
 function card_configurations(;
         split = (;),
         rescale = (;),
+        cluster = (;),
         glm = (;),
         interp = (;),
         gaussian_encoding = (;),
@@ -173,6 +174,7 @@ function card_configurations(;
         "general" => parsefile(config_path("general.toml")),
         "split" => parsefile(config_path("split.toml")),
         "rescale" => parsefile(config_path("rescale.toml")),
+        "cluster" => parsefile(config_path("cluster.toml")),
         "glm" => parsefile(config_path("glm.toml")),
         "interp" => parsefile(config_path("interp.toml")),
         "gaussian_encoding" => parsefile(config_path("gaussian_encoding.toml")),
@@ -182,6 +184,7 @@ function card_configurations(;
     return [
         card_widget(d, "split"; split...),
         card_widget(d, "rescale"; rescale...),
+        card_widget(d, "cluster"; cluster...),
         card_widget(d, "glm"; glm...),
         card_widget(d, "interp"; interp...),
         card_widget(d, "gaussian_encoding"; gaussian_encoding...),

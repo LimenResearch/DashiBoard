@@ -91,7 +91,6 @@ invertible(::GaussianEncodingCard) = false
 inputs(g::GaussianEncodingCard) = stringset(g.column)
 outputs(g::GaussianEncodingCard) = stringset(join_names.(g.column, g.suffix, 1:g.n_modes))
 
-# TODO: might be periodic and first and last gaussian are the same?
 function train(::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(start = 0, step = 1 / g.n_modes, length = g.n_modes)
     σ = step(μs) * g.lambda

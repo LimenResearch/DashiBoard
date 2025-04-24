@@ -33,8 +33,9 @@ Pipelines.visualize
 ## Cards
 
 ```@docs
-Pipelines.RescaleCard
 Pipelines.SplitCard
+Pipelines.RescaleCard
+Pipelines.ClusterCard
 Pipelines.GLMCard
 Pipelines.InterpCard
 Pipelines.GaussianEncodingCard

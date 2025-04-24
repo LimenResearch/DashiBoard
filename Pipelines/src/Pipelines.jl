@@ -3,10 +3,13 @@ module Pipelines
 export card_configurations, get_card
 
 export AbstractCard,
-    RescaleCard,
     SplitCard,
+    RescaleCard,
+    ClusterCard,
+    GLMCard,
     InterpCard,
-    GaussianEncodingCard
+    GaussianEncodingCard,
+    StreamlinerCard
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 
@@ -101,16 +104,20 @@ using StreamlinerCore: StreamlinerCore,
     Parser,
     default_parser,
     PARSER,
-    to_config
+    to_config,
+    get_rng
+
+using Clustering: assignments, kmeans, dbscan
 
 using Dates: hour, minute
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
-config_path(fn) = @path joinpath(@__DIR__, "..", "assets", fn)
+config_path(path...) = @path joinpath(@__DIR__, "..", "assets", path...)
 
 include("tables.jl")
 include("widgets.jl")
+include("utils.jl")
 
 include("funnels/basic.jl")
 
@@ -118,6 +125,7 @@ include("card.jl")
 
 include("cards/split.jl")
 include("cards/rescale.jl")
+include("cards/cluster.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")

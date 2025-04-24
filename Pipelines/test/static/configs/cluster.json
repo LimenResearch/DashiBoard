@@ -1,0 +1,23 @@
+{
+    "kmeans": {
+        "type": "cluster",
+        "method": "kmeans",
+        "columns": ["TEMP", "PRES"],
+        "output": "cluster",
+        "method_options":{
+            "classes": 3,
+            "iterations": 100,
+            "tol": 1e-6,
+            "seed": 1234
+        }
+    },
+    "dbscan": {
+        "type": "cluster",
+        "method": "dbscan",
+        "columns": ["TEMP", "PRES"],
+        "output": "dbcluster",
+        "method_options": {
+            "radius": 0.02
+        }
+    }
+}

@@ -1,11 +1,6 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
-const MODEL_OPTIONS_REGEX = r"^model_options\.(.*)_[0-9]*$"
-const TRAINING_OPTIONS_REGEX = r"^training_options\.(.*)_[0-9]*$"
-
-to_string_dict(d) = constructfrom(Dict{String, Any}, d)
-
 function parse_config(
         ::Type{T},
         parser::Parser,
@@ -19,20 +14,6 @@ function parse_config(
     delete!(config, "widgets")
     params = to_string_dict(options)
     return T(parser, config, params)
-end
-
-function extract_options(c::AbstractDict, key::Symbol, r::Regex)
-    return get(c, key) do
-        d = Dict{Symbol, Any}()
-        for (k, v) in pairs(c)
-            m = match(r, string(k))
-            if !isnothing(m)
-                # TODO: assert that key does not exist?
-                d[Symbol(m[1])] = v
-            end
-        end
-        return d
-    end
 end
 
 """
@@ -158,24 +139,6 @@ function list_tomls(dir)
     return [f for (f, ext) in fls if ext == ".toml"]
 end
 
-function push_generated_widgets!(
-        fields::AbstractVector{Widget},
-        ks::AbstractSet{<:AbstractString},
-        wdgs::AbstractVector,
-        type::Symbol,
-        name::AbstractString
-    )
-
-    for wdg in wdgs
-        get!(wdg, "visible", Dict(string(type) => [name]))
-        k = pop!(wdg, "key")
-        key = string(type, "_", "options", ".", k)
-        key′ = new_name(key, ks)
-        push!(fields, Widget(key′, wdg))
-        push!(ks, key′)
-    end
-end
-
 function CardWidget(::Type{StreamlinerCard})
 
     model_tomls = list_tomls(MODEL_DIR[])
@@ -191,18 +154,16 @@ function CardWidget(::Type{StreamlinerCard})
         Widget("suffix", value = "hat"),
     ]
 
-    ks = Set{String}(wdg.key for wdg in fields)
-
-    for m in model_tomls
+    for (idx, m) in enumerate(model_tomls)
         model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
         wdgs = get(model_config, "widgets", [])
-        push_generated_widgets!(fields, ks, wdgs, :model, m)
+        append!(fields, generate_widget.(wdgs, :model, m, idx))
     end
 
-    for t in training_tomls
+    for (idx, t) in enumerate(training_tomls)
         training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
         wdgs = get(training_config, "widgets", [])
-        push_generated_widgets!(fields, ks, wdgs, :training, t)
+        append!(fields, generate_widget.(wdgs, :training, t, idx))
     end
 
     return CardWidget(;

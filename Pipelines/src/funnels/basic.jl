@@ -8,13 +8,6 @@
     partition::Union{String, Nothing}
 end
 
-# note: with empty partition, DuckDB preserves order
-function id_table(data::DBData, col)
-    return From(data.table) |>
-        Partition() |>
-        Define(col => Agg.row_number())
-end
-
 struct Processor{N, D}
     data::DBData{N}
     device::D
@@ -57,8 +50,6 @@ function StreamlinerCore.get_nsamples(data::DBData, i::Int)
     return DBInterface.execute(x -> only(x).count, repository, q; schema)
 end
 
-get_id_col(ns) = new_name("id", ns)
-
 function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
     (; repository, schema, order_by, partition) = data
@@ -74,7 +65,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(order_by)
-        stream_query = id_table(data, id_col) |>
+        stream_query = id_table(data.table, id_col) |>
             filter_partition(partition, i) |>
             Order(by = sorters)
 
@@ -138,7 +129,7 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
         on = Get(id_col) .== Get(id_col, over = Get.eval),
         right = true
     )
-    query = id_table(data, id_col) |>
+    query = id_table(data.table, id_col) |>
         join_clause |>
         Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)

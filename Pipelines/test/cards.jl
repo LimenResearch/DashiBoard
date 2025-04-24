@@ -164,6 +164,31 @@ mktempdir() do dir
         @test df′.hour ≈ df.hour
     end
 
+    @testset "cluster" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "cluster.json"))
+
+        card = Pipelines.get_card(d["kmeans"])
+
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["TEMP", "PRES"])
+        @test issetequal(Pipelines.outputs(card), ["cluster"])
+
+        Pipelines.evaluate(repo, card, "selection" => "clustering")
+        df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "cluster",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+        rng = StreamlinerCore.get_rng(1234)
+        R = kmeans([train_df.TEMP train_df.PRES]', 3; maxiter = 100, tol = 1e-6, rng)
+        @test assignments(R) == df.cluster
+    end
+
     @testset "glm" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "glm.json"))
 

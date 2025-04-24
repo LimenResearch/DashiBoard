@@ -1,5 +1,5 @@
-function _kmeans(X; classes, iterations = 100, tol = 1.0e-6, options...)
-    return kmeans(X, classes; maxiter = iterations, tol, options...)
+function _kmeans(X; classes, iterations = 100, tol = 1.0e-6, seed = nothing, options...)
+    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), options...)
 end
 
 _dbscan(X; radius, options...) = dbscan(X, radius; options...)
@@ -77,7 +77,7 @@ function evaluate(
     id_col = get_id_col(ns)
 
     (; id, model) = jlddeserialize(state.content)
-    pred_table = Dict{String, Any}(
+    pred_table = Dict{String, AbstractVector}(
         id_col => id,
         cc.output => assignments(model)
     )
@@ -86,9 +86,9 @@ function evaluate(
     # https://github.com/JuliaStats/Clustering.jl/issues/63
     return with_table(repository, pred_table; schema) do tbl_name
         query = id_table(source, id_col) |>
-            LeftJoin(From(tbl_name), on = Get(id_col) .== Get(id_col, over = Get(tbl_name))) |>
-            Define(cc.output => Get(cc.output, over = Get(tbl_name)))
-        replace_table(repository, query, target; schema)
+            LeftJoin(tbl_name => From(tbl_name), on = Get(id_col) .== Get(id_col, over = Get(tbl_name))) |>
+            Select((ns .=> Get.(ns))..., cc.output => Get(cc.output, over = Get(tbl_name)))
+        replace_table(repository, query, destination; schema)
     end
 end
 

@@ -1,59 +1,47 @@
-const CLUSTERING_OPTIONS_REGEX = r"^clustering_options\.(.*)$"
-
-_kmeans(X; classes, options...) = kmeans(X, classes; options...)
-_dbscan(X; radius, options...) = dbscan(X, radius; options...)
-
-struct Clusterer
-    method::Base.Callable
-    trainable::Bool
+function _kmeans(X; classes, iterations = 100, tol = 1e-6, options...)
+    return kmeans(X, classes; maxiter = iterations, tol, options...)
 end
 
-const CLUSTERERS = OrderedDict{String, Clusterer}(
-    "kmeans" => Clusterer(_kmeans, true),
-    "dbscan" => Clusterer(_dbscan, false),
+_dbscan(X; radius, options...) = dbscan(X, radius; options...)
+
+const CLUSTER_FUNCTIONS = OrderedDict{String, Function}(
+    "kmeans" => _kmeans,
+    "dbscan" => _dbscan,
 )
 
+struct Clusterer
+    method::Function
+    options::Dict{Symbol, Any}
+end
+
+function Clusterer(method_name::AbstractString, d::AbstractDict)
+    method = CLUSTER_FUNCTIONS[method_name]
+    options = merge!(Dict{Symbol, Any}(), d)
+    # TODO: add preprocess for, e.g., metrics
+    return Clusterer(method, options)
+end
+
+# TODO: support weights and custom metrics
 struct ClusterCard <: AbstractCard
     clusterer::Clusterer
-    model_options::Dict{Symbol, Any}
-    training_options::Dict{Symbol, Any}
     columns::Vector{String}
     partition::Union{String, Nothing}
     output::String
 end
 
 function ClusterCard(c::AbstractDict)
-    method::String = c[:method]
-    clusterer::Clusterer = CLUSTERER[method]
-    model_options::Dict{Symbol, Any} = extract_options(c, :model_options, MODEL_OPTIONS_REGEX)
-    training_options::Dict{Symbol, Any} = extract_options(c, :training_options, TRAINING_OPTIONS_REGEX)
+    method_name::String = c[:method]
+    method_options::Dict{Symbol, Any} = extract_options(c, :method_options, METHOD_OPTIONS_REGEX)
+    clusterer::Clusterer = Clusterer(method_name, method_options)
     columns::Vector{String} = c[:columns]
+    partition::Union{String, Nothing} = get(c, :partition, nothing)
     output::String = get(c, :output, "cluster")
     return ClusterCard(
         clusterer,
-        model_options,
-        training_options,
         columns,
         partition,
         output
     )
-end
-
-function get_training_options(d::AbstractDict{Symbol})
-    options = Dict{Symbol, Any}(
-        :maxiter => get(d, :iterations, nothing),
-        :tol => get(d, :tol, nothing),
-    )
-    filter!(!isnothing ∘ last, options)
-    return options
-end
-
-function get_training_options(cc::ClusterCard)
-    return if cc.clusterer.trainable
-        get_training_options(cc.training_options)
-    else
-        Dict{Symbol, Any}()
-    end
 end
 
 invertible(::ClusterCard) = false
@@ -70,9 +58,8 @@ function train(repository::Repository, cc::ClusterCard, source::AbstractString; 
         Select(Get(id_col), Get.(cc.columns)...)
     t = DBInterface.execute(fromtable, repository, q; schema)
     X = stack(Fix1(getindex, t), cc.columns, dims = 1)
-    training_options = get_training_options(cc)
     id = t[id_col]
-    model = cc.clusterer.method(X; cc.model_options..., training_options...)
+    model = cc.clusterer.method(X; cc.clusterer.options...)
     return CardState(
         content = jldserialize((; id, model))
     )
@@ -103,4 +90,29 @@ function evaluate(
             Define(cc.output => Get(cc.output, over = Get(tbl_name)))
         replace_table(repository, query, target; schema)
     end
+end
+
+function CardWidget(::Type{ClusterCard})
+
+    method_names = collect(keys(CLUSTER_FUNCTIONS))
+
+    fields = Widget[
+        Widget("method", options = method_names),
+        Widget("columns"),
+        Widget("partition", required = false),
+        Widget("output"),
+    ]
+
+    for (idx, m) in enumerate(method_names)
+        method_config = parsefile(config_path("cluster", m * ".toml"))
+        wdgs = get(method_config, "widgets", [])
+        append!(fields, generate_widget.(wdgs, :method, m, idx))
+    end
+
+    return CardWidget(;
+        type = "cluster",
+        label = "Cluster",
+        output = OutputSpec("output"),
+        fields
+    )
 end

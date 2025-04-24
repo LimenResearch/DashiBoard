@@ -109,7 +109,7 @@ using Dates: hour, minute
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
-config_path(fn) = @path joinpath(@__DIR__, "..", "assets", fn)
+config_path(path...) = @path joinpath(@__DIR__, "..", "assets", path...)
 
 include("tables.jl")
 include("widgets.jl")

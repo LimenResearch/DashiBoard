@@ -1,5 +1,6 @@
 to_string_dict(d) = constructfrom(Dict{String, Any}, d)
 
+const METHOD_OPTIONS_REGEX = r"^method_options\.\d+\.(.*)$"
 const MODEL_OPTIONS_REGEX = r"^model_options\.\d+\.(.*)$"
 const TRAINING_OPTIONS_REGEX = r"^training_options\.\d+\.(.*)$"
 

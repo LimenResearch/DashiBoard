@@ -15,7 +15,7 @@
         "type": "cluster",
         "method": "dbscan",
         "columns": ["TEMP", "PRES"],
-        "output": "cluster",
+        "output": "dbcluster",
         "method_options": {
             "radius": 0.02
         }

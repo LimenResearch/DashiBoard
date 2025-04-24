@@ -187,6 +187,26 @@ mktempdir() do dir
         rng = StreamlinerCore.get_rng(1234)
         R = kmeans([train_df.TEMP train_df.PRES]', 3; maxiter = 100, tol = 1e-6, rng)
         @test assignments(R) == df.cluster
+
+        card = Pipelines.get_card(d["dbscan"])
+
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["TEMP", "PRES"])
+        @test issetequal(Pipelines.outputs(card), ["dbcluster"])
+
+        Pipelines.evaluate(repo, card, "selection" => "clustering")
+        df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "dbcluster",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+        R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
+        @test assignments(R) == df.dbcluster
     end
 
     @testset "glm" begin

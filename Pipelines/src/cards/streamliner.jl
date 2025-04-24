@@ -167,13 +167,13 @@ function CardWidget(::Type{StreamlinerCard})
 
     for (idx, m) in enumerate(model_tomls)
         model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
-        wdgs = get(model_config, "widgets", AbstractDict[])
+        wdgs = get(model_config, "widgets", [])
         append!(fields, generate_widget.(wdgs, :model, m, idx))
     end
 
     for (idx, t) in enumerate(training_tomls)
         training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
-        wdgs = get(training_config, "widgets", AbstractDict[])
+        wdgs = get(training_config, "widgets", [])
         append!(fields, generate_widget.(wdgs, :training, t, idx))
     end
 

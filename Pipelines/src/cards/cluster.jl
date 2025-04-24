@@ -22,6 +22,17 @@ function Clusterer(method_name::AbstractString, d::AbstractDict)
 end
 
 # TODO: support weights and custom metrics
+"""
+    struct ClusterCard <: AbstractCard
+        clusterer::Clusterer
+        columns::Vector{String}
+        partition::Union{String, Nothing}
+        output::String
+    end
+
+Cluster `columns` based on `clusterer`.
+Save resulting column as `output`.
+"""
 struct ClusterCard <: AbstractCard
     clusterer::Clusterer
     columns::Vector{String}

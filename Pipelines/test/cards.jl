@@ -185,7 +185,7 @@ mktempdir() do dir
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
         rng = StreamlinerCore.get_rng(1234)
-        R = kmeans([train_df.TEMP train_df.PRES]', 3; maxiter = 100, tol = 1e-6, rng)
+        R = kmeans([train_df.TEMP train_df.PRES]', 3; maxiter = 100, tol = 1.0e-6, rng)
         @test assignments(R) == df.cluster
 
         card = Pipelines.get_card(d["dbscan"])

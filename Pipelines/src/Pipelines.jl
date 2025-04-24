@@ -3,10 +3,13 @@ module Pipelines
 export card_configurations, get_card
 
 export AbstractCard,
-    RescaleCard,
     SplitCard,
+    RescaleCard,
+    ClusterCard,
+    GLMCard,
     InterpCard,
-    GaussianEncodingCard
+    GaussianEncodingCard,
+    StreamlinerCard
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 

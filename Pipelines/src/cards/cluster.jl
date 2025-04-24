@@ -1,4 +1,4 @@
-function _kmeans(X; classes, iterations = 100, tol = 1e-6, options...)
+function _kmeans(X; classes, iterations = 100, tol = 1.0e-6, options...)
     return kmeans(X, classes; maxiter = iterations, tol, options...)
 end
 

@@ -27,7 +27,7 @@ struct Projector
 end
 
 """
-    struct ProjectCard <: AbstractCard
+    struct DimensionalityReductionCard <: AbstractCard
         projector::Projector
         columns::Vector{String}
         partition::Union{String, Nothing}
@@ -37,7 +37,7 @@ end
 Project `columns` based on `projector`.
 Save resulting column as `output`.
 """
-struct ProjectCard <: AbstractCard
+struct DimensionalityReductionCard <: AbstractCard
     projector::Projector
     columns::Vector{String}
     partition::Union{String, Nothing}

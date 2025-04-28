@@ -63,9 +63,11 @@ function evaluation_order!(nodes::AbstractVector{Node})
     return order
 end
 
+# TODO: automatize card adding mechanism
 const CARD_TYPES = Dict(
     "split" => SplitCard,
     "rescale" => RescaleCard,
+    "project" => ProjectCard,
     "cluster" => ClusterCard,
     "glm" => GLMCard,
     "interp" => InterpCard,
@@ -164,6 +166,7 @@ function card_configurations(;
         split = (;),
         rescale = (;),
         cluster = (;),
+        project = (;),
         glm = (;),
         interp = (;),
         gaussian_encoding = (;),
@@ -174,6 +177,7 @@ function card_configurations(;
         "general" => parsefile(config_path("general.toml")),
         "split" => parsefile(config_path("split.toml")),
         "rescale" => parsefile(config_path("rescale.toml")),
+        "project" => parsefile(config_path("project.toml")),
         "cluster" => parsefile(config_path("cluster.toml")),
         "glm" => parsefile(config_path("glm.toml")),
         "interp" => parsefile(config_path("interp.toml")),
@@ -185,6 +189,7 @@ function card_configurations(;
         card_widget(d, "split"; split...),
         card_widget(d, "rescale"; rescale...),
         card_widget(d, "cluster"; cluster...),
+        card_widget(d, "project"; project...),
         card_widget(d, "glm"; glm...),
         card_widget(d, "interp"; interp...),
         card_widget(d, "gaussian_encoding"; gaussian_encoding...),

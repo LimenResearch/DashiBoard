@@ -4,7 +4,7 @@ end
 
 _dbscan(X; radius, options...) = dbscan(X, radius; options...)
 
-const CLUSTER_FUNCTIONS = OrderedDict{String, Function}(
+const CLUSTERING_FUNCTIONS = OrderedDict{String, Function}(
     "kmeans" => _kmeans,
     "dbscan" => _dbscan,
 )
@@ -15,7 +15,7 @@ struct Clusterer
 end
 
 function Clusterer(method_name::AbstractString, d::AbstractDict)
-    method = CLUSTER_FUNCTIONS[method_name]
+    method = CLUSTERING_FUNCTIONS[method_name]
     options = merge!(Dict{Symbol, Any}(), d)
     # TODO: add preprocess for, e.g., metrics
     return Clusterer(method, options)
@@ -105,7 +105,7 @@ end
 
 function CardWidget(::Type{ClusterCard})
 
-    method_names = collect(keys(CLUSTER_FUNCTIONS))
+    method_names = collect(keys(CLUSTERING_FUNCTIONS))
 
     fields = Widget[
         Widget("method", options = method_names),

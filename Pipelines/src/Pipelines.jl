@@ -6,6 +6,7 @@ export AbstractCard,
     SplitCard,
     RescaleCard,
     ClusterCard,
+    ProjectCard,
     GLMCard,
     InterpCard,
     GaussianEncodingCard,
@@ -109,6 +110,12 @@ using StreamlinerCore: StreamlinerCore,
 
 using Clustering: assignments, kmeans, dbscan
 
+using MultivariateStats: PCA,
+    PPCA,
+    FactorAnalysis,
+    ICA,
+    MDS
+
 using Dates: hour, minute
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
@@ -126,6 +133,7 @@ include("card.jl")
 include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/cluster.jl")
+include("cards/project.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")

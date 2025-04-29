@@ -125,6 +125,11 @@ const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
 config_path(path...) = @path joinpath(@__DIR__, "..", "assets", path...)
 
+function parseconfig(args...)
+    fs..., l = args
+    return parsefile(config_path(fs..., string(l, ".toml")))
+end
+
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")

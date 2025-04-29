@@ -122,8 +122,6 @@ function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
     end
 end
 
-parseconfig(k::AbstractString) = parsefile(config_path(string(k, ".toml")))
-
 function card_configurations(options::AbstractDict = Dict())
     d = Dict{String, AbstractDict}("general" => parseconfig("general"))
     for k in keys(CARD_TYPES)

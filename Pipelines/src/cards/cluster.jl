@@ -117,8 +117,8 @@ function CardWidget(::Type{ClusterCard})
     ]
 
     for (idx, m) in enumerate(method_names)
-        method_config = parsefile(config_path("cluster", m * ".toml"))
-        wdgs = get(method_config, "widgets", [])
+        method_config = parseconfig("cluster", m)
+        wdgs = get(method_config, "widgets", AbstractDict[])
         append!(fields, generate_widget.(wdgs, :method, m, idx))
     end
 

@@ -1,1 +1,5 @@
-
+[maxoutdim]
+widget = "input"
+label = "Maximum value"
+placeholder = "Select maximum value of column..."
+type = "number"

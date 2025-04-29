@@ -1,0 +1,21 @@
+[[widgets]]
+key = "iterations"
+widget = "input"
+label = "Iterations"
+placeholder = "Select number of iterations"
+type = "number"
+min = 1
+step = 1
+value = 100
+required = false
+
+[[widgets]]
+key = "tol"
+widget = "number"
+label = "Tolerance"
+placeholder = "Select tolerance"
+type = "number"
+min = 1e-6
+step = 1e-6
+value = 1e-6
+required = false

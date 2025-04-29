@@ -39,6 +39,8 @@ struct StreamlinerCard <: AbstractCard
     suffix::String
 end
 
+register_card("streamliner", StreamlinerCard)
+
 function StreamlinerCard(c::AbstractDict)
     order_by::Vector{String} = get(c, :order_by, String[])
     predictors::Vector{String} = get(c, :predictors, String[])

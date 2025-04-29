@@ -106,6 +106,8 @@ struct RescaleCard <: AbstractCard
     suffix::String
 end
 
+register_card("rescale", RescaleCard)
+
 function RescaleCard(c::AbstractDict)
     method::String = c[:method]
     rescaler::Rescaler = RESCALERS[method]

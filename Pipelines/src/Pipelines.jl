@@ -65,13 +65,16 @@ using FunSQL: render,
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
 using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
+
 using StatsAPI: fit, predict
+
 using Distributions: Distribution,
     Normal,
     Binomial,
     Gamma,
     InverseGaussian,
     Poisson
+
 using GLM: GeneralizedLinearModel,
     RegressionModel,
     canonicallink,
@@ -133,7 +136,7 @@ include("card.jl")
 include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/cluster.jl")
-include("cards/project.jl")
+include("cards/dimensionality_reduction.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")

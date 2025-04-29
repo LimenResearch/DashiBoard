@@ -40,6 +40,8 @@ struct ClusterCard <: AbstractCard
     output::String
 end
 
+register_card("cluster", ClusterCard)
+
 function ClusterCard(c::AbstractDict)
     method_name::String = c[:method]
     method_options::Dict{Symbol, Any} = extract_options(c, :method_options, METHOD_OPTIONS_REGEX)

@@ -1,17 +1,17 @@
-function _pca(X, maxoutdim)
-    return fit(PCA, X; maxoutdim)
+function _pca(X, n)
+    return fit(PCA, X; maxoutdim = n)
 end
 
-function _ppca(X, maxoutdim; iterations = 1000, tol = 1.0e-6)
-    return fit(PPCA, X; maxoutdim, maxiters = iterations, tol)
+function _ppca(X, n; iterations = 1000, tol = 1.0e-6)
+    return fit(PPCA, X; maxoutdim = n, maxiters = iterations, tol)
 end
 
-function _factoranalysis(X, maxoutdim; iterations = 1000, tol = 1.0e-6)
-    return fit(FactorAnalysis, X; maxoutdim, maxiters = iterations, tol)
+function _factoranalysis(X, n; iterations = 1000, tol = 1.0e-6)
+    return fit(FactorAnalysis, X; maxoutdim = n, maxiters = iterations, tol)
 end
 
-function _mds(X, maxoutdim)
-    return fit(MDS, X; maxoutdim)
+function _mds(X, n)
+    return fit(MDS, X; maxoutdim = n)
 end
 
 const PROJECTION_FUNCTIONS = OrderedDict{String, Function}(
@@ -30,7 +30,7 @@ end
     struct DimensionalityReductionCard <: AbstractCard
         projector::Projector
         columns::Vector{String}
-        maxoutdim::Int
+        components::Int
         partition::Union{String, Nothing}
         output::String
     end
@@ -41,7 +41,7 @@ Save resulting column as `output`.
 struct DimensionalityReductionCard <: AbstractCard
     projector::Projector
     columns::Vector{String}
-    maxoutdim::Int
+    components::Int
     partition::Union{String, Nothing}
     output::String
 end
@@ -53,13 +53,13 @@ function DimensionalityReductionCard(c::AbstractDict)
     method_options::Dict{Symbol, Any} = extract_options(c, :method_options, METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
     columns::Vector{String} = c[:columns]
-    maxoutdim::Int = c[:maxoutdim]
+    components::Int = c[:components]
     partition::Union{String, Nothing} = get(c, :partition, nothing)
     output::String = get(c, :output, "cluster")
     return ClusterCard(
         projector,
         columns,
-        maxoutdim,
+        components,
         partition,
         output
     )
@@ -129,7 +129,7 @@ function CardWidget(::Type{DimensionalityReductionCard})
     fields = Widget[
         Widget("method", options = method_names),
         Widget("columns"),
-        Widget("maxoutdim"),
+        Widget("components"),
         Widget("partition", required = false),
         Widget("output"),
     ]
@@ -143,7 +143,7 @@ function CardWidget(::Type{DimensionalityReductionCard})
     return CardWidget(;
         type = "dimensionality_reduction",
         label = "Dimensionality Reduction",
-        output = OutputSpec("output", nothing, "maxoutdim"),
+        output = OutputSpec("output", nothing, "components"),
         fields
     )
 end

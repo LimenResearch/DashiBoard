@@ -1,5 +1,5 @@
-[maxoutdim]
+[components]
 widget = "input"
-label = "Maximum value"
-placeholder = "Select maximum value of column..."
+label = "Number of components"
+placeholder = "Select number of components..."
 type = "number"

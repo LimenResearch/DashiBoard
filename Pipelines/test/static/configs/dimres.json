@@ -1,0 +1,18 @@
+{
+    "pca": {
+        "type": "dimensionality_reduction",
+        "method": "pca",
+        "partition": "partition",
+        "columns": ["DEWP", "TEMP", "PRES"],
+        "n_components": 2
+    },
+    "partition": {
+        "type": "split",
+        "method": "percentile",
+        "order_by": [
+            "No"
+        ],
+        "percentile": 0.9,
+        "output": "partition"
+    }
+}

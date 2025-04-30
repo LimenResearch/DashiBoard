@@ -1,4 +1,4 @@
-[components]
+[n_components]
 widget = "input"
 label = "Number of components"
 placeholder = "Select number of components..."

@@ -26,6 +26,11 @@ struct Projector
     options::Dict{Symbol, Any}
 end
 
+function Projector(method_name::AbstractString, d::AbstractDict)
+    method = PROJECTION_FUNCTIONS[method_name]
+    return Projector(method, d)
+end
+
 """
     struct DimensionalityReductionCard <: AbstractCard
         projector::Projector
@@ -41,7 +46,7 @@ Save resulting column as `output`.
 struct DimensionalityReductionCard <: AbstractCard
     projector::Projector
     columns::Vector{String}
-    components::Int
+    n_components::Int
     partition::Union{String, Nothing}
     output::String
 end
@@ -53,17 +58,21 @@ function DimensionalityReductionCard(c::AbstractDict)
     method_options::Dict{Symbol, Any} = extract_options(c, :method_options, METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
     columns::Vector{String} = c[:columns]
-    components::Int = c[:components]
+    n_components::Int = c[:n_components]
     partition::Union{String, Nothing} = get(c, :partition, nothing)
-    output::String = get(c, :output, "cluster")
-    return ClusterCard(
+    output::String = get(c, :output, "component")
+    return DimensionalityReductionCard(
         projector,
         columns,
-        components,
+        n_components,
         partition,
         output
     )
 end
+
+inputs(drc::DimensionalityReductionCard) = stringset(drc.columns, drc.partition)
+
+outputs(drc::DimensionalityReductionCard) = stringset(join_names.(drc.output, 1:drc.n_components))
 
 function train(
         repository::Repository,
@@ -74,13 +83,13 @@ function train(
 
     ns = colnames(repository, source; schema)
     id_col = get_id_col(ns)
-    q = id_table(table, id_col) |>
+    q = id_table(source, id_col) |>
         filter_partition(drc.partition) |> 
         Select(Get.(drc.columns)...)
 
     t = DBInterface.execute(fromtable, repository, q; schema)
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
-    model = drc.projector.method(X, drc.maxoutdim; drc.projector.options...)
+    model = drc.projector.method(X, drc.n_components; drc.projector.options...)
     return CardState(
         content = jldserialize(model)
     )
@@ -96,7 +105,7 @@ function evaluate(
 
     ns = colnames(repository, source; schema)
     id_col = get_id_col(ns)
-    q = id_table(table, id_col) |>
+    q = id_table(source, id_col) |>
         Select(Get(id_col), Get.(drc.columns)...)
 
     model = jlddeserialize(state.content)
@@ -105,19 +114,19 @@ function evaluate(
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
     Y = predict(model, X)
     M, N = size(Y)
-    ks = string.(drc.output, "_", 1:drc.maxoutdim)
+    ks = collect(outputs(drc))
 
     pred_table = Dict{String, AbstractVector}(
         id_col => t[id_col],
     )
-    for (i, k) in enumerate(keys)
+    for (i, k) in enumerate(ks)
         pred_table[k] = i ≤ M ? Y[i, :] : fill(missing, N)
     end
 
     return with_table(repository, pred_table; schema) do tbl_name
         query = id_table(source, id_col) |>
             Join(tbl_name => From(tbl_name), on = Get(id_col) .== Get(id_col, over = Get(tbl_name))) |>
-            Select((ns .=> Get.(ns))..., (ks .=> Get(ks, over = Get(tbl_name)))...)
+            Select((ns .=> Get.(ns))..., (ks .=> Get.(ks, over = Get(tbl_name)))...)
         replace_table(repository, query, destination; schema)
     end
 end
@@ -129,9 +138,9 @@ function CardWidget(::Type{DimensionalityReductionCard})
     fields = Widget[
         Widget("method", options = method_names),
         Widget("columns"),
-        Widget("components"),
+        Widget("n_components"),
         Widget("partition", required = false),
-        Widget("output"),
+        Widget("output", value = "component"),
     ]
 
     for (idx, m) in enumerate(method_names)
@@ -143,7 +152,7 @@ function CardWidget(::Type{DimensionalityReductionCard})
     return CardWidget(;
         type = "dimensionality_reduction",
         label = "Dimensionality Reduction",
-        output = OutputSpec("output", nothing, "components"),
+        output = OutputSpec("output", nothing, "n_components"),
         fields
     )
 end

@@ -209,6 +209,53 @@ mktempdir() do dir
         @test assignments(R) == df.dbcluster
     end
 
+    @testset "dimensionality reduction" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "dimres.json"))
+
+        part_card = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(repo, part_card, "selection" => "partition")
+        
+        card = Pipelines.get_card(d["pca"])
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["component_1", "component_2"])
+
+        Pipelines.evaluate(repo, card, "partition" => "dimres")
+        df = DBInterface.execute(DataFrame, repo, "FROM dimres")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "cluster",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+        rng = StreamlinerCore.get_rng(1234)
+        R = kmeans([train_df.TEMP train_df.PRES]', 3; maxiter = 100, tol = 1.0e-6, rng)
+        @test assignments(R) == df.cluster
+
+        card = Pipelines.get_card(d["dbscan"])
+
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["TEMP", "PRES"])
+        @test issetequal(Pipelines.outputs(card), ["dbcluster"])
+
+        Pipelines.evaluate(repo, card, "selection" => "clustering")
+        df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "dbcluster",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+        R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
+        @test assignments(R) == df.dbcluster
+    end
+
     @testset "glm" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "glm.json"))
 

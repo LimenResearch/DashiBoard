@@ -3,15 +3,15 @@ function _pca(X, n)
 end
 
 function _ppca(X, n; iterations = 1000, tol = 1.0e-6)
-    return fit(PPCA, X; maxoutdim = n, maxiters = iterations, tol)
+    return fit(PPCA, X; maxoutdim = n, maxiter = iterations, tol)
 end
 
 function _factoranalysis(X, n; iterations = 1000, tol = 1.0e-6)
-    return fit(FactorAnalysis, X; maxoutdim = n, maxiters = iterations, tol)
+    return fit(FactorAnalysis, X; maxoutdim = n, maxiter = iterations, tol)
 end
 
 function _mds(X, n)
-    return fit(MDS, X; maxoutdim = n)
+    return fit(MDS, X; maxoutdim = n, distances = false)
 end
 
 const PROJECTION_FUNCTIONS = OrderedDict{String, Function}(
@@ -70,6 +70,8 @@ function DimensionalityReductionCard(c::AbstractDict)
     )
 end
 
+invertible(::DimensionalityReductionCard) = false
+
 inputs(drc::DimensionalityReductionCard) = stringset(drc.columns, drc.partition)
 
 outputs(drc::DimensionalityReductionCard) = stringset(join_names.(drc.output, 1:drc.n_components))
@@ -84,7 +86,7 @@ function train(
     ns = colnames(repository, source; schema)
     id_col = get_id_col(ns)
     q = id_table(source, id_col) |>
-        filter_partition(drc.partition) |> 
+        filter_partition(drc.partition) |>
         Select(Get.(drc.columns)...)
 
     t = DBInterface.execute(fromtable, repository, q; schema)
@@ -112,7 +114,7 @@ function evaluate(
 
     t = DBInterface.execute(fromtable, repository, q; schema)
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
-    Y = predict(model, X)
+    Y = _predict(model, X)
     M, N = size(Y)
     ks = collect(outputs(drc))
 

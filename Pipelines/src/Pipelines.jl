@@ -66,7 +66,7 @@ using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
 using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
 
-using StatsAPI: fit, predict
+using StatsAPI: fit, predict, RegressionModel
 
 using Distributions: Distribution,
     Normal,
@@ -116,7 +116,6 @@ using Clustering: assignments, kmeans, dbscan
 using MultivariateStats: PCA,
     PPCA,
     FactorAnalysis,
-    ICA,
     MDS
 
 using Dates: hour, minute

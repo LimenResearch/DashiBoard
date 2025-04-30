@@ -68,3 +68,9 @@ function check_order(c::AbstractDict)
         )
     end
 end
+
+# Prediction utils
+
+_predict(m::RegressionModel, X::AbstractMatrix) = predict(m, X)
+
+_predict(m::MDS, X::AbstractMatrix) = stack(Fix1(vec ∘ predict, m), eachcol(X))

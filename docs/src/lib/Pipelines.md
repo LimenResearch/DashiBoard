@@ -36,6 +36,7 @@ Pipelines.visualize
 Pipelines.SplitCard
 Pipelines.RescaleCard
 Pipelines.ClusterCard
+Pipelines.DimensionalityReductionCard
 Pipelines.GLMCard
 Pipelines.InterpCard
 Pipelines.GaussianEncodingCard

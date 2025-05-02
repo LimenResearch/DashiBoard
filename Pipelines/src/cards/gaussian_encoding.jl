@@ -68,6 +68,8 @@ struct GaussianEncodingCard <: AbstractCard
     suffix::String
 end
 
+register_card("gaussian_encoding", GaussianEncodingCard)
+
 function GaussianEncodingCard(c::AbstractDict)
     column::String = c[:column]
     method::String = get(c, :method, "identity")

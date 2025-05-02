@@ -7,5 +7,5 @@
         Pipelines.card_configurations()
     )
     @test configs isa AbstractVector
-    @test length(configs) == 7
+    @test length(configs) == 8
 end

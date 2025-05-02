@@ -37,6 +37,8 @@ struct SplitCard <: AbstractCard
     output::String
 end
 
+register_card("split", SplitCard)
+
 function SplitCard(c::AbstractDict)
     splitter::SQLNode = get_splitter(c)
     order_by::Vector{String} = get(c, :order_by, String[])

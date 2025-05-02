@@ -39,6 +39,8 @@ struct StreamlinerCard <: AbstractCard
     suffix::String
 end
 
+register_card("streamliner", StreamlinerCard)
+
 function StreamlinerCard(c::AbstractDict)
     order_by::Vector{String} = get(c, :order_by, String[])
     predictors::Vector{String} = get(c, :predictors, String[])
@@ -156,13 +158,13 @@ function CardWidget(::Type{StreamlinerCard})
 
     for (idx, m) in enumerate(model_tomls)
         model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
-        wdgs = get(model_config, "widgets", [])
+        wdgs = get(model_config, "widgets", AbstractDict[])
         append!(fields, generate_widget.(wdgs, :model, m, idx))
     end
 
     for (idx, t) in enumerate(training_tomls)
         training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
-        wdgs = get(training_config, "widgets", [])
+        wdgs = get(training_config, "widgets", AbstractDict[])
         append!(fields, generate_widget.(wdgs, :training, t, idx))
     end
 

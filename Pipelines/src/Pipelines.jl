@@ -6,6 +6,7 @@ export AbstractCard,
     SplitCard,
     RescaleCard,
     ClusterCard,
+    DimensionalityReductionCard,
     GLMCard,
     InterpCard,
     GaussianEncodingCard,
@@ -64,13 +65,16 @@ using FunSQL: render,
 using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
 
 using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
-using StatsAPI: fit, predict
+
+using StatsAPI: fit, predict, RegressionModel
+
 using Distributions: Distribution,
     Normal,
     Binomial,
     Gamma,
     InverseGaussian,
     Poisson
+
 using GLM: GeneralizedLinearModel,
     RegressionModel,
     canonicallink,
@@ -109,11 +113,17 @@ using StreamlinerCore: StreamlinerCore,
 
 using Clustering: assignments, kmeans, dbscan
 
+using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
+
 using Dates: hour, minute
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
-config_path(path...) = @path joinpath(@__DIR__, "..", "assets", path...)
+function parse_toml_config(args...)
+    fs..., l = args
+    path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
+    return parsefile(path)
+end
 
 include("tables.jl")
 include("widgets.jl")
@@ -126,6 +136,7 @@ include("card.jl")
 include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/cluster.jl")
+include("cards/dimensionality_reduction.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")

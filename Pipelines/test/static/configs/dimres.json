@@ -1,0 +1,41 @@
+{
+    "pca": {
+        "type": "dimensionality_reduction",
+        "method": "pca",
+        "partition": "partition",
+        "columns": ["DEWP", "TEMP", "PRES"],
+        "n_components": 2
+    },
+    "ppca": {
+        "type": "dimensionality_reduction",
+        "method": "ppca",
+        "partition": "partition",
+        "columns": ["DEWP", "TEMP", "PRES"],
+        "n_components": 2,
+        "method_options": {"tol": 1e-5, "iterations": 100}
+    },
+    "factoranalysis": {
+        "type": "dimensionality_reduction",
+        "method": "factoranalysis",
+        "partition": "partition",
+        "columns": ["DEWP", "TEMP", "PRES"],
+        "n_components": 2,
+        "method_options": {"tol": 1e-5, "iterations": 100}
+    },
+    "mds": {
+        "type": "dimensionality_reduction",
+        "method": "mds",
+        "partition": "partition",
+        "columns": ["DEWP", "TEMP", "PRES"],
+        "n_components": 2
+    },
+    "partition": {
+        "type": "split",
+        "method": "percentile",
+        "order_by": [
+            "No"
+        ],
+        "percentile": 0.6,
+        "output": "partition"
+    }
+}

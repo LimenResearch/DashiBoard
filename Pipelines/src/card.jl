@@ -97,3 +97,42 @@ Overload this method (replacing `AbstractCard` with a specific card type)
 to implement a default visualization for a given card type.
 """
 visualize(::Repository, ::AbstractCard, ::CardState) = nothing
+
+# Construct cards
+
+const CARD_TYPES = OrderedDict{String, Type}()
+
+"""
+    get_card(d::AbstractDict)
+
+Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
+"""
+function get_card(d::AbstractDict)
+    c = to_config(d)
+    type = pop!(c, :type)
+    return CARD_TYPES[type](c)
+end
+
+# Generate widgets and widget configurations
+
+function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
+    return @with WIDGET_CONFIG => merge(d["general"], d[key]) begin
+        card = CARD_TYPES[key]
+        CardWidget(card; kwargs...)
+    end
+end
+
+function card_configurations(options::AbstractDict = Dict())
+    d = Dict{String, AbstractDict}("general" => parse_toml_config("general"))
+    for k in keys(CARD_TYPES)
+        d[k] = parse_toml_config(k)
+    end
+
+    options′ = to_string_dict(options)
+    return [card_widget(d, k; get(options′, k, (;))...) for k in keys(CARD_TYPES)]
+end
+
+function register_card(name::AbstractString, ::Type{T}) where {T <: AbstractCard}
+    CARD_TYPES[name] = T
+    return
+end

@@ -53,6 +53,8 @@ struct InterpCard <: AbstractCard
     suffix::String
 end
 
+register_card("interp", InterpCard)
+
 function InterpCard(c::AbstractDict)
     method::String = c[:method]
     interpolator::Interpolator = INTERPOLATORS[method]

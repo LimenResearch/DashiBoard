@@ -209,6 +209,136 @@ mktempdir() do dir
         @test assignments(R) == df.dbcluster
     end
 
+    @testset "dimensionality reduction" begin
+        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "dimres.json"))
+
+        DBInterface.execute(
+            Returns(nothing),
+            repo,
+            """
+            CREATE OR REPLACE TABLE small AS (
+                FROM selection
+                LIMIT 100
+            );
+            """
+        )
+        part_card = Pipelines.get_card(d["partition"])
+        Pipelines.evaluate(repo, part_card, "small" => "partition")
+
+        card = Pipelines.get_card(d["pca"])
+
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["component_1", "component_2"])
+
+        Pipelines.evaluate(repo, card, "partition" => "dimres")
+        df = DBInterface.execute(DataFrame, repo, "FROM dimres")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "partition", "component_1", "component_2",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
+        model = fit(PCA, [train_df.DEWP train_df.TEMP train_df.PRES]', maxoutdim = 2)
+        X = [df.DEWP df.TEMP df.PRES]'
+        Y = predict(model, X)
+        @test Y[1, :] == df.component_1
+        @test Y[2, :] == df.component_2
+
+        card = Pipelines.get_card(d["ppca"])
+
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["component_1", "component_2"])
+
+        Pipelines.evaluate(repo, card, "partition" => "dimres")
+        df = DBInterface.execute(DataFrame, repo, "FROM dimres")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "partition", "component_1", "component_2",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
+        model = fit(
+            PPCA,
+            [train_df.DEWP train_df.TEMP train_df.PRES]',
+            maxoutdim = 2,
+            tol = 1.0e-5,
+            maxiter = 100
+        )
+        X = [df.DEWP df.TEMP df.PRES]'
+        Y = predict(model, X)
+        @test Y[1, :] == df.component_1
+        @test Y[2, :] == df.component_2
+
+        card = Pipelines.get_card(d["factoranalysis"])
+
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["component_1", "component_2"])
+
+        Pipelines.evaluate(repo, card, "partition" => "dimres")
+        df = DBInterface.execute(DataFrame, repo, "FROM dimres")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "partition", "component_1", "component_2",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
+        model = fit(
+            FactorAnalysis,
+            [train_df.DEWP train_df.TEMP train_df.PRES]',
+            maxoutdim = 2,
+            tol = 1.0e-5,
+            maxiter = 100
+        )
+        X = [df.DEWP df.TEMP df.PRES]'
+        Y = predict(model, X)
+        @test Y[1, :] == df.component_1
+        @test Y[2, :] == df.component_2
+
+        card = Pipelines.get_card(d["mds"])
+
+        @test !Pipelines.invertible(card)
+        @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
+        @test issetequal(Pipelines.outputs(card), ["component_1", "component_2"])
+
+        Pipelines.evaluate(repo, card, "partition" => "dimres")
+        df = DBInterface.execute(DataFrame, repo, "FROM dimres")
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "partition", "component_1", "component_2",
+            ]
+        )
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
+        model = fit(
+            MDS,
+            [train_df.DEWP train_df.TEMP train_df.PRES]',
+            maxoutdim = 2,
+            distances = false
+        )
+        X = [df.DEWP df.TEMP df.PRES]'
+        Y = stack(x -> vec(predict(model, x)), eachcol(X))
+        @test Y[1, :] == df.component_1
+        @test Y[2, :] == df.component_2
+    end
+
     @testset "glm" begin
         d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "glm.json"))
 

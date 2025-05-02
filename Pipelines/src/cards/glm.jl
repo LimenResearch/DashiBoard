@@ -47,6 +47,8 @@ struct GLMCard <: AbstractCard
     suffix::String
 end
 
+register_card("glm", GLMCard)
+
 function GLMCard(c::AbstractDict)
     predictors::Vector{Any} = c[:predictors]
     target::String = c[:target]

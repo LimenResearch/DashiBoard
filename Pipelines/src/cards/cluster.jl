@@ -4,7 +4,7 @@ end
 
 _dbscan(X; radius, options...) = dbscan(X, radius; options...)
 
-const CLUSTER_FUNCTIONS = OrderedDict{String, Function}(
+const CLUSTERING_FUNCTIONS = OrderedDict{String, Function}(
     "kmeans" => _kmeans,
     "dbscan" => _dbscan,
 )
@@ -15,7 +15,7 @@ struct Clusterer
 end
 
 function Clusterer(method_name::AbstractString, d::AbstractDict)
-    method = CLUSTER_FUNCTIONS[method_name]
+    method = CLUSTERING_FUNCTIONS[method_name]
     options = merge!(Dict{Symbol, Any}(), d)
     # TODO: add preprocess for, e.g., metrics
     return Clusterer(method, options)
@@ -107,7 +107,7 @@ end
 
 function CardWidget(::Type{ClusterCard})
 
-    method_names = collect(keys(CLUSTER_FUNCTIONS))
+    method_names = collect(keys(CLUSTERING_FUNCTIONS))
 
     fields = Widget[
         Widget("method", options = method_names),
@@ -117,8 +117,8 @@ function CardWidget(::Type{ClusterCard})
     ]
 
     for (idx, m) in enumerate(method_names)
-        method_config = parsefile(config_path("cluster", m * ".toml"))
-        wdgs = get(method_config, "widgets", [])
+        method_config = parse_toml_config("cluster", m)
+        wdgs = get(method_config, "widgets", AbstractDict[])
         append!(fields, generate_widget.(wdgs, :method, m, idx))
     end
 

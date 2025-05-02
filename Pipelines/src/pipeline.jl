@@ -63,27 +63,6 @@ function evaluation_order!(nodes::AbstractVector{Node})
     return order
 end
 
-const CARD_TYPES = Dict(
-    "split" => SplitCard,
-    "rescale" => RescaleCard,
-    "cluster" => ClusterCard,
-    "glm" => GLMCard,
-    "interp" => InterpCard,
-    "gaussian_encoding" => GaussianEncodingCard,
-    "streamliner" => StreamlinerCard,
-)
-
-"""
-    get_card(d::AbstractDict)
-
-Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
-"""
-function get_card(d::AbstractDict)
-    c = to_config(d)
-    type = pop!(c, :type)
-    return CARD_TYPES[type](c)
-end
-
 """
     evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
 
@@ -121,65 +100,4 @@ function deevaluatenodes(repository::Repository, nodes::AbstractVector, table::A
         deevaluate(repository, node.card, node.state, table => table; schema)
     end
     return
-end
-
-filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
-
-function filter_partition(::Nothing, n::Integer = 1)
-    if n != 1
-        throw(ArgumentError("Data has not been split"))
-    end
-    return identity
-end
-
-function check_order(c::AbstractDict)
-    order_by = get(c, :order_by, String[])
-    if isempty(order_by)
-        throw(
-            ArgumentError(
-                """
-                At least one sorter is required.
-                """
-            )
-        )
-    end
-end
-
-function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
-    return @with WIDGET_CONFIG => merge(d["general"], d[key]) begin
-        card = CARD_TYPES[key]
-        CardWidget(card; kwargs...)
-    end
-end
-
-function card_configurations(;
-        split = (;),
-        rescale = (;),
-        cluster = (;),
-        glm = (;),
-        interp = (;),
-        gaussian_encoding = (;),
-        streamliner = (;),
-    )
-
-    d = Dict(
-        "general" => parsefile(config_path("general.toml")),
-        "split" => parsefile(config_path("split.toml")),
-        "rescale" => parsefile(config_path("rescale.toml")),
-        "cluster" => parsefile(config_path("cluster.toml")),
-        "glm" => parsefile(config_path("glm.toml")),
-        "interp" => parsefile(config_path("interp.toml")),
-        "gaussian_encoding" => parsefile(config_path("gaussian_encoding.toml")),
-        "streamliner" => parsefile(config_path("streamliner.toml")),
-    )
-
-    return [
-        card_widget(d, "split"; split...),
-        card_widget(d, "rescale"; rescale...),
-        card_widget(d, "cluster"; cluster...),
-        card_widget(d, "glm"; glm...),
-        card_widget(d, "interp"; interp...),
-        card_widget(d, "gaussian_encoding"; gaussian_encoding...),
-        card_widget(d, "streamliner"; streamliner...),
-    ]
 end

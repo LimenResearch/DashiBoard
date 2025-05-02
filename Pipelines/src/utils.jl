@@ -1,4 +1,18 @@
+# Set computation utils
+
+_union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)
+_union!(s::AbstractSet{<:AbstractString}, x::AbstractVector) = union!(s, x)
+_union!(s::AbstractSet{<:AbstractString}, ::Nothing) = s
+
+stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s), args); s)
+
+stringset(args...) = stringset!(OrderedSet{String}(), args...)
+
+# Dict conversion
+
 to_string_dict(d) = constructfrom(Dict{String, Any}, d)
+
+# Option computation and widget helpers
 
 const METHOD_OPTIONS_REGEX = r"^method_options\.\d+\.(.*)$"
 const MODEL_OPTIONS_REGEX = r"^model_options\.\d+\.(.*)$"

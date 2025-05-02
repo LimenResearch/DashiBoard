@@ -123,9 +123,9 @@ function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
 end
 
 function card_configurations(options::AbstractDict = Dict())
-    d = Dict{String, AbstractDict}("general" => parseconfig("general"))
+    d = Dict{String, AbstractDict}("general" => parse_toml_config("general"))
     for k in keys(CARD_TYPES)
-        d[k] = parseconfig(k)
+        d[k] = parse_toml_config(k)
     end
 
     options′ = to_string_dict(options)

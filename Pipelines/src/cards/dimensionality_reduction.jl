@@ -146,7 +146,7 @@ function CardWidget(::Type{DimensionalityReductionCard})
     ]
 
     for (idx, m) in enumerate(method_names)
-        method_config = parseconfig("dimensionality_reduction", m)
+        method_config = parse_toml_config("dimensionality_reduction", m)
         wdgs = get(method_config, "widgets", AbstractDict[])
         append!(fields, generate_widget.(wdgs, :method, m, idx))
     end

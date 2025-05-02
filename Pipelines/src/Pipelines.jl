@@ -119,11 +119,10 @@ using Dates: hour, minute
 
 const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
 
-config_path(path...) = @path joinpath(@__DIR__, "..", "assets", path...)
-
-function parseconfig(args...)
+function parse_toml_config(args...)
     fs..., l = args
-    return parsefile(config_path(fs..., string(l, ".toml")))
+    path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
+    return parsefile(path)
 end
 
 include("tables.jl")

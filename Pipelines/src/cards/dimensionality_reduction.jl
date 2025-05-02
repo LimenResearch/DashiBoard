@@ -35,7 +35,7 @@ end
     struct DimensionalityReductionCard <: AbstractCard
         projector::Projector
         columns::Vector{String}
-        components::Int
+        n_components::Int
         partition::Union{String, Nothing}
         output::String
     end

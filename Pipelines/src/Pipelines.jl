@@ -6,7 +6,7 @@ export AbstractCard,
     SplitCard,
     RescaleCard,
     ClusterCard,
-    ProjectCard,
+    DimensionalityReductionCard,
     GLMCard,
     InterpCard,
     GaussianEncodingCard,
@@ -113,10 +113,7 @@ using StreamlinerCore: StreamlinerCore,
 
 using Clustering: assignments, kmeans, dbscan
 
-using MultivariateStats: PCA,
-    PPCA,
-    FactorAnalysis,
-    MDS
+using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using Dates: hour, minute
 

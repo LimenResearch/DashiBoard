@@ -98,5 +98,15 @@
         targets = ["cbwd"],
         partition = "_tiled_partition"
     )
+    Pipelines.train!(data)
+
     batches = StreamlinerCore.stream(collect, data, 2, streaming)
+
+    @test size(batches[1].input) == (2, 32)
+    @test size(batches[1].target) == (4, 32)
+
+    @test StreamlinerCore.get_templates(data) === (
+        input = StreamlinerCore.Template(Float32, (2,)),
+        target = StreamlinerCore.Template(Float32, (4,)),
+    )
 end

@@ -128,6 +128,8 @@ function evaluate(
         partition = nothing
     )
 
+    # FIXME: avoid retraining here
+
     (; model, training, suffix) = s
     streaming = Streaming(; training.device, training.batchsize)
     # TODO: what should one not as prediction when output is categorical?

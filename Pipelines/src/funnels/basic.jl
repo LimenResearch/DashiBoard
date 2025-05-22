@@ -20,7 +20,7 @@ function train!(data::DBData)
 
     for (i, k) in zip(idxs, cols)
         T = schm.types[i]
-        if !isnumerical(nonmissingtype(T))
+        if !(nonmissingtype(T) <: Number) # TODO: what to do with booleans?
             q = src |> Group(Get(k)) |> Select(Get(k)) |> Order(Get(k))
             v = DBInterface.execute(Fix1(map, first), repository, q; schema)
             uvals[k] = v

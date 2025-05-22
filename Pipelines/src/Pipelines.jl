@@ -58,6 +58,7 @@ using FunSQL: render,
     Select,
     Order,
     Where,
+    Limit,
     From,
     LeftJoin,
     Join

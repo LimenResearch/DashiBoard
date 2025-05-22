@@ -6,6 +6,28 @@
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
+    uvals::Dict{String, AbstractVector} = Dict{String, AbstractVector}()
+end
+
+function train!(data::DBData)
+    (; repository, table, schema, predictors, targets, partition, uvals) = data
+
+    empty!(uvals)
+    src = From(table) |> filter_partition(partition)
+    schm = DBInterface.execute(Tables.schema, repository, src |> Limit(0); schema)
+    cols = union(predictors, targets)
+    idxs = indexin(Symbol.(cols), collect(schm.names))
+
+    for (i, k) in zip(idxs, cols)
+        T = schm.types[i]
+        if !isnumerical(nonmissingtype(T))
+            q = src |> Group(Get(k)) |> Select(Get(k)) |> Order(Get(k))
+            v = DBInterface.execute(Fix1(map, first), repository, q; schema)
+            uvals[k] = v
+        end
+    end
+
+    return data
 end
 
 struct Processor{N, D}
@@ -15,17 +37,27 @@ struct Processor{N, D}
 end
 
 function (p::Processor)(cols)
-    (; predictors, targets) = p.data
-    extract_column(k) = Tables.getcolumn(cols, Symbol(k))
-    input::Array{Float32, 2} = stack(extract_column, predictors, dims = 1)
-    target::Array{Float32, 2} = stack(extract_column, targets, dims = 1)
+    (; predictors, targets, uvals) = p.data
+    function extract_column(k)
+        v = Tables.getcolumn(cols, Symbol(k))
+        vals = get(uvals, k, nothing)
+        # TODO: better error handling here
+        return isnothing(vals) ? v' : isequal.(vals, permutedims(v))
+    end
+    input::Array{Float32, 2} = reduce(vcat, extract_column.(predictors))
+    target::Array{Float32, 2} = reduce(vcat, extract_column.(targets))
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
     return (; id, input = p.device(input), target = p.device(target))
 end
 
 function StreamlinerCore.get_templates(data::DBData)
-    input = Template(Float32, (length(data.predictors),))
-    target = Template(Float32, (length(data.targets),))
+    (; predictors, targets, uvals) = data
+    function ncols(k)
+        vals = get(uvals, k, nothing)
+        return isnothing(vals) ? 1 : length(vals)
+    end
+    input = Template(Float32, (sum(ncols, predictors),))
+    target = Template(Float32, (sum(ncols, targets),))
     return (; input, target)
 end
 

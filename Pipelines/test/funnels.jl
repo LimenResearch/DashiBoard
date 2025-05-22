@@ -88,4 +88,15 @@
 
     batches′ = StreamlinerCore.stream(collect, data, 2, streaming)
     @test batches′[1].input == batches[1].input # ensure determinism
+
+    data = Pipelines.DBData{2}(
+        repository = repo,
+        schema = schema,
+        table = "split",
+        order_by = ["No"],
+        predictors = ["TEMP", "PRES"],
+        targets = ["cbwd"],
+        partition = "_tiled_partition"
+    )
+    batches = StreamlinerCore.stream(collect, data, 2, streaming)
 end

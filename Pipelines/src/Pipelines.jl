@@ -45,6 +45,8 @@ using DuckDBUtils: DuckDBUtils,
     delete_table,
     colnames
 
+using DataIngestion: isnumerical
+
 using FunSQL: render,
     SQLNode,
     SQLCatalog,
@@ -58,6 +60,7 @@ using FunSQL: render,
     Select,
     Order,
     Where,
+    Limit,
     From,
     LeftJoin,
     Join

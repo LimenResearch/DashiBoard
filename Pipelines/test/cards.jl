@@ -639,5 +639,11 @@ mktempdir() do dir
         )
         @test all(x -> x isa AbstractString, result.cbwd_hat)
         @test nrow(origin) == nrow(result)
+
+        stats = Pipelines.report(repo, card, state)
+        @test stats["training"]["accuracy"] ≈ 0.34 atol = 1.0e-2
+        @test stats["validation"]["accuracy"] ≈ 0.36 atol = 1.0e-2
+        @test stats["training"]["logitcrossentropy"] ≈ 2.82 atol = 1.0e-2
+        @test stats["validation"]["logitcrossentropy"] ≈ 1.69 atol = 1.0e-2
     end
 end

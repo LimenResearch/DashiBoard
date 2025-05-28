@@ -145,6 +145,18 @@ function evaluate(
     end
 end
 
+exclude_nan(d::AbstractDict) = filter(!isnan ∘ last, d)
+
+function report(::Repository, sc::StreamlinerCard, state::CardState)
+    (; loss, metrics) = sc.model
+    syms = vcat([metricname(loss)], collect(Symbol, metricname.(metrics)))
+    names = string.(syms)
+    stats = jlddeserialize(state.content, "stats")
+    training = Dict(zip(names, stats[:, 1, end])) |> exclude_nan
+    validation = Dict(zip(names, stats[:, 2, end])) |> exclude_nan
+    return Dict("training" => training, "validation" => validation)
+end
+
 function list_tomls(dir)
     fls = Iterators.map(splitext, readdir(dir))
     return [f for (f, ext) in fls if ext == ".toml"]

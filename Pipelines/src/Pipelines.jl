@@ -14,7 +14,7 @@ export AbstractCard,
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 
-public evaluatenodes, deevaluatenodes, visualize, Node
+public evaluatenodes, deevaluatenodes, report, visualize, Node
 
 public to_config, default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
@@ -110,6 +110,7 @@ using StreamlinerCore: StreamlinerCore,
     default_parser,
     PARSER,
     to_config,
+    metricname,
     get_rng
 
 using Clustering: assignments, kmeans, dbscan

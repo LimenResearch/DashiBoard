@@ -1,10 +1,10 @@
-function column_length(k::AbstractString, uvals::AbstractDict)
+function column_number(k::AbstractString, uvals::AbstractDict)
     vals = get(uvals, k, nothing)
     return isnothing(vals) ? 1 : length(vals)
 end
 
 function column_indices(ks::AbstractVector, uvals::AbstractDict)
-    ns = map(Fix2(column_length, uvals), ks)
+    ns = map(Fix2(column_number, uvals), ks)
     cns = cumsum(ns)
     return @. range(cns - ns + 1, cns)
 end

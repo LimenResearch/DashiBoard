@@ -46,8 +46,8 @@ end
 
 function StreamlinerCore.get_templates(data::DBData)
     (; predictors, targets, uvals) = data
-    n_predictors = sum(Fix2(column_length, uvals), predictors)
-    n_targets = sum(Fix2(column_length, uvals), targets)
+    n_predictors = sum(Fix2(column_number, uvals), predictors)
+    n_targets = sum(Fix2(column_number, uvals), targets)
     input = Template(Float32, (n_predictors,))
     target = Template(Float32, (n_targets,))
     return (; input, target)

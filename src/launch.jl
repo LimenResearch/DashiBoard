@@ -113,5 +113,5 @@ function launch(
         end
     end
 
-    serve(; middleware = [CorsHandler], host, port, async)
+    return serve(; middleware = [CorsHandler], host, port, async)
 end

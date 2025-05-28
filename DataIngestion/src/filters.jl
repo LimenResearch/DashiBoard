@@ -103,5 +103,5 @@ function select(repository::Repository, filters::AbstractVector; schema = nothin
     params = mapfoldl(get_params, merge!, cs, init = Dict{String, Any}())
     pred = Fun.and(Iterators.map(get_pred, cs)...)
     node = From(TABLE_NAMES.source) |> Where(pred)
-    replace_table(repository, node, params, TABLE_NAMES.selection; schema)
+    return replace_table(repository, node, params, TABLE_NAMES.selection; schema)
 end

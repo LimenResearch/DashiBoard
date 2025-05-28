@@ -18,7 +18,7 @@ end
 
 function list_formats()
     items = string.("- `", keys(DEFAULT_READERS), "`")
-    join(items, ",\n")
+    return join(items, ",\n")
 end
 
 """
@@ -65,7 +65,7 @@ function load_files(
     SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     """
 
-    replace_table(repository, sql, files, TABLE_NAMES.source; schema)
+    return replace_table(repository, sql, files, TABLE_NAMES.source; schema)
 end
 
 # TODO: test table export

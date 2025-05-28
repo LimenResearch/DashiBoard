@@ -67,6 +67,7 @@ function check_order(c::AbstractDict)
             )
         )
     end
+    return true
 end
 
 # Prediction utils

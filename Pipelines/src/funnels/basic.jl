@@ -38,26 +38,18 @@ end
 
 function (p::Processor)(cols)
     (; predictors, targets, uvals) = p.data
-    function extract_column(k)
-        v = Tables.getcolumn(cols, Symbol(k))
-        vals = get(uvals, k, nothing)
-        # TODO: better error handling here
-        return isnothing(vals) ? v' : isequal.(vals, permutedims(v))
-    end
-    input::Array{Float32, 2} = reduce(vcat, extract_column.(predictors))
-    target::Array{Float32, 2} = reduce(vcat, extract_column.(targets))
+    input::Array{Float32, 2} = encode_columns(cols, predictors, uvals)
+    target::Array{Float32, 2} = encode_columns(cols, targets, uvals)
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
     return (; id, input = p.device(input), target = p.device(target))
 end
 
 function StreamlinerCore.get_templates(data::DBData)
     (; predictors, targets, uvals) = data
-    function ncols(k)
-        vals = get(uvals, k, nothing)
-        return isnothing(vals) ? 1 : length(vals)
-    end
-    input = Template(Float32, (sum(ncols, predictors),))
-    target = Template(Float32, (sum(ncols, targets),))
+    n_predictors = sum(Fix2(column_length, uvals), predictors)
+    n_targets = sum(Fix2(column_length, uvals), targets)
+    input = Template(Float32, (n_predictors,))
+    target = Template(Float32, (n_targets,))
     return (; input, target)
 end
 
@@ -94,7 +86,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     ns = colnames(data.repository, data.table; data.schema)
     id_col = get_id_col(ns)
 
-    with_connection(repository) do con
+    return with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(order_by)
         stream_query = id_table(data.table, id_col) |>
@@ -129,6 +121,7 @@ function append_batch(appender::DuckDBUtils.Appender, id, v)
         end
         DuckDBUtils.end_row(appender)
     end
+    return
 end
 
 function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination)
@@ -148,7 +141,7 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     appender = DuckDBUtils.Appender(data.repository.db, tmp, data.schema)
     for batch in eval_stream
         v = collect(batch.prediction)
-        append_batch(appender, batch.id, v)
+        append_batch(appender, batch.id, decode_columns(v, data.targets, data.uvals))
     end
     DuckDBUtils.close(appender)
 
@@ -165,5 +158,7 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
         join_clause |>
         Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)
+    # TODO: finally block to ensure table gets deleted
     delete_table(data.repository, tmp; data.schema)
+    return
 end

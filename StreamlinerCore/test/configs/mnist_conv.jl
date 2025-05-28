@@ -54,4 +54,5 @@ function test_mnist_conv(dir)
 
     result = train(outputdir, model, train_regression_data, training)
     @test !StreamlinerCore.has_weights(result)
+    return
 end

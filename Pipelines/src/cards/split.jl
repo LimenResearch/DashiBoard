@@ -72,7 +72,7 @@ function evaluate(
         Partition(; by, order_by) |>
         Define(s.output => s.splitter)
 
-    replace_table(repository, query, destination; schema)
+    return replace_table(repository, query, destination; schema)
 end
 
 function CardWidget(

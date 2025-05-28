@@ -22,4 +22,5 @@ function test_optim(dir)
     res = evaluate(outputdir, model, test_regression_data, streaming)
     @show size.(getproperty.(res, :prediction))
     println()
+    return
 end

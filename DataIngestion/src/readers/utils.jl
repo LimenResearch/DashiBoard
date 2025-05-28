@@ -9,16 +9,18 @@ function print_argument(io::IO, x::AbstractDict)
     print(io, "{")
     join(io, (string(to_sql(k), ": ", to_sql(v)) for (k, v) in pairs(x)), ", ")
     print(io, "}")
+    return
 end
 
 function print_argument(io::IO, x::AbstractVector)
     print(io, "[")
     join(io, Iterators.map(to_sql, x), ", ")
     print(io, "]")
+    return
 end
 
 function reader_call(reader::AbstractString, N::Integer, options::AbstractDict)
-    return sprint() do io
+    sprint() do io
         print(io, reader)
         print(io, "(")
         print(io, "[")
@@ -32,4 +34,5 @@ function reader_call(reader::AbstractString, N::Integer, options::AbstractDict)
         end
         print(io, ")")
     end
+    return
 end

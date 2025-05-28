@@ -2,6 +2,7 @@ function assert_columnaccess(cols)
     if !Tables.columnaccess(cols)
         throw(ArgumentError("Only column-based tables are accepted."))
     end
+    return true
 end
 
 """

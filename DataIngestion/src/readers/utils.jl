@@ -20,7 +20,7 @@ function print_argument(io::IO, x::AbstractVector)
 end
 
 function reader_call(reader::AbstractString, N::Integer, options::AbstractDict)
-    sprint() do io
+    return sprint() do io
         print(io, reader)
         print(io, "(")
         print(io, "[")
@@ -34,5 +34,4 @@ function reader_call(reader::AbstractString, N::Integer, options::AbstractDict)
         end
         print(io, ")")
     end
-    return
 end

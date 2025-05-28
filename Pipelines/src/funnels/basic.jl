@@ -113,11 +113,11 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     end
 end
 
-function append_batch(appender::DuckDBUtils.Appender, id, v)
+function append_batch(appender::DuckDBUtils.Appender, id, vs)
     for i in eachindex(id)
         DuckDBUtils.append(appender, id[i])
-        for j in axes(v, 1)
-            DuckDBUtils.append(appender, v[j, i])
+        for v in vs
+            DuckDBUtils.append(appender, v[i])
         end
         DuckDBUtils.end_row(appender)
     end

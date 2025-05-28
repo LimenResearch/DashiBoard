@@ -25,13 +25,13 @@ function decode_columns(mat, ks::AbstractVector, uvals::AbstractDict)
     rgs = column_indices(ks, uvals)
     return map(ks, rgs) do k, rg
         vals = get(uvals, k, nothing)
-        return if isnothing(vals)
+        if isnothing(vals)
             mat[only(rg), :]
         else
             m = mat[rg, :]
             I = argmax(m, dims = 1)
             is = getindex.(I, 1)
-            return uvals[is]
+            uvals[is]
         end
     end
 end

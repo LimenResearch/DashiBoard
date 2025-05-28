@@ -81,6 +81,24 @@ function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
 end
 
 """
+    report(repository::Repository, nodes::AbstractVector)
+
+Create default reports for all `nodes` referring to a given `repository`.
+Each node must be of type `Node`.
+"""
+function report(repository::Repository, nodes::AbstractVector)
+    return report.(Ref(repository), get_card.(nodes), get_state.(nodes))
+end
+
+"""
+    report(::Repository, ::AbstractCard, ::CardState)
+
+Overload this method (replacing `AbstractCard` with a specific card type)
+to implement a default report for a given card type.
+"""
+report(::Repository, ::AbstractCard, ::CardState) = nothing
+
+"""
     visualize(repository::Repository, nodes::AbstractVector)
 
 Create default visualizations for all `nodes` referring to a given `repository`.

@@ -24,4 +24,5 @@ function test_vae(dir)
     res = evaluate(outputdir, model, test_autoencoder_data, streaming)
     @show size.(getproperty.(res, :prediction))
     println()
+    return
 end

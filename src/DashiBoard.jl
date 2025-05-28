@@ -36,6 +36,7 @@ include("launch.jl")
 function __init__()
     cache = cache_directory()
     REPOSITORY[] = Repository(joinpath(cache, "db.duckdb"))
+    return
 end
 
 end

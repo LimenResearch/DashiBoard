@@ -12,4 +12,5 @@ function adjust_params!(optimizer, schedules::SymbolDict, N)
         params = (k => schedule(N) for (k, schedule) in pairs(schedules))
         adjust!(optimizer; params...)
     end
+    return
 end

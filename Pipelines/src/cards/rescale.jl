@@ -147,7 +147,7 @@ function pair_wise_group_by(
         Group(by = key) |>
         Select(key..., val...) |>
         Order(by = key)
-    DBInterface.execute(fromtable, repository, query; schema)
+    return DBInterface.execute(fromtable, repository, query; schema)
 end
 
 function train(repository::Repository, r::RescaleCard, source::AbstractString; schema = nothing)
@@ -186,7 +186,7 @@ function evaluate(
 
     stats_tbl = jlddeserialize(state.content)
 
-    if isempty(stats)
+    return if isempty(stats)
         query = From(source) |> Define(rescaled...)
         replace_table(repository, query, destination; schema)
     else
@@ -208,7 +208,7 @@ function deevaluate(
         schema = nothing
     )
 
-    evaluate(repository, r, state, source => destination; schema, invert = true)
+    return evaluate(repository, r, state, source => destination; schema, invert = true)
 end
 
 function CardWidget(::Type{RescaleCard})

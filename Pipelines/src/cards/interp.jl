@@ -131,7 +131,7 @@ function evaluate(
         t[pred_name] = ip(ŷ, x)
     end
 
-    load_table(repository, t, destination; schema)
+    return load_table(repository, t, destination; schema)
 end
 
 function CardWidget(::Type{InterpCard})

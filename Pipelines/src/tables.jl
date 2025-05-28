@@ -17,6 +17,7 @@ function new_name(c::AbstractString, cols)
         c′ = join_names(c, i)
         c′ in cols || return c′
     end
+    return
 end
 
 get_id_col(ns) = new_name("id", ns)

@@ -9,11 +9,11 @@ model = [
 ]
 
 [loss]
-name = "mse"
+name = "logitcrossentropy"
 agg = "mean"
 
 [[metrics]]
-name = "mae"
+name = "accuracy"
 agg = "mean"
 
 [[widgets]]

@@ -34,7 +34,7 @@ end
 function IntervalFilter(d::AbstractDict)
     colname, interval = d["colname"], d["interval"]
     left, right = interval["min"], interval["max"]
-    return IntervalFilter(colname, left .. right)
+    return IntervalFilter(colname, ClosedInterval(left, right))
 end
 
 function Condition(f::IntervalFilter, prefix::AbstractString)
@@ -103,5 +103,5 @@ function select(repository::Repository, filters::AbstractVector; schema = nothin
     params = mapfoldl(get_params, merge!, cs, init = Dict{String, Any}())
     pred = Fun.and(Iterators.map(get_pred, cs)...)
     node = From(TABLE_NAMES.source) |> Where(pred)
-    replace_table(repository, node, params, TABLE_NAMES.selection; schema)
+    return replace_table(repository, node, params, TABLE_NAMES.selection; schema)
 end

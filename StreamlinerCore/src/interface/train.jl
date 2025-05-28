@@ -61,6 +61,7 @@ function default_callback(m, trace::Trace; gc = true)
     )
 
     gc && GC.gc(false)
+    return
 end
 
 get_valid_loss(stats::NTuple{2, AbstractVector{<:Real}}) = first(stats[Int(DataPartition.validation)])

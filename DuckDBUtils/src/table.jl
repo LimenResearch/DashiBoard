@@ -58,7 +58,7 @@ function replace_table(
         query
     )
 
-    DBInterface.execute(Returns(nothing), repository, sql, params)
+    return DBInterface.execute(Returns(nothing), repository, sql, params)
 end
 
 function replace_table(
@@ -72,7 +72,7 @@ function replace_table(
 
     catalog = get_catalog(repository; schema)
     query, ps = render_params(catalog, node, params)
-    replace_table(repository, query, ps, name; schema, virtual)
+    return replace_table(repository, query, ps, name; schema, virtual)
 end
 
 function replace_table(
@@ -84,7 +84,7 @@ function replace_table(
     )
 
     params = NamedTuple()
-    replace_table(repository, query, params, name; schema, virtual)
+    return replace_table(repository, query, params, name; schema, virtual)
 end
 
 """
@@ -113,7 +113,7 @@ function delete_table(
         " ",
         in_schema(name, schema)
     )
-    DBInterface.execute(Returns(nothing), repository, sql)
+    return DBInterface.execute(Returns(nothing), repository, sql)
 end
 
 """
@@ -131,7 +131,7 @@ function load_table(repository::Repository, table, name::AbstractString; schema 
     # Temporarily register table in order to load it
     with_connection(con -> register_table(con, table, tempname), repository)
     replace_table(repository, string("FROM \"", tempname, "\";"), name; schema)
-    with_connection(con -> unregister_table(con, tempname), repository)
+    return with_connection(con -> unregister_table(con, tempname), repository)
 end
 
 """
@@ -143,7 +143,7 @@ unregister the table.
 function with_table(f, repository::Repository, table; schema = nothing)
     name = string(uuid4())
     load_table(repository, table, name; schema)
-    try
+    return try
         f(name)
     finally
         delete_table(repository, name; schema)

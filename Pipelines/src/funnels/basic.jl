@@ -6,6 +6,28 @@
     predictors::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
+    uvals::Dict{String, AbstractVector} = Dict{String, AbstractVector}()
+end
+
+function train!(data::DBData)
+    (; repository, table, schema, predictors, targets, partition, uvals) = data
+
+    empty!(uvals)
+    src = From(table) |> filter_partition(partition)
+    schm = DBInterface.execute(Tables.schema, repository, src |> Limit(0); schema)
+    cols = union(predictors, targets)
+    idxs = indexin(Symbol.(cols), collect(schm.names))
+
+    for (i, k) in zip(idxs, cols)
+        T = schm.types[i]
+        if !(nonmissingtype(T) <: Number) # TODO: what to do with booleans?
+            q = src |> Group(Get(k)) |> Select(Get(k)) |> Order(Get(k))
+            v = DBInterface.execute(Fix1(map, first), repository, q; schema)
+            uvals[k] = v
+        end
+    end
+
+    return data
 end
 
 struct Processor{N, D}
@@ -15,17 +37,19 @@ struct Processor{N, D}
 end
 
 function (p::Processor)(cols)
-    (; predictors, targets) = p.data
-    extract_column(k) = Tables.getcolumn(cols, Symbol(k))
-    input::Array{Float32, 2} = stack(extract_column, predictors, dims = 1)
-    target::Array{Float32, 2} = stack(extract_column, targets, dims = 1)
+    (; predictors, targets, uvals) = p.data
+    input::Array{Float32, 2} = encode_columns(cols, predictors, uvals)
+    target::Array{Float32, 2} = encode_columns(cols, targets, uvals)
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
     return (; id, input = p.device(input), target = p.device(target))
 end
 
 function StreamlinerCore.get_templates(data::DBData)
-    input = Template(Float32, (length(data.predictors),))
-    target = Template(Float32, (length(data.targets),))
+    (; predictors, targets, uvals) = data
+    n_predictors = sum(Fix2(column_number, uvals), predictors)
+    n_targets = sum(Fix2(column_number, uvals), targets)
+    input = Template(Float32, (n_predictors,))
+    target = Template(Float32, (n_targets,))
     return (; input, target)
 end
 
@@ -62,7 +86,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     ns = colnames(data.repository, data.table; data.schema)
     id_col = get_id_col(ns)
 
-    with_connection(repository) do con
+    return with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(order_by)
         stream_query = id_table(data.table, id_col) |>
@@ -89,14 +113,15 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     end
 end
 
-function append_batch(appender::DuckDBUtils.Appender, id, v)
+function append_batch(appender::DuckDBUtils.Appender, id, vs)
     for i in eachindex(id)
         DuckDBUtils.append(appender, id[i])
-        for j in axes(v, 1)
-            DuckDBUtils.append(appender, v[j, i])
+        for v in vs
+            DuckDBUtils.append(appender, v[i])
         end
         DuckDBUtils.end_row(appender)
     end
+    return
 end
 
 function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination)
@@ -109,14 +134,15 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     tbl = SimpleTable()
     tbl[id_col] = Int64[]
     for k in data.targets
-        tbl[k] = Float32[]
+        T = column_type(k, data.uvals)
+        tbl[k] = T[]
     end
     load_table(data.repository, tbl, tmp; data.schema)
 
     appender = DuckDBUtils.Appender(data.repository.db, tmp, data.schema)
     for batch in eval_stream
         v = collect(batch.prediction)
-        append_batch(appender, batch.id, v)
+        append_batch(appender, batch.id, decode_columns(v, data.targets, data.uvals))
     end
     DuckDBUtils.close(appender)
 
@@ -133,5 +159,7 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
         join_clause |>
         Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)
+    # TODO: finally block to ensure table gets deleted
     delete_table(data.repository, tmp; data.schema)
+    return
 end

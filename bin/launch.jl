@@ -27,7 +27,7 @@ function (@main)(ARGS)
 
     d = parse_args(ARGS, s)
 
-    launch(
+    return launch(
         d["data_directory"],
         host = d["host"],
         port = d["port"],

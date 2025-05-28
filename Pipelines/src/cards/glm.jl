@@ -113,7 +113,7 @@ function evaluate(
     pred_name = join_names(targetname(g), g.suffix)
     t[pred_name] = predict(model, t)
 
-    load_table(repository, t, destination; schema)
+    return load_table(repository, t, destination; schema)
 end
 
 function CardWidget(::Type{GLMCard})

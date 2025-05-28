@@ -58,6 +58,7 @@ using FunSQL: render,
     Select,
     Order,
     Where,
+    Limit,
     From,
     LeftJoin,
     Join
@@ -129,6 +130,7 @@ include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
 
+include("funnels/onehot.jl")
 include("funnels/basic.jl")
 
 include("card.jl")

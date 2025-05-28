@@ -30,6 +30,7 @@ function store_metrics!(fs, vs, res, i)
     foreach(fs, vs) do f, v
         v[i] = compute_metric(f, res)
     end
+    return
 end
 
 function compute_metrics(fs, model, iter)

@@ -52,7 +52,7 @@ connections to be acquired (defaults to `1`).
 """
 function with_connection(f, repository::Repository, N = Val{1}())
     cons = ntuple(_ -> acquire_connection(repository), N)
-    try
+    return try
         f(cons...)
     finally
         foreach(con -> release_connection(repository, con), cons)
@@ -65,13 +65,13 @@ end
 Extract the catalog of available tables from a `Repository` `repository`.
 """
 function get_catalog(repository::Repository; schema = nothing)
-    with_connection(repository) do con
+    return with_connection(repository) do con
         reflect(con; dialect = :duckdb, schema)
     end
 end
 
 function DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, params = (;))
-    with_connection(repository) do con
+    return with_connection(repository) do con
         DBInterface.execute(f, con, sql, params)
     end
 end

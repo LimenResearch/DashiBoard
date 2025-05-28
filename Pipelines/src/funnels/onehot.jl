@@ -31,7 +31,12 @@ function decode_columns(mat, ks::AbstractVector, uvals::AbstractDict)
             m = mat[rg, :]
             I = argmax(m, dims = 1)
             is = getindex.(I, 1)
-            uvals[is]
+            vals[is]
         end
     end
+end
+
+function column_type(k::AbstractString, uvals::AbstractDict)
+    vals = get(uvals, k, nothing)
+    return isnothing(vals) ? Float32 : eltype(vals)
 end

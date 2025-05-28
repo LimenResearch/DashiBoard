@@ -101,6 +101,7 @@ function train(
         # TODO: where to keep stats tensor?
         jldopen(path, "a") do file
             file["stats"] = StreamlinerCore.stats_tensor(result, dir)
+            file["uvals"] = data.uvals
         end
         content = StreamlinerCore.has_weights(result) ? read(path) : nothing
         metadata = to_string_dict(result)
@@ -118,18 +119,6 @@ function evaluate(
 
     isnothing(state.content) && throw(ArgumentError("Invalid state"))
 
-    data = DBData{1}(;
-        table = source,
-        repository,
-        schema,
-        s.order_by,
-        s.predictors,
-        s.targets,
-        partition = nothing
-    )
-
-    # FIXME: avoid retraining here
-
     (; model, training, suffix) = s
     streaming = Streaming(; training.device, training.batchsize)
     # TODO: what should one not as prediction when output is categorical?
@@ -137,6 +126,22 @@ function evaluate(
     return mktempdir() do dir
         path = StreamlinerCore.output_path(dir)
         write(path, state.content)
+        uvals = jldopen(path) do file
+            file["uvals"]
+        end
+        partition = nothing
+
+        data = DBData{1}(;
+            table = source,
+            repository,
+            schema,
+            s.order_by,
+            s.predictors,
+            s.targets,
+            partition,
+            uvals
+        )
+
         StreamlinerCore.evaluate(dir, model, data, streaming; destination, suffix)
     end
 end

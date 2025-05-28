@@ -134,7 +134,8 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     tbl = SimpleTable()
     tbl[id_col] = Int64[]
     for k in data.targets
-        tbl[k] = Float32[]
+        T = column_type(k, data.uvals)
+        tbl[k] = T[]
     end
     load_table(data.repository, tbl, tmp; data.schema)
 

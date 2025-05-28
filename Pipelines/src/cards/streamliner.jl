@@ -121,7 +121,6 @@ function evaluate(
 
     (; model, training, suffix) = s
     streaming = Streaming(; training.device, training.batchsize)
-    # TODO: what should one not as prediction when output is categorical?
 
     return mktempdir() do dir
         path = StreamlinerCore.output_path(dir)

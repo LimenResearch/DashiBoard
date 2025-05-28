@@ -34,7 +34,7 @@ end
 function IntervalFilter(d::AbstractDict)
     colname, interval = d["colname"], d["interval"]
     left, right = interval["min"], interval["max"]
-    return IntervalFilter(colname, left .. right)
+    return IntervalFilter(colname, ClosedInterval(left, right))
 end
 
 function Condition(f::IntervalFilter, prefix::AbstractString)

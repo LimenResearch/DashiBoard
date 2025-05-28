@@ -117,7 +117,6 @@ using Clustering: assignments, kmeans, dbscan
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using MLDataDevices: DeviceIterator
-using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using Dates: hour, minute
 

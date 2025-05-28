@@ -14,6 +14,9 @@ export function Spreadsheet(props) {
             <A href={getURL("processed-data")} download positive>
                 Download processed data
             </A>
+            <A onclick={() => downloadJSON("report.json", props.report)} download positive>
+                Download report
+            </A>
         </div>
     </div>;
 }

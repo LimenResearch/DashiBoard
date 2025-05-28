@@ -20,7 +20,7 @@ export function App() {
     const filtersData = initFilters();
     const pipelineData = initPipeline();
 
-    const [result, setResult] = createSignal({summaries: [], visualization: []})
+    const [result, setResult] = createSignal({summaries: [], visualization: [], report: []})
 
     const loadingTab = <Loader input={loaderData.input}></Loader>;
     const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;

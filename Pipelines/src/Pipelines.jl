@@ -110,6 +110,7 @@ using StreamlinerCore: StreamlinerCore,
     default_parser,
     PARSER,
     to_config,
+    metricname,
     get_rng
 
 using Clustering: assignments, kmeans, dbscan

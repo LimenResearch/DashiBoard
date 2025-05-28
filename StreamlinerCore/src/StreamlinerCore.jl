@@ -5,7 +5,7 @@ export default_parser
 export get_templates, get_metadata, get_nsamples
 export stream, finetune, train, loadmodel, validate, evaluate, summarize
 
-public has_weights, to_config, output_path, stats_path, stats_tensor
+public has_weights, to_config, output_path, stats_path, stats_tensor, metricname
 
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std

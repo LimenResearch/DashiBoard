@@ -30,6 +30,27 @@ function train!(data::DBData)
     return data
 end
 
+function train!(data::DBData)
+    (; repository, table, schema, predictors, targets, partition, uvals) = data
+
+    empty!(uvals)
+    src = From(table) |> filter_partition(partition)
+    schm = DBInterface.execute(Tables.schema, repository, src |> Limit(0); schema)
+    cols = union(predictors, targets)
+    idxs = indexin(Symbol.(cols), collect(schm.names))
+
+    for (i, k) in zip(idxs, cols)
+        T = schm.types[i]
+        if !(nonmissingtype(T) <: Number) # TODO: what to do with booleans?
+            q = src |> Group(Get(k)) |> Select(Get(k)) |> Order(Get(k))
+            v = DBInterface.execute(Fix1(map, first), repository, q; schema)
+            uvals[k] = v
+        end
+    end
+
+    return data
+end
+
 struct Processor{N}
     data::DBData{N}
     id::String

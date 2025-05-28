@@ -7,6 +7,7 @@ using MLUtils: flatten, numobs, getobs, DataLoader
 using Optimisers: Adam
 using ParameterSchedulers: CosAnneal
 using MLDatasets: MNIST
+using MLDataDevices: CPUDevice
 using JLD2
 using ChainRulesTestUtils
 using Test, Random
@@ -135,7 +136,7 @@ test_prediction_data = Data{1}(
 
 @info "Regression data summary statistics"
 
-streaming = Streaming(batchsize = 32, device = cpu)
+streaming = Streaming(batchsize = 32, device = CPUDevice())
 
 StreamlinerCore.stream(train_regression_data, DataPartition.training, streaming) do train_stream
     @show length(train_stream)

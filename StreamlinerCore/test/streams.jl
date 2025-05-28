@@ -8,7 +8,7 @@
     d_train = Flux.DataLoader((train_x[:, :, :, train_idxs], train_y[:, train_idxs]); batchsize)
     d_valid = Flux.DataLoader((train_x[:, :, :, valid_idxs], train_y[:, valid_idxs]); batchsize)
 
-    streaming = Streaming(; batchsize, device = cpu)
+    streaming = Streaming(; batchsize, device = CPUDevice())
 
     StreamlinerCore.stream(train_regression_data, DataPartition.training, streaming) do train_stream
         for ((x1, y1), (x2, y2)) in zip(train_stream, d_train)

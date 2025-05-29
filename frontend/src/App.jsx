@@ -26,13 +26,17 @@ export function App() {
     const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;
     const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
 
-    const spreadsheetTab = <Spreadsheet sourceMetadata={loaderData.output()} selectionMetadata={result().summaries}></Spreadsheet>;
-    const visualizationTab = <Visualization visualization={result().visualization}></Visualization>;
-
     const spec = () => ({
         filters: filtersData.output(),
         cards: pipelineData.output()
     });
+
+    const spreadsheetTab = <Spreadsheet
+        sourceMetadata={loaderData.output()}
+        selectionMetadata={result().summaries}
+        report={result().report}
+        cards={spec().cards}></Spreadsheet>;
+    const visualizationTab = <Visualization visualization={result().visualization}></Visualization>;
 
     const isValid = () => spec().cards.every(c => c != null);
 

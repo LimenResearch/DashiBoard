@@ -31,9 +31,6 @@ stream_file(stream::IO, path::AbstractString) = open(io -> write(stream, io), pa
 stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
-stringify_report(::Nothing) = nothing
-stringify_report(x) = JSON3.write(x)
-
 function launch(
         data_directory;
         host = "127.0.0.1",
@@ -75,10 +72,9 @@ function launch(
         cards = with_scoped_values(() -> get_card.(spec["cards"]))
         DataIngestion.select(REPOSITORY[], filters)
         nodes = Pipelines.evaluate(REPOSITORY[], cards, "selection")
+        report = Pipelines.report(REPOSITORY[], nodes)
         vs = Pipelines.visualize(REPOSITORY[], nodes)
-        rs = Pipelines.report(REPOSITORY[], nodes)
         visualization = stringify_visualization.(vs)
-        report = stringify_report.(rs)
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
         return JSON3.write((; summaries, visualization, report))
     end

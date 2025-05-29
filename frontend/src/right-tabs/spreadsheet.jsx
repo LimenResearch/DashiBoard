@@ -1,8 +1,14 @@
-import { A } from "../components/button";
+import { A, Button } from "../components/button";
 import { TableView } from "../components/table-view";
-import { getURL } from "../requests";
+import { downloadJSON, getURL } from "../requests";
 
 const headerClass = "text-xl font-semibold text-left py-2 text-blue-800";
+
+function downloadReport(report, cards) {
+    const list = cards.map((card, i) => ({card, report: report[i]}));
+    const str = JSON.stringify(list);
+    downloadJSON("report.json", str);
+}
 
 export function Spreadsheet(props) {
     return <div>
@@ -14,9 +20,9 @@ export function Spreadsheet(props) {
             <A href={getURL("processed-data")} download positive>
                 Download processed data
             </A>
-            <A onclick={() => downloadJSON("report.json", props.report)} download positive>
+            <Button onClick={() => downloadReport(props.report, props.cards)} download positive>
                 Download report
-            </A>
+            </Button>
         </div>
     </div>;
 }

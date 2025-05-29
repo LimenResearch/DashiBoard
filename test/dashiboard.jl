@@ -48,17 +48,19 @@ mktempdir() do data_dir
         configs = JSON3.read(resp.body)
         @test configs isa AbstractVector
         @test length(configs) == 8
+        @test ("Access-Control-Allow-Origin" => "*") in resp.headers
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load", body = body)
         summaries = JSON3.read(resp.body)
         @test summaries[end]["name"] == "_name"
+        @test ("Access-Control-Allow-Origin" => "*") in resp.headers
 
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
         resp = HTTP.post(url * "pipeline", body = body)
         summaries = JSON3.read(resp.body)["summaries"]
-
         @test summaries[end]["name"] == "_percentile_partition"
+        @test ("Access-Control-Allow-Origin" => "*") in resp.headers
 
         HTTP.open("GET", url * "processed-data", headers = Dict("Connection" => "close")) do stream
             r = startread(stream)

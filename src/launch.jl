@@ -3,7 +3,7 @@ const ALLOWED_ORIGINS = ["Access-Control-Allow-Origin" => "*"]
 const CORS_HEADERS = [
     ALLOWED_ORIGINS...,
     "Access-Control-Allow-Headers" => "*",
-    "Access-Control-Allow-Methods" => "GET, POST",
+    "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
 ]
 
 function CorsHandler(handle)
@@ -72,10 +72,11 @@ function launch(
         cards = with_scoped_values(() -> get_card.(spec["cards"]))
         DataIngestion.select(REPOSITORY[], filters)
         nodes = Pipelines.evaluate(REPOSITORY[], cards, "selection")
+        report = Pipelines.report(REPOSITORY[], nodes)
         vs = Pipelines.visualize(REPOSITORY[], nodes)
         visualization = stringify_visualization.(vs)
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-        return JSON3.write((; summaries, visualization))
+        return JSON3.write((; summaries, visualization, report))
     end
 
     @post "/fetch" function (req::HTTP.Request)

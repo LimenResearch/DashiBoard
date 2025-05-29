@@ -1,0 +1,27 @@
+name = "basic"
+seed = 1234
+
+[components]
+
+model = [
+    { name = "dense", features = {"-v" = "features"}, sigma = "relu" },
+    { name = "dense" },
+]
+
+[loss]
+name = "logitcrossentropy"
+agg = "mean"
+
+[[metrics]]
+name = "accuracy"
+agg = "mean"
+
+[[widgets]]
+key = "features"
+widget = "input"
+label = "Features"
+placeholder = "Select number of features"
+type = "number"
+min = 1
+step = 1
+value = 5

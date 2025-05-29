@@ -3,7 +3,7 @@ const ALLOWED_ORIGINS = ["Access-Control-Allow-Origin" => "*"]
 const CORS_HEADERS = [
     ALLOWED_ORIGINS...,
     "Access-Control-Allow-Headers" => "*",
-    "Access-Control-Allow-Methods" => "GET, POST",
+    "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
 ]
 
 function CorsHandler(handle)

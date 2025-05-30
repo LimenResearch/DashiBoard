@@ -26,7 +26,10 @@ function launch(
         Pipelines.TRAINING_DIR => training_directory,
     )
 
-    router = HTTP.Router()
+    router = HTTP.Router(
+        HTTP.streamhandler(cors404),
+        HTTP.streamhandler(cors405),
+    )
 
     function list_handler(::HTTP.Request)
         files = collect(String, acceptable_files(data_directory))

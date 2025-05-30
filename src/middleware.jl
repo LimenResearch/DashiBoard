@@ -35,3 +35,6 @@ function CorsHandlerStream(handler)
 end
 
 stream_middleware(handler) = CorsHandlerStream(handler)
+
+cors404(::HTTP.Request) = HTTP.Response(404, CORS_RES_HEADERS, "")
+cors405(::HTTP.Request) = HTTP.Response(405, CORS_RES_HEADERS, "")

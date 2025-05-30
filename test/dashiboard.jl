@@ -4,8 +4,7 @@ using Scratch: @get_scratch!
 using Test
 using Downloads: download
 
-# mktempdir() do data_dir
-data_dir = mktempdir()
+mktempdir() do data_dir
     download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(data_dir, "pollution.csv")
@@ -53,7 +52,6 @@ data_dir = mktempdir()
             DashiBoard.CORS_RES_HEADERS...,
             "Transfer-Encoding" => "chunked"
         ]
-        resp = HTTP.request("OPTIONS", url * "card-configurations", body = body)
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load", body = body)
@@ -87,11 +85,6 @@ data_dir = mktempdir()
                 "Transfer-Encoding" => "chunked",
                 "Content-Length" => "360326",
             ]
-        end
-
-        HTTP.open("OPTIONS", url * "processed-data", headers = Dict("Connection" => "close")) do stream
-            r = startread(stream)
-            @show r.headers
         end
     end
 

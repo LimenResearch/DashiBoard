@@ -25,7 +25,6 @@ function CorsHandlerStream(handler)
     return function (stream::HTTP.Stream)
         if HTTP.method(stream.message) == "OPTIONS"
             setheaders(stream, CORS_OPTIONS_HEADERS)
-            startwrite(stream)
         else
             setheaders(stream, CORS_RES_HEADERS)
             handler(stream)

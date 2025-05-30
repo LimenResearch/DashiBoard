@@ -102,8 +102,8 @@ function launch(
     HTTP.register!(router, "GET", "/processed-data", stream_middleware(processed_data_handler))
 
     return if async
-        HTTP.serve!(router |> CorsMiddleware, host, port, stream = true)
+        HTTP.serve!(router, host, port, stream = true)
     else
-        HTTP.serve(router |> CorsMiddleware, host, port, stream = true)
+        HTTP.serve(router, host, port, stream = true)
     end
 end

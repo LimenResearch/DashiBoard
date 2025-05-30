@@ -1,22 +1,18 @@
-const POST_HEADERS = [
-    "Access-Control-Allow-Origin" => "*",
-    "Access-Control-Allow-Methods" => "GET, POST",
-    "Access-Control-Allow-Credentials" => "true",
-]
+const CORS_RES_HEADERS = ["Access-Control-Allow-Origin" => "*"]
 
-const OPTIONS_HEADERS = [
+const CORS_OPTIONS_HEADERS = [
     "Access-Control-Allow-Origin" => "*",
     "Access-Control-Allow-Headers" => "*",
-    "Access-Control-Allow-Methods" => "GET, POST",
+    "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
 ]
 
 function CorsHandlerRequest(handler)
     return function (req::HTTP.Request)
         return if HTTP.method(req) == "OPTIONS"
-            HTTP.Response(200, OPTIONS_HEADERS)
+            HTTP.Response(200, CORS_OPTIONS_HEADERS)
         else
             r = handler(req)
-            r isa HTTP.Response ? r : HTTP.Response(200, POST_HEADERS, r)
+            r isa HTTP.Response ? r : HTTP.Response(200, CORS_RES_HEADERS, r)
         end
     end
 end
@@ -28,9 +24,10 @@ setheaders(stream::HTTP.Stream, headers) = foreach(Fix1(HTTP.setheader, stream),
 function CorsHandlerStream(handler)
     return function (stream::HTTP.Stream)
         if HTTP.method(stream.message) == "OPTIONS"
-            setheaders(stream, OPTIONS_HEADERS)
+            setheaders(stream, CORS_OPTIONS_HEADERS)
+            startwrite(stream)
         else
-            setheaders(stream, POST_HEADERS)
+            setheaders(stream, CORS_RES_HEADERS)
             handler(stream)
         end
         return

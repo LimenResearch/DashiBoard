@@ -2,11 +2,11 @@ module DashiBoard
 
 public launch
 
+using Base: Fix1, Fix2
+
 using Base.ScopedValues: with
 
 using HTTP: HTTP, startwrite, closewrite
-
-using Oxygen: json, @post, @stream, serve
 
 using Scratch: @get_scratch!
 
@@ -31,6 +31,7 @@ const cache_directory() = @get_scratch!("cache")
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
 
+include("middleware.jl")
 include("launch.jl")
 
 function __init__()

@@ -1,24 +1,3 @@
-const ALLOWED_ORIGINS = ["Access-Control-Allow-Origin" => "*"]
-
-const CORS_HEADERS = [
-    ALLOWED_ORIGINS...,
-    "Access-Control-Allow-Headers" => "*",
-    "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
-]
-
-function CorsHandler(handle)
-    return function (req::HTTP.Request)
-        # return headers on OPTIONS request
-        if HTTP.method(req) == "OPTIONS"
-            return HTTP.Response(200, CORS_HEADERS)
-        else
-            r = handle(req)
-            append!(r.headers, ALLOWED_ORIGINS)
-            return r
-        end
-    end
-end
-
 function acceptable_files(data_directory)
     return Iterators.flatmap(walkdir(data_directory)) do (root, _, files)
         rel_root = relpath(root, data_directory)
@@ -47,27 +26,32 @@ function launch(
         Pipelines.TRAINING_DIR => training_directory,
     )
 
-    @post "/list" function (req::HTTP.Request)
+    router = HTTP.Router()
+
+    function list_handler(::HTTP.Request)
         files = collect(String, acceptable_files(data_directory))
         return JSON3.write(files)
     end
+    HTTP.register!(router, "POST", "/list", request_middleware(list_handler))
 
-    @post "/load" function (req::HTTP.Request)
-        spec = json(req)
+    function load_handler(req::HTTP.Request)
+        spec = JSON3.read(req.body)
         files = joinpath.(data_directory, spec["files"])
         DataIngestion.load_files(REPOSITORY[], files)
         summaries = DataIngestion.summarize(REPOSITORY[], "source")
         return JSON3.write(summaries)
     end
+    HTTP.register!(router, "POST", "/load", request_middleware(load_handler))
 
-    @post "/card-configurations" function (req::HTTP.Request)
-        spec = json(req) |> to_config
+    function card_configurations_handler(req::HTTP.Request)
+        spec = JSON3.read(req.body) |> to_config
         configs = with_scoped_values(() -> Pipelines.card_configurations(; spec...))
         return JSON3.write(configs)
     end
+    HTTP.register!(router, "POST", "/card-configurations", request_middleware(card_configurations_handler))
 
-    @post "/pipeline" function (req::HTTP.Request)
-        spec = json(req)
+    function pipeline_handler(req::HTTP.Request)
+        spec = JSON3.read(req.body)
         filters = get_filter.(spec["filters"])
         cards = with_scoped_values(() -> get_card.(spec["cards"]))
         DataIngestion.select(REPOSITORY[], filters)
@@ -78,9 +62,10 @@ function launch(
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
         return JSON3.write((; summaries, visualization, report))
     end
+    HTTP.register!(router, "POST", "/pipeline", request_middleware(pipeline_handler))
 
-    @post "/fetch" function (req::HTTP.Request)
-        spec = json(req)
+    function fetch_handler(req::HTTP.Request)
+        spec = JSON3.read(req.body)
         table = spec["processed"] ? "selection" : "source"
         io = IOBuffer()
         print(io, "{\"values\": ")
@@ -98,8 +83,9 @@ function launch(
         print(io, " , \"length\": ", count.nrows, "}")
         return String(take!(io))
     end
+    HTTP.register!(router, "POST", "/fetch", request_middleware(fetch_handler))
 
-    @stream "/processed-data" function (stream::HTTP.Stream)
+    function processed_data_handler(stream::HTTP.Stream)
         mktempdir() do dir
             path = joinpath(dir, "processed-data.csv")
             export_table(REPOSITORY[], path)
@@ -113,6 +99,11 @@ function launch(
             closewrite(stream)
         end
     end
+    HTTP.register!(router, "GET", "/processed-data", stream_middleware(processed_data_handler))
 
-    return serve(; middleware = [CorsHandler], host, port, async)
+    return if async
+        HTTP.serve!(router |> CorsMiddleware, host, port, stream = true)
+    else
+        HTTP.serve(router |> CorsMiddleware, host, port, stream = true)
+    end
 end

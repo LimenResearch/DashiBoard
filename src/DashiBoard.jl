@@ -4,9 +4,7 @@ public launch
 
 using Base.ScopedValues: with
 
-using HTTP: HTTP, startwrite, closewrite
-
-using Oxygen: json, @post, @stream, serve
+using HTTP: HTTP, startwrite
 
 using Scratch: @get_scratch!
 
@@ -31,6 +29,7 @@ const cache_directory() = @get_scratch!("cache")
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
 
+include("middleware.jl")
 include("launch.jl")
 
 function __init__()

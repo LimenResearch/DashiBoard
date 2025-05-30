@@ -35,7 +35,7 @@ function launch(
         files = collect(String, acceptable_files(data_directory))
         return JSON3.write(files)
     end
-    HTTP.register!(router, "POST", "/list", request_middleware(list_handler))
+    register_handler!(router, "POST", "/list", list_handler)
 
     function load_handler(req::HTTP.Request)
         spec = JSON3.read(req.body)
@@ -44,14 +44,14 @@ function launch(
         summaries = DataIngestion.summarize(REPOSITORY[], "source")
         return JSON3.write(summaries)
     end
-    HTTP.register!(router, "POST", "/load", request_middleware(load_handler))
+    register_handler!(router, "POST", "/load", load_handler)
 
     function card_configurations_handler(req::HTTP.Request)
         spec = JSON3.read(req.body) |> to_config
         configs = with_scoped_values(() -> Pipelines.card_configurations(; spec...))
         return JSON3.write(configs)
     end
-    HTTP.register!(router, "POST", "/card-configurations", request_middleware(card_configurations_handler))
+    register_handler!(router, "POST", "/card-configurations", card_configurations_handler)
 
     function pipeline_handler(req::HTTP.Request)
         spec = JSON3.read(req.body)
@@ -65,7 +65,7 @@ function launch(
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
         return JSON3.write((; summaries, visualization, report))
     end
-    HTTP.register!(router, "POST", "/pipeline", request_middleware(pipeline_handler))
+    register_handler!(router, "POST", "/pipeline", pipeline_handler)
 
     function fetch_handler(req::HTTP.Request)
         spec = JSON3.read(req.body)
@@ -86,7 +86,7 @@ function launch(
         print(io, " , \"length\": ", count.nrows, "}")
         return String(take!(io))
     end
-    HTTP.register!(router, "POST", "/fetch", request_middleware(fetch_handler))
+    register_handler!(router, "POST", "/fetch", fetch_handler)
 
     function processed_data_handler(stream::HTTP.Stream)
         mktempdir() do dir
@@ -99,10 +99,9 @@ function launch(
 
             startwrite(stream)
             stream_file(stream, path)
-            closewrite(stream)
         end
     end
-    HTTP.register!(router, "GET", "/processed-data", stream_middleware(processed_data_handler))
+    register_handler!(router, "GET", "/processed-data", processed_data_handler, stream = true)
 
     return if async
         HTTP.serve!(router, host, port, stream = true)

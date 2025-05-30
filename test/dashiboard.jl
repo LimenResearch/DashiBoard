@@ -52,6 +52,11 @@ mktempdir() do data_dir
             DashiBoard.CORS_RES_HEADERS...,
             "Transfer-Encoding" => "chunked"
         ]
+        resp = HTTP.request("OPTIONS", url * "card-configurations")
+        @test resp.headers == [
+            DashiBoard.CORS_OPTIONS_HEADERS...,
+            "Transfer-Encoding" => "chunked"
+        ]
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load", body = body)
@@ -71,7 +76,7 @@ mktempdir() do data_dir
             "Transfer-Encoding" => "chunked"
         ]
 
-        HTTP.open("GET", url * "processed-data", headers = Dict("Connection" => "close")) do stream
+        HTTP.open("GET", url * "processed-data") do stream
             r = startread(stream)
             io = IOBuffer()
             write(io, stream)
@@ -79,13 +84,18 @@ mktempdir() do data_dir
 
             @test length(data) == 360326
             @test r.headers == [
-                "Connection" => "close",
                 DashiBoard.CORS_RES_HEADERS...,
                 "Content-Type" => "text/csv",
                 "Transfer-Encoding" => "chunked",
                 "Content-Length" => "360326",
             ]
         end
+        resp = HTTP.request("OPTIONS", url * "processed-data")
+        @test resp.headers == [
+            DashiBoard.CORS_OPTIONS_HEADERS...,
+            "Transfer-Encoding" => "chunked"
+        ]
+
     end
 
     close(server)

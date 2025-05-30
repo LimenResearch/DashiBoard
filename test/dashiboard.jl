@@ -50,12 +50,13 @@ mktempdir() do data_dir
         @test length(configs) == 8
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
-            "Transfer-Encoding" => "chunked"
+            "Content-Type" => "application/json",
+            "Transfer-Encoding" => "chunked",
         ]
         resp = HTTP.request("OPTIONS", url * "card-configurations")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
-            "Transfer-Encoding" => "chunked"
+            "Transfer-Encoding" => "chunked",
         ]
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
@@ -64,7 +65,8 @@ mktempdir() do data_dir
         @test summaries[end]["name"] == "_name"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
-            "Transfer-Encoding" => "chunked"
+            "Content-Type" => "application/json",
+            "Transfer-Encoding" => "chunked",
         ]
 
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
@@ -73,7 +75,20 @@ mktempdir() do data_dir
         @test summaries[end]["name"] == "_percentile_partition"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
-            "Transfer-Encoding" => "chunked"
+            "Content-Type" => "application/json",
+            "Transfer-Encoding" => "chunked",
+        ]
+
+        body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
+        resp = HTTP.post(url * "fetch", body = body)
+        tbl = JSON3.read(resp.body)
+        df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
+        @test tbl["length"] == nrow(df)
+        @test [row["No"] for row in tbl["values"]] == df.No[11:60]
+        @test resp.headers == [
+            DashiBoard.CORS_RES_HEADERS...,
+            "Content-Type" => "application/json",
+            "Transfer-Encoding" => "chunked",
         ]
 
         HTTP.open("GET", url * "processed-data") do stream
@@ -93,7 +108,7 @@ mktempdir() do data_dir
         resp = HTTP.request("OPTIONS", url * "processed-data")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
-            "Transfer-Encoding" => "chunked"
+            "Transfer-Encoding" => "chunked",
         ]
 
     end

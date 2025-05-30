@@ -1,15 +1,12 @@
 import { host, port } from "./request.json"
 
-export function downloadJSON(filename, data) {
+export function downloadJSON(obj, ref) {
+    const data = JSON.stringify(obj)
     const blob = new Blob([data], {type: "application/json"});
     const href = window.URL.createObjectURL(blob);
-    const elem = window.document.createElement('a');
-    elem.download = filename;
-    elem.href = href;
-    elem.style.display = "none";
-    document.body.appendChild(elem);
-    elem.click();
-    document.body.removeChild(elem);
+    ref.href = href;
+    ref.click();
+    ref.href = "";
     window.URL.revokeObjectURL(href);
 }
 

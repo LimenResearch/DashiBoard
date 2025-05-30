@@ -10,8 +10,6 @@ using Scratch: @get_scratch!
 
 using JSON3: JSON3
 
-using JSONTables: arraytable
-
 using DBInterface: DBInterface
 
 using Tables: Tables

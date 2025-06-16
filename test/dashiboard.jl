@@ -1,4 +1,4 @@
-using HTTP, DataIngestion, Pipelines, JSON3, DBInterface, DataFrames
+using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
 using DashiBoard
 using Scratch: @get_scratch!
 using Test
@@ -10,8 +10,8 @@ mktempdir() do data_dir
         joinpath(data_dir, "pollution.csv")
     )
 
-    load_config = open(JSON3.read, joinpath(@__DIR__, "static", "load.json"))
-    pipeline_config = open(JSON3.read, joinpath(@__DIR__, "static", "pipeline.json"))
+    load_config = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
+    pipeline_config = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline.json"))
 
     repo = DashiBoard.REPOSITORY[]
     DataIngestion.load_files(repo, joinpath.(data_dir, load_config["files"]))
@@ -45,7 +45,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "card-configurations.json"), String)
         resp = HTTP.post(url * "card-configurations", body = body)
-        configs = JSON3.read(resp.body)
+        configs = JSON.parse(IOBuffer(resp.body))
         @test configs isa AbstractVector
         @test length(configs) == 8
         @test resp.headers == [
@@ -61,7 +61,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load", body = body)
-        summaries = JSON3.read(resp.body)
+        summaries = JSON.parse(IOBuffer(resp.body))
         @test summaries[end]["name"] == "_name"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
@@ -71,7 +71,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
         resp = HTTP.post(url * "pipeline", body = body)
-        summaries = JSON3.read(resp.body)["summaries"]
+        summaries = JSON.parse(IOBuffer(resp.body))["summaries"]
         @test summaries[end]["name"] == "_percentile_partition"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
@@ -81,7 +81,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
         resp = HTTP.post(url * "fetch", body = body)
-        tbl = JSON3.read(resp.body)
+        tbl = JSON.parse(IOBuffer(resp.body))
         df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
         @test tbl["length"] == nrow(df)
         @test [row["No"] for row in tbl["values"]] == df.No[11:60]

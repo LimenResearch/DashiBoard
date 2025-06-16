@@ -30,6 +30,13 @@ $(list_formats()).
 is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 
 """
+    get_files(d::AbstractDict)::Vector{String}
+
+Generate a list of file paths based on a configuration dictionary.
+"""
+get_files(d::AbstractDict)::Vector{String} = d["files"]
+
+"""
     load_files(
         repository::Repository, files::AbstractVector{<:AbstractString},
         [format::AbstractString];

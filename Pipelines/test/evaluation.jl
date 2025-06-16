@@ -26,14 +26,14 @@
 end
 
 mktempdir() do dir
-    spec = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "spec.json"))
+    spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     repo = Repository(joinpath(dir, "db.duckdb"))
-    DataIngestion.load_files(repo, spec["data"]["files"])
+    DataIngestion.load_files(repo, DataIngestion.get_files(spec["data"]))
     filters = DataIngestion.get_filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 
     @testset "cards" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "cards.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cards.json"))
         cards = Pipelines.get_card.(d)
         nodes = Pipelines.evaluate(repo, cards, "selection")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
@@ -65,7 +65,7 @@ mktempdir() do dir
     end
 
     @testset "nodes" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "rescale.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
         card = Pipelines.get_card(d["zscore"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")

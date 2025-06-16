@@ -1,6 +1,6 @@
 using DataIngestion
 using IntervalSets, Dates
-using DBInterface, DuckDBUtils, DataFrames, JSON3
+using DBInterface, DuckDBUtils, DataFrames, JSON
 using Test
 
 @testset "load" begin
@@ -69,8 +69,8 @@ end
     repo = Repository()
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
-    spec = open(JSON3.read, joinpath(@__DIR__, "static", "data.json"))
-    DataIngestion.load_files(repo, spec["files"]; schema)
+    spec = JSON.parsefile(joinpath(@__DIR__, "static", "data.json"))
+    DataIngestion.load_files(repo, DataIngestion.get_files(spec); schema)
 
     f1 = DataIngestion.IntervalFilter(
         "hour",
@@ -122,7 +122,7 @@ end
 end
 
 @testset "from json" begin
-    d = open(JSON3.read, joinpath(@__DIR__, "static", "filters.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "filters.json"))
     filters = DataIngestion.get_filter.(d)
 
     @test length(filters) == 2
@@ -139,8 +139,8 @@ end
     repo = Repository()
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
-    spec = open(JSON3.read, joinpath(@__DIR__, "static", "data.json"))
-    DataIngestion.load_files(repo, spec["files"]; schema)
+    spec = JSON.parsefile(joinpath(@__DIR__, "static", "data.json"))
+    DataIngestion.load_files(repo, DataIngestion.get_files(spec); schema)
     info = DataIngestion.summarize(repo, "source"; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.source")
     @test [x.name for x in info] == names(df)

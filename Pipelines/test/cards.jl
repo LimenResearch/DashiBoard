@@ -1,12 +1,12 @@
 mktempdir() do dir
-    spec = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "spec.json"))
+    spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     repo = Repository(joinpath(dir, "db.duckdb"))
-    DataIngestion.load_files(repo, spec["data"]["files"])
+    DataIngestion.load_files(repo, DataIngestion.get_files(spec["data"]))
     filters = DataIngestion.get_filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 
     @testset "split" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "split.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
         card = Pipelines.get_card(d["tiles"])
         @test !Pipelines.invertible(card)
 
@@ -39,7 +39,7 @@ mktempdir() do dir
 
     # TODO: also test partitioned version
     @testset "rescale" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "rescale.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
         card = Pipelines.get_card(d["zscore"])
         @test Pipelines.invertible(card)
@@ -165,7 +165,7 @@ mktempdir() do dir
     end
 
     @testset "cluster" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "cluster.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
 
         card = Pipelines.get_card(d["kmeans"])
 
@@ -210,7 +210,7 @@ mktempdir() do dir
     end
 
     @testset "dimensionality reduction" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "dimres.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimres.json"))
 
         DBInterface.execute(
             Returns(nothing),
@@ -340,7 +340,7 @@ mktempdir() do dir
     end
 
     @testset "glm" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "glm.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
 
         part_card = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
@@ -364,7 +364,7 @@ mktempdir() do dir
         m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
         @test predict(m, df) == df.TEMP_hat
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "glm.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
 
         card = Pipelines.get_card(d["hasWeights"])
 
@@ -383,7 +383,7 @@ mktempdir() do dir
     end
 
     @testset "interp" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "interp.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "interp.json"))
 
         part_card = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
@@ -528,7 +528,7 @@ mktempdir() do dir
             end
         end
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["identity"])
         @test !Pipelines.invertible(card)
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
@@ -538,7 +538,7 @@ mktempdir() do dir
         @test issetequal(Pipelines.outputs(card), ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"])
         @test only(Pipelines.inputs(card)) == "month"
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["dayofyear"])
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, state)
@@ -554,7 +554,7 @@ mktempdir() do dir
         )
         @test only(Pipelines.inputs(card)) == "date"
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["hour"])
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, state)
@@ -563,7 +563,7 @@ mktempdir() do dir
         @test issetequal(Pipelines.outputs(card), ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"])
         @test only(Pipelines.inputs(card)) == "time"
 
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.get_card(d["minute"])
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, state)
@@ -574,7 +574,7 @@ mktempdir() do dir
     end
 
     @testset "streamliner" begin
-        d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "streamliner.json"))
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
 
         part_card = Pipelines.get_card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")

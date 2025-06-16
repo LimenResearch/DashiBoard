@@ -2,7 +2,7 @@ module DataIngestion
 
 export get_filter, AbstractFilter, ListFilter, IntervalFilter
 
-public is_supported, load_files, summarize, select, export_table
+public is_supported, get_files, load_files, summarize, select, export_table
 
 using FunSQL: SQLNode,
     Fun,

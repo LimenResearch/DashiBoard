@@ -1,6 +1,7 @@
 using DataIngestion
 using IntervalSets, Dates
 using DBInterface, DuckDBUtils, DataFrames, JSON
+using Downloads
 using Test
 
 @testset "load" begin
@@ -70,7 +71,13 @@ end
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "data.json"))
-    DataIngestion.load_files(repo, DataIngestion.get_files(spec); schema)
+    mktempdir() do data_dir
+        Downloads.download(
+            "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
+            joinpath(data_dir, "pollution.csv")
+        )
+        DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, spec); schema)
+    end
 
     f1 = DataIngestion.IntervalFilter(
         "hour",
@@ -140,7 +147,13 @@ end
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "data.json"))
-    DataIngestion.load_files(repo, DataIngestion.get_files(spec); schema)
+    mktempdir() do data_dir
+        Downloads.download(
+            "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
+            joinpath(data_dir, "pollution.csv")
+        )
+        DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, spec); schema)
+    end
     info = DataIngestion.summarize(repo, "source"; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.source")
     @test [x.name for x in info] == names(df)

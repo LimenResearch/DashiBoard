@@ -1,5 +1,5 @@
 using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
-using DBInterface, DataFrames, OrderedCollections, JSON
+using DBInterface, DataFrames, OrderedCollections, JSON, Downloads
 using Clustering, GLM, DataInterpolations, Distributions, Dates, Statistics
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 using FunSQL: Get

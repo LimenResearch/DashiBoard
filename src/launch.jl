@@ -8,14 +8,16 @@ end
 stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
-stream_file(stream::HTTP.Stream, path::AbstractString) = open(io -> write(stream, io), path)
+stream_file(stream::HTTP.Stream, path::AbstractString) = open(Fix1(write, stream), path)
 
-json_read(stream::HTTP.Stream) = JSON3.read(stream)
+# TODO: consider reading / writing directly from the stream
+
+json_read(stream::HTTP.Stream) = JSON.parse(read(stream, String))
 
 function json_write(stream::HTTP.Stream, data)
     HTTP.setheader(stream, "Content-Type" => "application/json")
     startwrite(stream)
-    JSON3.write(stream, data)
+    write(stream, JSON.json(data))
     return
 end
 

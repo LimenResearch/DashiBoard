@@ -2,13 +2,15 @@ module DashiBoard
 
 public launch
 
+using Base: Fix1, Fix2
+
 using Base.ScopedValues: with
 
 using HTTP: HTTP, startwrite
 
 using Scratch: @get_scratch!
 
-using JSON3: JSON3
+using JSON: JSON
 
 using DBInterface: DBInterface
 

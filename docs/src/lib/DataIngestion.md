@@ -8,6 +8,7 @@ CurrentModule = DataIngestion
 
 ```@docs
 DataIngestion.is_supported
+DataIngestion.get_files
 DataIngestion.load_files
 ```
 

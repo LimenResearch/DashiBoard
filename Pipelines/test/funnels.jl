@@ -1,12 +1,12 @@
 @testset "basic funnel" begin
-    spec = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "spec.json"))
+    spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     schema = "schm"
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
-    d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "split.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
     card = Pipelines.get_card(d["tiles"])
 
-    DataIngestion.load_files(repo, spec["data"]["files"]; schema)
+    DataIngestion.load_files(repo, DataIngestion.get_files(spec["data"]); schema)
     Pipelines.evaluate(repo, card, "source" => "split"; schema)
 
     data = Pipelines.DBData{2}(
@@ -39,7 +39,7 @@
     )
 
     parser = StreamlinerCore.default_parser()
-    d = open(JSON3.read, joinpath(@__DIR__, "static", "configs", "streaming.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streaming.json"))
 
     streaming = Streaming(parser, d["shuffled"])
     len = cld(count(==(1), df._tiled_partition), 32)

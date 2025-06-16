@@ -1,7 +1,11 @@
 mktempdir() do dir
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     repo = Repository(joinpath(dir, "db.duckdb"))
-    DataIngestion.load_files(repo, DataIngestion.get_files(spec["data"]))
+    Downloads.download(
+        "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
+        joinpath(dir, "pollution.csv")
+    )
+    DataIngestion.load_files(repo, DataIngestion.get_files(dir, spec["data"]))
     filters = DataIngestion.get_filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 

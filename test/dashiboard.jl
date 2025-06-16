@@ -2,10 +2,10 @@ using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
 using DashiBoard
 using Scratch: @get_scratch!
 using Test
-using Downloads: download
+using Downloads
 
 mktempdir() do data_dir
-    download(
+    Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(data_dir, "pollution.csv")
     )
@@ -14,7 +14,7 @@ mktempdir() do data_dir
     pipeline_config = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline.json"))
 
     repo = DashiBoard.REPOSITORY[]
-    DataIngestion.load_files(repo, joinpath.(data_dir, load_config["files"]))
+    DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, load_config))
 
     filters = DataIngestion.get_filter.(pipeline_config["filters"])
     DataIngestion.select(repo, filters)

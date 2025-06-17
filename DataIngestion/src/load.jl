@@ -30,16 +30,16 @@ $(list_formats()).
 is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 
 """
-    get_files([basedir::String], d::AbstractDict)::Vector{String}
+    parse_paths([basedir::String], d::AbstractDict)::Vector{String}
 
 Generate a list of file paths based on a configuration dictionary.
 If the `basedir` argument is provided, the file paths are interpreted as
 relative to `basedir`.
 """
-get_files(d::AbstractDict)::Vector{String} = d["files"]
+parse_paths(d::AbstractDict)::Vector{String} = d["files"]
 
-function get_files(basedir::AbstractString, d::AbstractDict)::Vector{String}
-    files = get_files(d)
+function parse_paths(basedir::AbstractString, d::AbstractDict)::Vector{String}
+    files = parse_paths(d)
     return joinpath.(basedir, files)
 end
 

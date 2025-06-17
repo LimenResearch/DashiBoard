@@ -84,7 +84,7 @@ function launch(
 
     function pipeline_handler(stream::HTTP.Stream)
         spec = json_read(stream)
-        filters = get_filter.(spec["filters"])
+        filters = Filter.(spec["filters"])
         cards = with_scoped_values(() -> get_card.(spec["cards"]))
         DataIngestion.select(REPOSITORY[], filters)
         nodes = Pipelines.evaluate(REPOSITORY[], cards, "selection")

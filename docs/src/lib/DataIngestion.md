@@ -8,7 +8,7 @@ CurrentModule = DataIngestion
 
 ```@docs
 DataIngestion.is_supported
-DataIngestion.get_files
+DataIngestion.parse_paths
 DataIngestion.load_files
 ```
 
@@ -21,8 +21,7 @@ DataIngestion.summarize
 ## Filtering interface
 
 ```@docs
-DataIngestion.AbstractFilter
-DataIngestion.get_filter
+DataIngestion.Filter
 DataIngestion.select
 ```
 

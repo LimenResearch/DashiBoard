@@ -11,7 +11,7 @@
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
-        DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, spec["data"]); schema)
+        DataIngestion.load_files(repo, DataIngestion.parse_paths(data_dir, spec["data"]); schema)
     end
     Pipelines.evaluate(repo, card, "source" => "split"; schema)
 

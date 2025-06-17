@@ -5,8 +5,8 @@ mktempdir() do dir
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(dir, "pollution.csv")
     )
-    DataIngestion.load_files(repo, DataIngestion.get_files(dir, spec["data"]))
-    filters = DataIngestion.get_filter.(spec["filters"])
+    DataIngestion.load_files(repo, DataIngestion.parse_paths(dir, spec["data"]))
+    filters = DataIngestion.Filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 
     @testset "split" begin

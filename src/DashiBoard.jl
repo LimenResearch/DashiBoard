@@ -18,7 +18,7 @@ using Tables: Tables
 
 using DuckDBUtils: Repository
 
-using DataIngestion: is_supported, get_filter, export_table, DataIngestion
+using DataIngestion: is_supported, export_table, Filter, DataIngestion
 
 using Pipelines: get_card, get_state, Pipelines
 

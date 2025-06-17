@@ -71,20 +71,20 @@ end
 register_card("gaussian_encoding", GaussianEncodingCard)
 
 function GaussianEncodingCard(c::AbstractDict)
-    column::String = c[:column]
-    method::String = get(c, :method, "identity")
+    column::String = c["column"]
+    method::String = get(c, "method", "identity")
     if !haskey(TEMPORAL_PREPROCESSING, method)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
     processed_column::SQLNode = TEMPORAL_PREPROCESSING[method](Get(column))
-    n_modes::Int = c[:n_modes]
+    n_modes::Int = c["n_modes"]
     if n_modes ≤ 0
         throw(ArgumentError("`n_modes` must be greater than `0`. Provided value: `$n_modes`."))
     end
-    max::Float64 = get(c, :max, TEMPORAL_MAX[method])
-    lambda::Float64 = get(c, :lambda, 0.5)
-    suffix::String = get(c, :suffix, "gaussian")
+    max::Float64 = get(c, "max", TEMPORAL_MAX[method])
+    lambda::Float64 = get(c, "lambda", 0.5)
+    suffix::String = get(c, "suffix", "gaussian")
     return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
 end
 

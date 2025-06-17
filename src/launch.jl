@@ -75,8 +75,8 @@ function launch(
     register_handler!(router, "POST", "/load", load_handler)
 
     function card_configurations_handler(stream::HTTP.Stream)
-        spec = json_read(stream) |> to_config
-        configs = with_scoped_values(() -> Pipelines.card_configurations(; spec...))
+        spec = json_read(stream)
+        configs = with_scoped_values(() -> Pipelines.card_configurations(spec))
         json_write(stream, configs)
         return
     end

@@ -16,7 +16,7 @@ end
 
 function Clusterer(method_name::AbstractString, d::AbstractDict)
     method = CLUSTERING_FUNCTIONS[method_name]
-    options = merge!(Dict{Symbol, Any}(), d)
+    options = to_symbol_dict(d)
     # TODO: add preprocess for, e.g., metrics
     return Clusterer(method, options)
 end
@@ -43,12 +43,12 @@ end
 register_card("cluster", ClusterCard)
 
 function ClusterCard(c::AbstractDict)
-    method_name::String = c[:method]
-    method_options::Dict{Symbol, Any} = extract_options(c, :method_options, METHOD_OPTIONS_REGEX)
+    method_name::String = c["method"]
+    method_options::Dict{String, Any} = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     clusterer::Clusterer = Clusterer(method_name, method_options)
-    columns::Vector{String} = c[:columns]
-    partition::Union{String, Nothing} = get(c, :partition, nothing)
-    output::String = get(c, :output, "cluster")
+    columns::Vector{String} = c["columns"]
+    partition::Union{String, Nothing} = get(c, "partition", nothing)
+    output::String = get(c, "output", "cluster")
     return ClusterCard(
         clusterer,
         columns,
@@ -119,7 +119,7 @@ function CardWidget(::Type{ClusterCard})
     for (idx, m) in enumerate(method_names)
         method_config = parse_toml_config("cluster", m)
         wdgs = get(method_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, :method, m, idx))
+        append!(fields, generate_widget.(wdgs, "method", m, idx))
     end
 
     return CardWidget(;

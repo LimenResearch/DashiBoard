@@ -12,8 +12,7 @@ function parse_config(
     file = string(name, ".toml")
     config = parsefile(joinpath(dir, file))
     delete!(config, "widgets")
-    params = to_string_dict(options)
-    return T(parser, config, params)
+    return T(parser, config, options)
 end
 
 """
@@ -42,20 +41,20 @@ end
 register_card("streamliner", StreamlinerCard)
 
 function StreamlinerCard(c::AbstractDict)
-    order_by::Vector{String} = get(c, :order_by, String[])
-    predictors::Vector{String} = get(c, :predictors, String[])
-    targets::Vector{String} = get(c, :targets, String[])
+    order_by::Vector{String} = get(c, "order_by", String[])
+    predictors::Vector{String} = get(c, "predictors", String[])
+    targets::Vector{String} = get(c, "targets", String[])
 
     parser = PARSER[]
 
-    model_options = extract_options(c, :model_options, MODEL_OPTIONS_REGEX)
-    model = parse_config(Model, parser, MODEL_DIR[], c[:model], model_options)
+    model_options = extract_options(c, "model_options", MODEL_OPTIONS_REGEX)
+    model = parse_config(Model, parser, MODEL_DIR[], c["model"], model_options)
 
-    training_options = extract_options(c, :training_options, TRAINING_OPTIONS_REGEX)
-    training = parse_config(Training, parser, TRAINING_DIR[], c[:training], training_options)
+    training_options = extract_options(c, "training_options", TRAINING_OPTIONS_REGEX)
+    training = parse_config(Training, parser, TRAINING_DIR[], c["training"], training_options)
 
-    partition = get(c, :partition, nothing)
-    suffix = get(c, :suffix, "hat")
+    partition = get(c, "partition", nothing)
+    suffix = get(c, "suffix", "hat")
 
     return StreamlinerCard(
         model,
@@ -178,13 +177,13 @@ function CardWidget(::Type{StreamlinerCard})
     for (idx, m) in enumerate(model_tomls)
         model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
         wdgs = get(model_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, :model, m, idx))
+        append!(fields, generate_widget.(wdgs, "model", m, idx))
     end
 
     for (idx, t) in enumerate(training_tomls)
         training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
         wdgs = get(training_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, :training, t, idx))
+        append!(fields, generate_widget.(wdgs, "training", t, idx))
     end
 
     return CardWidget(;

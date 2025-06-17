@@ -32,7 +32,7 @@ mktempdir() do dir
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(dir, "pollution.csv")
     )
-    DataIngestion.load_files(repo, DataIngestion.parse_paths(dir, spec["data"]))
+    DataIngestion.load_files(repo, dir, spec["data"])
     filters = DataIngestion.Filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 

@@ -20,7 +20,7 @@ Pipelines.invertible
 ## Pipeline computation
 
 ```@docs
-Pipelines.Card
+Pipelines.Card(c::AbstractDict)
 Pipelines.evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
 ```
 

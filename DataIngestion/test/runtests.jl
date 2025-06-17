@@ -76,7 +76,7 @@ end
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
-        DataIngestion.load_files(repo, DataIngestion.parse_paths(data_dir, spec); schema)
+        DataIngestion.load_files(repo, data_dir, spec; schema)
     end
 
     f1 = DataIngestion.IntervalFilter(
@@ -152,7 +152,7 @@ end
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
-        DataIngestion.load_files(repo, DataIngestion.parse_paths(data_dir, spec); schema)
+        DataIngestion.load_files(repo, data_dir, spec; schema)
     end
     info = DataIngestion.summarize(repo, "source"; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.source")

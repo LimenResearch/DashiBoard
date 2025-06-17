@@ -5,9 +5,14 @@ Abstract supertype to encompass all possible cards.
 
 Current implementations:
 
-- [`RescaleCard`](@ref),
 - [`SplitCard`](@ref),
-- [`GLMCard`](@ref).
+- [`RescaleCard`](@ref),
+- [`ClusterCard`](@ref),
+- [`DimensionalityReductionCard`](@ref),
+- [`GLMCard`](@ref),
+- [`InterpCard`](@ref),
+- [`GaussianEncodingCard`](@ref),
+- [`StreamlinerCard`](@ref).
 """
 abstract type Card end
 

@@ -43,10 +43,22 @@ function parse_paths(basedir::AbstractString, d::AbstractDict)::Vector{String}
     return joinpath.(basedir, files)
 end
 
+# TODO: document this method and pass options via `c`
+function load_files(repository::Repository, c::AbstractDict; kwargs...)
+    files = parse_paths(c)
+    return load_files(repository, files, format; kwargs...)
+end
+
+function load_files(repository::Repository, basedir::AbstractString, c::AbstractDict; kwargs...)
+    files = parse_paths(basedir, c)
+    return load_files(repository, files; kwargs...)
+end
+
 """
     load_files(
-        repository::Repository, files::AbstractVector{<:AbstractString},
-        [format::AbstractString];
+        repository::Repository,
+        files::AbstractVector{<:AbstractString};
+        format::AbstractString,
         schema = nothing,
         union_by_name = true, kwargs...)
     )
@@ -64,8 +76,8 @@ for the given format.
 """
 function load_files(
         repository::Repository,
-        files::AbstractVector{<:AbstractString},
-        format::AbstractString = to_format(first(files));
+        files::AbstractVector{<:AbstractString};
+        format::AbstractString = to_format(first(files)),
         schema = nothing,
         union_by_name = true,
         kwargs...

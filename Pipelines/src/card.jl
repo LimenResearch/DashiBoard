@@ -26,7 +26,16 @@ function Card(d::AbstractDict)
     return CARD_TYPES[type](d)
 end
 
-@deprecate get_card(d::AbstractDict) Card(d)
+function get_card(d::AbstractDict)
+    Base.depwarn(
+        """
+        Use `Pipelines.Card(d::AbstractDict)` instead of `Pipelines.get_card(d::AbstractDict)`
+        """,
+        :get_card,
+        force = true
+    )
+    return Card(d)
+end
 
 """
     inputs(c::Card)::OrderedSet{String}

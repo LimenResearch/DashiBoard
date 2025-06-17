@@ -51,9 +51,9 @@ end
 
 @parsable Streaming
 
-get_device(metadata::AbstractDict) = PARSER[].devices[get(metadata, "device", "cpu")]
-get_batchsize(metadata::AbstractDict) = get(metadata, "batchsize", nothing)
-get_shuffle(metadata::AbstractDict) = get(metadata, "shuffle", false)
+parse_device(metadata::AbstractDict) = PARSER[].devices[get(metadata, "device", "cpu")]
+parse_batchsize(metadata::AbstractDict) = get(metadata, "batchsize", nothing)
+parse_shuffle(metadata::AbstractDict) = get(metadata, "shuffle", false)
 
 """
     Streaming(parser::Parser, metadata::AbstractDict)
@@ -69,9 +69,9 @@ The `parser::`[`Parser`](@ref) handles conversion from configuration variables t
 """
 function Streaming(parser::Parser, metadata::AbstractDict)
     return @with PARSER => parser begin
-        device = get_device(metadata)
-        batchsize = get_batchsize(metadata)
-        shuffle = get_shuffle(metadata)
+        device = parse_device(metadata)
+        batchsize = parse_batchsize(metadata)
+        shuffle = parse_shuffle(metadata)
         Streaming(; device, batchsize, shuffle)
     end
 end

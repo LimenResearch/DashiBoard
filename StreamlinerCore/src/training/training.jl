@@ -30,9 +30,9 @@ const TrainingPair{T} = Pair{Training, TrainingState{T}}
 
 get_metadata(training::Training) = training.metadata
 
-get_iterations(metadata::AbstractDict) = get(metadata, "iterations", 1000)
-get_seed(metadata::AbstractDict) = get(metadata, "seed", nothing)
-get_options(metadata::AbstractDict) = make(SymbolDict, get_config(metadata, "options"))
+parse_iterations(metadata::AbstractDict) = get(metadata, "iterations", 1000)
+parse_seed(metadata::AbstractDict) = get(metadata, "seed", nothing)
+parse_options(metadata::AbstractDict) = make(SymbolDict, get_config(metadata, "options"))
 
 """
     Training(parser::Parser, metadata::AbstractDict)
@@ -49,18 +49,18 @@ The `parser::`[`Parser`](@ref) handles conversion from configuration variables t
 function Training(parser::Parser, metadata::AbstractDict)
 
     return @with PARSER => parser begin
-        optimizer = get_optimizer(metadata)
+        optimizer = parse_optimizer(metadata)
 
-        device = get_device(metadata)
-        batchsize = get_batchsize(metadata)
-        shuffle = get_shuffle(metadata)
-        seed = get_seed(metadata)
+        device = parse_device(metadata)
+        batchsize = parse_batchsize(metadata)
+        shuffle = parse_shuffle(metadata)
+        seed = parse_seed(metadata)
 
-        iterations = get_iterations(metadata)
-        schedules = get_schedules(metadata)
-        stoppers = get_stoppers(metadata)
+        iterations = parse_iterations(metadata)
+        schedules = parse_schedules(metadata)
+        stoppers = parse_stoppers(metadata)
 
-        options = get_options(metadata)
+        options = parse_options(metadata)
 
         Training(
             metadata, optimizer, device, shuffle, batchsize, iterations,

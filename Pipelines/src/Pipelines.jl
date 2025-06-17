@@ -118,6 +118,17 @@ using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using Dates: hour, minute
 
+const StringDict = Dict{String, Any}
+const SymbolDict = Dict{Symbol, Any}
+
+const WIDGET_CONFIG = ScopedValue{StringDict}()
+
+function parse_toml_config(args...)
+    fs..., l = args
+    path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
+    return parsefile(path)
+end
+
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
@@ -137,13 +148,5 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 
 include("pipeline.jl")
-
-const WIDGET_CONFIG = ScopedValue{StringDict}()
-
-function parse_toml_config(args...)
-    fs..., l = args
-    path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
-    return parsefile(path)
-end
 
 end

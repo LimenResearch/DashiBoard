@@ -1,8 +1,3 @@
-# Shorthands
-
-const StringDict = Dict{String, Any}
-const SymbolDict = Dict{Symbol, Any}
-
 # Set computation utils
 
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)

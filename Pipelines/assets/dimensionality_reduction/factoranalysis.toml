@@ -11,7 +11,7 @@ required = false
 
 [[widgets]]
 key = "tol"
-widget = "number"
+widget = "input"
 label = "Tolerance"
 placeholder = "Select tolerance"
 type = "number"

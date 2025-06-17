@@ -28,7 +28,8 @@ end
 
 function Projector(method_name::AbstractString, d::AbstractDict)
     method = PROJECTION_FUNCTIONS[method_name]
-    return Projector(method, d)
+    options = to_symbol_dict(d)
+    return Projector(method, options)
 end
 
 """
@@ -54,13 +55,13 @@ end
 register_card("dimensionality_reduction", DimensionalityReductionCard)
 
 function DimensionalityReductionCard(c::AbstractDict)
-    method_name::String = c[:method]
-    method_options::Dict{Symbol, Any} = extract_options(c, :method_options, METHOD_OPTIONS_REGEX)
+    method_name::String = c["method"]
+    method_options::Dict{String, Any} = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
-    columns::Vector{String} = c[:columns]
-    n_components::Int = c[:n_components]
-    partition::Union{String, Nothing} = get(c, :partition, nothing)
-    output::String = get(c, :output, "component")
+    columns::Vector{String} = c["columns"]
+    n_components::Int = c["n_components"]
+    partition::Union{String, Nothing} = get(c, "partition", nothing)
+    output::String = get(c, "output", "component")
     return DimensionalityReductionCard(
         projector,
         columns,
@@ -148,7 +149,7 @@ function CardWidget(::Type{DimensionalityReductionCard})
     for (idx, m) in enumerate(method_names)
         method_config = parse_toml_config("dimensionality_reduction", m)
         wdgs = get(method_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, :method, m, idx))
+        append!(fields, generate_widget.(wdgs, "method", m, idx))
     end
 
     return CardWidget(;

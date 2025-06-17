@@ -126,9 +126,8 @@ const CARD_TYPES = OrderedDict{String, Type}()
 Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
 """
 function get_card(d::AbstractDict)
-    c = to_config(d)
-    type = pop!(c, :type)
-    return CARD_TYPES[type](c)
+    type = d["type"]
+    return CARD_TYPES[type](d)
 end
 
 # Generate widgets and widget configurations
@@ -146,8 +145,7 @@ function card_configurations(options::AbstractDict = Dict())
         d[k] = parse_toml_config(k)
     end
 
-    options′ = to_string_dict(options)
-    return [card_widget(d, k; get(options′, k, (;))...) for k in keys(CARD_TYPES)]
+    return [card_widget(d, k; get(options, k, (;))...) for k in keys(CARD_TYPES)]
 end
 
 function register_card(name::AbstractString, ::Type{T}) where {T <: AbstractCard}

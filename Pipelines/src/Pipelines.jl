@@ -16,7 +16,7 @@ public train, evaluate, deevaluate, inputs, outputs, invertible
 
 public evaluatenodes, deevaluatenodes, report, visualize, Node
 
-public to_config, default_parser, PARSER, MODEL_DIR, TRAINING_DIR
+public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2
 using Base.ScopedValues: @with, ScopedValue
@@ -109,7 +109,6 @@ using StreamlinerCore: StreamlinerCore,
     Parser,
     default_parser,
     PARSER,
-    to_config,
     metricname,
     get_rng
 

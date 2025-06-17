@@ -16,13 +16,12 @@ function Node(card::AbstractCard, update::Bool = true)
     )
 end
 
-function Node(d::AbstractDict, update::Bool = true)
-    config = to_config(d)
-    card = get_card(config[:card])
+function Node(config::AbstractDict, update::Bool = true)
+    card = get_card(config["card"])
     node = Node(card, update)
     state = CardState(
-        content = config[:state][:content],
-        metadata = config[:state][:metadata]
+        content = config["state"]["content"],
+        metadata = config["state"]["metadata"]
     )
     set_state!(node, state)
     return node

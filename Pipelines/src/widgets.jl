@@ -12,8 +12,8 @@ struct Widget
     options::Any
     multiple::Bool
     type::String
-    visible::Union{Dict{String, Any}, Bool}
-    required::Union{Dict{String, Any}, Bool}
+    visible::Union{StringDict, Bool}
+    required::Union{StringDict, Bool}
 end
 
 function default_value(widget, type, multiple)
@@ -39,8 +39,8 @@ function Widget(
         required = get(conf, "required", visible)
     )
 
-    (visible isa Bool) || (visible = Dict{String, Any}(visible))
-    (required isa Bool) || (required = Dict{String, Any}(required))
+    (visible isa Bool) || (visible = StringDict(visible))
+    (required isa Bool) || (required = StringDict(required))
 
     return Widget(
         widget,

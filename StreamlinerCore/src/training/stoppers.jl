@@ -4,15 +4,17 @@ struct Stopper
     params::SymbolDict
 end
 
-function get_stoppers(config::AbstractDict)::Vector{Stopper}
-    configs = get(config, :stoppers, SymbolDict[])
-    return get_stopper.(configs)
-end
-
-function get_stopper(config::AbstractDict)
-    params, name, patience = pop(config, :name, :patience)
+function get_stopper(stopper_metadata::AbstractDict)
+    params = make(SymbolDict, stopper_metadata)
+    name = pop!(params, :name)
+    patience = pop!(params, :patience)
 
     return Stopper(PARSER[].stoppers[name], patience, params)
+end
+
+function get_stoppers(metadata::AbstractDict)::Vector{Stopper}
+    stopper_metadatas = get_configs(metadata, "stoppers")
+    return get_stopper.(stopper_metadatas)
 end
 
 start(s::Stopper, init_score::Real) = s.method(identity, s.patience; init_score, s.params...)

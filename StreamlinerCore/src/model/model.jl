@@ -32,14 +32,13 @@ Given a `model::Model` object, use `model(data)` where `data::`[`AbstractData`](
 to instantiate the corresponding neural network or machine.
 """
 function Model(parser::Parser, metadata::AbstractDict)
-    config = to_config(metadata)
     return @with PARSER => parser begin
-        architecture = get_architecture(config)
-        loss = get_loss(config)
-        metrics = get_metrics(config)
-        regularizations = get_regularizations(config)
-        context = get_context(config)
-        seed = get(config, :seed, nothing)
+        architecture = get_architecture(metadata)
+        loss = get_loss(metadata)
+        metrics = get_metrics(metadata)
+        regularizations = get_regularizations(metadata)
+        context = get_context(metadata)
+        seed = get_seed(metadata)
         Model(metadata, architecture, loss, metrics, regularizations, context, seed)
     end
 end

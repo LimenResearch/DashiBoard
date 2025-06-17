@@ -32,7 +32,7 @@ function jsonify(x::Real)
 end
 
 jsonify(x) = x
-jsonify(d::AbstractDict) = Dict{String, Any}(string(k) => jsonify(v) for (k, v) in pairs(d))
+jsonify(d::AbstractDict) = Dict(string(k) => jsonify(v) for (k, v) in pairs(d))
 jsonify(v::AbstractVector) = map(jsonify, v)
 
 function launch(

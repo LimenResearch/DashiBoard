@@ -27,7 +27,7 @@ using TOML: parsefile
 using RelocatableFolders: @path
 
 using JLD2: jldopen
-using StructTypes: constructfrom
+using StructUtils: make
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
@@ -118,7 +118,10 @@ using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using Dates: hour, minute
 
-const WIDGET_CONFIG = ScopedValue{Dict{String, Any}}()
+const StringDict = Dict{String, Any}
+const SymbolDict = Dict{Symbol, Any}
+
+const WIDGET_CONFIG = ScopedValue{StringDict}()
 
 function parse_toml_config(args...)
     fs..., l = args

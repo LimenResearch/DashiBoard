@@ -36,12 +36,13 @@ end
 
 # Methods for parsing
 
-function get_regularization(config::AbstractDict)
-    f = PARSER[].regularizations[config[:name]]
-    return Regularization(f, config[:lambda])
+function get_regularization(regularization_metadata::AbstractDict)
+    name, lambda = regularization_metadata["name"], regularization_metadata["lambda"]
+    f = PARSER[].regularizations[name]
+    return Regularization(f, lambda)
 end
 
-function get_regularizations(config::AbstractDict)
-    configs = get_configs(config, :regularizations)
-    return Tuple(get_regularization.(configs))
+function get_regularizations(metadata::AbstractDict)
+    regularization_metadatas = get_configs(metadata, "regularizations")
+    return Tuple(get_regularization.(regularization_metadatas))
 end

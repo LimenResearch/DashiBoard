@@ -482,8 +482,8 @@ mktempdir() do dir
             )
 
             for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING)
-                config = merge(base_fields, Dict("method" => k))
-                card = GaussianEncodingCard(config)
+                c = merge(base_fields, Dict("method" => k))
+                card = GaussianEncodingCard(c)
                 @test string(card.processed_column) == string(v(Get("date")))
             end
 

@@ -20,6 +20,8 @@ using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using IterTools: flagfirst
 using Tables: Tables
 
+const StringDict = Dict{String, Any}
+
 include("readers/utils.jl")
 include("readers/csv.jl")
 include("readers/json.jl")

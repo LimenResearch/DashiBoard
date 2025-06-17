@@ -12,7 +12,7 @@ tuplify_list(v) = v isa AbstractVector ? Tuple(v) : v
 get_rng(::Nothing = nothing) = Xoshiro()
 get_rng(seed::Integer) = Xoshiro(seed)
 
-# Fill in empty configurations
+# Helper get methods
 
 get_config(d::AbstractDict, k::AbstractString) = get(d, k, StringDict())
 

@@ -59,7 +59,7 @@ get_loss(metadata::AbstractDict) = get_metric(metadata["loss"])
 
 function get_metric(metric_metadata::AbstractDict)
     params = make(SymbolDict, metric_metadata)
-    name = pop!(:name)
+    name = pop!(params, :name)
     agg_name = pop!(params, :agg, "mean")
 
     metric = PARSER[].metrics[name]
@@ -69,7 +69,7 @@ function get_metric(metric_metadata::AbstractDict)
 end
 
 function get_metrics(metadata::AbstractDict)
-    metric_metadatas = get_configs(metadata, :metrics)
+    metric_metadatas = get_configs(metadata, "metrics")
     return Tuple(get_metric.(metric_metadatas))
 end
 

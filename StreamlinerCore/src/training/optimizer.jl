@@ -1,4 +1,4 @@
-function get_optimizer(metadata::AbstractDict)
+function parse_optimizer(metadata::AbstractDict)
     options = make(SymbolDict, metadata["optimizer"])
     name = pop!(options, :name)
     method = PARSER[].optimizers[name]

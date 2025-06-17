@@ -33,12 +33,12 @@ to instantiate the corresponding neural network or machine.
 """
 function Model(parser::Parser, metadata::AbstractDict)
     return @with PARSER => parser begin
-        architecture = get_architecture(metadata)
-        loss = get_loss(metadata)
-        metrics = get_metrics(metadata)
-        regularizations = get_regularizations(metadata)
-        context = get_context(metadata)
-        seed = get_seed(metadata)
+        architecture = parse_architecture(metadata)
+        loss = parse_loss(metadata)
+        metrics = parse_metrics(metadata)
+        regularizations = parse_regularizations(metadata)
+        context = parse_context(metadata)
+        seed = parse_seed(metadata)
         Model(metadata, architecture, loss, metrics, regularizations, context, seed)
     end
 end

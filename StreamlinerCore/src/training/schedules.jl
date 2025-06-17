@@ -1,12 +1,12 @@
-function get_schedule(schedule_metadata::AbstractDict)
+function parse_schedule(schedule_metadata::AbstractDict)
     params = make(SymbolDict, schedule_metadata)
     name = pop!(params, :name)
     return PARSER[].schedules[name](; params...)
 end
 
-function get_schedules(metadata::AbstractDict)::SymbolDict
+function parse_schedules(metadata::AbstractDict)::SymbolDict
     schedules = make(SymbolDict, get_config(metadata, "schedules"))
-    map!(get_schedule, values(schedules))
+    map!(parse_schedule, values(schedules))
     return schedules
 end
 

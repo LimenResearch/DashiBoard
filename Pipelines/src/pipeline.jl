@@ -1,12 +1,12 @@
 mutable struct Node
-    const card::Union{AbstractCard, Nothing}
+    const card::Union{Card, Nothing}
     const inputs::OrderedSet{String}
     const outputs::OrderedSet{String}
     update::Bool
     state::CardState
 end
 
-function Node(card::AbstractCard, update::Bool = true)
+function Node(card::Card, update::Bool = true)
     return Node(
         card,
         inputs(card),
@@ -17,7 +17,7 @@ function Node(card::AbstractCard, update::Bool = true)
 end
 
 function Node(c::AbstractDict, update::Bool = true)
-    card = get_card(c["card"])
+    card = Card(c["card"])
     node = Node(card, update)
     state = CardState(
         content = c["state"]["content"],

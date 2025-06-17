@@ -1,7 +1,7 @@
 """
-    abstract type AbstractCard end
+    abstract type Card end
 
-Abstract supertype to encompass all possible filters.
+Abstract supertype to encompass all possible cards.
 
 Current implementations:
 
@@ -9,38 +9,50 @@ Current implementations:
 - [`SplitCard`](@ref),
 - [`GLMCard`](@ref).
 """
-abstract type AbstractCard end
+abstract type Card end
 
 """
-    inputs(c::AbstractCard)::OrderedSet{String}
+    Card(d::AbstractDict)
+
+Generate a [`Card`](@ref) based on a configuration dictionary.
+"""
+function Card(d::AbstractDict)
+    type = d["type"]
+    return CARD_TYPES[type](d)
+end
+
+@deprecate get_card(d::AbstractDict) Card(d)
+
+"""
+    inputs(c::Card)::OrderedSet{String}
 
 Return the list of inputs for a given card.
 """
 function inputs end
 
 """
-    outputs(c::AbstractCard)::OrderedSet{String}
+    outputs(c::Card)::OrderedSet{String}
 
 Return the list of outputs for a given card.
 """
 function outputs end
 
 """
-    invertible(c::AbstractCard)::Bool
+    invertible(c::Card)::Bool
 
 Return `true` for invertible cards, `false` otherwise.
 """
 function invertible end
 
 """
-    train(repository::Repository, card::AbstractCard, source; schema = nothing)::CardState
+    train(repository::Repository, card::Card, source; schema = nothing)::CardState
 
 Return a trained model for a given `card` on a table `table` in the database `repository.db`.
 """
 function train end
 
 """
-    evaluate(repository::Repository, card::AbstractCard, state::CardState, (source, destination)::Pair; schema = nothing)
+    evaluate(repository::Repository, card::Card, state::CardState, (source, destination)::Pair; schema = nothing)
 
 Replace table `destination` in the database `repository.db` with the outcome of executing the `card`
 on the table `source`.
@@ -50,7 +62,7 @@ See also [`train`](@ref).
 """
 function evaluate end
 
-function evaluate(repository::Repository, card::AbstractCard, (source, destination)::Pair; schema = nothing)
+function evaluate(repository::Repository, card::Card, (source, destination)::Pair; schema = nothing)
     state = train(repository, card, source; schema)::CardState
     evaluate(repository, card, state, source => destination; schema)
     return state
@@ -91,12 +103,12 @@ function report(repository::Repository, nodes::AbstractVector)
 end
 
 """
-    report(::Repository, ::AbstractCard, ::CardState)
+    report(::Repository, ::Card, ::CardState)
 
-Overload this method (replacing `AbstractCard` with a specific card type)
+Overload this method (replacing `Card` with a specific card type)
 to implement a default report for a given card type.
 """
-report(::Repository, ::AbstractCard, ::CardState) = nothing
+report(::Repository, ::Card, ::CardState) = nothing
 
 """
     visualize(repository::Repository, nodes::AbstractVector)
@@ -109,26 +121,16 @@ function visualize(repository::Repository, nodes::AbstractVector)
 end
 
 """
-    visualize(::Repository, ::AbstractCard, ::CardState)
+    visualize(::Repository, ::Card, ::CardState)
 
-Overload this method (replacing `AbstractCard` with a specific card type)
+Overload this method (replacing `Card` with a specific card type)
 to implement a default visualization for a given card type.
 """
-visualize(::Repository, ::AbstractCard, ::CardState) = nothing
+visualize(::Repository, ::Card, ::CardState) = nothing
 
 # Construct cards
 
 const CARD_TYPES = OrderedDict{String, Type}()
-
-"""
-    get_card(d::AbstractDict)
-
-Generate an [`AbstractCard`](@ref) based on a configuration dictionary.
-"""
-function get_card(d::AbstractDict)
-    type = d["type"]
-    return CARD_TYPES[type](d)
-end
 
 # Generate widgets and widget configurations
 
@@ -148,7 +150,7 @@ function card_configurations(options::AbstractDict = Dict())
     return [card_widget(d, k; get(options, k, (;))...) for k in keys(CARD_TYPES)]
 end
 
-function register_card(name::AbstractString, ::Type{T}) where {T <: AbstractCard}
+function register_card(name::AbstractString, ::Type{T}) where {T <: Card}
     CARD_TYPES[name] = T
     return
 end

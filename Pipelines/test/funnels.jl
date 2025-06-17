@@ -4,7 +4,7 @@
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
-    card = Pipelines.get_card(d["tiles"])
+    card = Pipelines.Card(d["tiles"])
 
     mktempdir() do data_dir
         Downloads.download(

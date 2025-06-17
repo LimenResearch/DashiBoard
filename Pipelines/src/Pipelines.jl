@@ -1,8 +1,8 @@
 module Pipelines
 
-export card_configurations, get_card
+export card_configurations, Card
 
-export AbstractCard,
+export Card,
     SplitCard,
     RescaleCard,
     ClusterCard,

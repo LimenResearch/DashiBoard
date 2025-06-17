@@ -33,7 +33,7 @@ function Projector(method_name::AbstractString, d::AbstractDict)
 end
 
 """
-    struct DimensionalityReductionCard <: AbstractCard
+    struct DimensionalityReductionCard <: Card
         projector::Projector
         columns::Vector{String}
         n_components::Int
@@ -44,7 +44,7 @@ end
 Project `columns` based on `projector`.
 Save resulting column as `output`.
 """
-struct DimensionalityReductionCard <: AbstractCard
+struct DimensionalityReductionCard <: Card
     projector::Projector
     columns::Vector{String}
     n_components::Int

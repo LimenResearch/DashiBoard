@@ -27,7 +27,7 @@ const LINK_FUNCTIONS = OrderedDict(
 )
 
 """
-    struct GLMCard <: AbstractCard
+    struct GLMCard <: Card
         formula::FormulaTerm
         weights::Union{String, Nothing}
         distribution::Distribution
@@ -38,7 +38,7 @@ const LINK_FUNCTIONS = OrderedDict(
 
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
-struct GLMCard <: AbstractCard
+struct GLMCard <: Card
     formula::FormulaTerm
     weights::Union{String, Nothing}
     distribution::Distribution

@@ -1,5 +1,5 @@
 @testset "evaluation order" begin
-    struct TrivialCard <: Pipelines.AbstractCard
+    struct TrivialCard <: Pipelines.Card
         inputs::Vector{String}
         outputs::Vector{String}
     end
@@ -38,7 +38,7 @@ mktempdir() do dir
 
     @testset "cards" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cards.json"))
-        cards = Pipelines.get_card.(d)
+        cards = Pipelines.Card.(d)
         nodes = Pipelines.evaluate(repo, cards, "selection")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
         @test names(df) == [
@@ -71,7 +71,7 @@ mktempdir() do dir
     @testset "nodes" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
-        card = Pipelines.get_card(d["zscore"])
+        card = Pipelines.Card(d["zscore"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
 
         node = Pipelines.Node(

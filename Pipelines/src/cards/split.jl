@@ -17,7 +17,7 @@ function get_splitter(c::AbstractDict)
 end
 
 """
-    struct SplitCard <: AbstractCard
+    struct SplitCard <: Card
         splitter::SQLNode
         order_by::Vector{String}
         by::Vector{String}
@@ -30,7 +30,7 @@ Currently supported methods are
 - `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
-struct SplitCard <: AbstractCard
+struct SplitCard <: Card
     splitter::SQLNode
     order_by::Vector{String}
     by::Vector{String}

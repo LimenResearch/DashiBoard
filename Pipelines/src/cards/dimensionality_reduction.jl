@@ -28,7 +28,7 @@ end
 
 function Projector(method_name::AbstractString, d::AbstractDict)
     method = PROJECTION_FUNCTIONS[method_name]
-    options = to_symbol_dict(d)
+    options = make(SymbolDict, d)
     return Projector(method, options)
 end
 
@@ -56,7 +56,7 @@ register_card("dimensionality_reduction", DimensionalityReductionCard)
 
 function DimensionalityReductionCard(c::AbstractDict)
     method_name::String = c["method"]
-    method_options::Dict{String, Any} = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
+    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
     columns::Vector{String} = c["columns"]
     n_components::Int = c["n_components"]

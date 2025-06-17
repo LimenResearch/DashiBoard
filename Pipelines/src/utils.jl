@@ -1,3 +1,8 @@
+# Shorthands
+
+const StringDict = Dict{String, Any}
+const SymbolDict = Dict{Symbol, Any}
+
 # Set computation utils
 
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)
@@ -8,12 +13,6 @@ stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s
 
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
-# Dict conversion
-
-to_string_dict(d) = constructfrom(Dict{String, Any}, d)
-
-to_symbol_dict(d) = constructfrom(Dict{Symbol, Any}, d)
-
 # Option computation and widget helpers
 
 const METHOD_OPTIONS_REGEX = r"^method_options\.\d+\.(.*)$"
@@ -21,7 +20,7 @@ const MODEL_OPTIONS_REGEX = r"^model_options\.\d+\.(.*)$"
 const TRAINING_OPTIONS_REGEX = r"^training_options\.\d+\.(.*)$"
 
 function extract_options(c::AbstractDict, r::Regex)
-    d = Dict{String, Any}()
+    d = StringDict()
     for (k, v) in pairs(c)
         m = match(r, k)
         isnothing(m) || (d[only(m)] = v)

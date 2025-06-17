@@ -16,7 +16,7 @@ end
 
 function Clusterer(method_name::AbstractString, d::AbstractDict)
     method = CLUSTERING_FUNCTIONS[method_name]
-    options = to_symbol_dict(d)
+    options = make(SymbolDict, d)
     # TODO: add preprocess for, e.g., metrics
     return Clusterer(method, options)
 end
@@ -44,7 +44,7 @@ register_card("cluster", ClusterCard)
 
 function ClusterCard(c::AbstractDict)
     method_name::String = c["method"]
-    method_options::Dict{String, Any} = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
+    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     clusterer::Clusterer = Clusterer(method_name, method_options)
     columns::Vector{String} = c["columns"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)

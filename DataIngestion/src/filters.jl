@@ -1,6 +1,6 @@
 struct Condition
     pred::SQLNode
-    params::Dict{String, Any}
+    params::StringDict
 end
 
 get_pred(cond::Condition) = cond.pred
@@ -70,7 +70,7 @@ function Condition(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
 
     ks = string.(prefix, "value", eachindex(list))
-    params = Dict{String, Any}(zip(ks, list))
+    params = StringDict(zip(ks, list))
     pred = Fun.in(Get(colname), Var.(ks)...)
 
     return Condition(pred, params)
@@ -100,7 +100,7 @@ Each filter should be an instance of [`AbstractFilter`](@ref).
 """
 function select(repository::Repository, filters::AbstractVector; schema = nothing)
     cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
-    params = mapfoldl(get_params, merge!, cs, init = Dict{String, Any}())
+    params = mapfoldl(get_params, merge!, cs, init = StringDict())
     pred = Fun.and(Iterators.map(get_pred, cs)...)
     node = From(TABLE_NAMES.source) |> Where(pred)
     return replace_table(repository, node, params, TABLE_NAMES.selection; schema)

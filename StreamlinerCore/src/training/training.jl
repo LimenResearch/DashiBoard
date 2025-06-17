@@ -30,9 +30,9 @@ const TrainingPair{T} = Pair{Training, TrainingState{T}}
 
 get_metadata(training::Training) = training.metadata
 
-get_iterations(config::AbstractDict) = get(config, :iterations, 1000)
-get_seed(config::AbstractDict) = get(config, :seed, nothing)
-get_options(config::AbstractDict) = get_config(config, :options)
+get_iterations(metadata::AbstractDict) = get(metadata, "iterations", 1000)
+get_seed(metadata::AbstractDict) = get(metadata, "seed", nothing)
+get_options(metadata::AbstractDict) = make(SymbolDict, get_config(metadata, "options"))
 
 """
     Training(parser::Parser, metadata::AbstractDict)
@@ -47,21 +47,20 @@ fill the template given in `path`.
 The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
 """
 function Training(parser::Parser, metadata::AbstractDict)
-    config = to_config(metadata)
 
     return @with PARSER => parser begin
-        optimizer = get_optimizer(config)
+        optimizer = get_optimizer(metadata)
 
-        device = get_device(config)
-        batchsize = get_batchsize(config)
-        shuffle = get_shuffle(config)
-        seed = get_seed(config)
+        device = get_device(metadata)
+        batchsize = get_batchsize(metadata)
+        shuffle = get_shuffle(metadata)
+        seed = get_seed(metadata)
 
-        iterations = get_iterations(config)
-        schedules = get_schedules(config)
-        stoppers = get_stoppers(config)
+        iterations = get_iterations(metadata)
+        schedules = get_schedules(metadata)
+        stoppers = get_stoppers(metadata)
 
-        options = get_options(config)
+        options = get_options(metadata)
 
         Training(
             metadata, optimizer, device, shuffle, batchsize, iterations,

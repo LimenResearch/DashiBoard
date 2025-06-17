@@ -10,7 +10,7 @@ function json_reader(
         union_by_name::Bool = false,
     )
 
-    options = Dict{String, Any}(
+    options = StringDict(
         "compression" => compression,
         "filename" => filename,
         "format" => format,

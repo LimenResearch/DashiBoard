@@ -58,7 +58,7 @@ end
 
 @kwdef struct CardState
     content::Union{Nothing, Vector{UInt8}} = nothing
-    metadata::Dict{String, Any} = Dict{String, Any}()
+    metadata::StringDict = StringDict()
 end
 
 function jldserialize(m)

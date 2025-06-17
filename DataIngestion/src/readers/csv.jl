@@ -29,7 +29,7 @@ function csv_reader(
         union_by_name::Bool = false,
     )
 
-    options = Dict{String, Any}(
+    options = StringDict(
         "allow_quoted_nulls" => allow_quoted_nulls,
         "auto_detect" => auto_detect,
         "auto_type_candidates" => auto_type_candidates,

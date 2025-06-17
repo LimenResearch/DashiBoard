@@ -10,9 +10,9 @@ function parse_config(
     ) where {T}
 
     file = string(name, ".toml")
-    config = parsefile(joinpath(dir, file))
-    delete!(config, "widgets")
-    return T(parser, config, options)
+    c = parsefile(joinpath(dir, file))
+    delete!(c, "widgets")
+    return T(parser, c, options)
 end
 
 """
@@ -103,7 +103,7 @@ function train(
             file["uvals"] = data.uvals
         end
         content = StreamlinerCore.has_weights(result) ? read(path) : nothing
-        metadata = to_string_dict(result)
+        metadata = make(StringDict, result)
         return CardState(; content, metadata)
     end
 end

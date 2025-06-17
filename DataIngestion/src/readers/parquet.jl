@@ -8,7 +8,7 @@ function parquet_reader(
         union_by_name::Bool = false
     )
 
-    options = Dict{String, Any}(
+    options = StringDict(
         "binary_as_string" => binary_as_string,
         "encryption_config" => encryption_config,
         "filename" => filename,

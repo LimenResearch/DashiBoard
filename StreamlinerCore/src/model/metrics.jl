@@ -55,19 +55,22 @@ metricname(m::Metric) = nameof(m.loss)
 
 # Parsing
 
-get_loss(config::AbstractDict) = get_metric(config[:loss])
+get_loss(metadata::AbstractDict) = get_metric(metadata["loss"])
 
-function get_metric(config::AbstractDict)
-    params, name, agg_name = pop(config, :name, :agg => "mean")
+function get_metric(metric_metadata::AbstractDict)
+    params = make(SymbolDict, metric_metadata)
+    name = pop!(:name)
+    agg_name = pop!(params, :agg, "mean")
+
     metric = PARSER[].metrics[name]
     agg = PARSER[].aggregators[agg_name]
 
     return metric(; agg, params...)
 end
 
-function get_metrics(config::AbstractDict)
-    configs = get_configs(config, :metrics)
-    return Tuple(get_metric.(configs))
+function get_metrics(metadata::AbstractDict)
+    metric_metadatas = get_configs(metadata, :metrics)
+    return Tuple(get_metric.(metric_metadatas))
 end
 
 # Accuracy of classifier

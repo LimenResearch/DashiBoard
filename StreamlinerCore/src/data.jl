@@ -51,9 +51,9 @@ end
 
 @parsable Streaming
 
-get_device(config::AbstractDict) = PARSER[].devices[get(config, :device, "cpu")]
-get_batchsize(config::AbstractDict) = get(config, :batchsize, nothing)
-get_shuffle(config::AbstractDict) = get(config, :shuffle, false)
+get_device(metadata::AbstractDict) = PARSER[].devices[get(metadata, "device", "cpu")]
+get_batchsize(metadata::AbstractDict) = get(metadata, "batchsize", nothing)
+get_shuffle(metadata::AbstractDict) = get(metadata, "shuffle", false)
 
 """
     Streaming(parser::Parser, metadata::AbstractDict)
@@ -68,11 +68,10 @@ fill the template given in `path`.
 The `parser::`[`Parser`](@ref) handles conversion from configuration variables to julia objects.
 """
 function Streaming(parser::Parser, metadata::AbstractDict)
-    config = to_config(metadata)
     return @with PARSER => parser begin
-        device = get_device(config)
-        batchsize = get_batchsize(config)
-        shuffle = get_shuffle(config)
+        device = get_device(metadata)
+        batchsize = get_batchsize(metadata)
+        shuffle = get_shuffle(metadata)
         Streaming(; device, batchsize, shuffle)
     end
 end

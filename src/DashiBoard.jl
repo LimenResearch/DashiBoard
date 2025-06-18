@@ -4,7 +4,7 @@ public launch
 
 using Base: Fix1, Fix2
 
-using Base.ScopedValues: with
+using Base.ScopedValues: @with
 
 using HTTP: HTTP, startwrite
 
@@ -18,7 +18,7 @@ using Tables: Tables
 
 using DuckDBUtils: Repository
 
-using DataIngestion: is_supported, export_table, Filter, DataIngestion
+using DataIngestion: acceptable_paths, export_table, Filter, DataIngestion
 
 using Pipelines: Card, get_state, Pipelines
 
@@ -29,6 +29,8 @@ const cache_directory() = @get_scratch!("cache")
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
 
+include("settings.jl")
+include("handlers.jl")
 include("middleware.jl")
 include("launch.jl")
 

@@ -16,14 +16,16 @@ function stream_middleware(handler)
     end
 end
 
-function register_handler!(
+function _register!(
         router::HTTP.Router,
         method::AbstractString,
         path::AbstractString,
-        handler
+        handler::Function,
+        settings::Settings
     )
 
-    HTTP.register!(router, method, path, stream_middleware(handler))
+    scoped_handler = ScopedHandler(handler, settings)
+    HTTP.register!(router, method, path, stream_middleware(scoped_handler))
     HTTP.register!(router, "OPTIONS", path, HTTP.streamhandler(options_handler))
     return
 end

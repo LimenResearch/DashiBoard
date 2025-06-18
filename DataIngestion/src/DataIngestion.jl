@@ -2,8 +2,9 @@ module DataIngestion
 
 export Filter, ListFilter, IntervalFilter
 
-public is_supported, load_files, summarize, select, export_table
+public is_supported, acceptable_paths, load_files, summarize, select, export_table
 
+using Base.ScopedValues: @with, ScopedValue
 using FunSQL: SQLNode,
     Fun,
     Get,
@@ -21,6 +22,7 @@ using IterTools: flagfirst
 using Tables: Tables
 
 const StringDict = Dict{String, Any}
+const DATA_DIR = ScopedValue("")
 
 include("readers/utils.jl")
 include("readers/csv.jl")

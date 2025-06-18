@@ -30,28 +30,37 @@ $(list_formats()).
 is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 
 """
-    parse_paths([basedir::String], d::AbstractDict)::Vector{String}
+    acceptable_paths()
+
+List of relative paths corresponding to supported files within `DATA_DIR[]`.
+"""
+function acceptable_paths()
+    base_dir = isempty(DATA_DIR[]) ? pwd() : DATA_DIR[]
+    return Iterators.flatmap(walkdir(base_dir)) do (root, _, files)
+        rel_root = relpath(root, base_dir)
+        return (normpath(rel_root, file) for file in files if is_supported(file))
+    end
+end
+
+function _joinpath(base_dir::AbstractString, path::AbstractString)
+    return isempty(base_dir) ? path : joinpath(base_dir, path)
+end
+
+"""
+    parse_paths(d::AbstractDict)::Vector{String}
 
 Generate a list of file paths based on a configuration dictionary.
-If the `basedir` argument is provided, the file paths are interpreted as
-relative to `basedir`.
+The file paths are interpreted as relative to `DataIngestion.DATA_DIR[]`.
 """
-parse_paths(d::AbstractDict)::Vector{String} = d["files"]
-
-function parse_paths(basedir::AbstractString, d::AbstractDict)::Vector{String}
-    files = parse_paths(d)
-    return joinpath.(basedir, files)
-end
+parse_paths(d::AbstractDict)::Vector{String} = _joinpath.(DATA_DIR[], d["files"])
 
 # TODO: document this method and pass options via `c`
 function load_files(repository::Repository, c::AbstractDict; kwargs...)
-    files = parse_paths(c)
-    return load_files(repository, files, format; kwargs...)
+    return load_files(repository, parse_paths(c); kwargs...)
 end
 
-function load_files(repository::Repository, basedir::AbstractString, c::AbstractDict; kwargs...)
-    files = parse_paths(basedir, c)
-    return load_files(repository, files; kwargs...)
+function load_files(repository::Repository, base_dir::AbstractString, c::AbstractDict; kwargs...)
+    return @with DATA_DIR => base_dir load_files(repository, c; kwargs...)
 end
 
 """

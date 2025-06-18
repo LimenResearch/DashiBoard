@@ -28,14 +28,21 @@ export function TableView(props) {
                 getRows: params => {
                     const offset = params.startRow;
                     const limit = params.endRow - params.startRow;
-                    postRequest("fetch", { offset, limit, processed: props.processed })
-                        .then(x => x.json())
+                    postRequest(
+                        "fetch",
+                        { offset, limit, processed: props.processed },
+                        null
+                    )
                         .then(data => {
-                            let lastRow = -1;
-                            if (data.length <= params.endRow) {
-                                lastRow = data.length;
+                            if (data) {
+                                let lastRow = -1;
+                                if (data.length <= params.endRow) {
+                                    lastRow = data.length;
+                                }
+                                params.successCallback(data.values, lastRow);
+                            } else {
+                                params.failCallback();
                             }
-                            params.successCallback(data.values, lastRow);
                         });
                 }
             };

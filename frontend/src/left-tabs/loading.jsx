@@ -22,11 +22,8 @@ export function Loader(props) {
 
     function loadData() {
         setLoading(true);
-        const body = {files: files()};
-        postRequest("load", body)
-            .then(x => x.json())
+        postRequest("load", {files: files()}, metadata())
             .then(setMetadata)
-            .catch(error => window.alert(error))
             .finally(setLoading(false));
     }
 
@@ -37,7 +34,7 @@ export function Loader(props) {
         <div class="p-4">
             <Button
                     positive
-                    disabled={loading() || files.loading || files() == null || files().length == 0}
+                    disabled={loading() || files() == null || files().length == 0}
                     onClick={loadData}>
                 {props.confirmationMessage || "Load"}
             </Button>

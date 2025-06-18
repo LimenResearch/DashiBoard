@@ -6,7 +6,7 @@ import { postRequest } from "../requests";
 export function CardList(props) {
     const [store, setStore] = props.input;
     const [configs] = createResource(
-        () => postRequest("card-configurations", {}).then(x => x.json())
+        () => postRequest("card-configurations", {}, null)
     );
 
     const options = () => (configs() || []).map(x => x.label);

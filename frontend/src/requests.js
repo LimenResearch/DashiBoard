@@ -14,7 +14,7 @@ export function getURL(page) {
     return "http://" + host + ":" + port + "/" + page;
 }
 
-export function postRequest(page, body) {
+export function postRequest(page, body, def) {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -26,5 +26,12 @@ export function postRequest(page, body) {
             headers: myHeaders,
         });
 
-    return response;
+    return response
+        .then(x => x.json())
+        .catch(
+            _ => {
+                console.log("Request to " + page + " failed");
+                return def;
+            }
+        );
 }

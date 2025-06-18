@@ -14,12 +14,12 @@ mktempdir() do data_dir
     pipeline_config = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline.json"))
 
     repo = DashiBoard.REPOSITORY[]
-    DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, load_config))
+    DataIngestion.load_files(repo, data_dir, load_config)
 
-    filters = DataIngestion.get_filter.(pipeline_config["filters"])
+    filters = DataIngestion.Filter.(pipeline_config["filters"])
     DataIngestion.select(repo, filters)
 
-    cards = Pipelines.get_card.(pipeline_config["cards"])
+    cards = Pipelines.Card.(pipeline_config["cards"])
     Pipelines.evaluate(repo, cards, "selection")
 
     res = DBInterface.execute(DataFrame, repo, "FROM selection")

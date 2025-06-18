@@ -9,7 +9,7 @@ Pipelines is a library designed to generate and evaluate data analysis pipelines
 ## Transformation interface
 
 ```@docs
-Pipelines.AbstractCard
+Pipelines.Card
 Pipelines.train
 Pipelines.evaluate
 Pipelines.inputs
@@ -20,7 +20,7 @@ Pipelines.invertible
 ## Pipeline computation
 
 ```@docs
-Pipelines.get_card
+Pipelines.Card(c::AbstractDict)
 Pipelines.evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
 ```
 

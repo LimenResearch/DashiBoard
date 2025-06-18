@@ -8,8 +8,13 @@ CurrentModule = DataIngestion
 
 ```@docs
 DataIngestion.is_supported
-DataIngestion.get_files
 DataIngestion.load_files
+```
+
+### Internal
+
+```@docs
+DataIngestion.parse_paths
 ```
 
 ## Metadata for filter generation
@@ -21,8 +26,8 @@ DataIngestion.summarize
 ## Filtering interface
 
 ```@docs
-DataIngestion.AbstractFilter
-DataIngestion.get_filter
+DataIngestion.Filter
+DataIngestion.Filter(c::AbstractDict)
 DataIngestion.select
 ```
 

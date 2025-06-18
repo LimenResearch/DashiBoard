@@ -5,13 +5,13 @@ mktempdir() do dir
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(dir, "pollution.csv")
     )
-    DataIngestion.load_files(repo, DataIngestion.get_files(dir, spec["data"]))
-    filters = DataIngestion.get_filter.(spec["filters"])
+    DataIngestion.load_files(repo, dir, spec["data"])
+    filters = DataIngestion.Filter.(spec["filters"])
     DataIngestion.select(repo, filters)
 
     @testset "split" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
-        card = Pipelines.get_card(d["tiles"])
+        card = Pipelines.Card(d["tiles"])
         @test !Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["No", "cbwd"])
@@ -27,7 +27,7 @@ mktempdir() do dir
         @test count(==(2), df._tiled_partition) == 14606
         # TODO: test by group as well
 
-        card = Pipelines.get_card(d["percentile"])
+        card = Pipelines.Card(d["percentile"])
         Pipelines.evaluate(repo, card, "selection" => "split")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
@@ -38,14 +38,14 @@ mktempdir() do dir
         @test count(==(2), df._percentile_partition) == 4383
         # TODO: port TimeFunnelUtils tests
 
-        @test_throws ArgumentError Pipelines.get_card(d["unsorted"])
+        @test_throws ArgumentError Pipelines.Card(d["unsorted"])
     end
 
     # TODO: also test partitioned version
     @testset "rescale" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
-        card = Pipelines.get_card(d["zscore"])
+        card = Pipelines.Card(d["zscore"])
         @test Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["cbwd", "TEMP"])
@@ -77,7 +77,7 @@ mktempdir() do dir
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
-        card = Pipelines.get_card(d["maxabs"])
+        card = Pipelines.Card(d["maxabs"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
@@ -103,7 +103,7 @@ mktempdir() do dir
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
-        card = Pipelines.get_card(d["minmax"])
+        card = Pipelines.Card(d["minmax"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
@@ -125,7 +125,7 @@ mktempdir() do dir
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
-        card = Pipelines.get_card(d["log"])
+        card = Pipelines.Card(d["log"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
@@ -146,7 +146,7 @@ mktempdir() do dir
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.PRES ≈ df.PRES
 
-        card = Pipelines.get_card(d["logistic"])
+        card = Pipelines.Card(d["logistic"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
@@ -171,7 +171,7 @@ mktempdir() do dir
     @testset "cluster" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
 
-        card = Pipelines.get_card(d["kmeans"])
+        card = Pipelines.Card(d["kmeans"])
 
         @test !Pipelines.invertible(card)
         @test issetequal(Pipelines.inputs(card), ["TEMP", "PRES"])
@@ -192,7 +192,7 @@ mktempdir() do dir
         R = kmeans([train_df.TEMP train_df.PRES]', 3; maxiter = 100, tol = 1.0e-6, rng)
         @test assignments(R) == df.cluster
 
-        card = Pipelines.get_card(d["dbscan"])
+        card = Pipelines.Card(d["dbscan"])
 
         @test !Pipelines.invertible(card)
         @test issetequal(Pipelines.inputs(card), ["TEMP", "PRES"])
@@ -226,10 +226,10 @@ mktempdir() do dir
             );
             """
         )
-        part_card = Pipelines.get_card(d["partition"])
+        part_card = Pipelines.Card(d["partition"])
         Pipelines.evaluate(repo, part_card, "small" => "partition")
 
-        card = Pipelines.get_card(d["pca"])
+        card = Pipelines.Card(d["pca"])
 
         @test !Pipelines.invertible(card)
         @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
@@ -253,7 +253,7 @@ mktempdir() do dir
         @test Y[1, :] == df.component_1
         @test Y[2, :] == df.component_2
 
-        card = Pipelines.get_card(d["ppca"])
+        card = Pipelines.Card(d["ppca"])
 
         @test !Pipelines.invertible(card)
         @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
@@ -283,7 +283,7 @@ mktempdir() do dir
         @test Y[1, :] == df.component_1
         @test Y[2, :] == df.component_2
 
-        card = Pipelines.get_card(d["factoranalysis"])
+        card = Pipelines.Card(d["factoranalysis"])
 
         @test !Pipelines.invertible(card)
         @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
@@ -313,7 +313,7 @@ mktempdir() do dir
         @test Y[1, :] == df.component_1
         @test Y[2, :] == df.component_2
 
-        card = Pipelines.get_card(d["mds"])
+        card = Pipelines.Card(d["mds"])
 
         @test !Pipelines.invertible(card)
         @test issetequal(Pipelines.inputs(card), ["DEWP", "TEMP", "PRES", "partition"])
@@ -346,10 +346,10 @@ mktempdir() do dir
     @testset "glm" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
 
-        part_card = Pipelines.get_card(d["partition"])
+        part_card = Pipelines.Card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
-        card = Pipelines.get_card(d["hasPartition"])
+        card = Pipelines.Card(d["hasPartition"])
         @test !Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["cbwd", "year", "No", "TEMP", "partition"])
@@ -370,7 +370,7 @@ mktempdir() do dir
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
 
-        card = Pipelines.get_card(d["hasWeights"])
+        card = Pipelines.Card(d["hasWeights"])
 
         Pipelines.evaluate(repo, card, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
@@ -389,10 +389,10 @@ mktempdir() do dir
     @testset "interp" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "interp.json"))
 
-        part_card = Pipelines.get_card(d["partition"])
+        part_card = Pipelines.Card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
-        card = Pipelines.get_card(d["constant"])
+        card = Pipelines.Card(d["constant"])
         @test !Pipelines.invertible(card)
 
         @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
@@ -428,7 +428,7 @@ mktempdir() do dir
         @test ips[1](float.(df.No)) == df.TEMP_hat
         @test ips[2](float.(df.No)) == df.PRES_hat
 
-        card = Pipelines.get_card(d["quadratic"])
+        card = Pipelines.Card(d["quadratic"])
 
         @test issetequal(Pipelines.inputs(card), ["No", "TEMP", "PRES", "partition"])
         @test issetequal(Pipelines.outputs(card), ["TEMP_hat", "PRES_hat"])
@@ -533,7 +533,7 @@ mktempdir() do dir
         end
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-        card = Pipelines.get_card(d["identity"])
+        card = Pipelines.Card(d["identity"])
         @test !Pipelines.invertible(card)
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, state)
@@ -543,7 +543,7 @@ mktempdir() do dir
         @test only(Pipelines.inputs(card)) == "month"
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-        card = Pipelines.get_card(d["dayofyear"])
+        card = Pipelines.Card(d["dayofyear"])
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
@@ -559,7 +559,7 @@ mktempdir() do dir
         @test only(Pipelines.inputs(card)) == "date"
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-        card = Pipelines.get_card(d["hour"])
+        card = Pipelines.Card(d["hour"])
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
@@ -568,7 +568,7 @@ mktempdir() do dir
         @test only(Pipelines.inputs(card)) == "time"
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-        card = Pipelines.get_card(d["minute"])
+        card = Pipelines.Card(d["minute"])
         state = Pipelines.evaluate(repo, card, "origin" => "encoded")
         gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
@@ -580,7 +580,7 @@ mktempdir() do dir
     @testset "streamliner" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
 
-        part_card = Pipelines.get_card(d["partition"])
+        part_card = Pipelines.Card(d["partition"])
         Pipelines.evaluate(repo, part_card, "selection" => "partition")
 
         model_directory = joinpath(@__DIR__, "static", "model")
@@ -590,7 +590,7 @@ mktempdir() do dir
             Pipelines.PARSER => Pipelines.default_parser(),
             Pipelines.MODEL_DIR => model_directory,
             Pipelines.TRAINING_DIR => training_directory,
-            Pipelines.get_card(d["basic"]),
+            Pipelines.Card(d["basic"]),
         )
         @test !Pipelines.invertible(card)
 
@@ -619,7 +619,7 @@ mktempdir() do dir
             Pipelines.PARSER => Pipelines.default_parser(),
             Pipelines.MODEL_DIR => model_directory,
             Pipelines.TRAINING_DIR => training_directory,
-            Pipelines.get_card(d["classifier"]),
+            Pipelines.Card(d["classifier"]),
         )
         @test !Pipelines.invertible(card)
 

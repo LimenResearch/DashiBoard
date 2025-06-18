@@ -1,8 +1,7 @@
 module Pipelines
 
-export card_configurations, get_card
-
-export AbstractCard,
+export card_configurations,
+    Card,
     SplitCard,
     RescaleCard,
     ClusterCard,
@@ -14,7 +13,7 @@ export AbstractCard,
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 
-public evaluatenodes, deevaluatenodes, report, visualize, Node
+public evaluatenodes, deevaluatenodes, report, visualize, get_card, get_state, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 

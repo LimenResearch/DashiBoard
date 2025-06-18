@@ -23,7 +23,7 @@ end
 
 # TODO: support weights and custom metrics
 """
-    struct ClusterCard <: AbstractCard
+    struct ClusterCard <: Card
         clusterer::Clusterer
         columns::Vector{String}
         partition::Union{String, Nothing}
@@ -33,7 +33,7 @@ end
 Cluster `columns` based on `clusterer`.
 Save resulting column as `output`.
 """
-struct ClusterCard <: AbstractCard
+struct ClusterCard <: Card
     clusterer::Clusterer
     columns::Vector{String}
     partition::Union{String, Nothing}

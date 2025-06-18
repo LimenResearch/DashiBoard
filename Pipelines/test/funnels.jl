@@ -4,14 +4,14 @@
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
-    card = Pipelines.get_card(d["tiles"])
+    card = Pipelines.Card(d["tiles"])
 
     mktempdir() do data_dir
         Downloads.download(
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
-        DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, spec["data"]); schema)
+        DataIngestion.load_files(repo, data_dir, spec["data"]; schema)
     end
     Pipelines.evaluate(repo, card, "source" => "split"; schema)
 

@@ -80,7 +80,7 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 )
 
 """
-    struct RescaleCard <: AbstractCard
+    struct RescaleCard <: Card
         rescaler::Rescaler
         by::Vector{String} = String[]
         columns::Vector{String}
@@ -98,7 +98,7 @@ The supported methods are
 The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`. 
 """
-struct RescaleCard <: AbstractCard
+struct RescaleCard <: Card
     rescaler::Rescaler
     by::Vector{String}
     columns::Vector{String}

@@ -16,7 +16,7 @@ function parse_config(
 end
 
 """
-    struct StreamlinerCard <: AbstractCard
+    struct StreamlinerCard <: Card
     model::Model
     training::Training
     order_by::Vector{String}
@@ -28,7 +28,7 @@ end
 
 Run a Streamliner model, predicting `targets` from `predictors`. 
 """
-struct StreamlinerCard <: AbstractCard
+struct StreamlinerCard <: Card
     model::Model
     training::Training
     order_by::Vector{String}

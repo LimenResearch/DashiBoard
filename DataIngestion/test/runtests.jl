@@ -76,7 +76,7 @@ end
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
-        DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, spec); schema)
+        DataIngestion.load_files(repo, data_dir, spec; schema)
     end
 
     f1 = DataIngestion.IntervalFilter(
@@ -130,7 +130,7 @@ end
 
 @testset "from json" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "filters.json"))
-    filters = DataIngestion.get_filter.(d)
+    filters = DataIngestion.Filter.(d)
 
     @test length(filters) == 2
     @test filters[1] isa DataIngestion.IntervalFilter
@@ -152,7 +152,7 @@ end
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
-        DataIngestion.load_files(repo, DataIngestion.get_files(data_dir, spec); schema)
+        DataIngestion.load_files(repo, data_dir, spec; schema)
     end
     info = DataIngestion.summarize(repo, "source"; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.source")

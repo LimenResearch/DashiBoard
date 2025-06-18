@@ -7,7 +7,7 @@ get_pred(cond::Condition) = cond.pred
 get_params(cond::Condition) = cond.params
 
 """
-    abstract type AbstractFilter end
+    abstract type Filter end
 
 Abstract supertype to encompass all possible filters.
 
@@ -16,17 +16,24 @@ Current implementations:
 - [`IntervalFilter`](@ref),
 - [`ListFilter`](@ref).
 """
-abstract type AbstractFilter end
+abstract type Filter end
 
 """
-    struct IntervalFilter{T} <: AbstractFilter
+    Filter(d::AbstractDict)
+
+Generate a [`Filter`](@ref) based on a configuration dictionary.
+"""
+Filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
+
+"""
+    struct IntervalFilter{T} <: Filter
         colname::String
         interval::ClosedInterval{T}
     end
 
 Object to retain only those rows for which the variable `colname` lies inside the `interval`.
 """
-struct IntervalFilter{T} <: AbstractFilter
+struct IntervalFilter{T} <: Filter
     colname::String
     interval::ClosedInterval{T}
 end
@@ -48,14 +55,14 @@ function Condition(f::IntervalFilter, prefix::AbstractString)
 end
 
 """
-    struct ListFilter{T} <: AbstractFilter
+    struct ListFilter{T} <: Filter
         colname::String
         list::Vector{T}
     end
 
 Object to retain only those rows for which the variable `colname` belongs to a `list` of options.
 """
-struct ListFilter{T} <: AbstractFilter
+struct ListFilter{T} <: Filter
     colname::String
     list::Vector{T}
 end
@@ -82,13 +89,6 @@ const FILTER_TYPES = Dict(
 )
 
 """
-    get_filter(d::AbstractDict)
-
-Generate an [`AbstractFilter`](@ref) based on a configuration dictionary.
-"""
-get_filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
-
-"""
     select(repository::Repository, filters::AbstractVector; schema = nothing)
 
 Create a table with name `TABLE_NAMES.selection` within the database `repository.db`,
@@ -96,7 +96,7 @@ where `repository` is a [`Repository`](@ref).
 The table `TABLE_NAMES.selection` is filled with rows from the table
 `TABLE_NAMES.source` that are kept by the filters in `filters`.
 
-Each filter should be an instance of [`AbstractFilter`](@ref).
+Each filter should be an instance of [`Filter`](@ref).
 """
 function select(repository::Repository, filters::AbstractVector; schema = nothing)
     cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]

@@ -29,7 +29,7 @@ const INTERPOLATORS = OrderedDict(
 )
 
 """
-    struct InterpCard <: AbstractCard
+    struct InterpCard <: Card
         interpolator::Interpolator
         predictor::String
         targets::Vector{String}
@@ -42,7 +42,7 @@ const INTERPOLATORS = OrderedDict(
 
 Interpolate `targets` based on `predictor`.
 """
-struct InterpCard <: AbstractCard
+struct InterpCard <: Card
     interpolator::Interpolator
     predictor::String
     targets::Vector{String}

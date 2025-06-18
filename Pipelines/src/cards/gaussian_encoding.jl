@@ -19,7 +19,7 @@ const TEMPORAL_MAX = OrderedDict(
 )
 
 """
-    struct GaussianEncodingCard <: AbstractCard
+    struct GaussianEncodingCard <: Card
 
 Defines a card for applying Gaussian transformations to a specified column.
 
@@ -59,7 +59,7 @@ Evaluate:
   5. Selects only the required columns (original and transformed).
   6. Replaces the target table with the final results.
 """
-struct GaussianEncodingCard <: AbstractCard
+struct GaussianEncodingCard <: Card
     column::String
     processed_column::SQLNode
     n_modes::Int

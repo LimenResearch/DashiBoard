@@ -44,7 +44,7 @@ mktempdir() do data_dir
         url = "http://127.0.0.1:8080/"
 
         body = read(joinpath(@__DIR__, "static", "card-configurations.json"), String)
-        resp = HTTP.post(url * "card-configurations", body = body)
+        resp = HTTP.post(url * "get-card-configurations", body = body)
         configs = JSON.parse(IOBuffer(resp.body))
         @test configs isa AbstractVector
         @test length(configs) == 8
@@ -53,14 +53,14 @@ mktempdir() do data_dir
             "Content-Type" => "application/json",
             "Transfer-Encoding" => "chunked",
         ]
-        resp = HTTP.request("OPTIONS", url * "card-configurations")
+        resp = HTTP.request("OPTIONS", url * "get-card-configurations")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
             "Transfer-Encoding" => "chunked",
         ]
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
-        resp = HTTP.post(url * "load", body = body)
+        resp = HTTP.post(url * "load-files", body = body)
         summaries = JSON.parse(IOBuffer(resp.body))
         @test summaries[end]["name"] == "_name"
         @test resp.headers == [
@@ -70,7 +70,7 @@ mktempdir() do data_dir
         ]
 
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
-        resp = HTTP.post(url * "pipeline", body = body)
+        resp = HTTP.post(url * "evaluate-pipeline", body = body)
         summaries = JSON.parse(IOBuffer(resp.body))["summaries"]
         @test summaries[end]["name"] == "_percentile_partition"
         @test resp.headers == [
@@ -80,7 +80,7 @@ mktempdir() do data_dir
         ]
 
         body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
-        resp = HTTP.post(url * "fetch", body = body)
+        resp = HTTP.post(url * "fetch-data", body = body)
         tbl = JSON.parse(IOBuffer(resp.body))
         df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
         @test tbl["length"] == nrow(df)
@@ -91,7 +91,7 @@ mktempdir() do data_dir
             "Transfer-Encoding" => "chunked",
         ]
 
-        HTTP.open("GET", url * "processed-data") do stream
+        HTTP.open("GET", url * "get-processed-data") do stream
             r = startread(stream)
             io = IOBuffer()
             write(io, stream)
@@ -105,7 +105,7 @@ mktempdir() do data_dir
                 "Content-Length" => "360326",
             ]
         end
-        resp = HTTP.request("OPTIONS", url * "processed-data")
+        resp = HTTP.request("OPTIONS", url * "get-processed-data")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
             "Transfer-Encoding" => "chunked",

@@ -1,11 +1,11 @@
-function list_handler(stream::HTTP.Stream)
+function get_acceptable_paths(stream::HTTP.Stream)
     _ = json_read(stream)
     files = collect(String, acceptable_paths())
     json_write(stream, files)
     return
 end
 
-function load_handler(stream::HTTP.Stream)
+function load_files(stream::HTTP.Stream)
     spec = json_read(stream)
     DataIngestion.load_files(REPOSITORY[], spec)
     summaries = DataIngestion.summarize(REPOSITORY[], "source")
@@ -13,14 +13,14 @@ function load_handler(stream::HTTP.Stream)
     return
 end
 
-function card_configurations_handler(stream::HTTP.Stream)
+function get_card_configurations(stream::HTTP.Stream)
     spec = json_read(stream)
     configs = Pipelines.card_configurations(spec)
     json_write(stream, configs)
     return
 end
 
-function pipeline_handler(stream::HTTP.Stream)
+function evaluate_pipeline(stream::HTTP.Stream)
     spec = json_read(stream)
     filters = Filter.(spec["filters"])
     cards = Card.(spec["cards"])
@@ -34,7 +34,7 @@ function pipeline_handler(stream::HTTP.Stream)
     return
 end
 
-function fetch_handler(stream::HTTP.Stream)
+function fetch_data(stream::HTTP.Stream)
     spec = json_read(stream)
     table = spec["processed"] ? "selection" : "source"
     limit::Int, offset::Int = spec["limit"], spec["offset"]
@@ -68,7 +68,7 @@ function fetch_handler(stream::HTTP.Stream)
     return
 end
 
-function processed_data_handler(stream::HTTP.Stream)
+function get_processed_data(stream::HTTP.Stream)
     mktempdir() do dir
         path = joinpath(dir, "processed-data.csv")
         export_table(REPOSITORY[], path)

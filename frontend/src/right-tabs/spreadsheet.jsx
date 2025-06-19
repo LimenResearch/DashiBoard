@@ -16,7 +16,7 @@ export function Spreadsheet(props) {
         <p class={headerClass}>Selection</p>
         <TableView metadata={props.selectionMetadata} processed={true}></TableView>
         <div class="mt-4">
-            <A href={getURL("processed-data")} download="processed-data.csv" positive>
+            <A href={getURL("get-processed-data")} download="processed-data.csv" positive>
                 Download processed data
             </A>
             <Button onClick={() => downloadJSON(reportList(), reportAnchor)} positive>

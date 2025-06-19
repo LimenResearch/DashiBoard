@@ -5,6 +5,15 @@
     end
     Pipelines.inputs(t::TrivialCard) = OrderedSet(t.inputs)
     Pipelines.outputs(t::TrivialCard) = OrderedSet(t.outputs)
+    function Pipelines.train(::Repository, ::TrivialCard, ::AbstractString; schema = nothing)
+        return Pipelines.CardState()
+    end
+    function Pipelines.evaluate(
+            ::Repository, ::TrivialCard, ::Pipelines.CardState, ::Pair;
+            schema = nothing
+        )
+        return nothing
+    end
 
     nodes = [
         Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), true),
@@ -13,7 +22,9 @@
         Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
     ]
 
-    @test Pipelines.evaluation_order!(nodes) == [4, 3, 1, 2]
+    g = Pipelines.digraph(nodes)
+    order = Pipelines.topological_sort(g)
+    @test order == [4, 3, 1, 2]
 
     nodes = [
         Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), false),
@@ -22,7 +33,17 @@
         Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
     ]
 
-    @test Pipelines.evaluation_order!(nodes) == [4, 3, 2]
+    @test issetequal(Pipelines.required_inputs(nodes), ["temp", "wind"])
+
+    repo = Repository()
+    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
+    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl2(temp DOUBLE, wind DOUBLE)")
+
+    @test_throws ArgumentError Pipelines.evaluate!(repo, nodes, "tbl1")
+
+    Pipelines.evaluate!(repo, nodes, "tbl2")
+    updates = Pipelines.get_update.(nodes)
+    @test updates == [false, true, true, true]
 end
 
 mktempdir() do dir

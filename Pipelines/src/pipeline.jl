@@ -34,32 +34,56 @@ get_state(node::Node) = node.state
 set_state!(node::Node, state) = setproperty!(node, :state, state)
 
 get_card(node::Node) = node.card
+get_inputs(node::Node) = node.inputs
+get_outputs(node::Node) = node.outputs
 
-function digraph(nodes)
-    N = length(nodes)
-    g = DiGraph(N)
-
-    for (i, n) in enumerate(nodes)
-        for (i′, n′) in enumerate(nodes)
-            isdisjoint(n.outputs, n′.inputs) || add_edge!(g, i => i′)
-        end
-    end
-
-    return g
+function required_inputs(nodes::AbstractVector{Node})
+    res = stringset()
+    mapfoldl(get_inputs, union!, nodes, init = res)
+    mapfoldl(get_outputs, setdiff!, nodes, init = res)
+    return res
 end
 
-# Compute order and `update` property
-function evaluation_order!(nodes::AbstractVector{Node})
-    order = Int[]
+is_input_of(src::Node, tgt::Node) = !isdisjoint(src.outputs, tgt.inputs)
+
+function adjacency_matrix(nodes::AbstractVector{Node})
+    N = length(nodes)
+    M = spzeros(Bool, N, N)
+    M .= is_input_of.(nodes, permutedims(nodes))
+    return M
+end
+
+digraph(nodes::AbstractVector{Node}) = DiGraph(adjacency_matrix(nodes))
+
+function node_parents_dict(nodes::AbstractVector{Node}, g::DiGraph)
+    order = topological_sort(g)
+    return OrderedDict(nodes[i] => view(nodes, inneighbors(g, i)) for i in order)
+end
+
+function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::AbstractString; schema = nothing)
     g = digraph(nodes)
-    for idx in topological_sort(g)
-        n, ns = nodes[idx], view(nodes, inneighbors(g, idx))
-        if get_update(n) || any(get_update, ns)
-            set_update!(n, true)
-            push!(order, idx)
+
+    if is_cyclic(g)
+        throw(ArgumentError("Cyclic dependency found!"))
+    end
+
+    vars = required_inputs(nodes)
+    ns = colnames(repository, table; schema)
+    if vars ⊈ ns
+        diff = join(setdiff(vars, ns), ", ")
+        throw(ArgumentError("Variables $(diff) where not found in the data."))
+    end
+
+    d = node_parents_dict(nodes, g)
+    for (node, parents) in pairs(d)
+        if get_update(node) || any(get_update, parents)
+            state = evaluate(repository, get_card(node), table => table; schema)
+            set_state!(node, state)
+            set_update!(node, true)
         end
     end
-    return order
+
+    return nodes
 end
 
 """
@@ -71,16 +95,7 @@ the transformations in `cards`.
 function evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
     nodes = Node.(cards)
-    if any(get_update, nodes)
-        order = evaluation_order!(nodes)
-        for idx in order
-            node = nodes[idx]
-            state = evaluate(repository, node.card, table => table; schema)
-            set_state!(node, state)
-            set_update!(node, false)
-        end
-    end
-    return nodes
+    return evaluate!(repository, nodes, table; schema)
 end
 
 # Note: for the moment this evaluates the nodes in order
@@ -89,14 +104,14 @@ end
 # pass `nodes = Node.(configs)` as argument
 function evaluatenodes(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
-        evaluate(repository, node.card, node.state, table => table; schema)
+        evaluate(repository, get_card(node), get_state(node), table => table; schema)
     end
     return
 end
 
 function deevaluatenodes(repository::Repository, nodes::AbstractVector, table::AbstractString; schema = nothing)
     for node in nodes
-        deevaluate(repository, node.card, node.state, table => table; schema)
+        deevaluate(repository, get_card(node), get_state(node), table => table; schema)
     end
     return
 end

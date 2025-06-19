@@ -62,7 +62,9 @@ using FunSQL: render,
     LeftJoin,
     Join
 
-using Graphs: DiGraph, add_edge!, topological_sort, inneighbors
+using SparseArrays: spzeros
+
+using Graphs: DiGraph, inneighbors, is_cyclic, topological_sort
 
 using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
 

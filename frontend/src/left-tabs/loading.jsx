@@ -33,7 +33,6 @@ export function Loader(props) {
         </div>
         <div class="p-4">
             <Button
-                    positive
                     disabled={loading() || files() == null || files().length == 0}
                     onClick={loadData}>
                 {props.confirmationMessage || "Load"}

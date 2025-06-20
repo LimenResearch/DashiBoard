@@ -1,5 +1,15 @@
 import { host, port } from "./request.json"
 
+export function loadJSON(input, def) {
+    return input.files[0]
+        .text()
+        .then(x => x.json())
+        .catch(_ => {
+            console.log("Could not load file.");
+            return def;
+        });
+}
+
 export function downloadJSON(obj, ref) {
     const data = JSON.stringify(obj)
     const blob = new Blob([data], {type: "application/json"});

@@ -55,7 +55,7 @@ export function initCardContent(config) {
 
 export function CardContent(props) {
     const names = () => props.metadata.map(x => x.name);
-    const id = crypto.randomUUID();
+    const id = _.uniqueId();
     return <For each={props.input}>
         {widget => {
             return <AutoWidget id={id} names={names()} input={widget}></AutoWidget>

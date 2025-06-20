@@ -1,6 +1,6 @@
-function classList(positive, disabled) {
-    const activePositive = positive && !disabled;
-    const activeNegative = !positive && !disabled;
+function classList(danger, disabled) {
+    const activePositive = !danger && !disabled;
+    const activeNegative = danger && !disabled;
     return {
         "text-xl"              : true,
         "font-semibold"        : true,
@@ -31,7 +31,7 @@ export function Button(props) {
     return <button
             onClick={props.onClick}
             disabled={props.disabled}
-            classList={classList(props.positive, props.disabled)}>
+            classList={classList(props.danger, props.disabled)}>
         {props.children}
     </button>;
 }
@@ -41,7 +41,7 @@ export function A(props) {
             href={props.href}
             download={props.download}
             disabled={props.disabled}
-            classList={classList(props.positive, props.disabled)}>
+            classList={classList(props.danger, props.disabled)}>
         {props.children}
     </a>;
 }

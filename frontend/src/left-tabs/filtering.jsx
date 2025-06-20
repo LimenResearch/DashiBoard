@@ -3,6 +3,7 @@ import { createStore } from "solid-js/store";
 
 import { IntervalFilter } from "../filters/interval-filter";
 import { ListFilter } from "../filters/list-filter";
+import { DownloadJSON } from "../components/json";
 
 function nonNullEntries(obj) {
     return _.entries(obj).filter(([k, v]) => v != null);
@@ -32,8 +33,13 @@ export function Filters(props) {
         .filter(entry => entry.type == "categorical")
         .map(entry => _.assign({store, setStore}, entry));
 
-    return <div class="flex flex-row gap-4 pb-4">
-        <div class="basis-1/2"><For each={numerical()}>{IntervalFilter}</For></div>
-        <div class="basis-1/2"><For each={categorical()}>{ListFilter}</For></div>
+    return <div>
+        <div class="flex flex-row gap-4 pb-4">
+            <div class="basis-1/2"><For each={numerical()}>{IntervalFilter}</For></div>
+            <div class="basis-1/2"><For each={categorical()}>{ListFilter}</For></div>
+        </div>
+        <DownloadJSON data={store} name="filters.json">
+            Download filters
+        </DownloadJSON>
     </div>;
 }

@@ -1,6 +1,5 @@
 import { createResource } from "solid-js";
-import { initCard, Card, CardPlus } from "./card";
-import { getOutputs } from "./card-content";
+import { Card, CardPlus } from "./card";
 import { postRequest } from "../requests";
 
 export function CardList(props) {
@@ -8,39 +7,21 @@ export function CardList(props) {
     const [configs] = createResource(
         () => postRequest("get-card-configurations", {}, null)
     );
+    const safeConfigs = () => configs() || [];
 
-    const options = () => (configs() || []).map(x => x.label);
-
-    const addCardAfter = (label, card) => {
-        const config = (configs() || []).find(x => x.label === label);
-        const data = initCard(config);
-        const i = store.cards.indexOf(card);
-        setStore(
-            "cards",
-            store.cards.toSpliced(
-                i + 1,
-                0,
-                { config, input: data.input, output: data.output }
-            )
-        );
-    };
-
-    const metadata = card => {
-        const newNames = store.cards
-            .filter(x => x !== card)
-            .flatMap(x => getOutputs(x.config, x.output.value()));
-        return props.metadata.concat(newNames);
+    const options = () => safeConfigs().map(x => x.label);
+    const addCardAfter = (label, i) => {
+        const config = safeConfigs().find(x => x.label === label);
+        setStore("cards", cards => cards.toSpliced(i + 1, 0, config));
     };
 
     return <>
         <CardPlus onClick={addCardAfter} options={options()}></CardPlus>
         <For each={store.cards}>
-            {card => {
-                const onClose = () => setStore("cards", store.cards.filter(x => x !== card));
+            {(card, index) => {
                 return <>
-                    <Card onClose={onClose} metadata={metadata(card)} {...card}></Card>
-                    <CardPlus onClick={label => addCardAfter(label, card)}
-                        options={options()}></CardPlus>
+                    <Card input={props.input} metadata={props.metadata} index={index()} {...card}/>
+                    <CardPlus onClick={label => addCardAfter(label, index())} options={options()}/>
                 </>;
             }}
         </For>

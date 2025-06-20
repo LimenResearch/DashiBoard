@@ -45,7 +45,7 @@ export function App() {
 
     const onSubmit = () => {
         if (isValid()) {
-            postRequest("pipeline", spec(), result()).then(setResult);
+            postRequest("evaluate-pipeline", spec(), result()).then(setResult);
         } else {
             window.alert("Invalid request, please fill out all required fields.");
         }

@@ -45,12 +45,12 @@ function launch(
         HTTP.streamhandler(cors405),
     )
 
-    _register!(router, "POST", "/list", list_handler, settings)
-    _register!(router, "POST", "/load", load_handler, settings)
-    _register!(router, "POST", "/card-configurations", card_configurations_handler, settings)
-    _register!(router, "POST", "/pipeline", pipeline_handler, settings)
-    _register!(router, "POST", "/fetch", fetch_handler, settings)
-    _register!(router, "GET", "/processed-data", processed_data_handler, settings)
+    _register!(router, "POST", "/get-acceptable-paths", get_acceptable_paths, settings)
+    _register!(router, "POST", "/load-files", load_files, settings)
+    _register!(router, "POST", "/get-card-configurations", get_card_configurations, settings)
+    _register!(router, "POST", "/evaluate-pipeline", evaluate_pipeline, settings)
+    _register!(router, "POST", "/fetch-data", fetch_data, settings)
+    _register!(router, "GET", "/get-processed-data", get_processed_data, settings)
 
     return if async
         HTTP.serve!(router, host, port, stream = true)

@@ -22,7 +22,7 @@ export function Loader(props) {
 
     function loadData() {
         setLoading(true);
-        postRequest("load", {files: files()}, metadata())
+        postRequest("load-files", {files: files()}, metadata())
             .then(setMetadata)
             .finally(setLoading(false));
     }

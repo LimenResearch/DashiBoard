@@ -29,7 +29,7 @@ export function TableView(props) {
                     const offset = params.startRow;
                     const limit = params.endRow - params.startRow;
                     postRequest(
-                        "fetch",
+                        "fetch-data",
                         { offset, limit, processed: props.processed },
                         null
                     )

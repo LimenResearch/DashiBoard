@@ -3,7 +3,7 @@ import { host, port } from "./request.json"
 export function loadJSON(input, def) {
     return input.files[0]
         .text()
-        .then(x => x.json())
+        .then(JSON.parse)
         .catch(_ => {
             console.log("Could not load file.");
             return def;

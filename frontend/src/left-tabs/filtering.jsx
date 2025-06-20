@@ -3,7 +3,7 @@ import { createStore } from "solid-js/store";
 
 import { IntervalFilter } from "../filters/interval-filter";
 import { ListFilter } from "../filters/list-filter";
-import { DownloadJSON } from "../components/json";
+import { DownloadJSON, UploadJSON } from "../components/json";
 
 function nonNullEntries(obj) {
     return _.entries(obj).filter(([k, v]) => v != null);
@@ -41,5 +41,8 @@ export function Filters(props) {
         <DownloadJSON data={store} name="filters.json">
             Download filters
         </DownloadJSON>
+        <UploadJSON def={store} onChange={setStore}>
+            Upload filters
+        </UploadJSON>
     </div>;
 }

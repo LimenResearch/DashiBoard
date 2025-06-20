@@ -3,9 +3,9 @@ import { Button } from "./button";
 
 export function UploadJSON(props) {
     let fileInput;
-    function onChange() {
+    const onChange = () => {
         loadJSON(fileInput, props.def).then(x => props.onChange(x));
-    }
+    };
 
     return <>
         <Button onClick={() => fileInput.click()}>

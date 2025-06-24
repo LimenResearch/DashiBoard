@@ -1,6 +1,8 @@
 import * as _ from "lodash"
 import { createOptions, Select } from "@thisbeyond/solid-select";
 import { Input } from "../components/input";
+import { useContext } from "solid-js";
+import { CardsContext } from "../create";
 
 const selectClass = "text-blue-800 font-semibold py-4 w-full text-left";
 
@@ -15,15 +17,16 @@ function parseNumber(s) {
 }
 
 export function AutoWidget(props) {
-    const [store, setStore] = props.input
+    const {setState} = useContext(CardsContext);
     const parse = x => (props.type === "number") ? parseNumber(x) : x;
     const parseAll = x => props.multiple ? x.map(parse) : parse(x);
-    const updateValue = x => setStore(
+    const updateValue = x => setState(
         "cards",
         props.cardIndex,
         "fields",
         props.index,
-        {value: parseAll(x)}
+        "value",
+        parseAll(x)
     );
 
     const starClassList = () => ({

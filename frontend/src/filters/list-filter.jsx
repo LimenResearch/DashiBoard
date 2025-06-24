@@ -1,12 +1,15 @@
-import { For } from "solid-js";
+import { For, useContext } from "solid-js";
 import { Toggler } from "../components/toggler";
+import { FiltersContext } from "../create";
 
 export function ListFilter(props) {
-    const modified = () => props.store.categorical[props.name] != null
+    const {state, setState} = useContext(FiltersContext);
+
+    const modified = () => state.categorical[props.name] != null
     const list = () => modified() ?
-        props.store.categorical[props.name] :
+        state.categorical[props.name] :
         new Set(props.summary);
-    const setList = value => props.setStore("categorical", { [props.name]: value });
+    const setList = value => setState("categorical", props.name, value);
 
     const onReset = () => setList(null);
 

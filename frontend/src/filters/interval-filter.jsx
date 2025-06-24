@@ -1,5 +1,7 @@
+import { useContext } from "solid-js";
 import { Input } from "../components/input";
 import { Toggler } from "../components/toggler";
+import { FiltersContext } from "../create";
 
 class Interval {
     constructor(min, max) {
@@ -13,11 +15,13 @@ class Interval {
 }
 
 export function IntervalFilter(props) {
-    const modified = () => props.store.numerical[props.name] != null
+    const {state, setState} = useContext(FiltersContext);
+
+    const modified = () => state.numerical[props.name] != null
     const filterValue = () => modified() ?
-        props.store.numerical[props.name] :
+        state.numerical[props.name] :
         new Interval(props.summary.min, props.summary.max);
-    const setFilterValue = value => props.setStore("numerical", { [props.name]: value });
+    const setFilterValue = value => setState("numerical", props.name, value);
 
     function updateValid(input, k) {
         const value = parseFloat(input);

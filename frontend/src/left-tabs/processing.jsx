@@ -1,24 +1,50 @@
-import { createStore } from "solid-js/store";
-import { DownloadJSON, UploadJSON } from "../components/json";
-import { CardList } from "../cards/card-list";
-import { cardValue } from "../cards/card";
+import * as _ from "lodash"
 
-export function initPipeline() {
-    const [store, setStore] = createStore({cards: []});
-    const input = [store, setStore];
-    const output = () => store.cards.map(cardValue);
-    return {input, output};
+import { createResource, useContext } from "solid-js";
+import { createStore } from "solid-js/store";
+
+import { DownloadJSON, UploadJSON } from "../components/json";
+import { Card, CardPlus, cardValue } from "../cards/card";
+import { postRequest } from "../requests";
+import { CardsContext } from "../create";
+
+export function initCards(metadata) {
+    const [state, setState] = createStore({cards: []});
+    return {state, setState, metadata};
 }
 
-export function Pipeline(props) {
-    const [store, setStore] = props.input;
+export function getCards(state) {
+    return state.cards.map(cardValue);
+}
+
+export function Cards() {
+    const {state, setState} = useContext(CardsContext);
+    const [configs] = createResource(
+        () => postRequest("get-card-configurations", {}, null)
+    );
+    const safeConfigs = () => configs() || [];
+
+    const options = () => safeConfigs().map(x => x.label);
+    const addCardAfter = (label, i) => {
+        const config = safeConfigs().find(x => x.label === label);
+        // Deep clone to not overwrite original config
+        setState("cards", cards => cards.toSpliced(i + 1, 0, _.cloneDeep(config)));
+    };
 
     return <>
-        <CardList input={props.input} metadata={props.metadata}></CardList>
-        <DownloadJSON data={store} name="cards.json">
+        <CardPlus onClick={addCardAfter} options={options()}></CardPlus>
+        <For each={state.cards}>
+            {(card, index) => {
+                return <>
+                    <Card index={index()} {...card}/>
+                    <CardPlus onClick={label => addCardAfter(label, index())} options={options()}/>
+                </>;
+            }}
+        </For>
+        <DownloadJSON data={state} name="cards.json">
             Download cards
         </DownloadJSON>
-        <UploadJSON def={store} onChange={setStore}>
+        <UploadJSON def={state} onChange={setState}>
             Upload cards
         </UploadJSON>
     </>;

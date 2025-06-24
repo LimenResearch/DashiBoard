@@ -1,29 +1,26 @@
-import { createSignal } from "solid-js";
+import { createSignal, useContext } from "solid-js";
 
 import { Button } from "../components/button";
 import { FilePicker } from "../components/file-picker";
 import { postRequest } from "../requests";
+import { LoaderContext } from "../create";
+import { createStore } from "solid-js/store";
 
 export function initLoader(){
-    const [metadata, setMetadata] = createSignal([]);
-
-    return {
-        input: {
-            metadata: [metadata, setMetadata],
-        },
-        output: metadata
-    }
+    const [state, setState] = createStore([]);
+    return {state, setState};
 }
 
-export function Loader(props) {
-    const [metadata, setMetadata] = props.input.metadata;
+export function Loader() {
+    const {state, setState} = useContext(LoaderContext);
+
     const [files, setFiles] = createSignal([]);
     const [loading, setLoading] = createSignal(false);
 
     function loadData() {
         setLoading(true);
-        postRequest("load-files", {files: files()}, metadata())
-            .then(setMetadata)
+        postRequest("load-files", {files: files()}, state)
+            .then(setState)
             .finally(setLoading(false));
     }
 
@@ -35,7 +32,7 @@ export function Loader(props) {
             <Button
                     disabled={loading() || files() == null || files().length == 0}
                     onClick={loadData}>
-                {props.confirmationMessage || "Load"}
+                Load
             </Button>
         </div>
     </div>;

@@ -1,8 +1,9 @@
 import * as _ from "lodash";
 import { Select } from "@thisbeyond/solid-select";
-import { createSignal } from "solid-js";
+import { createSignal, useContext } from "solid-js";
 
 import { AutoWidget } from "./auto-widget";
+import { CardsContext } from "../create";
 
 export function getOutputs(config) {
     const g = _cardValue(config);
@@ -71,13 +72,13 @@ export function cardValue(config) {
 }
 
 export function Card(props) {
-    const [store, setStore] = props.input;
+    const {state, setState, metadata} = useContext(CardsContext);
     const globalValue = () => _cardValue(props);
-    const otherCards = () => store.cards.toSpliced(props.index, 1);
-    const names = () => props.metadata
+    const otherCards = () => state.cards.toSpliced(props.index, 1);
+    const names = () => metadata
         .concat(otherCards().flatMap(getOutputs))
         .map(x => x.name);
-    const onClose = () => setStore("cards", otherCards());
+    const onClose = () => setState("cards", otherCards());
 
     return <div class="bg-white w-full p-4">
         <span class="text-blue-800 text-xl font-semibold">{props.label}</span>
@@ -89,8 +90,9 @@ export function Card(props) {
             <For each={props.fields}>
                 {(widget, index) => {
                     return <AutoWidget
-                        names={names()} input={props.input}
-                        index={index()} cardIndex={props.index}
+                        names={names()}
+                        index={index()}
+                        cardIndex={props.index}
                         cardValue={_cardValue(props)}
                         {...widget} //TODO pass explicitly
                         visible={isVisible(widget, globalValue())}

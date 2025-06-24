@@ -7,32 +7,41 @@ import { WindowEventListener } from "@solid-primitives/event-listener";
 import { getURL, postRequest } from "./requests";
 
 import { Loader, initLoader } from "./left-tabs/loading";
-import { Filters, initFilters } from "./left-tabs/filtering";
-import { Pipeline, initPipeline } from "./left-tabs/processing";
+import { Filters, getFilters, initFilters } from "./left-tabs/filtering";
+import { Cards, getCards, initCards } from "./left-tabs/processing";
 
 import { Spreadsheet } from "./right-tabs/spreadsheet";
 
 import { Tabs } from "./components/tabs";
 import { Visualization } from "./right-tabs/visualization";
+import { FiltersContext, LoaderContext, CardsContext } from "./create";
 
 export function App() {
-    const loaderData = initLoader();
-    const filtersData = initFilters();
-    const pipelineData = initPipeline();
+    const LoaderData = initLoader();
+    const metadata = LoaderData.state;
+
+    const filtersData = initFilters(metadata);
+    const cardsData = initCards(metadata);
 
     const [result, setResult] = createSignal({summaries: [], visualization: [], report: []})
 
-    const loadingTab = <Loader input={loaderData.input}></Loader>;
-    const filteringTab = <Filters input={filtersData.input} metadata={loaderData.output()}></Filters>;
-    const processingTab = <Pipeline input={pipelineData.input} metadata={loaderData.output()}></Pipeline>;
+    const loadingTab = <LoaderContext.Provider value={LoaderData}>
+        <Loader></Loader>
+    </LoaderContext.Provider>;
+    const filteringTab = <FiltersContext.Provider value={filtersData}>
+        <Filters></Filters>
+    </FiltersContext.Provider>;
+    const processingTab = <CardsContext.Provider value={cardsData}>
+        <Cards></Cards>
+    </CardsContext.Provider>;
 
     const spec = () => ({
-        filters: filtersData.output(),
-        cards: pipelineData.output()
+        filters: getFilters(filtersData.state),
+        cards: getCards(cardsData.state)
     });
 
     const spreadsheetTab = <Spreadsheet
-        sourceMetadata={loaderData.output()}
+        sourceMetadata={metadata}
         selectionMetadata={result().summaries}
         report={result().report}
         cards={spec().cards}></Spreadsheet>;
@@ -69,7 +78,7 @@ export function App() {
         {key: "Spreadsheet", value: spreadsheetTab},
         {key: "Visualization", value: visualizationTab},
         {key: "Chart", value: "TODO"},
-        {key: "Pipeline", value: "TODO"},
+        {key: "Cards", value: "TODO"},
     ];
 
     const outerClass = `bg-gray-100 w-full max-h-screen min-h-screen

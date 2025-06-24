@@ -25,7 +25,8 @@ export function AutoWidget(props) {
         props.cardIndex,
         "fields",
         props.index,
-        {value: parseAll(x)}
+        "value",
+        parseAll(x)
     );
 
     const starClassList = () => ({

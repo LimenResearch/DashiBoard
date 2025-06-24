@@ -1,3 +1,5 @@
+import * as _ from "lodash"
+
 import { createResource, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 
@@ -25,7 +27,8 @@ export function Cards() {
     const options = () => safeConfigs().map(x => x.label);
     const addCardAfter = (label, i) => {
         const config = safeConfigs().find(x => x.label === label);
-        setState("cards", cards => cards.toSpliced(i + 1, 0, config));
+        // Deep clone to not overwrite original config
+        setState("cards", cards => cards.toSpliced(i + 1, 0, _.cloneDeep(config)));
     };
 
     return <>

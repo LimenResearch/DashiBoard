@@ -21,7 +21,7 @@ export function IntervalFilter(props) {
     const filterValue = () => modified() ?
         state.numerical[props.name] :
         new Interval(props.summary.min, props.summary.max);
-    const setFilterValue = value => setState("numerical", { [props.name]: value });
+    const setFilterValue = value => setState("numerical", props.name, value);
 
     function updateValid(input, k) {
         const value = parseFloat(input);

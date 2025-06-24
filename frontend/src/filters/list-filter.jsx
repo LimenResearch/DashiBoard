@@ -9,7 +9,7 @@ export function ListFilter(props) {
     const list = () => modified() ?
         state.categorical[props.name] :
         new Set(props.summary);
-    const setList = value => setState("categorical", { [props.name]: value });
+    const setList = value => setState("categorical", props.name, value);
 
     const onReset = () => setList(null);
 

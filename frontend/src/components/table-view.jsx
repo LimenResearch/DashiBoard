@@ -17,6 +17,7 @@ function formatter(val, eltype) {
     }
 }
 
+// TODO make sortable?
 export function TableView(props) {
 
     const dataSource = columnDefs => {

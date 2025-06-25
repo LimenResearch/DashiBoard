@@ -111,23 +111,17 @@ function export_table end
 # TODO: test table export
 function export_table(args...; schema = nothing, options...)
     repository, query, params, path = regularize_args(args...; schema)
+    option_strs = [string(k, " ", v) for (k, v) in pairs(options)]
 
-    sql = string(
-        "COPY",
-        " ",
-        "(",
-        query,
-        ")",
-        " TO ",
-        "'",
-        path,
-        "'",
-        " ",
-        "(",
-        join([string(k, " ", v) for (k, v) in pairs(options)], ", "),
-        ")",
-        ";"
-    )
+    sql = sprint() do io
+        print(io, "COPY", " ", "(", query, ")", " TO ", "'", path, "'")
+        if !isempty(option_strs)
+            print(io, " ", "(")
+            join(io, option_strs, ", "),
+            print(io, ")")
+        end
+        print(io, ";")
+    end
 
     return DBInterface.execute(to_nrow, repository, sql, params)
 end

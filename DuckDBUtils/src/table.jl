@@ -117,7 +117,7 @@ function export_table(args...; schema = nothing, options...)
         print(io, "COPY", " ", "(", query, ")", " TO ", "'", path, "'")
         if !isempty(option_strs)
             print(io, " ", "(")
-            join(io, option_strs, ", "),
+            join(io, option_strs, ", ")
             print(io, ")")
         end
         print(io, ";")

@@ -10,7 +10,7 @@ export StreamResult, MaterializedResult
 
 public Appender, append, end_row, close
 
-public colnames, to_sql
+public colnames, to_sql, to_nrow
 
 public load_table, delete_table, replace_table, export_table
 

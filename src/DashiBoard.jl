@@ -22,7 +22,7 @@ using FunSQL: From,
     Select,
     Agg
 
-using DuckDBUtils: Repository, export_table
+using DuckDBUtils: Repository, export_table, to_nrow
 
 using DataIngestion: acceptable_paths, Filter, DataIngestion
 

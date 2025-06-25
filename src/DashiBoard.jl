@@ -16,13 +16,18 @@ using DBInterface: DBInterface
 
 using Tables: Tables
 
-using FunSQL: From,
+using FunSQL: SQLNode,
+    From,
     Limit,
     Group,
     Select,
-    Agg
+    Agg,
+    Order,
+    Get,
+    Asc,
+    Desc
 
-using DuckDBUtils: Repository, export_table, to_nrow
+using DuckDBUtils: Repository, export_table, to_nrow, colnames
 
 using DataIngestion: acceptable_paths, Filter, DataIngestion
 

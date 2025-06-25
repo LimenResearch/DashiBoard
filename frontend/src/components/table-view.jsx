@@ -17,7 +17,6 @@ function formatter(val, eltype) {
     }
 }
 
-// TODO make sortable?
 export function TableView(props) {
 
     const dataSource = columnDefs => {
@@ -27,17 +26,18 @@ export function TableView(props) {
             return {
                 rowCount: undefined, // behave as infinite scroll
                 getRows: params => {
-                    const offset = params.startRow;
-                    const limit = params.endRow - params.startRow;
+                    const { startRow, endRow, filterModel, sortModel } = params;
+                    const offset = startRow;
+                    const limit = endRow - startRow;
                     postRequest(
                         "fetch-data",
-                        { offset, limit, processed: props.processed },
+                        { offset, limit, filterModel, sortModel, processed: props.processed },
                         null
                     )
                         .then(data => {
                             if (data) {
                                 let lastRow = -1;
-                                if (data.length <= params.endRow) {
+                                if (data.length <= endRow) {
                                     lastRow = data.length;
                                 }
                                 params.successCallback(data.values, lastRow);
@@ -65,7 +65,6 @@ export function TableView(props) {
         defaultColDef: {
             flex: 1,
             minWidth: 100,
-            sortable: false,
         },
         rowBuffer: 0,
         // tell grid we want virtual row model type

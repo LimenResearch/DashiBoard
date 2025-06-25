@@ -34,14 +34,27 @@ function evaluate_pipeline(stream::HTTP.Stream)
     return
 end
 
+struct Sorter
+    colname::String
+    sort::SQLNode
+end
+
+const ASC_DICT = Dict("asc" => Asc(), "desc" => Desc())
+
+Sorter(d::AbstractDict) = Sorter(d["colId"], ASC_DICT[d["sort"]])
+
 function fetch_data(stream::HTTP.Stream)
     spec = json_read(stream)
     table = spec["processed"] ? "selection" : "source"
+    ns = Set(colnames(REPOSITORY[], table))
     limit::Int, offset::Int = spec["limit"], spec["offset"]
+    sort_model::Vector = get(spec, "sortModel", [])
+    sorters = Sorter.(sort_model)
+    sorter_nodes = [Get(s.colname) |> s.sort for s in sorters if s.colname in ns]
 
     mktempdir() do dir
         path = joinpath(dir, "data.json")
-        q = From(table) |> Limit(; limit, offset)
+        q = From(table) |> Order(by = sorter_nodes) |> Limit(; limit, offset)
         export_table(
             REPOSITORY[], q, path;
             format = "json", array = true

@@ -12,7 +12,7 @@ public Appender, append, end_row, close
 
 public colnames, to_sql
 
-public load_table, delete_table, replace_table
+public load_table, delete_table, replace_table, export_table
 
 public render_params
 

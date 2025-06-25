@@ -41,21 +41,13 @@ function fetch_data(stream::HTTP.Stream)
 
     mktempdir() do dir
         path = joinpath(dir, "data.json")
-        DBInterface.execute(
-            Returns(nothing),
-            REPOSITORY[],
-            """
-            COPY (FROM "$table" LIMIT \$limit OFFSET \$offset)
-            TO '$path' (FORMAT json, ARRAY true);
-            """,
-            (; limit, offset)
-        )
+        q = From(table) |> Limit(; limit, offset)
+        export_table(REPOSITORY[], q, path; format = "json", array = true)
+
         nrows = DBInterface.execute(
-            x -> only(x).count,
+            to_nrow,
             REPOSITORY[],
-            """
-            SELECT count(*) AS "count" FROM "$table";
-            """
+            From(table) |> Group() |> Select("Count" => Agg.count())
         )
 
         HTTP.setheader(stream, "Content-Type" => "application/json")
@@ -71,7 +63,7 @@ end
 function get_processed_data(stream::HTTP.Stream)
     mktempdir() do dir
         path = joinpath(dir, "processed-data.csv")
-        export_table(REPOSITORY[], path)
+        export_table(REPOSITORY[], From("selection"), path)
 
         HTTP.setheader(stream, "Content-Type" => "text/csv")
         HTTP.setheader(stream, "Transfer-Encoding" => "chunked")

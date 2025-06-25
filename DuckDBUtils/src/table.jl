@@ -22,6 +22,41 @@ function in_schema(name::AbstractString, schema::AbstractString)
     return string("\"", schema, "\".\"", name, "\"")
 end
 
+function regularize_args(
+        repository::Repository,
+        node::SQLNode,
+        params::NamedParams,
+        name::AbstractString;
+        schema = nothing
+    )
+
+    catalog = get_catalog(repository; schema)
+    query, ps = render_params(catalog, node, params)
+    return regularize_args(repository, query, ps, name; schema)
+end
+
+function regularize_args(
+        repository::Repository,
+        query::Union{AbstractString, SQLNode},
+        name::AbstractString;
+        schema = nothing
+    )
+
+    params = NamedTuple()
+    return regularize_args(repository, query, params, name; schema)
+end
+
+function regularize_args(
+        repository::Repository,
+        query::AbstractString,
+        params::Params,
+        name::AbstractString;
+        schema = nothing
+    )
+
+    return repository, query, params, name
+end
+
 """
     replace_table(
         repository::Repository,
@@ -39,14 +74,9 @@ Use `virtual = true` to replace a view instead of a table.
 """
 function replace_table end
 
-function replace_table(
-        repository::Repository,
-        query::AbstractString,
-        params::Params,
-        name::AbstractString;
-        schema = nothing,
-        virtual::Bool = false
-    )
+function replace_table(args...; schema = nothing, virtual::Bool = false)
+
+    repository, query, params, name = regularize_args(args...; schema)
 
     sql = string(
         "CREATE OR REPLACE",
@@ -61,30 +91,45 @@ function replace_table(
     return DBInterface.execute(Returns(nothing), repository, sql, params)
 end
 
-function replace_table(
+to_nrow(x) = only(x).Count
+
+"""
+    export_table(
         repository::Repository,
-        node::SQLNode,
-        params::NamedParams,
-        name::AbstractString;
+        query::Union{AbstractString, SQLNode}
+        [params,]
+        path::AbstractString;
         schema = nothing,
-        virtual::Bool = false
+        options...
     )
 
-    catalog = get_catalog(repository; schema)
-    query, ps = render_params(catalog, node, params)
-    return replace_table(repository, query, ps, name; schema, virtual)
-end
+Export to `path` (with options `options`) the result of a given `query` with
+optional parameters `params` in schema `schema` in `repository.db`.
+"""
+function export_table end
 
-function replace_table(
-        repository::Repository,
-        query::Union{SQLNode, AbstractString},
-        name::AbstractString;
-        schema = nothing,
-        virtual::Bool = false
+# TODO: test table export
+function export_table(repository::Repository, args...; schema = nothing, options...)
+    repository, query, params, path = regularize_args(args...; schema)
+
+    sql = string(
+        "COPY",
+        " ",
+        "(",
+        query,
+        ")",
+        " TO ",
+        "'",
+        path,
+        "'",
+        " ",
+        "(",
+        join([string(k, " ", v) for (k, v) in pairs(options)], ", "),
+        ")",
+        ";"
     )
 
-    params = NamedTuple()
-    return replace_table(repository, query, params, name; schema, virtual)
+    return DBInterface.execute(to_nrow, repository, sql, params)
 end
 
 """

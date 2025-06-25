@@ -16,9 +16,9 @@ using DBInterface: DBInterface
 
 using Tables: Tables
 
-using DuckDBUtils: Repository
+using DuckDBUtils: Repository, export_table
 
-using DataIngestion: acceptable_paths, export_table, Filter, DataIngestion
+using DataIngestion: acceptable_paths, Filter, DataIngestion
 
 using Pipelines: Card, get_state, Pipelines
 

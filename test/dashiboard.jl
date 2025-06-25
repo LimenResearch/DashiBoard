@@ -1,6 +1,5 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
 using DashiBoard
-using Scratch: @get_scratch!
 using Test
 using Downloads
 
@@ -19,10 +18,14 @@ mktempdir() do data_dir
     filters = DataIngestion.Filter.(pipeline_config["filters"])
     DataIngestion.select(repo, filters)
 
+    res = DBInterface.execute(DataFrame, repo, "FROM selection")
+    @test issorted(res.No)
+
     cards = Pipelines.Card.(pipeline_config["cards"])
     Pipelines.evaluate(repo, cards, "selection")
 
     res = DBInterface.execute(DataFrame, repo, "FROM selection")
+    @test issorted(res.No)
 
     @testset "cards" begin
         @test "_tiled_partition" in names(res)

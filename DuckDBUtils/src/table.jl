@@ -109,7 +109,7 @@ optional parameters `params` in schema `schema` in `repository.db`.
 function export_table end
 
 # TODO: test table export
-function export_table(repository::Repository, args...; schema = nothing, options...)
+function export_table(args...; schema = nothing, options...)
     repository, query, params, path = regularize_args(args...; schema)
 
     sql = string(

@@ -42,7 +42,10 @@ function fetch_data(stream::HTTP.Stream)
     mktempdir() do dir
         path = joinpath(dir, "data.json")
         q = From(table) |> Limit(; limit, offset)
-        export_table(REPOSITORY[], q, path; format = "json", array = true)
+        export_table(
+            REPOSITORY[], q, path;
+            format = "json", array = true
+        )
 
         nrows = DBInterface.execute(
             to_nrow,

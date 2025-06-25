@@ -21,6 +21,7 @@ to_sql
 ```@docs
 load_table
 replace_table
+export_table
 delete_table
 with_table
 colnames

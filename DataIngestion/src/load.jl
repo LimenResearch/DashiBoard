@@ -102,22 +102,3 @@ function load_files(
 
     return replace_table(repository, sql, files, TABLE_NAMES.source; schema)
 end
-
-# TODO: test table export
-# TODO: support `COPY` options when writing a file
-
-function export_table(
-        repository::Repository,
-        path::AbstractString,
-        tablename::Symbol = :selection;
-        schema::Union{<:AbstractString, Nothing} = nothing
-    )
-
-    source = in_schema(TABLE_NAMES[tablename], schema)
-
-    query = """
-    COPY (FROM $source) TO '$path';
-    """
-
-    return DBInterface.execute(x -> only(x).Count, repository, query)
-end

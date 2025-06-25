@@ -16,9 +16,15 @@ using DBInterface: DBInterface
 
 using Tables: Tables
 
-using DuckDBUtils: Repository
+using FunSQL: From,
+    Limit,
+    Group,
+    Select,
+    Agg
 
-using DataIngestion: acceptable_paths, export_table, Filter, DataIngestion
+using DuckDBUtils: Repository, export_table, to_nrow
+
+using DataIngestion: acceptable_paths, Filter, DataIngestion
 
 using Pipelines: Card, get_state, Pipelines
 

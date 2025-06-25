@@ -42,7 +42,8 @@ using DuckDBUtils: DuckDBUtils,
     load_table,
     replace_table,
     delete_table,
-    colnames
+    colnames,
+    to_nrow
 
 using FunSQL: render,
     SQLNode,

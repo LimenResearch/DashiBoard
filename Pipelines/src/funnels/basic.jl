@@ -70,8 +70,8 @@ function StreamlinerCore.get_nsamples(data::DBData, i::Int)
     q = From(table) |>
         filter_partition(partition, i) |>
         Group() |>
-        Select("count" => Agg.count())
-    return DBInterface.execute(x -> only(x).count, repository, q; schema)
+        Select("Count" => Agg.count())
+    return DBInterface.execute(to_nrow, repository, q; schema)
 end
 
 function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)

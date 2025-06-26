@@ -28,7 +28,7 @@ mktempdir() do data_dir
         @test "_percentile_partition" in names(res)
     end
 
-    static_directory = joinpath(@__DIR__, "..", "static")
+    static_directory = joinpath(@__DIR__, "..", "..", "static")
     model_directory = joinpath(static_directory, "model")
     training_directory = joinpath(static_directory, "training")
 

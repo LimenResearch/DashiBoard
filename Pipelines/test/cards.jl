@@ -179,13 +179,10 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "selection" => "clustering")
         df = DBInterface.execute(DataFrame, repo, "FROM clustering")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "cluster",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "cluster",
+        ]
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
         rng = StreamlinerCore.get_rng(1234)
@@ -200,13 +197,10 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "selection" => "clustering")
         df = DBInterface.execute(DataFrame, repo, "FROM clustering")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "dbcluster",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "dbcluster",
+        ]
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
         R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
@@ -237,14 +231,11 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-                "partition", "component_1", "component_2",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+            "partition", "component_1", "component_2",
+        ]
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
         model = fit(PCA, [train_df.DEWP train_df.TEMP train_df.PRES]', maxoutdim = 2)
@@ -261,14 +252,11 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-                "partition", "component_1", "component_2",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+            "partition", "component_1", "component_2",
+        ]
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
         model = fit(
@@ -291,14 +279,11 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-                "partition", "component_1", "component_2",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+            "partition", "component_1", "component_2",
+        ]
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
         model = fit(
@@ -321,14 +306,11 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-                "partition", "component_1", "component_2",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+            "partition", "component_1", "component_2",
+        ]
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
         model = fit(
@@ -357,13 +339,10 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
+        ]
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
         m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
         @test predict(m, df) == df.TEMP_hat
@@ -374,13 +353,10 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
+        ]
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
         m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(), wts = train_df.TEMP)
         @test predict(m, df) == df.PRES_hat
@@ -400,13 +376,10 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "interp")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+            "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+        ]
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
         ips = [
             ConstantInterpolation(
@@ -435,13 +408,10 @@ mktempdir() do dir
 
         Pipelines.evaluate(repo, card, "partition" => "interp")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
-        @test issetequal(
-            names(df),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+            "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+        ]
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
         ips = [
             QuadraticInterpolation(
@@ -516,10 +486,7 @@ mktempdir() do dir
 
         _rem(x) = rem(x, 1, RoundNearest)
         function gauss_evaluate_test(result, card, origin; processing)
-            @test issetequal(
-                names(result),
-                union(names(origin), Pipelines.outputs(card))
-            )
+            @test names(result) == union(names(origin), Pipelines.outputs(card))
 
             origin_column = origin[:, card.column]
             max_value = card.max
@@ -605,13 +572,10 @@ mktempdir() do dir
         Pipelines.evaluate(repo, card, "partition" => "prediction")
         origin = DBInterface.execute(DataFrame, repo, "FROM partition")
         result = DBInterface.execute(DataFrame, repo, "FROM prediction")
-        @test issetequal(
-            names(result),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "Iws_hat",
-            ]
-        )
+        @test names(result) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+            "cbwd", "Iws", "Is", "Ir", "_name", "partition", "Iws_hat",
+        ]
         @test all(!ismissing, result.Iws_hat)
         @test nrow(origin) == nrow(result)
 
@@ -634,13 +598,10 @@ mktempdir() do dir
         Pipelines.evaluate(repo, card, "partition" => "prediction")
         origin = DBInterface.execute(DataFrame, repo, "FROM partition")
         result = DBInterface.execute(DataFrame, repo, "FROM prediction")
-        @test issetequal(
-            names(result),
-            [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-                "cbwd", "Iws", "Is", "Ir", "_name", "partition", "cbwd_hat",
-            ]
-        )
+        @test names(result) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
+            "cbwd", "Iws", "Is", "Ir", "_name", "partition", "cbwd_hat",
+        ]
         @test all(x -> x isa AbstractString, result.cbwd_hat)
         @test nrow(origin) == nrow(result)
 

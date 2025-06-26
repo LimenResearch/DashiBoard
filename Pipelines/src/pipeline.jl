@@ -2,7 +2,7 @@ mutable struct Node
     const card::Union{Card, Nothing}
     const inputs::OrderedSet{String}
     const outputs::OrderedSet{String}
-    update::Bool
+    const update::Bool
     state::CardState
 end
 
@@ -27,59 +27,32 @@ function Node(c::AbstractDict, update::Bool = true)
     return node
 end
 
+get_card(node::Node) = node.card
+get_inputs(node::Node) = node.inputs
+get_outputs(node::Node) = node.outputs
 get_update(node::Node) = node.update
-set_update!(node::Node, update::Bool) = setproperty!(node, :update, update)
 
 get_state(node::Node) = node.state
 set_state!(node::Node, state) = setproperty!(node, :state, state)
 
-get_card(node::Node) = node.card
-get_inputs(node::Node) = node.inputs
-get_outputs(node::Node) = node.outputs
-
-function required_inputs(nodes::AbstractVector{Node})
-    res = stringset()
-    mapfoldl(get_inputs, union!, nodes, init = res)
-    mapfoldl(get_outputs, setdiff!, nodes, init = res)
-    return res
-end
-
-is_input_of(src::Node, tgt::Node) = !isdisjoint(src.outputs, tgt.inputs)
-
-function adjacency_matrix(nodes::AbstractVector{Node})
-    N = length(nodes)
-    M = spzeros(Bool, N, N)
-    M .= is_input_of.(nodes, permutedims(nodes))
-    return M
-end
-
-digraph(nodes::AbstractVector{Node}) = DiGraph(adjacency_matrix(nodes))
-
-function node_parents_dict(nodes::AbstractVector{Node}, g::DiGraph)
-    order = topological_sort(g)
-    return OrderedDict(nodes[i] => view(nodes, inneighbors(g, i)) for i in order)
-end
+inputs(nodes::AbstractVector{Node}) = mapfoldl(get_inputs, union!, nodes, init = stringset())
+outputs(nodes::AbstractVector{Node}) = mapfoldl(get_outputs, union!, nodes, init = stringset())
 
 function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::AbstractString; schema = nothing)
-    g = digraph(nodes)
-
-    if is_cyclic(g)
-        throw(ArgumentError("Cyclic dependency found!"))
-    end
-
-    vars = required_inputs(nodes)
     ns = colnames(repository, table; schema)
-    if vars ⊈ ns
-        diff = join(setdiff(vars, ns), ", ")
-        throw(ArgumentError("Variables $(diff) where not found in the data."))
+    diff = setdiff(inputs(nodes), ns ∪ outputs(nodes))
+    if !isempty(diff)
+        throw(ArgumentError("Variables $(collect(diff)) where not found in the data."))
     end
 
-    d = node_parents_dict(nodes, g)
-    for (node, parents) in pairs(d)
-        if get_update(node) || any(get_update, parents)
-            state = evaluate(repository, get_card(node), table => table; schema)
+    rank = compute_rank(nodes)
+    for idxs in group_rank(rank)
+        # TODO: this can be run in parallel (cards must be made thread-safe first)
+        for idx in idxs
+            node = nodes[idx]
+            card = get_card(node)
+            state = evaluate(repository, card, table => table; schema)
             set_state!(node, state)
-            set_update!(node, true)
         end
     end
 

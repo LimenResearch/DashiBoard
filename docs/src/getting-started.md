@@ -14,13 +14,13 @@ Open a terminal at the top-level of the repository.
 Install all required dependencies with the following command:
 
 ```
-julia --project -e 'using Pkg; Pkg.instantiate()'
+julia --project=DashiBoard -e 'using Pkg; Pkg.instantiate()'
 ```
 
 Then, launch the server with the following command:
 
 ```
-julia --project bin/launch.jl path/to/data
+julia --project=DashiBoard bin/launch.jl path/to/data
 ```
 
 where `path/to/data` represents the data folder you wish to make accessible

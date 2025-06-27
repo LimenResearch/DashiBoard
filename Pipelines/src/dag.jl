@@ -13,7 +13,7 @@ function group_rank(rank::AbstractVector{<:Integer})
     m = maximum(rank)
     d = [Int[] for _ in 1:m]
     for (i, rk) in pairs(rank)
-        rk > 0 && push!(d[rk], i)
+        (rk > 0) && push!(d[rk], i)
     end
     return d
 end

@@ -71,7 +71,7 @@ mktempdir() do data_dir
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
         resp = HTTP.post(url * "evaluate-pipeline", body = body)
         summaries = JSON.parse(IOBuffer(resp.body))["summaries"]
-        @test summaries[end]["name"] == "_percentile_partition"
+        @test summaries[end]["name"] == "_tiled_partition"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",

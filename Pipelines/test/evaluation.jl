@@ -33,7 +33,8 @@
         Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
     ]
 
-    @test issetequal(Pipelines.required_inputs(nodes), ["temp", "wind"])
+    diff = setdiff(Pipelines.inputs(nodes), Pipelines.outputs(nodes))
+    @test issetequal(diff, ["temp", "wind"])
 
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
@@ -41,9 +42,10 @@
 
     @test_throws ArgumentError Pipelines.evaluate!(repo, nodes, "tbl1")
 
-    Pipelines.evaluate!(repo, nodes, "tbl2")
-    updates = Pipelines.get_update.(nodes)
-    @test updates == [false, true, true, true]
+    # Test return type of `Pipelines.evaluate!`
+    @test nodes === Pipelines.evaluate!(repo, nodes, "tbl2")
+    hs = Pipelines.compute_height(nodes)
+    @test hs == [-1, 0, 1, 0]
 end
 
 mktempdir() do dir
@@ -65,8 +67,8 @@ mktempdir() do dir
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-            "_tiled_partition", "PRES_rescaled", "TEMP_rescaled",
-            "_percentile_partition",
+            "_percentile_partition", "_tiled_partition",
+            "PRES_rescaled", "TEMP_rescaled",
         ]
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
@@ -75,14 +77,12 @@ mktempdir() do dir
 
         Pipelines.evaluatenodes(repo, nodes, "source")
         df = DBInterface.execute(DataFrame, repo, "FROM source")
-        @test issetequal(
-            names(df), [
-                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-                "_tiled_partition", "PRES_rescaled", "TEMP_rescaled",
-                "_percentile_partition",
-            ]
-        )
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+            "_percentile_partition", "_tiled_partition",
+            "PRES_rescaled", "TEMP_rescaled",
+        ]
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
         @test count(==(1), df._percentile_partition) == 39441

@@ -45,8 +45,8 @@ function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::A
         throw(ArgumentError("Variables $(collect(diff)) where not found in the data."))
     end
 
-    rank = compute_rank(nodes)
-    for idxs in group_rank(rank)
+    hs = compute_height(nodes)
+    for idxs in group_height(hs)
         # TODO: this can be run in parallel (cards must be made thread-safe first)
         for idx in idxs
             node = nodes[idx]

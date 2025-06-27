@@ -44,8 +44,8 @@
 
     # Test return type of `Pipelines.evaluate!`
     @test nodes === Pipelines.evaluate!(repo, nodes, "tbl2")
-    rank = Pipelines.compute_rank(nodes)
-    @test rank == [0, 1, 2, 1]
+    hs = Pipelines.compute_height(nodes)
+    @test hs == [-1, 0, 1, 0]
 end
 
 mktempdir() do dir

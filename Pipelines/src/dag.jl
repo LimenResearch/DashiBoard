@@ -9,25 +9,25 @@ end
 
 digraph(nodes::AbstractVector{Node}) = DiGraph(adjacency_matrix(nodes))
 
-function group_rank(rank::AbstractVector{<:Integer})
-    m = maximum(rank)
-    d = [Int[] for _ in 1:m]
-    for (i, rk) in pairs(rank)
-        (rk > 0) && push!(d[rk], i)
+function group_height(hs::AbstractVector{<:Integer})
+    m = maximum(hs)
+    d = [Int[] for _ in 0:m]
+    for (i, h) in pairs(hs)
+        h ≥ 0 && push!(d[h + 1], i)
     end
     return d
 end
 
-compute_rank(nodes::AbstractVector) = compute_rank(digraph(nodes), get_update.(nodes))
+compute_height(nodes::AbstractVector) = compute_height(digraph(nodes), get_update.(nodes))
 
-function compute_rank(g::DiGraph, update::AbstractVector{Bool})
-    rank = collect(Int, update)
+compute_height(g::DiGraph, us::AbstractVector{Bool}) = compute_height!(similar(us, Int), g, us)
 
+function compute_height!(hs::AbstractVector{Int}, g::DiGraph, us::AbstractVector{Bool})
     for i in topological_sort(g)
         nb = inneighbors(g, i)
-        rk = maximum(view(rank, nb), init = 0)
-        (rk > 0) && (rank[i] = rk + 1)
+        h = maximum(view(hs, nb), init = -1)
+        u = us[i] || h ≥ 0
+        hs[i] = h + u
     end
-
-    return rank
+    return hs
 end

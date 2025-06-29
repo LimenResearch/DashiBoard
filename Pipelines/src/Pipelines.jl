@@ -65,7 +65,7 @@ using FunSQL: render,
 
 using SparseArrays: spzeros
 
-using Graphs: DiGraph, inneighbors, is_cyclic, topological_sort
+using Graphs: DiGraph, inneighbors, nv, is_cyclic, topological_sort
 
 using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
 

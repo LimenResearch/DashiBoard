@@ -46,7 +46,7 @@ function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::A
     end
 
     hs = compute_height(nodes)
-    for idxs in group_height(hs)
+    for idxs in layers(hs)
         # TODO: this can be run in parallel (cards must be made thread-safe first)
         for idx in idxs
             node = nodes[idx]

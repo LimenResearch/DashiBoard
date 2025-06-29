@@ -9,20 +9,10 @@ end
 
 digraph(nodes::AbstractVector{Node}) = DiGraph(adjacency_matrix(nodes))
 
-function group_height(hs::AbstractVector{<:Integer})
-    m = maximum(hs)
-    d = [Int[] for _ in 0:m]
-    for (i, h) in pairs(hs)
-        h ≥ 0 && push!(d[h + 1], i)
-    end
-    return d
-end
-
 compute_height(nodes::AbstractVector) = compute_height(digraph(nodes), get_update.(nodes))
 
-compute_height(g::DiGraph, us::AbstractVector{Bool}) = compute_height!(similar(us, Int), g, us)
-
-function compute_height!(hs::AbstractVector{Int}, g::DiGraph, us::AbstractVector{Bool})
+function compute_height(g::DiGraph, us::AbstractVector{Bool})
+    hs = similar(Vector{Int}, nv(g))
     for i in topological_sort(g)
         nb = inneighbors(g, i)
         h = maximum(view(hs, nb), init = -1)
@@ -30,4 +20,13 @@ function compute_height!(hs::AbstractVector{Int}, g::DiGraph, us::AbstractVector
         hs[i] = h + u
     end
     return hs
+end
+
+function layers(hs::AbstractVector{<:Integer}, P::AbstractVector{<:Integer} = sortperm(hs))
+    cs, n = fill(0, hs[last(P)] + 1), 0
+    for h in hs
+        h ≥ 0 ? (cs[h + 1] += 1) : (n += 1)
+    end
+    scs = accumulate(+, cs, init = n + firstindex(P) - 1)
+    return (view(P, (s - c + 1):s) for (c, s) in zip(cs, scs))
 end

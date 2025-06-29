@@ -23,12 +23,9 @@ function compute_height(g::DiGraph, us::AbstractVector{Bool})
 end
 
 function layers(hs::AbstractVector{<:Integer})
-    P::Vector{Int} = sortperm(hs)
-    max::Int = isempty(hs) ? -1 : hs[last(P)]
-    cs, n = fill(0, max + 1), 0
-    for h in hs
-        h ≥ 0 ? (cs[h + 1] += 1) : (n += 1)
-    end
-    scs = accumulate(+, cs, init = n)
-    return (view(P, (s - c + 1):s) for (c, s) in zip(cs, scs))
+    Base.require_one_based_indexing(hs)
+    P = sortperm(hs)
+    starts = findall(>(0), diff([-1; hs[P]]))
+    stops = [starts .- 1; length(P)][2:end]
+    return Iterators.map(Fix1(view, P) ∘ range, starts, stops)
 end

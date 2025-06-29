@@ -47,6 +47,7 @@
     hs = Pipelines.compute_height(nodes)
     @test hs == [-1, 0, 1, 0]
     @test collect(Pipelines.layers(hs)) == [[2, 4], [3]]
+    @test isempty(Pipelines.layers(Int[]))
 end
 
 mktempdir() do dir

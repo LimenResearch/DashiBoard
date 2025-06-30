@@ -24,7 +24,7 @@
 
     g = Pipelines.digraph(nodes)
     order = Pipelines.topological_sort(g)
-    @test order == [4, 3, 1, 2]
+    @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
     nodes = [
         Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), false),

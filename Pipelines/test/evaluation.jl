@@ -39,6 +39,11 @@
 
     @test_throws ArgumentError Pipelines.evaluate!(repo, nodes, "tbl1")
 
+    @test_throws ArgumentError Pipelines.compute_height(nodes, ["temp"])
+    @test_throws ArgumentError Pipelines.compute_height(nodes, ["temp", "wind", "pred humid"])
+    faulty_node = Pipelines.Node(TrivialCard(["temp"], ["pred temp"]), true)
+    @test_throws ArgumentError Pipelines.compute_height(vcat(nodes, [faulty_node]), ["temp", "wind"])
+
     # Test return type of `Pipelines.evaluate!`
     @test nodes === Pipelines.evaluate!(repo, nodes, "tbl2")
 

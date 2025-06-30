@@ -8,6 +8,14 @@ stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s
 
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
 
+function repeated_vars(vars)
+    is_repeated = Dict{String, Bool}()
+    for var in vars
+        is_repeated[var] = !get(is_repeated, var, true)
+    end
+    return [k for (k, v) in pairs(is_repeated) if v]
+end
+
 # Option computation and widget helpers
 
 const METHOD_OPTIONS_REGEX = r"^method_options\.\d+\.(.*)$"

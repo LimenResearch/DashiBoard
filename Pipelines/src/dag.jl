@@ -18,18 +18,24 @@ function digraph(nodes::AbstractVector{Node}, ns::AbstractVector)
     end
 
     for (idx, var) in pairs(output_vars)
-        for tgt in get(targets, var, Int[])
+        for tgt in pop!(targets, var, Int[])
             push!(edges, Edge(N + idx, tgt))
         end
     end
 
     # Validation
-    input_vars = keys(targets)
-    diff = setdiff(input_vars, output_vars)
-    overwrite = output_vars ∩ input_names
-    allunique(output_vars) || throw(ArgumentError("Overlapping outputs"))
-    isempty(diff) || throw(ArgumentError("Vars $(collect(diff)) not found in data or card outputs"))
-    isempty(overwrite) || throw(ArgumentError("Output vars $(overwrite) are present in the data"))
+    if !isempty(keys(targets))
+        notfound = collect(keys(targets))
+        throw(ArgumentError("Input vars $(notfound) not found in data or card outputs"))
+    end
+    if !isdisjoint(output_vars, input_names)
+        overwrite = output_vars ∩ input_names
+        throw(ArgumentError("Output vars $(overwrite) are present in the data"))
+    end
+    if !allunique(output_vars)
+        overlapping = repeated_vars(output_vars)
+        throw(ArgumentError("Overlapping outputs $(overlapping)"))
+    end
 
     return DiGraph(edges)
 end

@@ -1,13 +1,17 @@
 # Array manipulation utils
 
-circ_prepend(v::AbstractVector, x) = setindex!(circshift(v, 1), x, firstindex(v))
-circ_append(v::AbstractVector, x) = setindex!(circshift(v, -1), x, lastindex(v))
+function borders(v::AbstractVector)
+    r = axes(v, 1)
+    b, e = trues(r), trues(r)
+    r0, r1 = (first(r) + 1):last(r), first(r):(last(r) - 1)
+    b[r0] = e[r1] = (!isequal).(view(v, r0), view(v, r1))
+    return b, e
+end
 
-has_val(v::AbstractVector, x, j) = checkbounds(Bool, v, j) && isequal(v[j], x)
-
-function repeated_values(vars::AbstractVector{T}) where {T}
-    s = sort(vars)
-    return [x for (i, x) in pairs(s) if has_val(s, x, i - 1) && !has_val(s, x, i + 1)]
+function repeated_values(v::AbstractVector)
+    s = sort(v)
+    b, e = borders(s)
+    return s[@. !b && e]
 end
 
 # Set computation utils

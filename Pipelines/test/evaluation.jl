@@ -22,7 +22,7 @@
         Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
     ]
 
-    g = Pipelines.digraph(nodes)
+    g = Pipelines.digraph(nodes, ["temp", "wind"])
     order = Pipelines.topological_sort(g)
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
@@ -33,9 +33,6 @@
         Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
     ]
 
-    diff = setdiff(Pipelines.inputs(nodes), Pipelines.outputs(nodes))
-    @test issetequal(diff, ["temp", "wind"])
-
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl2(temp DOUBLE, wind DOUBLE)")
@@ -44,7 +41,8 @@
 
     # Test return type of `Pipelines.evaluate!`
     @test nodes === Pipelines.evaluate!(repo, nodes, "tbl2")
-    hs = Pipelines.compute_height(nodes)
+
+    hs = Pipelines.compute_height(nodes, ["temp", "wind"])
     @test hs == [-1, 0, 1, 0]
     @test collect(Pipelines.layers(hs)) == [[2, 4], [3]]
     @test isempty(Pipelines.layers(Int[]))

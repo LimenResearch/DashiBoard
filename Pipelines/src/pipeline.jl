@@ -35,17 +35,9 @@ get_update(node::Node) = node.update
 get_state(node::Node) = node.state
 set_state!(node::Node, state) = setproperty!(node, :state, state)
 
-inputs(nodes::AbstractVector{Node}) = mapfoldl(get_inputs, union!, nodes, init = stringset())
-outputs(nodes::AbstractVector{Node}) = mapfoldl(get_outputs, union!, nodes, init = stringset())
-
 function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::AbstractString; schema = nothing)
     ns = colnames(repository, table; schema)
-    diff = setdiff(inputs(nodes), ns ∪ outputs(nodes))
-    if !isempty(diff)
-        throw(ArgumentError("Variables $(collect(diff)) where not found in the data."))
-    end
-
-    hs = compute_height(nodes)
+    hs = compute_height(nodes, ns)
     for idxs in layers(hs)
         # TODO: this can be run in parallel (cards must be made thread-safe first)
         for idx in idxs

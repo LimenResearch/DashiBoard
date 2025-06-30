@@ -33,7 +33,7 @@ function digraph(nodes::AbstractVector{Node}, ns::AbstractVector)
         throw(ArgumentError("Output vars $(overwrite) are present in the data"))
     end
     if !allunique(output_vars)
-        overlapping = repeated_vars(output_vars)
+        overlapping = repeated_values(output_vars)
         throw(ArgumentError("Overlapping outputs $(overlapping)"))
     end
 
@@ -60,7 +60,8 @@ end
 
 function layers(hs::AbstractVector{<:Integer})
     P = sortperm(hs)
-    starts = findall(>(0), diff([-1; hs[P]]))
-    stops = [starts .- 1; length(P)][2:end]
+    v = hs[P]
+    starts = findall(v .> circ_prepend(v, -1))
+    stops = circ_append(starts .- 1, length(p))
     return Iterators.map(Fix1(view, P) ∘ range, starts, stops)
 end

@@ -1,3 +1,15 @@
+# Array manipulation utils
+
+circ_prepend(v::AbstractVector, x) = setindex!(circshift(v, 1), x, firstindex(v))
+circ_append(v::AbstractVector, x) = setindex!(circshift(v, -1), x, lastindex(v))
+
+has_val(v::AbstractVector, x, j) = checkbounds(Bool, v, j) && isequal(v[j], x)
+
+function repeated_values(vars::AbstractVector{T}) where {T}
+    s = sort(vars)
+    return [x for (i, x) in pairs(s) if has_val(s, x, i - 1) && !has_val(s, x, i + 1)]
+end
+
 # Set computation utils
 
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)
@@ -7,14 +19,6 @@ _union!(s::AbstractSet{<:AbstractString}, ::Nothing) = s
 stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s), args); s)
 
 stringset(args...) = stringset!(OrderedSet{String}(), args...)
-
-function repeated_vars(vars)
-    is_repeated = Dict{String, Bool}()
-    for var in vars
-        is_repeated[var] = !get(is_repeated, var, true)
-    end
-    return [k for (k, v) in pairs(is_repeated) if v]
-end
 
 # Option computation and widget helpers
 

@@ -59,9 +59,7 @@ function compute_height(g::DiGraph, us::BitVector)
 end
 
 function layers(hs::AbstractVector)
-    P = sortperm(hs)
-    v = hs[P]
-    b, e = borders(v)
-    starts, stops = findall(@. v ≥ 0 && b), findall(@. v ≥ 0 && e)
+    P, b, e = boundaries(hs)
+    starts, stops = findall(@. b && hs ≥ 0), findall(@. e && hs ≥ 0)
     return Iterators.map(Fix1(view, P) ∘ range, starts, stops)
 end

@@ -1,17 +1,17 @@
 # Array manipulation utils
 
-function borders(v::AbstractVector)
-    r = axes(v, 1)
+function boundaries(v::AbstractVector)
+    P, r = sortperm(v), axes(v, 1)
     b, e = trues(r), trues(r)
-    r0, r1 = (first(r) + 1):last(r), first(r):(last(r) - 1)
-    b[r0] = e[r1] = (!isequal).(view(v, r0), view(v, r1))
-    return b, e
+    for i in r ∩ (r .+ 1)
+        b[i] = e[i - 1] = !isequal(v[P[i]], v[P[i - 1]])
+    end
+    return P, b, e
 end
 
 function repeated_values(v::AbstractVector)
-    s = sort(v)
-    b, e = borders(s)
-    return s[@. !b && e]
+    P, b, e = boundaries(v)
+    return v[P[findall(@. b && !e)]]
 end
 
 # Set computation utils

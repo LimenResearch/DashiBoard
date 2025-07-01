@@ -83,7 +83,7 @@ function evaluate(repository::Repository, card::Card, (source, destination)::Pai
 end
 
 @kwdef struct CardState
-    content::Union{Nothing, Vector{UInt8}} = nothing
+    content::Union{Vector{UInt8}, Nothing} = nothing
     metadata::StringDict = StringDict()
 end
 

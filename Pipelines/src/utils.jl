@@ -1,3 +1,19 @@
+# Array manipulation utils
+
+function boundaries(v::AbstractVector)
+    P, r = sortperm(v), axes(v, 1)
+    b, e = trues(r), trues(r)
+    for i in r ∩ (r .+ 1)
+        b[i] = e[i - 1] = !isequal(v[P[i]], v[P[i - 1]])
+    end
+    return P, b, e
+end
+
+function repeated_values(v::AbstractVector)
+    P, b, e = boundaries(v)
+    return v[P[findall(@. b && !e)]]
+end
+
 # Set computation utils
 
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)

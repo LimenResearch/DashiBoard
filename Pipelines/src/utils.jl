@@ -1,5 +1,10 @@
 # Array manipulation utils
 
+function get_ranges(lens::AbstractVector)
+    cs = cumsum(lens)
+    return @. range(cs - lens + 1, cs)
+end
+
 function boundaries(v::AbstractVector)
     P, r = sortperm(v), axes(v, 1)
     b, e = trues(r), trues(r)

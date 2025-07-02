@@ -1,47 +1,60 @@
-function edges_metadata(nodes::AbstractVector{Node}, ns::AbstractVector)
+struct SortedEdges{S, D}
+    src::S
+    dst::D
+    rgs::Vector{UnitRange{Int}} 
+end
+
+# TODO: make lazy?
+(s::SortedEdges)((i, rg)::Pair) = s.src[i] => s.dst[rg]
+to_edges((src, dsts)::Pair) = Edge{Int}.(src, dsts)
+
+iterate_pairs(s::SortedEdges) = Iterators.map(s, pairs(s.rgs))
+iterate_edges(s::SortedEdges) = Iterators.flatmap(to_edges, iterate_pairs(s))
+
+function sorted_edges(nodes::AbstractVector{Node}, input_names::AbstractVector)
     Base.require_one_based_indexing(nodes)
 
-    input_names = Set{String}(ns)
-    n_outputs = @. length(get_outputs(nodes))
-    cn_outputs = cumsum(n_outputs)
-    output_rgs = @. range(cn_outputs - n_outputs + 1, cn_outputs)
-    output_vars = mapfoldl(get_outputs, append!, nodes, init = String[])
+    not_in_source = ∉(Set{String}(input_names))
+    vars = mapfoldl(get_outputs, append!, nodes, init = String[])
 
-    targets = Dict{String, Vector{Int}}()
-    for (i, node) in pairs(nodes)
-        for input_var in Iterators.filter(∉(input_names), get_inputs(node))
-            tgts = get!(targets, input_var, Int[])
-            isnothing(tgts) || push!(tgts, i)
-        end
+    inputs, indices = String[], Int[]
+    for (i, node) in enumerate(nodes)
+        append!(inputs, Iterators.filter(not_in_source, get_inputs(node)))
+        append!(indices, fill(i, length(inputs) - length(indices)))
     end
-    target_lists = Vector{Int}[get(targets, var, Int[]) for var in output_vars]
 
     # Validation
-    if keys(targets) ⊈ output_vars
-        notfound = setdiff(output_vars, keys(targets))
+
+    if inputs ⊈ vars
+        notfound = setdiff(vars, inputs)
         throw(ArgumentError("Input vars $(notfound) not found in data or card outputs"))
     end
-    if !isdisjoint(output_vars, input_names)
-        overwrite = output_vars ∩ input_names
+    if !isdisjoint(vars, input_names)
+        overwrite = vars ∩ input_names
         throw(ArgumentError("Output vars $(overwrite) are present in the data"))
     end
-    if !allunique(output_vars)
-        overlapping = repeated_values(output_vars)
+    if !allunique(vars)
+        overlapping = repeated_values(vars)
         throw(ArgumentError("Overlapping outputs $(overlapping)"))
     end
 
-    return output_vars, output_rgs, target_lists
+    # Compute output
+
+    perm, b, e = boundaries(inputs)
+    starts, stops = findall(b), findall(e)
+    rgs = range.(starts, stops)
+
+    N = length(nodes)
+    d = Dict{String, Int}(Iterators.map(reverse, pairs(vars)))
+    outputs = SortedEdges(keys(nodes), keys(vars) .+ N, get_ranges(@. length(get_outputs(nodes))))
+    targets = SortedEdges([d[inputs[perm[i]]] + N for i in starts], indices[perm], rgs)
+
+    return outputs, targets, vars
 end
 
 function digraph(nodes::AbstractVector{Node}, ns::AbstractVector)
-    _, output_rgs, target_lists = edges_metadata(nodes, ns)
-    edges, N = Edge{Int}[], length(nodes)
-    for (i, rg) in enumerate(output_rgs)
-        append!(edges, Edge.(i, rg .+ N))
-    end
-    for (j, tgts) in enumerate(target_lists)
-        append!(edges, Edge.(N + j, tgts))
-    end
+    outputs, targets, _ = sorted_edges(nodes, ns)
+    edges = mapfoldl(iterate_edges, append!, (outputs, targets), init = Edge{Int}[])
     return DiGraph(edges)
 end
 
@@ -70,7 +83,7 @@ function layers(hs::AbstractVector)
 end
 
 function graphviz(io::IO, nodes::AbstractVector{Node}, ns::AbstractVector)
-    output_vars, output_rgs, target_lists = edges_metadata(nodes, ns)
+    outputs, targets, vars = sorted_edges(nodes, ns)
     N = length(nodes)
 
     println(io, "digraph G{")
@@ -82,7 +95,7 @@ function graphviz(io::IO, nodes::AbstractVector{Node}, ns::AbstractVector)
     println(io, "    node [shape = \"box\"];")
     for (i, node) in enumerate(nodes)
         name = card_name(get_card(node))
-        l = get_update(node) ? name : string(name, " ", "⬤")
+        l = get_update(node) ? string(name, " ", "⬤") : name
         println(io, "    $(i) [label = \"$(l)\"];")
     end
     println(io, "  }")
@@ -90,24 +103,24 @@ function graphviz(io::IO, nodes::AbstractVector{Node}, ns::AbstractVector)
 
     println(io, "  subgraph vars {")
     println(io, "    node [shape = \"none\"];")
-    for (j, var) in enumerate(output_vars)
+    for (j, var) in enumerate(vars)
         println(io, "    $(N + j) [label = \"$(var)\"];")
     end
     println(io, "  }")
     println(io)
 
     println(io, "  edge [arrowhead = \"none\"]")
-    for (i, rg) in enumerate(output_rgs)
-        print(io, "  ", i, " -> {")
-        join(io, rg .+ N, " ")
+    for (src, dsts) in iterate_pairs(outputs)
+        print(io, "  ", src, " -> {")
+        join(io, dsts, " ")
         println(io, "};")
     end
     println(io)
 
     println(io, "  edge [arrowhead = \"normal\"]")
-    for (j, tgts) in enumerate(target_lists)
-        print(io, "  ", j + N, " -> {")
-        join(io, tgts, " ")
+    for (src, dsts) in iterate_pairs(targets)
+        print(io, "  ", src, " -> {")
+        join(io, dsts, " ")
         println(io, "};")
     end
 

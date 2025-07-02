@@ -63,7 +63,7 @@ using FunSQL: render,
     LeftJoin,
     Join
 
-using Graphs: DiGraph, Edge, inneighbors, nv, is_cyclic, topological_sort
+using Graphs: DiGraph, Edge, inneighbors, nv, is_cyclic, topological_sort, Graphs
 
 using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
 

@@ -168,3 +168,8 @@ function register_card(name::AbstractString, ::Type{T}) where {T <: Card}
     CARD_TYPES[name] = T
     return
 end
+
+function card_name(c::Card)
+    name = findfirst(Fix1(isa, c), CARD_TYPES)
+    return something(name, "unknown")
+end

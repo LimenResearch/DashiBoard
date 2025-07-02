@@ -98,7 +98,7 @@ function graphviz(io::IO, nodes::AbstractVector{Node}, ns::AbstractVector)
 
     println(io, "  edge [arrowhead = \"none\"]")
     for (i, rg) in enumerate(output_rgs)
-        print(io, "  ", i, " -> {",)
+        print(io, "  ", i, " -> {")
         join(io, rg .+ N, " ")
         println(io, "};")
     end
@@ -106,10 +106,10 @@ function graphviz(io::IO, nodes::AbstractVector{Node}, ns::AbstractVector)
 
     println(io, "  edge [arrowhead = \"normal\"]")
     for (j, tgts) in enumerate(target_lists)
-        print(io, "  ", j + N, " -> {",)
+        print(io, "  ", j + N, " -> {")
         join(io, tgts, " ")
         println(io, "};")
     end
 
-    println(io, "}")
+    return println(io, "}")
 end

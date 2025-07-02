@@ -14,6 +14,7 @@ function edges_metadata(nodes::AbstractVector{Node}, ns::AbstractVector)
             isnothing(tgts) || push!(tgts, i)
         end
     end
+    target_lists = Vector{Int}[get(targets, var, Int[]) for var in output_vars]
 
     # Validation
     if keys(targets) ⊈ output_vars
@@ -29,17 +30,16 @@ function edges_metadata(nodes::AbstractVector{Node}, ns::AbstractVector)
         throw(ArgumentError("Overlapping outputs $(overlapping)"))
     end
 
-    return output_rgs, output_vars, targets
+    return output_vars, output_rgs, target_lists
 end
 
 function digraph(nodes::AbstractVector{Node}, ns::AbstractVector)
-    output_rgs, output_vars, targets = edges_metadata(nodes, ns)
+    _, output_rgs, target_lists = edges_metadata(nodes, ns)
     edges, N = Edge{Int}[], length(nodes)
     for (i, rg) in enumerate(output_rgs)
         append!(edges, Edge.(i, rg .+ N))
     end
-    for (j, var) in enumerate(output_vars)
-        tgts = get(targets, var, Int[])
+    for (j, tgts) in enumerate(target_lists)
         append!(edges, Edge.(N + j, tgts))
     end
     return DiGraph(edges)
@@ -70,34 +70,46 @@ function layers(hs::AbstractVector)
 end
 
 function graphviz(io::IO, nodes::AbstractVector{Node}, ns::AbstractVector)
-    edges, output_vars = edges_metadata(nodes, ns)
+    output_vars, output_rgs, target_lists = edges_metadata(nodes, ns)
     N = length(nodes)
 
     println(io, "digraph G{")
-    println(io, "  subgraph {")
+    println(io, "  bgcolor = \"transparent\";")
+    println(io, "  node [fillcolor = \"transparent\"];")
+    println(io)
+
+    println(io, "  subgraph cards {")
     println(io, "    node [shape = \"box\"];")
     for (i, node) in enumerate(nodes)
-        l = card_name(get_card(node))
-        println(io, "    \"$(i)\" [label = \"$(l)\"];")
-    end
-    println(io, "  }")
-    println(io, "  subgraph {")
-    println(io, "    node [shape = \"point\"];")
-    for (j, var) in enumerate(output_vars)
-        println(io, "    \"$(N + j)\" [label = \"$(var)\"];")
+        name = card_name(get_card(node))
+        l = get_update(node) ? name : string(name, " ", "⬤")
+        println(io, "    $(i) [label = \"$(l)\"];")
     end
     println(io, "  }")
     println(io)
 
-    for edge in edges
-        src, dst = Graphs.src(edge), Graphs.dst(edge)
-        spec = if src ≤ N
-            "[]"
-        else
-            var = output_vars[src - N]
-            "[arrowhead = \"none\", label = \"$(var)\"]"
-        end
-        println(io, "  \"$(src)\" -> \"$(dst)\" ", spec, ";")
+    println(io, "  subgraph vars {")
+    println(io, "    node [shape = \"none\"];")
+    for (j, var) in enumerate(output_vars)
+        println(io, "    $(N + j) [label = \"$(var)\"];")
     end
+    println(io, "  }")
+    println(io)
+
+    println(io, "  edge [arrowhead = \"none\"]")
+    for (i, rg) in enumerate(output_rgs)
+        print(io, "  ", i, " -> {",)
+        join(io, rg .+ N, " ")
+        println(io, "};")
+    end
+    println(io)
+
+    println(io, "  edge [arrowhead = \"normal\"]")
+    for (j, tgts) in enumerate(target_lists)
+        print(io, "  ", j + N, " -> {",)
+        join(io, tgts, " ")
+        println(io, "};")
+    end
+
     println(io, "}")
 end

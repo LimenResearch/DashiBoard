@@ -1,22 +1,27 @@
-# Array manipulation utils
+# Sorting utils
 
-function get_ranges(lens::AbstractVector)
-    cs = cumsum(lens)
-    return @. range(cs - lens + 1, cs)
-end
+# simple stable counting sort
+function counting_sort!(
+        res::AbstractVector, v::AbstractVector;
+        by::F = identity, skip::Integer = firstindex(res) - 1
+    ) where {F}
 
-function boundaries(v::AbstractVector)
-    P, r = sortperm(v), axes(v, 1)
-    b, e = trues(r), trues(r)
-    for i in r ∩ (r .+ 1)
-        b[i] = e[i - 1] = !isequal(v[P[i]], v[P[i - 1]])
+    f = by
+    min, max = extrema(f, v)
+    len = max - min + 1
+    offs, counts = 1 - min, fill(0, len)
+    for el in v
+        counts[f(el) + offs] += 1
     end
-    return P, b, e
-end
-
-function repeated_values(v::AbstractVector)
-    P, b, e = boundaries(v)
-    return v[P[findall(@. b && !e)]]
+    for i in 2:len
+        counts[i] += counts[i - 1]
+    end
+    for el in Iterators.reverse(v)
+        i = f(el) + offs
+        res[counts[i] + skip] = el
+        counts[i] -= 1
+    end
+    return res
 end
 
 # Set computation utils

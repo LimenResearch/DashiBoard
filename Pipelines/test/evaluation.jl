@@ -37,9 +37,9 @@
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl2(temp DOUBLE, wind DOUBLE)")
 
-    @test_throws ArgumentError Pipelines.evaluate!(repo, nodes, "tbl1")
+    @test_throws KeyError Pipelines.evaluate!(repo, nodes, "tbl1")
 
-    @test_throws ArgumentError Pipelines.compute_height(nodes, ["temp"])
+    @test_throws KeyError Pipelines.compute_height(nodes, ["temp"])
     @test_throws ArgumentError Pipelines.compute_height(nodes, ["temp", "wind", "pred humid"])
     faulty_node = Pipelines.Node(TrivialCard(["temp"], ["pred temp"]), true)
     @test_throws ArgumentError Pipelines.compute_height(vcat(nodes, [faulty_node]), ["temp", "wind"])
@@ -49,7 +49,7 @@
 
     hs = Pipelines.compute_height(nodes, ["temp", "wind"])
     @test hs == [-1, 0, 1, 0]
-    @test collect(Pipelines.layers(hs)) == [[2, 4], [3]]
+    @test Pipelines.layers(hs) == [[2, 4], [3]]
     @test isempty(Pipelines.layers(Int[]))
 end
 

@@ -9,12 +9,14 @@
     @test c == "a_1"
 end
 
-@testset "array utils" begin
-    vars = ["a", "a", "b", "c", "d", "c"]
-    perm, b, e = Pipelines.boundaries(vars)
-    @test perm == [1, 2, 3, 4, 6, 5]
-    @test b == Bool[1, 0, 1, 1, 0, 1]
-    @test e == Bool[0, 1, 1, 0, 1, 1]
-    @test issetequal(Pipelines.repeated_values(vars), ["a", "c"])
-    @test isempty(Pipelines.repeated_values(["a", "b", ""]))
+@testset "counting_sort!" begin
+    ps = [2 => 5, 2 => 4, 1 => 7, 0 => 9, 11 => 3, 1 => 6, -1 => 4]
+    byfirst = Pipelines.counting_sort!(similar(ps), ps, by = first)
+    perm = [7, 4, 3, 6, 1, 2, 5]
+    @test byfirst == ps[perm]
+    withskip = Pipelines.counting_sort!(similar(ps, 8), ps, by = first, skip = 1)
+    @test withskip[2:end] == ps[perm]
+
+    bylast = Pipelines.counting_sort!(similar(ps), ps, by = last)
+    @test bylast == ps[sortperm(last.(ps))]
 end

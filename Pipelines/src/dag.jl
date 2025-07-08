@@ -1,60 +1,45 @@
-struct SortedEdges{S, D}
-    src::S
-    dst::D
-    rgs::Vector{UnitRange{Int}} 
-end
+overwritten_keys(d::AbstractDict, ps) = unique(k for (k, v) in ps if !isequal(d[k], v))
 
-# TODO: make lazy?
-(s::SortedEdges)((i, rg)::Pair) = s.src[i] => s.dst[rg]
-to_edges((src, dsts)::Pair) = Edge{Int}.(src, dsts)
+function compute_dict(nodes::AbstractVector{Node}, colnames::AbstractVector)
+    col_pairs = Iterators.zip(colnames, Iterators.repeated(0))
+    out_pairs = Iterators.map(reverse, enumerate(Iterators.flatmap(get_outputs, nodes)))
 
-iterate_pairs(s::SortedEdges) = Iterators.map(s, pairs(s.rgs))
-iterate_edges(s::SortedEdges) = Iterators.flatmap(to_edges, iterate_pairs(s))
-
-function sorted_edges(nodes::AbstractVector{Node}, input_names::AbstractVector)
-    Base.require_one_based_indexing(nodes)
-
-    not_in_source = ∉(Set{String}(input_names))
-    vars = mapfoldl(get_outputs, append!, nodes, init = String[])
-
-    inputs, indices = String[], Int[]
-    for (i, node) in enumerate(nodes)
-        append!(inputs, Iterators.filter(not_in_source, get_inputs(node)))
-        append!(indices, fill(i, length(inputs) - length(indices)))
-    end
+    dict = merge(Dict{String, Int}(col_pairs), Dict{String, Int}(out_pairs))
+    overwritten_cols = overwritten_keys(dict, col_pairs)
+    overwritten_outs = overwritten_keys(dict, out_pairs)
 
     # Validation
-
-    if inputs ⊈ vars
-        notfound = setdiff(vars, inputs)
-        throw(ArgumentError("Input vars $(notfound) not found in data or card outputs"))
+    if !isempty(overwritten_cols)
+        throw(ArgumentError("Output vars $(overwritten_cols) are present in the data"))
     end
-    if !isdisjoint(vars, input_names)
-        overwrite = vars ∩ input_names
-        throw(ArgumentError("Output vars $(overwrite) are present in the data"))
-    end
-    if !allunique(vars)
-        overlapping = repeated_values(vars)
-        throw(ArgumentError("Overlapping outputs $(overlapping)"))
+    if !isempty(overwritten_outs)
+        throw(ArgumentError("Overlapping outputs $(overwritten_outs)"))
     end
 
-    # Compute output
-
-    perm, b, e = boundaries(inputs)
-    starts, stops = findall(b), findall(e)
-    rgs = range.(starts, stops)
-
-    N = length(nodes)
-    d = Dict{String, Int}(Iterators.map(reverse, pairs(vars)))
-    outputs = SortedEdges(keys(nodes), keys(vars) .+ N, get_ranges(@. length(get_outputs(nodes))))
-    targets = SortedEdges([d[inputs[perm[i]]] + N for i in starts], indices[perm], rgs)
-
-    return outputs, targets, vars
+    return dict
 end
 
-function digraph(nodes::AbstractVector{Node}, ns::AbstractVector)
-    outputs, targets, _ = sorted_edges(nodes, ns)
-    edges = mapfoldl(iterate_edges, append!, (outputs, targets), init = Edge{Int}[])
+function compute_edges(dict::AbstractDict, nodes::AbstractVector{Node})
+    N = length(nodes)
+
+    out_iter = enumerate(i for (i, n) in pairs(nodes) for _ in get_outputs(n))
+    out_edges = [Edge(i, idx + N) for (idx, i) in out_iter]
+    nouts = length(out_edges)
+
+    in_iter = ((dict[v], i) for (i, n) in pairs(nodes) for v in get_inputs(n))
+    in_edges = [Edge(idx + N, i) for (idx, i) in in_iter if idx > 0]
+    nins = length(in_edges)
+
+    edges = similar(Vector{Edge{Int}}, nouts + nins)
+    copyto!(edges, out_edges)
+    counting_sort!(edges, in_edges, by = src, skip = nouts)
+    return edges
+end
+
+function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
+    Base.require_one_based_indexing(nodes)
+    dict = compute_dict(nodes, colnames)
+    edges = compute_edges(dict, nodes)
     return DiGraph(edges)
 end
 
@@ -77,51 +62,46 @@ function compute_height(g::DiGraph, us::BitVector)
 end
 
 function layers(hs::AbstractVector)
-    P, b, e = boundaries(hs)
-    starts, stops = findall(@. b && hs ≥ 0), findall(@. e && hs ≥ 0)
-    return Iterators.map(Fix1(view, P) ∘ range, starts, stops)
+    m = maximum(hs, init = -1)
+    ls = Vector{Int}[Int[] for _ in 0:m]
+    for (i, h) in pairs(hs)
+        (h ≥ 0) && push!(ls[h + 1], i)
+    end
+    return ls
 end
 
-function graphviz(io::IO, nodes::AbstractVector{Node}, ns::AbstractVector)
-    outputs, targets, vars = sorted_edges(nodes, ns)
+function graphviz(io::IO, nodes::AbstractVector{Node}, colnames::AbstractVector)
+    g = digraph(nodes, colnames)
     N = length(nodes)
+    vars = Iterators.flatmap(get_outputs, nodes)
 
     println(io, "digraph G{")
-    println(io, "  bgcolor = \"transparent\";")
-    println(io, "  node [fillcolor = \"transparent\"];")
-    println(io)
+    println(io, "  bgcolor = \"transparent\";", "\n")
 
     println(io, "  subgraph cards {")
-    println(io, "    node [shape = \"box\"];")
+    println(io, "    node [shape = \"box\" style = \"filled\" color = \"transparent\"];")
     for (i, node) in enumerate(nodes)
         name = card_name(get_card(node))
-        l = get_update(node) ? string(name, " ", "⬤") : name
-        println(io, "    $(i) [label = \"$(l)\"];")
+        fillcolor = get_update(node) ? "white" : "transparent"
+        println(io, "    \"$(i)\" [label = \"$(name)\" fillcolor = \"$(fillcolor)\"];")
     end
-    println(io, "  }")
-    println(io)
+    println(io, "  }", "\n")
 
     println(io, "  subgraph vars {")
     println(io, "    node [shape = \"none\"];")
     for (j, var) in enumerate(vars)
-        println(io, "    $(N + j) [label = \"$(var)\"];")
+        println(io, "    \"$(N + j)\" [label = \"$(var)\"];")
     end
     println(io, "  }")
-    println(io)
 
-    println(io, "  edge [arrowhead = \"none\"]")
-    for (src, dsts) in iterate_pairs(outputs)
-        print(io, "  ", src, " -> {")
-        join(io, dsts, " ")
-        println(io, "};")
-    end
-    println(io)
-
-    println(io, "  edge [arrowhead = \"normal\"]")
-    for (src, dsts) in iterate_pairs(targets)
-        print(io, "  ", src, " -> {")
-        join(io, dsts, " ")
-        println(io, "};")
+    for src in 1:nv(g)
+        (src == 1) && println(io, "\n", "  edge [arrowhead = \"none\"];")
+        (src == N + 1) && println(io, "\n", "  edge [arrowhead = \"normal\"];")
+        outs = outneighbors(g, src)
+        isempty(outs) && continue
+        print(io, "  ", "\"", src, "\"", " -> {\"")
+        join(io, outs, "\" \"")
+        println(io, "\"};")
     end
 
     return println(io, "}")

@@ -2,8 +2,8 @@ digraph G{
   bgcolor = "transparent";
 
   subgraph cards {
-    node [shape = "box" style = "filled" color = "transparent"];
-    "1" [label = "unknown" fillcolor = "white"];
+    node [shape = "box" style = "filled"];
+    "1" [label = "unknown" fillcolor = "transparent"];
     "2" [label = "unknown" fillcolor = "white"];
     "3" [label = "unknown" fillcolor = "white"];
     "4" [label = "unknown" fillcolor = "white"];

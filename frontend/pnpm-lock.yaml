@@ -23,6 +23,9 @@ importers:
       '@thisbeyond/solid-select':
         specifier: ^0.15.0
         version: 0.15.0(solid-js@1.9.7)
+      '@viz-js/viz':
+        specifier: ^3.14.0
+        version: 3.14.0
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -542,6 +545,9 @@ packages:
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
+
+  '@viz-js/viz@3.14.0':
+    resolution: {integrity: sha512-bL+ZNMdT8egeQD2JvODQVfTpnBtuCXA6mvFL1S5d/JBc8qGVWIadRT+1Qin9oUQTJwB0irxE6V1XUkrR9L1Neg==}
 
   ag-charts-types@10.3.5:
     resolution: {integrity: sha512-DtvV+IS4RlocGV2IcaQOe/eM6eBGGCvkLnwxGkDxKa8ddxivv90fwlfPxK0O5XnVectiKtWFfOw35Cm0k+4vMw==}
@@ -1602,6 +1608,8 @@ snapshots:
       '@babel/types': 7.27.6
 
   '@types/estree@1.0.8': {}
+
+  '@viz-js/viz@3.14.0': {}
 
   ag-charts-types@10.3.5: {}
 

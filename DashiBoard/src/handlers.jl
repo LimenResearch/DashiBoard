@@ -24,13 +24,16 @@ function evaluate_pipeline(stream::HTTP.Stream)
     spec = json_read(stream)
     filters = Filter.(spec["filters"])
     cards = Card.(spec["cards"])
+    nodes = Pipelines.Node.(cards)
     DataIngestion.select(REPOSITORY[], filters)
-    nodes = Pipelines.evaluate(REPOSITORY[], cards, "selection")
+    g = Pipelines.evaluate!(REPOSITORY[], nodes, "selection")
+
     report = Pipelines.report(REPOSITORY[], nodes) |> jsonify
     vs = Pipelines.visualize(REPOSITORY[], nodes)
     visualization = stringify_visualization.(vs)
+    graph = sprint(Pipelines.graphviz, g, nodes)
     summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-    json_write(stream, (; summaries, visualization, report))
+    json_write(stream, (; summaries, visualization, graph, report))
     return
 end
 

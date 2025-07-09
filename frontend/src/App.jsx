@@ -11,9 +11,10 @@ import { Filters, getFilters, initFilters } from "./left-tabs/filtering";
 import { Cards, getCards, initCards } from "./left-tabs/processing";
 
 import { Spreadsheet } from "./right-tabs/spreadsheet";
+import { Visualization } from "./right-tabs/visualization";
+import { Graph } from "./right-tabs/graph";
 
 import { Tabs } from "./components/tabs";
-import { Visualization } from "./right-tabs/visualization";
 import { FiltersContext, LoaderContext, CardsContext } from "./create";
 
 export function App() {
@@ -46,6 +47,7 @@ export function App() {
         report={result().report}
         cards={spec().cards}></Spreadsheet>;
     const visualizationTab = <Visualization visualization={result().visualization}></Visualization>;
+    const graphTab = <Graph graph={result().graph}></Graph>;
 
     const isValid = () => spec().cards.every(c => c != null);
 
@@ -77,8 +79,7 @@ export function App() {
     const rightTabs = [
         {key: "Spreadsheet", value: spreadsheetTab},
         {key: "Visualization", value: visualizationTab},
-        {key: "Chart", value: "TODO"},
-        {key: "Cards", value: "TODO"},
+        {key: "Graph", value: graphTab},
     ];
 
     const outerClass = `bg-gray-100 w-full max-h-screen min-h-screen

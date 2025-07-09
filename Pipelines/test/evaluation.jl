@@ -62,9 +62,9 @@
 
     g = Pipelines.digraph(nodes, colnames)
     @test nv(g) == 11
-    # nodes are
+    # The graph nodes are
     # 1 => n1, 2 => n2, 3 => n3, 4 => n4,
-    # 5 => "f", 6 => "c", 7 => "d", 8 => "e", 9 => "g", 10 => "h", 11 => "i", 
+    # 5 => "f", 6 => "c", 7 => "d", 8 => "e", 9 => "g", 10 => "h", 11 => "i".
     es = collect(edges(g))
     @test sort(es) == [
         Edge(1, 5),

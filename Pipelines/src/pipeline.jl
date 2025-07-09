@@ -37,7 +37,8 @@ set_state!(node::Node, state) = setproperty!(node, :state, state)
 
 function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::AbstractString; schema = nothing)
     ns = colnames(repository, table; schema)
-    hs = compute_height(nodes, ns)
+    g = digraph(nodes, ns)
+    hs = compute_height(g, nodes)
     for idxs in layers(hs)
         # TODO: this can be run in parallel (cards must be made thread-safe first)
         for idx in idxs
@@ -48,7 +49,7 @@ function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::A
         end
     end
 
-    return nodes
+    return g
 end
 
 """
@@ -60,7 +61,8 @@ the transformations in `cards`.
 function evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
     # For now, we update all the nodes TODO: mark which cards need updating
     nodes = Node.(cards)
-    return evaluate!(repository, nodes, table; schema)
+    evaluate!(repository, nodes, table; schema)
+    return nodes
 end
 
 # Note: for the moment this evaluates the nodes in order

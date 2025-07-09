@@ -16,7 +16,8 @@ function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
     # Generate edges
 
     N = length(nodes)
-    srcs = reduce(vcat, StepRangeLen.(1:N, 0, length.(get_outputs.(nodes))))
+    rgs = StepRangeLen.(1:N, 0, length.(get_outputs.(nodes)))
+    srcs::Vector{Int} = isempty(rgs) ? Int[] : reduce(vcat, rgs)
     nvars = length(srcs)
     dsts = (N + 1):(N + nvars)
 
@@ -33,8 +34,8 @@ function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
     return DiGraph(edges)
 end
 
-function compute_height(nodes::AbstractVector, ns::AbstractVector)
-    g::DiGraph, us::BitVector = digraph(nodes, ns), get_update.(nodes)
+function compute_height(g::DiGraph, nodes::AbstractVector{Node})
+    us::BitVector = get_update.(nodes)
     return compute_height(g, us)
 end
 
@@ -60,8 +61,7 @@ function layers(hs::AbstractVector)
     return ls
 end
 
-function graphviz(io::IO, nodes::AbstractVector{Node}, colnames::AbstractVector)
-    g = digraph(nodes, colnames)
+function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node})
     N = length(nodes)
     vars = Iterators.flatmap(get_outputs, nodes)
 

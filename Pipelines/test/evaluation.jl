@@ -39,18 +39,22 @@
 
     @test_throws KeyError Pipelines.evaluate!(repo, nodes, "tbl1")
 
-    @test_throws KeyError Pipelines.compute_height(nodes, ["temp"])
-    @test_throws ArgumentError Pipelines.compute_height(nodes, ["temp", "wind", "pred humid"])
+    @test_throws KeyError Pipelines.digraph(nodes, ["temp"])
+    @test_throws ArgumentError Pipelines.digraph(nodes, ["temp", "wind", "pred humid"])
     faulty_node = Pipelines.Node(TrivialCard(["temp"], ["pred temp"]), true)
-    @test_throws ArgumentError Pipelines.compute_height(vcat(nodes, [faulty_node]), ["temp", "wind"])
+    @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]), ["temp", "wind"])
 
-    # Test return type of `Pipelines.evaluate!`
-    @test nodes === Pipelines.evaluate!(repo, nodes, "tbl2")
+    # Test returned value of `Pipelines.evaluate!`
+    g = Pipelines.evaluate!(repo, nodes, "tbl2")
+    @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
 
-    hs = Pipelines.compute_height(nodes, ["temp", "wind"])
+    hs = Pipelines.compute_height(g, nodes)
     @test hs == [-1, 0, 1, 0]
     @test Pipelines.layers(hs) == [[2, 4], [3]]
     @test isempty(Pipelines.layers(Int[]))
+
+    # Empty case
+    @test Pipelines.digraph(Pipelines.Node[], []) == DiGraph(0)
 
     nodes = [
         Pipelines.Node(TrivialCard(["a", "c", "e"], ["f"]), true),
@@ -80,7 +84,7 @@
         Edge(8, 4),
     ]
 
-    s = sprint(Pipelines.graphviz, nodes, colnames)
+    s = sprint(Pipelines.graphviz, g, nodes)
     @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 end
 

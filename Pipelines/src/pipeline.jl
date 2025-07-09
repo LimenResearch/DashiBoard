@@ -1,5 +1,5 @@
 mutable struct Node
-    const card::Union{Card, Nothing}
+    const card::Card
     const inputs::OrderedSet{String}
     const outputs::OrderedSet{String}
     const update::Bool

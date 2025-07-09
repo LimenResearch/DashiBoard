@@ -1,5 +1,3 @@
-overwritten_keys(d::AbstractDict, ps) = unique(k for (k, v) in ps if !isequal(d[k], v))
-
 to_edges(fadj, N::Integer) = [Edge(N + idx, i) for (idx, is) in enumerate(fadj) for i in is]
 
 function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)

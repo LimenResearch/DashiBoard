@@ -1,0 +1,33 @@
+digraph G{
+  bgcolor = "transparent";
+
+  subgraph cards {
+    node [shape = "box" style = "filled" color = "transparent"];
+    "1" [label = "unknown" fillcolor = "white"];
+    "2" [label = "unknown" fillcolor = "white"];
+    "3" [label = "unknown" fillcolor = "white"];
+    "4" [label = "unknown" fillcolor = "white"];
+  }
+
+  subgraph vars {
+    node [shape = "none"];
+    "5" [label = "f"];
+    "6" [label = "c"];
+    "7" [label = "d"];
+    "8" [label = "e"];
+    "9" [label = "g"];
+    "10" [label = "h"];
+    "11" [label = "i"];
+  }
+
+  edge [arrowhead = "none"];
+  "1" -> {"5"};
+  "2" -> {"6" "7"};
+  "3" -> {"8"};
+  "4" -> {"9" "10" "11"};
+
+  edge [arrowhead = "normal"];
+  "5" -> {"4"};
+  "6" -> {"1"};
+  "8" -> {"1" "4"};
+}

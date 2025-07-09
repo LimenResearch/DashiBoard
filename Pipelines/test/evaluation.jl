@@ -80,6 +80,8 @@
         Edge(8, 4),
     ]
 
+    s = sprint(Pipelines.graphviz, nodes, colnames)
+    @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 end
 
 mktempdir() do dir

@@ -57,7 +57,7 @@
     @test Pipelines.digraph(Pipelines.Node[], []) == DiGraph(0)
 
     nodes = [
-        Pipelines.Node(TrivialCard(["a", "c", "e"], ["f"]), true),
+        Pipelines.Node(TrivialCard(["a", "c", "e"], ["f"]), false),
         Pipelines.Node(TrivialCard(["a"], ["c", "d"]), true),
         Pipelines.Node(TrivialCard(["b"], ["e"]), true),
         Pipelines.Node(TrivialCard(["e", "f"], ["g", "h", "i"]), true),

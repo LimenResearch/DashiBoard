@@ -69,7 +69,7 @@ function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node})
     println(io, "  bgcolor = \"transparent\";", "\n")
 
     println(io, "  subgraph cards {")
-    println(io, "    node [shape = \"box\" style = \"filled\" color = \"transparent\"];")
+    println(io, "    node [shape = \"box\" style = \"filled\"];")
     for (i, node) in enumerate(nodes)
         name = card_name(get_card(node))
         fillcolor = get_update(node) ? "white" : "transparent"

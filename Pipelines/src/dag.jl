@@ -5,20 +5,14 @@ to_edges(fadj, N::Integer) = [Edge(N + idx, i) for (idx, is) in enumerate(fadj) 
 function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
     Base.require_one_based_indexing(nodes)
 
-    col_pairs = Iterators.zip(colnames, Iterators.repeated(0))
-    out_pairs = Iterators.map(reverse, enumerate(Iterators.flatmap(get_outputs, nodes)))
-
-    dict = merge(Dict{String, Int}(col_pairs), Dict{String, Int}(out_pairs))
-    overwritten_cols = overwritten_keys(dict, col_pairs)
-    overwritten_outs = overwritten_keys(dict, out_pairs)
+    dict = Dict{String, Int}(colnames .=> 0)
+    outputs = Iterators.flatmap(get_outputs, nodes)
+    overwritten = unique(var for (i, var) in enumerate(outputs) if i ≠ get!(dict, var, i))
 
     # Validation
 
-    if !isempty(overwritten_cols)
-        throw(ArgumentError("Output vars $(overwritten_cols) are present in the data"))
-    end
-    if !isempty(overwritten_outs)
-        throw(ArgumentError("Overlapping outputs $(overwritten_outs)"))
+    if !isempty(overwritten)
+        throw(ArgumentError("Output vars $(overwritten) would be overwritten"))
     end
 
     # Generate edges

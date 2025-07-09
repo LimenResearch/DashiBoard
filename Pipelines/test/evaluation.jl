@@ -51,6 +51,35 @@
     @test hs == [-1, 0, 1, 0]
     @test Pipelines.layers(hs) == [[2, 4], [3]]
     @test isempty(Pipelines.layers(Int[]))
+
+    nodes = [
+        Pipelines.Node(TrivialCard(["a", "c", "e"], ["f"]), true),
+        Pipelines.Node(TrivialCard(["a"], ["c", "d"]), true),
+        Pipelines.Node(TrivialCard(["b"], ["e"]), true),
+        Pipelines.Node(TrivialCard(["e", "f"], ["g", "h", "i"]), true),
+    ]
+    colnames = ["a", "b"]
+
+    g = Pipelines.digraph(nodes, colnames)
+    @test nv(g) == 11
+    # nodes are
+    # 1 => n1, 2 => n2, 3 => n3, 4 => n4,
+    # 5 => "f", 6 => "c", 7 => "d", 8 => "e", 9 => "g", 10 => "h", 11 => "i", 
+    es = collect(edges(g))
+    @test sort(es) == [
+        Edge(1, 5),
+        Edge(2, 6),
+        Edge(2, 7),
+        Edge(3, 8),
+        Edge(4, 9),
+        Edge(4, 10),
+        Edge(4, 11),
+        Edge(5, 4),
+        Edge(6, 1),
+        Edge(8, 1),
+        Edge(8, 4),
+    ]
+
 end
 
 mktempdir() do dir

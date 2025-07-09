@@ -2,15 +2,15 @@ name: CI
 on:
   pull_request:
     paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - '/dashiboard/'
+      - "docs/**"
+      - "*.md"
+      - "/dashiboard/"
     branches:
       - main
   push:
     branches:
       - main
-    tags: '*'
+    tags: ["*"]
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -19,8 +19,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.11'
-          - '1'
+          - "1.11"
+          - "1"
         os:
           - ubuntu-latest
         arch:

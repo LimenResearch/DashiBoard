@@ -1,6 +1,10 @@
 overwritten_keys(d::AbstractDict, ps) = unique(k for (k, v) in ps if !isequal(d[k], v))
 
-function compute_dict(nodes::AbstractVector{Node}, colnames::AbstractVector)
+to_edges(fadj, N::Integer) = [Edge(N + idx, i) for (idx, is) in enumerate(fadj) for i in is]
+
+function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
+    Base.require_one_based_indexing(nodes)
+
     col_pairs = Iterators.zip(colnames, Iterators.repeated(0))
     out_pairs = Iterators.map(reverse, enumerate(Iterators.flatmap(get_outputs, nodes)))
 
@@ -9,6 +13,7 @@ function compute_dict(nodes::AbstractVector{Node}, colnames::AbstractVector)
     overwritten_outs = overwritten_keys(dict, out_pairs)
 
     # Validation
+
     if !isempty(overwritten_cols)
         throw(ArgumentError("Output vars $(overwritten_cols) are present in the data"))
     end
@@ -16,35 +21,23 @@ function compute_dict(nodes::AbstractVector{Node}, colnames::AbstractVector)
         throw(ArgumentError("Overlapping outputs $(overwritten_outs)"))
     end
 
-    return dict
-end
+    # Generate edges
 
-function compute_edges(dict::AbstractDict, nodes::AbstractVector{Node})
     N = length(nodes)
+    srcs = reduce(vcat, StepRangeLen.(1:N, 0, length.(get_outputs.(nodes))))
+    nvars = length(srcs)
+    dsts = (N + 1):(N + nvars)
 
-    out_srcs = reduce(vcat, StepRangeLen.(1:N, 0, length.(get_outputs.(nodes))))
-    n_outs = length(out_srcs)
-    out_dsts = N .+ (1:n_outs)
-
-    in_srcs, in_dsts = Int[], Int[]
-    for (i, n) in pairs(nodes), v in get_inputs(n)
-        idx = dict[v]
-        (idx > 0) && foreach(push!, (in_srcs, in_dsts), (N + idx, i))
+    targets = [Int[] for _ in 1:nvars]
+    for (i, n) in pairs(nodes), var in get_inputs(n)
+        idx = dict[var]
+        (idx > 0) && push!(targets[idx], i)
     end
-    n_ins = length(in_srcs)
-    # counting sortperm is fast as we have few unique values
-    perm = counting_sortperm(in_srcs)
 
-    edges = similar(Vector{Edge{Int}}, n_outs + n_ins)
-    edges[1:n_outs] .= Edge.(out_srcs, out_dsts)
-    edges[(n_outs + 1):end] .= Edge.(view(in_srcs, perm), view(in_dsts, perm))
-    return edges
-end
+    edges::Vector{Edge{Int}} = vcat(Edge.(srcs, dsts), to_edges(targets, N))
 
-function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
-    Base.require_one_based_indexing(nodes)
-    dict = compute_dict(nodes, colnames)
-    edges = compute_edges(dict, nodes)
+    # Build graph
+
     return DiGraph(edges)
 end
 

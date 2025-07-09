@@ -1,27 +1,3 @@
-# Sorting utils
-
-# simple counting sortperm
-function counting_sortperm(v::AbstractVector)
-    perm = similar(Vector{Int}, length(v))
-    isempty(v) && return perm
-
-    min, max = extrema(v)
-    counts = fill(0, max - min + 1)
-    for i in eachindex(v)
-        idx = v[i] - min + 1
-        counts[idx] += 1
-    end
-    for idx in 1:(max - min)
-        counts[idx + 1] += counts[idx]
-    end
-    for i in reverse(eachindex(v))
-        idx = v[i] - min + 1
-        perm[counts[idx]] = i
-        counts[idx] -= 1
-    end
-    return perm
-end
-
 # Set computation utils
 
 _union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)

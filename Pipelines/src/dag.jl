@@ -61,6 +61,7 @@ function layers(hs::AbstractVector)
     return ls
 end
 
+# TODO: make look customizable (esp., match font with AlgebraOfGraphics)
 function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node})
     N = length(nodes)
     vars = Iterators.flatmap(get_outputs, nodes)

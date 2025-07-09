@@ -23,7 +23,7 @@ function compute_edges(dict::AbstractDict, nodes::AbstractVector{Node})
     N = length(nodes)
 
     out_srcs = reduce(vcat, StepRangeLen.(1:N, 0, length.(get_outputs.(nodes))))
-    n_outs = length(out_srcs) 
+    n_outs = length(out_srcs)
     out_dsts = N .+ (1:n_outs)
 
     in_srcs, in_dsts = Int[], Int[]

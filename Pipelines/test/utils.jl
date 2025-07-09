@@ -10,7 +10,7 @@
 end
 
 @testset "counting_sortperm" begin
-    ps = [2 , 2 , 1 , 0 , 11 , 1 , -1]
+    ps = [2, 2, 1, 0, 11, 1, -1]
     @test Pipelines.counting_sortperm(ps) == [7, 4, 3, 6, 1, 2, 5]
     @test Pipelines.counting_sortperm([]) == Int[]
 end

@@ -1,27 +1,25 @@
 # Sorting utils
 
-# simple stable counting sort
-function counting_sort!(
-        res::AbstractVector, v::AbstractVector;
-        by::F = identity, skip::Integer = firstindex(res) - 1
-    ) where {F}
+# simple counting sortperm
+function counting_sortperm(v::AbstractVector)
+    perm = similar(Vector{Int}, length(v))
+    isempty(v) && return perm
 
-    f = by
-    min, max = extrema(f, v)
-    len = max - min + 1
-    offs, counts = 1 - min, fill(0, len)
-    for el in v
-        counts[f(el) + offs] += 1
+    min, max = extrema(v)
+    counts = fill(0, max - min + 1)
+    for i in eachindex(v)
+        idx = v[i] - min + 1
+        counts[idx] += 1
     end
-    for i in 2:len
-        counts[i] += counts[i - 1]
+    for idx in 1:(max - min)
+        counts[idx + 1] += counts[idx]
     end
-    for el in Iterators.reverse(v)
-        i = f(el) + offs
-        res[counts[i] + skip] = el
-        counts[i] -= 1
+    for i in reverse(eachindex(v))
+        idx = v[i] - min + 1
+        perm[counts[idx]] = i
+        counts[idx] -= 1
     end
-    return res
+    return perm
 end
 
 # Set computation utils

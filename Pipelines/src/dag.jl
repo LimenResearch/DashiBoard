@@ -22,17 +22,22 @@ end
 function compute_edges(dict::AbstractDict, nodes::AbstractVector{Node})
     N = length(nodes)
 
-    out_iter = enumerate(i for (i, n) in pairs(nodes) for _ in get_outputs(n))
-    out_edges = [Edge(i, idx + N) for (idx, i) in out_iter]
-    nouts = length(out_edges)
+    out_srcs = reduce(vcat, StepRangeLen.(1:N, 0, length.(get_outputs.(nodes))))
+    n_outs = length(out_srcs) 
+    out_dsts = N .+ (1:n_outs)
 
-    in_iter = ((dict[v], i) for (i, n) in pairs(nodes) for v in get_inputs(n))
-    in_edges = [Edge(idx + N, i) for (idx, i) in in_iter if idx > 0]
-    nins = length(in_edges)
+    in_srcs, in_dsts = Int[], Int[]
+    for (i, n) in pairs(nodes), v in get_inputs(n)
+        idx = dict[v]
+        (idx > 0) && foreach(push!, (in_srcs, in_dsts), (N + idx, i))
+    end
+    n_ins = length(in_srcs)
+    # counting sortperm is fast as we have few unique values
+    perm = counting_sortperm(in_srcs)
 
-    edges = similar(Vector{Edge{Int}}, nouts + nins)
-    copyto!(edges, out_edges)
-    counting_sort!(edges, in_edges, by = src, skip = nouts)
+    edges = similar(Vector{Edge{Int}}, n_outs + n_ins)
+    edges[1:n_outs] .= Edge.(out_srcs, out_dsts)
+    edges[(n_outs + 1):end] .= Edge.(view(in_srcs, perm), view(in_dsts, perm))
     return edges
 end
 

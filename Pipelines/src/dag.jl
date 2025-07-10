@@ -1,9 +1,7 @@
-to_edges(fadj, N::Integer) = [Edge(N + idx, i) for (idx, is) in enumerate(fadj) for i in is]
-
 function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
     Base.require_one_based_indexing(nodes)
-
     dict = Dict{String, Int}(colnames .=> 0)
+
     outputs = Iterators.flatmap(get_outputs, nodes)
     overwritten = unique(var for (i, var) in enumerate(outputs) if i ≠ get!(dict, var, i))
 
@@ -13,23 +11,46 @@ function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
         throw(ArgumentError("Output vars $(overwritten) would be overwritten"))
     end
 
-    # Generate edges
+    return digraph(nodes, dict)
+end
 
-    N = length(nodes)
-    rgs = StepRangeLen.(1:N, 0, length.(get_outputs.(nodes)))
-    srcs::Vector{Int} = isempty(rgs) ? Int[] : reduce(vcat, rgs)
-    nvars = length(srcs)
-    dsts = (N + 1):(N + nvars)
+function digraph(nodes::AbstractVector{Node}, dict::AbstractDict)
 
-    targets = [Int[] for _ in 1:nvars]
+    # first collect srcs and dsts of edges from vars to nodes
+
+    input_vars, target_nodes = Int[], Int[]
     for (i, n) in pairs(nodes), var in get_inputs(n)
         idx = dict[var]
-        (idx > 0) && push!(targets[idx], i)
+        (idx > 0) && (push!(input_vars, idx); push!(target_nodes, i))
     end
 
-    edges::Vector{Edge{Int}} = vcat(Edge.(srcs, dsts), to_edges(targets, N))
+    # initialize edges and add edges from nodes to vars (they come presorted)
 
-    # Build graph
+    lens = length.(get_outputs.(nodes))
+    n_nodes, n_outputs, n_inputs = length(nodes), sum(lens), length(input_vars)
+    edges = similar(Vector{Edge{Int}}, n_outputs + n_inputs)
+
+    counter = 0
+    for (i, len) in pairs(lens)
+        rg = range(counter + 1, counter + len)
+        edges[rg] .= Edge.(i, n_nodes .+ rg)
+        counter += len
+    end
+
+    # then, add edges from vars to nodes (count-sort on the fly)
+
+    counts = fill(0, n_outputs + 1)
+    for idx in input_vars
+        counts[idx + 1] += 1
+    end
+    for idx in 1:n_outputs
+        counts[idx + 1] += counts[idx]
+    end
+
+    for (input_var, target_node) in zip(input_vars, target_nodes)
+        index = counts[input_var] += 1
+        edges[n_outputs + index] = Edge(n_nodes + input_var, target_node)
+    end
 
     return DiGraph(edges)
 end

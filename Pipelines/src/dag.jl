@@ -28,7 +28,7 @@ function digraph(nodes::AbstractVector{Node}, dict::AbstractDict)
 
     lens = length.(get_outputs.(nodes))
     n_nodes, n_outputs, n_inputs = length(nodes), sum(lens), length(input_vars)
-    edges = similar(Vector{Edge{Int}}, n_outputs + n_inputs)
+    edges = fill(Edge(0, 0), n_outputs + n_inputs)
 
     counter = 0
     for (i, len) in pairs(lens)

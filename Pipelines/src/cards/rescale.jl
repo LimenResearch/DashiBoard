@@ -96,7 +96,7 @@ The supported methods are
 - `logistic`.
 
 The resulting rescaled variable is added to the table under the name
-`"\$(originalname)_\$(suffix)"`. 
+`"\$(originalname)_\$(suffix)"`.
 """
 struct RescaleCard <: Card
     rescaler::Rescaler
@@ -126,9 +126,8 @@ end
 
 invertible(::RescaleCard) = true
 
-inputs(r::RescaleCard) = stringset(r.by, r.columns, r.partition)
-
-outputs(r::RescaleCard) = stringset(join_names.(r.columns, r.suffix))
+inputs(r::RescaleCard)::Vector{String} = stringlist(r.by, r.columns, r.partition)
+outputs(r::RescaleCard)::Vector{String} = join_names.(r.columns, r.suffix)
 
 function pair_wise_group_by(
         repository::Repository,

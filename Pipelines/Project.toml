@@ -31,9 +31,9 @@ AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 
 [sources]
-DataIngestion = {path = "../DataIngestion"}
-DuckDBUtils = {path = "../DuckDBUtils"}
-StreamlinerCore = {path = "../StreamlinerCore"}
+DataIngestion = { path = "../DataIngestion" }
+DuckDBUtils = { path = "../DuckDBUtils" }
+StreamlinerCore = { path = "../StreamlinerCore" }
 
 [extensions]
 PipelinesMakieExt = ["CairoMakie", "AlgebraOfGraphics"]

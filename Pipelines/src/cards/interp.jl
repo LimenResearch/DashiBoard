@@ -80,9 +80,8 @@ end
 
 invertible(::InterpCard) = false
 
-inputs(ic::InterpCard) = stringset(ic.predictor, ic.targets, ic.partition)
-
-outputs(ic::InterpCard) = stringset(join_names.(ic.targets, ic.suffix))
+inputs(ic::InterpCard)::Vector{String} = stringlist(ic.predictor, ic.targets, ic.partition)
+outputs(ic::InterpCard)::Vector{String} = join_names.(ic.targets, ic.suffix)
 
 function train(
         repository::Repository,

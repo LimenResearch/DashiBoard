@@ -1,7 +1,7 @@
 mutable struct Node
     const card::Card
-    const inputs::OrderedSet{String}
-    const outputs::OrderedSet{String}
+    const inputs::Vector{String}
+    const outputs::Vector{String}
     const update::Bool
     state::CardState
 end

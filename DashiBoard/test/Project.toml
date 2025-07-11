@@ -23,7 +23,6 @@ MLDatasets = "eb30cadb-4394-5ae3-aed4-317e484a6458"
 MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
 MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
 Optimisers = "3bd65402-5787-11e9-1adc-39752487f4e2"
-OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 ParameterSchedulers = "d7d3b36b-41b8-4d0d-a2bf-768c6151755e"
 Pipelines = "12f58945-0960-453a-85e3-e4614e9748b9"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -32,8 +31,8 @@ StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
-DashiBoard = {path = ".."}
-DataIngestion = {path = "../../DataIngestion"}
-DuckDBUtils = {path = "../../DuckDBUtils"}
-Pipelines = {path = "../../Pipelines"}
-StreamlinerCore = {path = "../../StreamlinerCore"}
+DashiBoard = { path = ".." }
+DataIngestion = { path = "../../DataIngestion" }
+DuckDBUtils = { path = "../../DuckDBUtils" }
+Pipelines = { path = "../../Pipelines" }
+StreamlinerCore = { path = "../../StreamlinerCore" }

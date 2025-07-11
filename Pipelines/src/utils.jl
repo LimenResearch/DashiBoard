@@ -1,12 +1,10 @@
-# Set computation utils
+# String list utils
 
-_union!(s::AbstractSet{<:AbstractString}, x::AbstractString) = push!(s, x)
-_union!(s::AbstractSet{<:AbstractString}, x::AbstractVector) = union!(s, x)
-_union!(s::AbstractSet{<:AbstractString}, ::Nothing) = s
+_append_strings!(v, ::Nothing) = v
+_append_strings!(v, s::AbstractString) = push!(v, s)
+_append_strings!(v, x) = append!(v, x)
 
-stringset!(s::AbstractSet{<:AbstractString}, args...) = (foreach(Fix1(_union!, s), args); s)
-
-stringset(args...) = stringset!(OrderedSet{String}(), args...)
+stringlist(xs...) = foldl(_append_strings!, xs, init = String[])
 
 # Option computation and widget helpers
 

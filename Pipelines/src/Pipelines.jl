@@ -28,7 +28,7 @@ using RelocatableFolders: @path
 using JLD2: jldopen
 using StructUtils: make
 
-using OrderedCollections: OrderedDict, OrderedSet
+using OrderedCollections: OrderedDict
 using Tables: Tables
 using DBInterface: DBInterface
 using DuckDBUtils: DuckDBUtils,
@@ -66,7 +66,7 @@ using FunSQL: render,
 using Graphs: SimpleDiGraphFromIterator, DiGraph, Edge,
     inneighbors, outneighbors, nv, topological_sort
 
-using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm
+using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm, AbstractTerm
 
 using StatsAPI: fit, predict, RegressionModel
 

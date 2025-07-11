@@ -1,6 +1,11 @@
 name = "DuckDBUtils"
 uuid = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
-authors = ["Limen Research", "Mattia G. Bergomi", "Dario Sarra", "Pietro Vertechi"]
+authors = [
+    "Limen Research",
+    "Mattia G. Bergomi",
+    "Dario Sarra",
+    "Pietro Vertechi",
+]
 version = "1.0.0-DEV"
 
 [deps]

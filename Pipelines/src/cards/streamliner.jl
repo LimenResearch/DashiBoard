@@ -26,7 +26,7 @@ end
     suffix::String = "hat"
 end
 
-Run a Streamliner model, predicting `targets` from `predictors`. 
+Run a Streamliner model, predicting `targets` from `predictors`.
 """
 struct StreamlinerCard <: Card
     model::Model
@@ -69,9 +69,8 @@ end
 
 invertible(::StreamlinerCard) = false
 
-inputs(s::StreamlinerCard) = stringset(s.order_by, s.predictors, s.targets, s.partition)
-
-outputs(s::StreamlinerCard) = stringset(join_names.(s.targets, s.suffix))
+inputs(s::StreamlinerCard)::Vector{String} = stringlist(s.order_by, s.predictors, s.targets, s.partition)
+outputs(s::StreamlinerCard)::Vector{String} = join_names.(s.targets, s.suffix)
 
 function train(
         repository::Repository,

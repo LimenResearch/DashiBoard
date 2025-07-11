@@ -3,8 +3,8 @@
         inputs::Vector{String}
         outputs::Vector{String}
     end
-    Pipelines.inputs(t::TrivialCard) = OrderedSet(t.inputs)
-    Pipelines.outputs(t::TrivialCard) = OrderedSet(t.outputs)
+    Pipelines.inputs(t::TrivialCard) = t.inputs
+    Pipelines.outputs(t::TrivialCard) = t.outputs
     function Pipelines.train(::Repository, ::TrivialCard, ::AbstractString; schema = nothing)
         return Pipelines.CardState()
     end

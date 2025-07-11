@@ -73,9 +73,8 @@ end
 
 invertible(::DimensionalityReductionCard) = false
 
-inputs(drc::DimensionalityReductionCard) = stringset(drc.columns, drc.partition)
-
-outputs(drc::DimensionalityReductionCard) = stringset(join_names.(drc.output, 1:drc.n_components))
+inputs(drc::DimensionalityReductionCard)::Vector{String} = stringlist(drc.columns, drc.partition)
+outputs(drc::DimensionalityReductionCard)::Vector{String} = join_names.(drc.output, 1:drc.n_components)
 
 function train(
         repository::Repository,

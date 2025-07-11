@@ -3,4 +3,4 @@ DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
-DuckDBUtils = {path = ".."}
+DuckDBUtils = { path = ".." }

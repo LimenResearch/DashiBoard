@@ -49,9 +49,8 @@ end
 
 invertible(::SplitCard) = false
 
-inputs(s::SplitCard) = stringset(s.order_by, s.by)
-
-outputs(s::SplitCard) = stringset(s.output)
+inputs(s::SplitCard)::Vector{String} = stringlist(s.order_by, s.by)
+outputs(s::SplitCard)::Vector{String} = [s.output]
 
 function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
     return CardState()

@@ -21,10 +21,10 @@ StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
 [sources]
-DataIngestion = {path = "../DataIngestion"}
-DuckDBUtils = {path = "../DuckDBUtils"}
-Pipelines = {path = "../Pipelines"}
-StreamlinerCore = {path = "../StreamlinerCore"}
+DataIngestion = { path = "../DataIngestion" }
+DuckDBUtils = { path = "../DuckDBUtils" }
+Pipelines = { path = "../Pipelines" }
+StreamlinerCore = { path = "../StreamlinerCore" }
 
 [compat]
 AlgebraOfGraphics = "0.9.3, 0.10"

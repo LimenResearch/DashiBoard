@@ -69,14 +69,12 @@ end
 
 invertible(::GLMCard) = false
 
-function inputs(g::GLMCard)
-    formula_vars = [termnames(t) for t in terms(g.formula) if t isa Term]
-    return stringset(formula_vars, g.weights, g.partition)
-end
+isterm(x::AbstractTerm) = x isa Term
+predictors(g::GLMCard) = Iterators.map(termnames, Iterators.filter(isterm, terms(g.formula.rhs)))
+target(g::GLMCard) = termnames(g.formula.lhs)
 
-targetname(g::GLMCard) = termnames(g.formula.lhs)
-
-outputs(g::GLMCard) = stringset(join_names(targetname(g), g.suffix))
+inputs(g::GLMCard)::Vector{String} = stringlist(predictors(g), target(g), g.weights, g.partition)
+outputs(g::GLMCard)::Vector{String} = [join_names(target(g), g.suffix)]
 
 function train(
         repository::Repository,
@@ -90,7 +88,7 @@ function train(
 
     (; formula, distribution, link) = g
     # `weights` cannot yet be passed as a symbol
-    weights = isnothing(g.weights) ? similar(t[targetname(g)], 0) : t[g.weights]
+    weights = isnothing(g.weights) ? similar(t[target(g)], 0) : t[g.weights]
     # TODO save slim version with no data
     m = fit(GeneralizedLinearModel, formula, t, distribution, link, wts = weights)
     return CardState(
@@ -110,7 +108,7 @@ function evaluate(
 
     t = DBInterface.execute(fromtable, repository, From(source); schema)
 
-    pred_name = join_names(targetname(g), g.suffix)
+    pred_name = join_names(target(g), g.suffix)
     t[pred_name] = predict(model, t)
 
     return load_table(repository, t, destination; schema)

@@ -4,13 +4,7 @@ mutable struct Node
     state::CardState
 end
 
-function Node(card::Card, update::Bool = true)
-    return Node(
-        card,
-        update,
-        CardState()
-    )
-end
+Node(card::Card, update::Bool = true) = Node(card, update, CardState())
 
 function Node(c::AbstractDict, update::Bool = true)
     card = Card(c["card"])

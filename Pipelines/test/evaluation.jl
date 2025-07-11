@@ -45,8 +45,9 @@
     @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]), ["temp", "wind"])
 
     # Test returned value of `Pipelines.evaluate!`
-    g = Pipelines.evaluate!(repo, nodes, "tbl2")
+    g, output_vars = Pipelines.evaluate!(repo, nodes, "tbl2")
     @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
+    @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     hs = Pipelines.compute_height(g, nodes)
     @test hs == [-1, 0, 1, 0]
@@ -54,7 +55,7 @@
     @test isempty(Pipelines.layers(Int[]))
 
     # Empty case
-    @test Pipelines.digraph(Pipelines.Node[], []) == DiGraph(0)
+    @test Pipelines.digraph(Pipelines.Node[], String[]) == DiGraph(0)
 
     nodes = [
         Pipelines.Node(TrivialCard(["a", "c", "e"], ["f"]), false),
@@ -64,7 +65,7 @@
     ]
     colnames = ["a", "b"]
 
-    g = Pipelines.digraph(nodes, colnames)
+    g, vars = Pipelines.digraph_metadata(nodes, colnames)
     @test nv(g) == 11
     # The graph nodes are
     # 1 => n1, 2 => n2, 3 => n3, 4 => n4,
@@ -84,7 +85,7 @@
         Edge(8, 4),
     ]
 
-    s = sprint(Pipelines.graphviz, g, nodes)
+    s = sprint(Pipelines.graphviz, g, nodes, vars)
     @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 end
 

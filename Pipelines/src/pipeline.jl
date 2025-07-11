@@ -1,7 +1,5 @@
 mutable struct Node
     const card::Card
-    const inputs::Vector{String}
-    const outputs::Vector{String}
     const update::Bool
     state::CardState
 end
@@ -9,8 +7,6 @@ end
 function Node(card::Card, update::Bool = true)
     return Node(
         card,
-        inputs(card),
-        outputs(card),
         update,
         CardState()
     )
@@ -28,16 +24,17 @@ function Node(c::AbstractDict, update::Bool = true)
 end
 
 get_card(node::Node) = node.card
-get_inputs(node::Node) = node.inputs
-get_outputs(node::Node) = node.outputs
 get_update(node::Node) = node.update
 
 get_state(node::Node) = node.state
 set_state!(node::Node, state) = setproperty!(node, :state, state)
 
+get_inputs(node::Node)::Vector{String} = inputs(get_card(node))
+get_outputs(node::Node)::Vector{String} = outputs(get_card(node))
+
 function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::AbstractString; schema = nothing)
     ns = colnames(repository, table; schema)
-    g = digraph(nodes, ns)
+    g, output_vars = digraph_metadata(nodes, ns)
     hs = compute_height(g, nodes)
     for idxs in layers(hs)
         # TODO: this can be run in parallel (cards must be made thread-safe first)
@@ -49,7 +46,7 @@ function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::A
         end
     end
 
-    return g
+    return g, output_vars
 end
 
 """

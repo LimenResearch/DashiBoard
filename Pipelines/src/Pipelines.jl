@@ -31,6 +31,7 @@ using StructUtils: make
 using OrderedCollections: OrderedDict
 using Tables: Tables
 using DBInterface: DBInterface
+
 using DuckDBUtils: DuckDBUtils,
     Repository,
     Batches,

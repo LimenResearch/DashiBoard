@@ -1,50 +1,66 @@
 repeated_keys(cs) = Iterators.flatmap(splat(Iterators.repeated), pairs(cs))
 lazy_pairs(cs, xs) = Iterators.map(=>, repeated_keys(cs), xs)
 
-function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
-    Base.require_one_based_indexing(nodes)
-    dict = Dict{String, Int}(colnames .=> 0)
+positive_values(d, ks) = Iterators.filter(>(0), Iterators.map(Fix1(getindex, d), ks))
+positive_values(d) = Fix1(positive_values, d)
 
-    output_vars = Iterators.flatmap(get_outputs, nodes)
-    repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(dict, var, i))
-
-    # Validation
-
-    if !isempty(repeated)
-        throw(ArgumentError("Output vars $(repeated) would be overwritten"))
-    end
-
-    return digraph(nodes, dict)
+function combine_vars(colnames, output_vars)
+    d = Dict{String, Int}(Iterators.zip(colnames, Iterators.repeated(0)))
+    repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(d, var, i))
+    isempty(repeated) || throw(ArgumentError("Columns $(repeated) would be overwritten"))
+    return d
 end
 
-function digraph(nodes::AbstractVector{Node}, dict::AbstractDict)
+function flatten_and_count(f::F, ::Type{T}, v::AbstractVector) where {F, T}
+    vals, counts = T[], fill(0, length(v))
+    for (i, x) in pairs(v)
+        l = length(vals)
+        append!(vals, f(x))
+        counts[i] = length(vals) - l
+    end
+    return vals::Vector{T}, counts::Vector{Int}
+end
 
-    # compute number of nodes and output variables
+##
 
-    output_counts = length.(get_outputs.(nodes))
-    N, n_outputs = length(nodes), sum(output_counts, init = 0)
-    outputs = 1:n_outputs
+function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector{<:AbstractString})
+    g, _ = digraph_metadata(nodes, colnames)
+    return g
+end
 
+function digraph_metadata(nodes::AbstractVector{Node}, colnames::AbstractVector{<:AbstractString})
+    Base.require_one_based_indexing(nodes)
+    # preprocess outbound edges
+    output_vars, output_counts = flatten_and_count(get_outputs, String, nodes)
+    # generate variable to index dictionary and validate result
+    d = combine_vars(colnames, output_vars)
     # preprocess inbound edges
+    inputs, input_counts = flatten_and_count(positive_values(d) ∘ get_inputs, Int, nodes)
+    # return graph and variable names
+    return digraph(inputs, input_counts, output_counts), output_vars
+end
 
-    inputs, input_counts, counts = Int[], fill(0, N), fill(0, n_outputs + 1)
-    for (i, node) in pairs(nodes), input_var in get_inputs(node)
-        input = dict[input_var]
-        if input > 0
-            push!(inputs, input)
-            input_counts[i] += 1
-            counts[input + 1] += 1
-        end
+function digraph(
+        inputs::AbstractVector{<:Integer},
+        input_counts::AbstractVector{<:Integer},
+        output_counts::AbstractVector{<:Integer}
+    )
+
+    # compute number of nodes, input and output variables
+    n_inputs, n_outputs, N = sum(input_counts), sum(output_counts), length(output_counts)
+
+    # counting sort
+    counts = fill(0, n_outputs + 1)
+    for input in inputs
+        counts[input + 1] += 1
     end
     for i in 1:n_outputs
         counts[i + 1] += counts[i]
     end
-    n_inputs = sum(input_counts, init = 0)
 
     # initialize and fill `edges` array
-
     edges = fill(Edge(0, 0), n_outputs + n_inputs)
-    for (node_idx, output) in lazy_pairs(output_counts, outputs)
+    for (node_idx, output) in lazy_pairs(output_counts, 1:n_outputs)
         edge_idx = output
         edges[edge_idx] = Edge(node_idx, N + output)
     end
@@ -55,6 +71,8 @@ function digraph(nodes::AbstractVector{Node}, dict::AbstractDict)
 
     return DiGraph(edges)
 end
+
+##
 
 function compute_height(g::DiGraph, nodes::AbstractVector{Node})
     us::BitVector = get_update.(nodes)
@@ -83,10 +101,11 @@ function layers(hs::AbstractVector)
     return ls
 end
 
+##
+
 # TODO: make look customizable (esp., match font with AlgebraOfGraphics)
-function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node})
+function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node}, vars::AbstractVector{<:AbstractString})
     N = length(nodes)
-    vars = Iterators.flatmap(get_outputs, nodes)
 
     println(io, "digraph G{")
     println(io, "  bgcolor = \"transparent\";", "\n")

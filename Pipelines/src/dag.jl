@@ -1,14 +1,17 @@
+repeated_keys(cs) = Iterators.flatmap(splat(Iterators.repeated), pairs(cs))
+lazy_pairs(cs, xs) = Iterators.map(=>, repeated_keys(cs), xs)
+
 function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector)
     Base.require_one_based_indexing(nodes)
     dict = Dict{String, Int}(colnames .=> 0)
 
-    outputs = Iterators.flatmap(get_outputs, nodes)
-    overwritten = unique(var for (i, var) in enumerate(outputs) if i ≠ get!(dict, var, i))
+    output_vars = Iterators.flatmap(get_outputs, nodes)
+    repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(dict, var, i))
 
     # Validation
 
-    if !isempty(overwritten)
-        throw(ArgumentError("Output vars $(overwritten) would be overwritten"))
+    if !isempty(repeated)
+        throw(ArgumentError("Output vars $(repeated) would be overwritten"))
     end
 
     return digraph(nodes, dict)
@@ -16,40 +19,38 @@ end
 
 function digraph(nodes::AbstractVector{Node}, dict::AbstractDict)
 
-    # first collect srcs and dsts of edges from vars to nodes
+    # compute number of nodes and output variables
 
-    input_vars, target_nodes = Int[], Int[]
-    for (i, n) in pairs(nodes), var in get_inputs(n)
-        idx = dict[var]
-        (idx > 0) && (push!(input_vars, idx); push!(target_nodes, i))
+    output_counts = length.(get_outputs.(nodes))
+    N, n_outputs = length(nodes), sum(output_counts, init = 0)
+    outputs = 1:n_outputs
+
+    # preprocess inbound edges
+
+    inputs, input_counts, counts = Int[], fill(0, N), fill(0, n_outputs + 1)
+    for (i, node) in pairs(nodes), input_var in get_inputs(node)
+        input = dict[input_var]
+        if input > 0
+            push!(inputs, input)
+            input_counts[i] += 1
+            counts[input + 1] += 1
+        end
     end
+    for i in 1:n_outputs
+        counts[i + 1] += counts[i]
+    end
+    n_inputs = sum(input_counts, init = 0)
 
-    # initialize edges and add edges from nodes to vars (they come presorted)
+    # initialize and fill `edges` array
 
-    lens = length.(get_outputs.(nodes))
-    n_nodes, n_outputs, n_inputs = length(nodes), sum(lens), length(input_vars)
     edges = fill(Edge(0, 0), n_outputs + n_inputs)
-
-    counter = 0
-    for (i, len) in pairs(lens)
-        rg = range(counter + 1, counter + len)
-        edges[rg] .= Edge.(i, n_nodes .+ rg)
-        counter += len
+    for (node_idx, output) in lazy_pairs(output_counts, outputs)
+        edge_idx = output
+        edges[edge_idx] = Edge(node_idx, N + output)
     end
-
-    # then, add edges from vars to nodes (count-sort on the fly)
-
-    counts = fill(0, n_outputs + 1)
-    for idx in input_vars
-        counts[idx + 1] += 1
-    end
-    for idx in 1:n_outputs
-        counts[idx + 1] += counts[idx]
-    end
-
-    for (input_var, target_node) in zip(input_vars, target_nodes)
-        index = counts[input_var] += 1
-        edges[n_outputs + index] = Edge(n_nodes + input_var, target_node)
+    for (node_idx, input) in lazy_pairs(input_counts, inputs)
+        edge_idx = n_outputs + (counts[input] += 1)
+        edges[edge_idx] = Edge(N + input, node_idx)
     end
 
     return DiGraph(edges)

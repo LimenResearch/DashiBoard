@@ -96,7 +96,7 @@ function layers(hs::AbstractVector)
     m = maximum(hs, init = -1)
     ls = Vector{Int}[Int[] for _ in 0:m]
     for (i, h) in pairs(hs)
-        (h ≥ 0) && push!(ls[h + 1], i)
+        h ≥ 0 && push!(ls[h + 1], i)
     end
     return ls
 end

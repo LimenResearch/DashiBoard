@@ -90,8 +90,8 @@ end
 
 invertible(::GaussianEncodingCard) = false
 
-inputs(g::GaussianEncodingCard)::Vector{String} = [g.column]
-outputs(g::GaussianEncodingCard)::Vector{String} = join_names.(g.column, g.suffix, 1:g.n_modes)
+inputs(g::GaussianEncodingCard) = [g.column]
+outputs(g::GaussianEncodingCard) = join_names.(g.column, g.suffix, 1:g.n_modes)
 
 function train(::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(start = 0, step = 1 / g.n_modes, length = g.n_modes)

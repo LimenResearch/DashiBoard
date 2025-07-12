@@ -126,8 +126,8 @@ end
 
 invertible(::RescaleCard) = true
 
-inputs(r::RescaleCard)::Vector{String} = stringlist(r.by, r.columns, r.partition)
-outputs(r::RescaleCard)::Vector{String} = join_names.(r.columns, r.suffix)
+inputs(r::RescaleCard) = stringlist(r.by, r.columns, r.partition)
+outputs(r::RescaleCard) = join_names.(r.columns, r.suffix)
 
 function pair_wise_group_by(
         repository::Repository,

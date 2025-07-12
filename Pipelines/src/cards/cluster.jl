@@ -59,8 +59,8 @@ end
 
 invertible(::ClusterCard) = false
 
-inputs(cc::ClusterCard)::Vector{String} = stringlist(cc.columns, cc.partition)
-outputs(cc::ClusterCard)::Vector{String} = [cc.output]
+inputs(cc::ClusterCard) = stringlist(cc.columns, cc.partition)
+outputs(cc::ClusterCard) = [cc.output]
 
 function train(repository::Repository, cc::ClusterCard, source::AbstractString; schema = nothing)
     ns = colnames(repository, source; schema)

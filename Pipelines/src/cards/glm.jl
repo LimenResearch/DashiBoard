@@ -73,8 +73,8 @@ isterm(x::AbstractTerm) = x isa Term
 predictors(g::GLMCard) = Iterators.map(termnames, Iterators.filter(isterm, terms(g.formula.rhs)))
 target(g::GLMCard) = termnames(g.formula.lhs)
 
-inputs(g::GLMCard)::Vector{String} = stringlist(predictors(g), target(g), g.weights, g.partition)
-outputs(g::GLMCard)::Vector{String} = [join_names(target(g), g.suffix)]
+inputs(g::GLMCard) = stringlist(predictors(g), target(g), g.weights, g.partition)
+outputs(g::GLMCard) = [join_names(target(g), g.suffix)]
 
 function train(
         repository::Repository,

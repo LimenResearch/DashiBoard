@@ -38,14 +38,14 @@ function get_card(d::AbstractDict)
 end
 
 """
-    inputs(c::Card)::Vector{String}
+    inputs(c::Card)
 
 Return the list of inputs for a given card.
 """
 function inputs end
 
 """
-    outputs(c::Card)::Vector{String}
+    outputs(c::Card)
 
 Return the list of outputs for a given card.
 """

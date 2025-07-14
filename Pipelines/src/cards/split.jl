@@ -74,6 +74,8 @@ function evaluate(
     return replace_table(repository, query, destination; schema)
 end
 
+## UI representation
+
 function CardWidget(
         ::Type{SplitCard};
         percentile = (min = 0, max = 1, step = 0.01),

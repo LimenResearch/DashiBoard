@@ -140,6 +140,7 @@ include("funnels/basic.jl")
 
 include("card.jl")
 
+include("cards/wild.jl")
 include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/cluster.jl")

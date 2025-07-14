@@ -153,6 +153,8 @@ function report(::Repository, sc::StreamlinerCard, state::CardState)
     return Dict("training" => training, "validation" => validation)
 end
 
+## UI representation
+
 function list_tomls(dir)
     fls = Iterators.map(splitext, readdir(dir))
     return [f for (f, ext) in fls if ext == ".toml"]

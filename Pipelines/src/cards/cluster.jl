@@ -104,6 +104,8 @@ function evaluate(
     end
 end
 
+## UI representation
+
 function CardWidget(::Type{ClusterCard})
 
     method_names = collect(keys(CLUSTERING_FUNCTIONS))

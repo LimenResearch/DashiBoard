@@ -114,6 +114,8 @@ function evaluate(
     return load_table(repository, t, destination; schema)
 end
 
+## UI representation
+
 function CardWidget(::Type{GLMCard})
 
     fields = [

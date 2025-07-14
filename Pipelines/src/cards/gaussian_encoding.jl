@@ -142,6 +142,8 @@ function evaluate(
     end
 end
 
+## UI representation
+
 function CardWidget(
         ::Type{GaussianEncodingCard};
         n_modes = (min = 2, step = 1, max = nothing),

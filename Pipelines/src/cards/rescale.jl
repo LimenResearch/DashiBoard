@@ -210,6 +210,8 @@ function deevaluate(
     return evaluate(repository, r, state, source => destination; schema, invert = true)
 end
 
+## UI representation
+
 function CardWidget(::Type{RescaleCard})
 
     options = collect(keys(RESCALERS))

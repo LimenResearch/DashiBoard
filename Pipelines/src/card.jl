@@ -26,17 +26,6 @@ function Card(d::AbstractDict)
     return CARD_TYPES[type](d)
 end
 
-function get_card(d::AbstractDict)
-    Base.depwarn(
-        """
-        Use `Pipelines.Card(d::AbstractDict)` instead of `Pipelines.get_card(d::AbstractDict)`
-        """,
-        :get_card,
-        force = true
-    )
-    return Card(d)
-end
-
 """
     inputs(c::Card)
 
@@ -169,6 +158,7 @@ function register_card(name::AbstractString, ::Type{T}) where {T <: Card}
     return
 end
 
+# TODO:
 function card_name(c::Card)
     name = findfirst(Fix1(isa, c), CARD_TYPES)
     return something(name, "unknown")

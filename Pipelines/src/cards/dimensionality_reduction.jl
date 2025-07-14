@@ -44,7 +44,7 @@ end
 Project `columns` based on `projector`.
 Save resulting column as `output`.
 """
-struct DimensionalityReductionCard <: Card
+struct DimensionalityReductionCard <: AbstractWildCard
     projector::Projector
     columns::Vector{String}
     n_components::Int
@@ -71,67 +71,26 @@ function DimensionalityReductionCard(c::AbstractDict)
     )
 end
 
-invertible(::DimensionalityReductionCard) = false
-
-inputs(drc::DimensionalityReductionCard) = stringlist(drc.columns, drc.partition)
+columns(drc::DimensionalityReductionCard) = drc.columns
+partition(drc::DimensionalityReductionCard) = drc.partition
 outputs(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
 
-function train(
-        repository::Repository,
-        drc::DimensionalityReductionCard,
-        source::AbstractString;
-        schema = nothing
-    )
-
-    ns = colnames(repository, source; schema)
-    id_col = get_id_col(ns)
-    q = id_table(source, id_col) |>
-        filter_partition(drc.partition) |>
-        Select(Get.(drc.columns)...)
-
-    t = DBInterface.execute(fromtable, repository, q; schema)
+function _train(drc::DimensionalityReductionCard, t)
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
-    model = drc.projector.method(X, drc.n_components; drc.projector.options...)
-    return CardState(
-        content = jldserialize(model)
-    )
+    return drc.projector.method(X, drc.n_components; drc.projector.options...)
 end
 
-function evaluate(
-        repository::Repository,
-        drc::DimensionalityReductionCard,
-        state::CardState,
-        (source, destination)::Pair;
-        schema = nothing
-    )
-
-    ns = colnames(repository, source; schema)
-    id_col = get_id_col(ns)
-    q = id_table(source, id_col) |>
-        Select(Get(id_col), Get.(drc.columns)...)
-
-    model = jlddeserialize(state.content)
-
-    t = DBInterface.execute(fromtable, repository, q; schema)
+function (drc::DimensionalityReductionCard)(model, t)
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
     Y = _predict(model, X)
     M, N = size(Y)
-    ks = collect(outputs(drc))
 
-    pred_table = Dict{String, AbstractVector}(
-        id_col => t[id_col],
+    return SimpleTable(
+        k => i ≤ M ? Y[i, :] : fill(missing, N) for (i, k) in enumerate(outputs(drc))
     )
-    for (i, k) in enumerate(ks)
-        pred_table[k] = i ≤ M ? Y[i, :] : fill(missing, N)
-    end
-
-    return with_table(repository, pred_table; schema) do tbl_name
-        query = id_table(source, id_col) |>
-            Join(tbl_name => From(tbl_name), on = Get(id_col) .== Get(id_col, over = Get(tbl_name))) |>
-            Select((ns .=> Get.(ns))..., (ks .=> Get.(ks, over = Get(tbl_name)))...)
-        replace_table(repository, query, destination; schema)
-    end
 end
+
+## UI representation
 
 function CardWidget(::Type{DimensionalityReductionCard})
 

@@ -133,6 +133,8 @@ function evaluate(
     return load_table(repository, t, destination; schema)
 end
 
+## UI representation
+
 function CardWidget(::Type{InterpCard})
     options = collect(keys(INTERPOLATORS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))

@@ -13,11 +13,8 @@ end
 join_names(args...) = join(args, "_")
 
 function new_name(c::AbstractString, cols)
-    for i in Iterators.countfrom()
-        c′ = join_names(c, i)
-        c′ in cols || return c′
-    end
-    return
+    candidates = Iterators.map(Fix1(join_names, c), Iterators.countfrom(1))
+    return first(Iterators.dropwhile(in(Set{String}(cols)), candidates))
 end
 
 get_id_col(ns) = new_name("id", ns)

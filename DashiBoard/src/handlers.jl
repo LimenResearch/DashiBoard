@@ -49,7 +49,7 @@ Sorter(d::AbstractDict) = Sorter(d["colId"], ASC_DICT[d["sort"]])
 function fetch_data(stream::HTTP.Stream)
     spec = json_read(stream)
     table = spec["processed"] ? "selection" : "source"
-    ns = Set(colnames(REPOSITORY[], table))
+    ns = Set{String}(colnames(REPOSITORY[], table))
     limit::Int, offset::Int = spec["limit"], spec["offset"]
     sort_model::Vector = get(spec, "sortModel", [])
     sorters = Sorter.(sort_model)

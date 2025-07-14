@@ -10,7 +10,7 @@ function get_splitter(c::AbstractDict)
     elseif method == "percentile"
         check_order(c)
         percentile::Float64 = c["percentile"]
-        return Fun.case(Agg.percent_rank() .<= percentile, 1, 2)
+        return Fun.case(Agg.percent_rank() .≤ percentile, 1, 2)
     else
         throw(ArgumentError("method $method is not supported"))
     end

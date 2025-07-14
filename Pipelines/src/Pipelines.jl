@@ -140,7 +140,7 @@ include("funnels/basic.jl")
 
 include("card.jl")
 
-include("cards/wild.jl")
+include("cards/standard.jl")
 include("cards/split.jl")
 include("cards/rescale.jl")
 include("cards/cluster.jl")
@@ -149,6 +149,7 @@ include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
+include("cards/wild.jl")
 
 include("pipeline.jl")
 include("dag.jl")

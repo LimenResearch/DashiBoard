@@ -44,7 +44,7 @@ end
 Project `columns` based on `projector`.
 Save resulting column as `output`.
 """
-struct DimensionalityReductionCard <: AbstractWildCard
+struct DimensionalityReductionCard <: StandardCard
     projector::Projector
     columns::Vector{String}
     n_components::Int

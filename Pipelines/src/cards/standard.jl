@@ -33,9 +33,12 @@ function train(
 
     t = DBInterface.execute(fromtable, repository, q; schema)
     id = pop!(t, id_col)
-    wts = isnothing(wts_col) ? nothing : pop!(t, wts_col)
-    model = _train(c, t; weights = wts, id = id)
-
+    model = if isnothing(wts_col)
+        _train(c, t, id)
+    else
+        wts = pop!(t, wts_col)
+        _train(c, t, id, weights = wts)
+    end
     return CardState(content = jldserialize(model))
 end
 
@@ -56,7 +59,7 @@ function evaluate(
 
     ks = outputs(c)
     model = jlddeserialize(state.content)
-    pred_table, id′ = c(model, t; id)
+    pred_table, id′ = c(model, t, id)
     id_col′ = get_id_col(keys(pred_table))
     pred_table[id_col′] = id′
 

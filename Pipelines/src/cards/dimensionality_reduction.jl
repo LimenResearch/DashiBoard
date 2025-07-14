@@ -81,12 +81,12 @@ predictors(drc::DimensionalityReductionCard) = drc.columns
 targets(::DimensionalityReductionCard) = String[]
 outputs(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
 
-function _train(drc::DimensionalityReductionCard, t; _...)
+function _train(drc::DimensionalityReductionCard, t, _)
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
     return drc.projector.method(X, drc.n_components; drc.projector.options...)
 end
 
-function (drc::DimensionalityReductionCard)(model, t; id)
+function (drc::DimensionalityReductionCard)(model, t, id)
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
     Y = _predict(model, X)
     M, N = size(Y)

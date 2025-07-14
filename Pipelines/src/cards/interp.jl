@@ -88,28 +88,28 @@ predictors(ic::InterpCard) = [ic.predictor]
 targets(ic::InterpCard) = ic.targets
 outputs(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
-function _train(ic::InterpCard, t; _...)
+function _train(ic::InterpCard, t, _)
     (; interpolator, extrapolation_left, extrapolation_right, dir, targets, predictor, partition) = ic
     return map(targets) do target
-        ip = interpolator
+        itp = interpolator
         y, x = t[target], t[predictor]
-        return if ip.has_dir
-            ip.method(y, x; extrapolation_left, extrapolation_right, dir)
+        return if itp.has_dir
+            itp.method(y, x; extrapolation_left, extrapolation_right, dir)
         else
-            ip.method(y, x; extrapolation_left, extrapolation_right)
+            itp.method(y, x; extrapolation_left, extrapolation_right)
         end
     end
 end
 
-function (ic::InterpCard)(ips, t; id)
+function (ic::InterpCard)(itps, t, id)
     (; targets, predictor, suffix) = ic
     x = t[predictor]
     pred_table = SimpleTable()
 
-    for (ip, target) in zip(ips, targets)
+    for (itp, target) in zip(itps, targets)
         pred_name = join_names(target, suffix)
         ŷ = similar(x, float(eltype(x)))
-        pred_table[pred_name] = ip(ŷ, x)
+        pred_table[pred_name] = itp(ŷ, x)
     end
 
     return pred_table, id

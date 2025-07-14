@@ -1,4 +1,5 @@
 @testset "evaluation order" begin
+    # FIXME: test with `WildCard` instead
     struct TrivialCard <: Pipelines.Card
         inputs::Vector{String}
         outputs::Vector{String}

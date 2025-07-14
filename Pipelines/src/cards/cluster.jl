@@ -73,18 +73,18 @@ predictors(cc::ClusterCard) = cc.columns
 targets(::ClusterCard) = String[]
 outputs(cc::ClusterCard) = [cc.output]
 
-function _train(cc::ClusterCard, t; id, weights)
+function _train(cc::ClusterCard, t, id; weights = nothing)
     X = stack(Fix1(getindex, t), cc.columns, dims = 1)
-    model = cc.clusterer.method(X; weights, cc.clusterer.options...)
-    return (; model, id) # also return `id` as we need it for the evaluation
+    res = cc.clusterer.method(X; weights, cc.clusterer.options...)
+    label = assignments(res)
+    return (; label, id) # return `label`s and relative `id`s for the evaluation
 end
 
-function (cc::ClusterCard)((; id, model), t; _...)
+function (cc::ClusterCard)(model, t, _)
     # as `predict` is not implemented, we cannot fill in data points outside partition
     # https://github.com/JuliaStats/Clustering.jl/issues/63
     # we simply return those used for the prediction with the correct indices
-    # FIXME: implement prediction?
-    return SimpleTable(cc.output => assignments(model)), id
+    return SimpleTable(cc.output => model.label), model.id
 end
 
 ## UI representation

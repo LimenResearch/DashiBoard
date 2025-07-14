@@ -81,14 +81,14 @@ predictors(gc::GLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
 targets(gc::GLMCard) = [_target(gc)]
 outputs(gc::GLMCard) = [_output(gc)]
 
-function _train(gc::GLMCard, t; weights, _...)
+function _train(gc::GLMCard, t, id; weights = nothing)
     (; formula, distribution, link) = gc
     wts = @something weights similar(t[_target(gc)], 0)
     # TODO save slim version of model with no data
     return fit(GeneralizedLinearModel, formula, t, distribution, link, wts = wts)
 end
 
-(gc::GLMCard)(model, t; id) = SimpleTable(_output(gc) => predict(model, t)), id
+(gc::GLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
 
 ## UI representation
 

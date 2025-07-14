@@ -88,22 +88,22 @@ function GaussianEncodingCard(c::AbstractDict)
     return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
 end
 
+## Card interface
+
 invertible(::GaussianEncodingCard) = false
 
-inputs(g::GaussianEncodingCard) = [g.column]
-outputs(g::GaussianEncodingCard) = join_names.(g.column, g.suffix, 1:g.n_modes)
+inputs(gec::GaussianEncodingCard) = [gec.column]
+outputs(gec::GaussianEncodingCard) = join_names.(gec.column, gec.suffix, 1:gec.n_modes)
 
-function train(::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
-    μs = range(start = 0, step = 1 / g.n_modes, length = g.n_modes)
-    σ = step(μs) * g.lambda
-    params = Dict("σ" => [σ], "d" => [g.max])
+function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)
+    μs = range(start = 0, step = 1 / gec.n_modes, length = gec.n_modes)
+    σ = step(μs) * gec.lambda
+    params = Dict("σ" => [σ], "d" => [gec.max])
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
     end
     tbl = SimpleTable(params)
-    return CardState(
-        content = jldserialize(tbl)
-    )
+    return CardState(content = jldserialize(tbl))
 end
 
 function gaussian_transform(x, μ, σ, d)
@@ -115,7 +115,7 @@ end
 
 function evaluate(
         repository::Repository,
-        g::GaussianEncodingCard,
+        gec::GaussianEncodingCard,
         state::CardState,
         (source, target)::Pair;
         schema = nothing
@@ -125,8 +125,8 @@ function evaluate(
 
     source_columns = colnames(repository, source; schema)
     col = new_name("transformed", source_columns)
-    converted = map(1:g.n_modes) do i
-        k = join_names(g.column, g.suffix, i)
+    converted = map(1:gec.n_modes) do i
+        k = join_names(gec.column, gec.suffix, i)
         v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
@@ -134,7 +134,7 @@ function evaluate(
 
     return with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
-            Define(col => g.processed_column) |>
+            Define(col => gec.processed_column) |>
             Join(From(tbl_name), on = true) |>
             Define(converted...) |>
             Select(Get.(target_columns)...)

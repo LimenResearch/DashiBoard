@@ -67,14 +67,19 @@ function StreamlinerCard(c::AbstractDict)
     )
 end
 
+## Card interface
+
 invertible(::StreamlinerCard) = false
 
-inputs(s::StreamlinerCard) = stringlist(s.order_by, s.predictors, s.targets, s.partition)
-outputs(s::StreamlinerCard) = join_names.(s.targets, s.suffix)
+function inputs(sc::StreamlinerCard)
+    return stringlist(sc.order_by, sc.predictors, sc.targets, sc.partition)
+end
+
+outputs(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
 
 function train(
         repository::Repository,
-        s::StreamlinerCard,
+        sc::StreamlinerCard,
         source::AbstractString;
         schema = nothing
     )
@@ -83,15 +88,15 @@ function train(
         table = source,
         repository,
         schema,
-        s.order_by,
-        s.predictors,
-        s.targets,
-        s.partition
+        sc.order_by,
+        sc.predictors,
+        sc.targets,
+        sc.partition
     )
 
     train!(data)
 
-    (; model, training) = s
+    (; model, training) = sc
 
     return mktempdir() do dir
         result = StreamlinerCore.train(dir, model, data, training)
@@ -109,7 +114,7 @@ end
 
 function evaluate(
         repository::Repository,
-        s::StreamlinerCard,
+        sc::StreamlinerCard,
         state::CardState,
         (source, destination)::Pair;
         schema = nothing
@@ -117,7 +122,7 @@ function evaluate(
 
     isnothing(state.content) && throw(ArgumentError("Invalid state"))
 
-    (; model, training, suffix) = s
+    (; model, training, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)
 
     return mktempdir() do dir
@@ -132,9 +137,9 @@ function evaluate(
             table = source,
             repository,
             schema,
-            s.order_by,
-            s.predictors,
-            s.targets,
+            sc.order_by,
+            sc.predictors,
+            sc.targets,
             partition,
             uvals
         )

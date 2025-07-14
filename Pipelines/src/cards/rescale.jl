@@ -126,8 +126,8 @@ end
 
 invertible(::RescaleCard) = true
 
-inputs(r::RescaleCard) = stringlist(r.by, r.columns, r.partition)
-outputs(r::RescaleCard) = join_names.(r.columns, r.suffix)
+inputs(rc::RescaleCard) = stringlist(rc.by, rc.columns, rc.partition)
+outputs(rc::RescaleCard) = join_names.(rc.columns, rc.suffix)
 
 function pair_wise_group_by(
         repository::Repository,
@@ -149,29 +149,27 @@ function pair_wise_group_by(
     return DBInterface.execute(fromtable, repository, query; schema)
 end
 
-function train(repository::Repository, r::RescaleCard, source::AbstractString; schema = nothing)
-    (; by, columns, rescaler) = r
+function train(repository::Repository, rc::RescaleCard, source::AbstractString; schema = nothing)
+    (; by, columns, rescaler) = rc
     (; stats) = rescaler
     tbl = if isempty(stats)
         SimpleTable()
     else
-        pair_wise_group_by(repository, source, by, columns, stats...; schema, r.partition)
+        pair_wise_group_by(repository, source, by, columns, stats...; schema, rc.partition)
     end
-    return CardState(
-        content = jldserialize(tbl)
-    )
+    return CardState(content = jldserialize(tbl))
 end
 
 function evaluate(
         repository::Repository,
-        r::RescaleCard,
+        rc::RescaleCard,
         state::CardState,
         (source, destination)::Pair;
         schema = nothing,
         invert = false
     )
 
-    (; by, columns, rescaler, suffix) = r
+    (; by, columns, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 
     available_columns = colnames(repository, source; schema)
@@ -201,13 +199,13 @@ end
 
 function deevaluate(
         repository::Repository,
-        r::RescaleCard,
+        rc::RescaleCard,
         state::CardState,
         (source, destination)::Pair;
         schema = nothing
     )
 
-    return evaluate(repository, r, state, source => destination; schema, invert = true)
+    return evaluate(repository, rc, state, source => destination; schema, invert = true)
 end
 
 ## UI representation

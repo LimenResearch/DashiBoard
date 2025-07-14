@@ -42,7 +42,7 @@ const INTERPOLATORS = OrderedDict(
 
 Interpolate `targets` based on `predictor`.
 """
-struct InterpCard <: Card
+struct InterpCard <: StandardCard
     interpolator::Interpolator
     predictor::String
     targets::Vector{String}
@@ -78,27 +78,19 @@ function InterpCard(c::AbstractDict)
     )
 end
 
-invertible(::InterpCard) = false
+## StandardCard interface
 
-inputs(ic::InterpCard) = stringlist(ic.predictor, ic.targets, ic.partition)
+weights(::InterpCard) = nothing
+sorters(ic::InterpCard) = [ic.predictor]
+partition(ic::InterpCard) = ic.partition
+
+predictors(ic::InterpCard) = [ic.predictor]
+targets(ic::InterpCard) = ic.targets
 outputs(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
-function train(
-        repository::Repository,
-        ic::InterpCard,
-        source::AbstractString;
-        schema = nothing
-    )
-
+function _train(ic::InterpCard, t; _...)
     (; interpolator, extrapolation_left, extrapolation_right, dir, targets, predictor, partition) = ic
-
-    q = From(source) |>
-        filter_partition(partition) |>
-        Select(Get(predictor), Get.(targets)...) |>
-        Order(Get(predictor))
-    t = DBInterface.execute(fromtable, repository, q; schema)
-
-    ips = map(targets) do target
+    return map(targets) do target
         ip = interpolator
         y, x = t[target], t[predictor]
         return if ip.has_dir
@@ -107,30 +99,20 @@ function train(
             ip.method(y, x; extrapolation_left, extrapolation_right)
         end
     end
-    return CardState(content = jldserialize(ips))
 end
 
-function evaluate(
-        repository::Repository,
-        ic::InterpCard,
-        state::CardState,
-        (source, destination)::Pair;
-        schema = nothing
-    )
-
-    ips = jlddeserialize(state.content)
+function (ic::InterpCard)(ips, t; id)
     (; targets, predictor, suffix) = ic
-    query = From(source) |> Order(Get(predictor))
-    t = DBInterface.execute(fromtable, repository, query; schema)
     x = t[predictor]
+    pred_table = SimpleTable()
 
     for (ip, target) in zip(ips, targets)
         pred_name = join_names(target, suffix)
         ŷ = similar(x, float(eltype(x)))
-        t[pred_name] = ip(ŷ, x)
+        pred_table[pred_name] = ip(ŷ, x)
     end
 
-    return load_table(repository, t, destination; schema)
+    return pred_table, id
 end
 
 ## UI representation

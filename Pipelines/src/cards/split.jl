@@ -47,10 +47,12 @@ function SplitCard(c::AbstractDict)
     return SplitCard(splitter, order_by, by, output)
 end
 
+## Card interface
+
 invertible(::SplitCard) = false
 
-inputs(s::SplitCard) = stringlist(s.order_by, s.by)
-outputs(s::SplitCard) = [s.output]
+inputs(sc::SplitCard) = stringlist(sc.order_by, sc.by)
+outputs(sc::SplitCard) = [sc.output]
 
 function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
     return CardState()
@@ -58,18 +60,18 @@ end
 
 function evaluate(
         repository::Repository,
-        s::SplitCard,
+        sc::SplitCard,
         ::CardState,
         (source, destination)::Pair;
         schema = nothing
     )
 
-    by = Get.(s.by)
-    order_by = Get.(s.order_by)
+    by = Get.(sc.by)
+    order_by = Get.(sc.order_by)
 
     query = From(source) |>
         Partition(; by, order_by) |>
-        Define(s.output => s.splitter)
+        Define(sc.output => sc.splitter)
 
     return replace_table(repository, query, destination; schema)
 end

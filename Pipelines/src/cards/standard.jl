@@ -2,8 +2,12 @@ abstract type StandardCard <: Card end
 
 # StandardCard interface (instances must also be callable)
 
+function weights end
+function sorters end
+
 function partition end
-function columns end
+function predictors end
+function targets end
 function outputs end
 
 function _train end
@@ -12,16 +16,25 @@ function _train end
 
 invertible(::StandardCard) = false
 
-inputs(c::StandardCard) = stringlist(columns(c), partition(c))
+inputs(c::StandardCard) = stringlist(predictors(c), targets(c), sorters(c), weights(c), partition(c))
 
 function train(
         repository::Repository, c::StandardCard, source::AbstractString;
         schema = nothing
     )
 
-    q = From(source) |> filter_partition(partition(c)) |> Select(Get.(columns(c))...)
+    ns = colnames(repository, source; schema)
+    id_col = get_id_col(ns)
+    wts_col = weights(c)
+    q = id_table(source, id_col) |>
+        filter_partition(partition(c)) |>
+        sort_columns(sorters(c)) |>
+        select_columns(id_col, wts_col, predictors(c), targets(c))
+
     t = DBInterface.execute(fromtable, repository, q; schema)
-    model = _train(c, t)
+    id = pop!(t, id_col)
+    wts = isnothing(wts_col) ? nothing : pop!(t, wts_col)
+    model = _train(c, t; weights = wts, id = id)
 
     return CardState(content = jldserialize(model))
 end
@@ -35,18 +48,21 @@ function evaluate(
     )
     ns = colnames(repository, source; schema)
     id_col = get_id_col(ns)
-    q = id_table(source, id_col) |> Select(Get(id_col), Get.(columns(c))...)
+    q = id_table(source, id_col) |>
+        sort_columns(sorters(c)) |>
+        select_columns(id_col, predictors(c))
     t = DBInterface.execute(fromtable, repository, q; schema)
     id = pop!(t, id_col)
 
-    model = jlddeserialize(state.content)
-    pred_table = c(model, t)
-    pred_table[id_col] = id
     ks = outputs(c)
+    model = jlddeserialize(state.content)
+    pred_table, id′ = c(model, t; id)
+    id_col′ = get_id_col(keys(pred_table))
+    pred_table[id_col′] = id′
 
     return with_table(repository, pred_table; schema) do tbl_name
         query = id_table(source, id_col) |>
-            Join(tbl_name => From(tbl_name), on = Get(id_col) .== Get(id_col, over = Get(tbl_name))) |>
+            LeftJoin(tbl_name => From(tbl_name), on = Get(id_col) .== Get(id_col′, over = Get(tbl_name))) |>
             Select((ns .=> Get.(ns))..., (ks .=> Get.(ks, over = Get(tbl_name)))...)
         replace_table(repository, query, destination; schema)
     end

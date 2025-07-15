@@ -36,8 +36,8 @@ end
     struct DimensionalityReductionCard <: Card
         projector::Projector
         columns::Vector{String}
-        n_components::Int
         partition::Union{String, Nothing}
+        n_components::Int
         output::String
     end
 
@@ -47,8 +47,8 @@ Save resulting column as `output`.
 struct DimensionalityReductionCard <: StandardCard
     projector::Projector
     columns::Vector{String}
-    n_components::Int
     partition::Union{String, Nothing}
+    n_components::Int
     output::String
 end
 
@@ -59,27 +59,26 @@ function DimensionalityReductionCard(c::AbstractDict)
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
     columns::Vector{String} = c["columns"]
-    n_components::Int = c["n_components"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)
+    n_components::Int = c["n_components"]
     output::String = get(c, "output", "component")
     return DimensionalityReductionCard(
         projector,
         columns,
-        n_components,
         partition,
+        n_components,
         output
     )
 end
 
 ## StandardCard interface
 
-weight_var(::DimensionalityReductionCard) = nothing
-grouping_vars(::DimensionalityReductionCard) = String[]
 sorting_vars(::DimensionalityReductionCard) = String[]
-
-partition_var(drc::DimensionalityReductionCard) = drc.partition
+grouping_vars(::DimensionalityReductionCard) = String[]
 input_vars(drc::DimensionalityReductionCard) = drc.columns
 target_vars(::DimensionalityReductionCard) = String[]
+weight_var(::DimensionalityReductionCard) = nothing
+partition_var(drc::DimensionalityReductionCard) = drc.partition
 output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
 
 function _train(drc::DimensionalityReductionCard, t, _)

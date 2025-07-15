@@ -90,13 +90,12 @@ end
 
 ## SQLCard interface
 
-weight_var(::GaussianEncodingCard) = nothing
-grouping_vars(::GaussianEncodingCard) = String[]
 sorting_vars(::GaussianEncodingCard) = String[]
-
-partition_var(::GaussianEncodingCard) = nothing
+grouping_vars(::GaussianEncodingCard) = String[]
 input_vars(gec::GaussianEncodingCard) = [gec.column]
 target_vars(::GaussianEncodingCard) = String[]
+weight_var(::GaussianEncodingCard) = nothing
+partition_var(::GaussianEncodingCard) = nothing
 output_vars(gec::GaussianEncodingCard) = join_names.(gec.column, gec.suffix, 1:gec.n_modes)
 
 function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)

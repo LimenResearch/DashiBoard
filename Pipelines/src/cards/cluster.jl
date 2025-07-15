@@ -29,6 +29,7 @@ end
     struct ClusterCard <: Card
         clusterer::Clusterer
         columns::Vector{String}
+        weights::Union{String, Nothing}
         partition::Union{String, Nothing}
         output::String
     end
@@ -38,8 +39,8 @@ Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
     clusterer::Clusterer
-    weights::Union{String, Nothing}
     columns::Vector{String}
+    weights::Union{String, Nothing}
     partition::Union{String, Nothing}
     output::String
 end
@@ -50,14 +51,14 @@ function ClusterCard(c::AbstractDict)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     clusterer::Clusterer = Clusterer(method_name, method_options)
-    weights::Union{String, Nothing} = get(c, "weights", nothing)
     columns::Vector{String} = c["columns"]
+    weights::Union{String, Nothing} = get(c, "weights", nothing)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
         clusterer,
-        weights,
         columns,
+        weights,
         partition,
         output
     )
@@ -65,13 +66,12 @@ end
 
 ## StandardCard interface
 
-weight_var(cc::ClusterCard) = cc.weights
-grouping_vars(::ClusterCard) = String[]
 sorting_vars(::ClusterCard) = String[]
-
-partition_var(cc::ClusterCard) = cc.partition
+grouping_vars(::ClusterCard) = String[]
 input_vars(cc::ClusterCard) = cc.columns
 target_vars(::ClusterCard) = String[]
+weight_var(cc::ClusterCard) = cc.weights
+partition_var(cc::ClusterCard) = cc.partition
 output_vars(cc::ClusterCard) = [cc.output]
 
 function _train(cc::ClusterCard, t, id; weights = nothing)

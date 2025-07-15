@@ -73,13 +73,12 @@ isterm(x::AbstractTerm) = x isa Term
 _target(gc::GLMCard) = termnames(gc.formula.lhs)
 _output(gc::GLMCard) = join_names(_target(gc), gc.suffix)
 
-weight_var(gc::GLMCard) = gc.weights
-grouping_vars(::GLMCard) = String[]
 sorting_vars(::GLMCard) = String[]
-
-partition_var(gc) = gc.partition
+grouping_vars(::GLMCard) = String[]
 input_vars(gc::GLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
 target_vars(gc::GLMCard) = [_target(gc)]
+weight_var(gc::GLMCard) = gc.weights
+partition_var(gc) = gc.partition
 output_vars(gc::GLMCard) = [_output(gc)]
 
 function _train(gc::GLMCard, t, ::Any; weights = nothing)

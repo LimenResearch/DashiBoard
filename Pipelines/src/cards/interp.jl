@@ -80,13 +80,12 @@ end
 
 ## StandardCard interface
 
-weight_var(::InterpCard) = nothing
-grouping_vars(::InterpCard) = String[]
 sorting_vars(ic::InterpCard) = [ic.predictor]
-
-partition_var(ic::InterpCard) = ic.partition
+grouping_vars(::InterpCard) = String[]
 input_vars(ic::InterpCard) = [ic.predictor]
 target_vars(ic::InterpCard) = ic.targets
+weight_var(::InterpCard) = nothing
+partition_var(ic::InterpCard) = ic.partition
 output_vars(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
 function _train(ic::InterpCard, t, _)

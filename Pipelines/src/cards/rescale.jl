@@ -128,13 +128,12 @@ end
 
 invertible(::RescaleCard) = true
 
-weight_var(::RescaleCard) = nothing
 sorting_vars(::RescaleCard) = String[]
 grouping_vars(rc::RescaleCard) = rc.by
-
-partition_var(rc::RescaleCard) = rc.partition
 input_vars(rc::RescaleCard) = rc.columns
 target_vars(::RescaleCard) = String[]
+weight_var(::RescaleCard) = nothing
+partition_var(rc::RescaleCard) = rc.partition
 output_vars(rc::RescaleCard) = join_names.(rc.columns, rc.suffix)
 
 function pair_wise_group_by(

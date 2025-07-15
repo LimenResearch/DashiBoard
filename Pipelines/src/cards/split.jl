@@ -49,13 +49,12 @@ end
 
 ## SQLCard interface
 
-weight_var(::SplitCard) = nothing
 sorting_vars(sc::SplitCard) = sc.order_by
 grouping_vars(sc::SplitCard) = sc.by
-
-partition_var(::SplitCard) = nothing
 input_vars(::SplitCard) = String[]
 target_vars(::SplitCard) = String[]
+weight_var(::SplitCard) = nothing
+partition_var(::SplitCard) = nothing
 output_vars(sc::SplitCard) = String[sc.output]
 
 function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)

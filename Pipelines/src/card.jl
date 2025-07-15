@@ -30,13 +30,12 @@ function Card(d::AbstractDict)
     return CARD_TYPES[type](d)
 end
 
-function weight_var end
 function sorting_vars end
 function grouping_vars end
-
-function partition_var end
 function input_vars end
 function target_vars end
+function weight_var end
+function partition_var end
 function output_vars end
 
 """

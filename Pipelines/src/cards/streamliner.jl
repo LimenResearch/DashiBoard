@@ -17,14 +17,14 @@ end
 
 """
     struct StreamlinerCard <: Card
-    model::Model
-    training::Training
-    order_by::Vector{String}
-    predictors::Vector{String}
-    targets::Vector{String}
-    partition::Union{String, Nothing} = nothing
-    suffix::String = "hat"
-end
+        model::Model
+        training::Training
+        order_by::Vector{String}
+        predictors::Vector{String}
+        targets::Vector{String}
+        partition::Union{String, Nothing} = nothing
+        suffix::String = "hat"
+    end
 
 Run a Streamliner model, predicting `targets` from `predictors`.
 """
@@ -69,13 +69,12 @@ end
 
 ## StreamingCard interface
 
-weight_var(::StreamlinerCard) = nothing
-grouping_vars(::StreamlinerCard) = String[]
 sorting_vars(sc::StreamlinerCard) = sc.order_by
-
-partition_var(sc::StreamlinerCard) = sc.partition
+grouping_vars(::StreamlinerCard) = String[]
 input_vars(sc::StreamlinerCard) = sc.predictors
 target_vars(sc::StreamlinerCard) = sc.targets
+weight_var(::StreamlinerCard) = nothing
+partition_var(sc::StreamlinerCard) = sc.partition
 output_vars(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
 
 function train(

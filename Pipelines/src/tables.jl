@@ -24,3 +24,10 @@ function with_id(table::AbstractString, id_var)
         Partition() |>
         Define(id_var => Agg.row_number())
 end
+
+function join_on_row_number(tbl_name, id_var)
+    return LeftJoin(
+        tbl_name => From(tbl_name),
+        on = Agg.row_number() .== Get(id_var, over = Get(tbl_name))
+    )
+end

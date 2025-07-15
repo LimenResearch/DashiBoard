@@ -14,8 +14,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["tiles"])
         @test !Pipelines.invertible(card)
 
-        @test Pipelines.inputs(card) == ["No", "cbwd"]
-        @test Pipelines.outputs(card) == ["_tiled_partition"]
+        @test Pipelines.get_inputs(card) == ["No", "cbwd"]
+        @test Pipelines.get_outputs(card) == ["_tiled_partition"]
 
         Pipelines.evaluate(repo, card, "selection" => "split")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
@@ -48,8 +48,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["zscore"])
         @test Pipelines.invertible(card)
 
-        @test Pipelines.inputs(card) == ["cbwd", "TEMP"]
-        @test Pipelines.outputs(card) == ["TEMP_rescaled"]
+        @test Pipelines.get_inputs(card) == ["cbwd", "TEMP"]
+        @test Pipelines.get_outputs(card) == ["TEMP_rescaled"]
 
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
@@ -174,8 +174,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["kmeans"])
 
         @test !Pipelines.invertible(card)
-        @test Pipelines.inputs(card) == ["TEMP", "PRES"]
-        @test Pipelines.outputs(card) == ["cluster"]
+        @test Pipelines.get_inputs(card) == ["TEMP", "PRES"]
+        @test Pipelines.get_outputs(card) == ["cluster"]
 
         Pipelines.evaluate(repo, card, "selection" => "clustering")
         df = DBInterface.execute(DataFrame, repo, "FROM clustering")
@@ -192,8 +192,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["dbscan"])
 
         @test !Pipelines.invertible(card)
-        @test Pipelines.inputs(card) == ["TEMP", "PRES"]
-        @test Pipelines.outputs(card) == ["dbcluster"]
+        @test Pipelines.get_inputs(card) == ["TEMP", "PRES"]
+        @test Pipelines.get_outputs(card) == ["dbcluster"]
 
         Pipelines.evaluate(repo, card, "selection" => "clustering")
         df = DBInterface.execute(DataFrame, repo, "FROM clustering")
@@ -226,8 +226,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["pca"])
 
         @test !Pipelines.invertible(card)
-        @test Pipelines.inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-        @test Pipelines.outputs(card) == ["component_1", "component_2"]
+        @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
+        @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
@@ -247,8 +247,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["ppca"])
 
         @test !Pipelines.invertible(card)
-        @test Pipelines.inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-        @test Pipelines.outputs(card) == ["component_1", "component_2"]
+        @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
+        @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
@@ -274,8 +274,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["factoranalysis"])
 
         @test !Pipelines.invertible(card)
-        @test Pipelines.inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-        @test Pipelines.outputs(card) == ["component_1", "component_2"]
+        @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
+        @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
@@ -301,8 +301,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["mds"])
 
         @test !Pipelines.invertible(card)
-        @test Pipelines.inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-        @test Pipelines.outputs(card) == ["component_1", "component_2"]
+        @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
+        @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         Pipelines.evaluate(repo, card, "partition" => "dimres")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
@@ -334,8 +334,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["hasPartition"])
         @test !Pipelines.invertible(card)
 
-        @test Pipelines.inputs(card) == ["cbwd", "year", "No", "TEMP", "partition"]
-        @test Pipelines.outputs(card) == ["TEMP_hat"]
+        @test Pipelines.get_inputs(card) == ["cbwd", "year", "No", "TEMP", "partition"]
+        @test Pipelines.get_outputs(card) == ["TEMP_hat"]
 
         Pipelines.evaluate(repo, card, "partition" => "glm")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
@@ -371,8 +371,8 @@ mktempdir() do dir
         card = Pipelines.Card(d["constant"])
         @test !Pipelines.invertible(card)
 
-        @test Pipelines.inputs(card) == ["No", "TEMP", "PRES", "partition"]
-        @test Pipelines.outputs(card) == ["TEMP_hat", "PRES_hat"]
+        @test Pipelines.get_inputs(card) == ["No", "TEMP", "PRES", "partition"]
+        @test Pipelines.get_outputs(card) == ["TEMP_hat", "PRES_hat"]
 
         Pipelines.evaluate(repo, card, "partition" => "interp")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
@@ -403,8 +403,8 @@ mktempdir() do dir
 
         card = Pipelines.Card(d["quadratic"])
 
-        @test Pipelines.inputs(card) == ["No", "TEMP", "PRES", "partition"]
-        @test Pipelines.outputs(card) == ["TEMP_hat", "PRES_hat"]
+        @test Pipelines.get_inputs(card) == ["No", "TEMP", "PRES", "partition"]
+        @test Pipelines.get_outputs(card) == ["TEMP_hat", "PRES_hat"]
 
         Pipelines.evaluate(repo, card, "partition" => "interp")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
@@ -486,7 +486,7 @@ mktempdir() do dir
 
         _rem(x) = rem(x, 1, RoundNearest)
         function gauss_evaluate_test(result, card, origin; processing)
-            @test names(result) == union(names(origin), Pipelines.outputs(card))
+            @test names(result) == union(names(origin), Pipelines.get_outputs(card))
 
             origin_column = origin[:, card.column]
             max_value = card.max
@@ -506,8 +506,8 @@ mktempdir() do dir
         gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = identity)
-        @test Pipelines.outputs(card) == ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"]
-        @test Pipelines.inputs(card) == ["month"]
+        @test Pipelines.get_outputs(card) == ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"]
+        @test Pipelines.get_inputs(card) == ["month"]
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["dayofyear"])
@@ -515,12 +515,12 @@ mktempdir() do dir
         gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = dayofyear)
-        @test Pipelines.outputs(card) == [
+        @test Pipelines.get_outputs(card) == [
             "date_gaussian_1", "date_gaussian_2", "date_gaussian_3", "date_gaussian_4",
             "date_gaussian_5", "date_gaussian_6", "date_gaussian_7", "date_gaussian_8",
             "date_gaussian_9", "date_gaussian_10", "date_gaussian_11", "date_gaussian_12",
         ]
-        @test Pipelines.inputs(card) == ["date"]
+        @test Pipelines.get_inputs(card) == ["date"]
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["hour"])
@@ -528,8 +528,8 @@ mktempdir() do dir
         gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = hour)
-        @test Pipelines.outputs(card) == ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"]
-        @test only(Pipelines.inputs(card)) == "time"
+        @test Pipelines.get_outputs(card) == ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"]
+        @test only(Pipelines.get_inputs(card)) == "time"
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["minute"])
@@ -537,8 +537,8 @@ mktempdir() do dir
         gauss_train_test(card, state)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, card, origin; processing = minute)
-        @test Pipelines.outputs(card) == ["time_gaussian_1"]
-        @test only(Pipelines.inputs(card)) == "time"
+        @test Pipelines.get_outputs(card) == ["time_gaussian_1"]
+        @test only(Pipelines.get_inputs(card)) == "time"
     end
 
     @testset "streamliner" begin
@@ -557,8 +557,8 @@ mktempdir() do dir
             Pipelines.Card(d["basic"]),
         )
         @test !Pipelines.invertible(card)
-        @test Pipelines.inputs(card) == ["No", "TEMP", "PRES", "Iws", "partition"]
-        @test Pipelines.outputs(card) == ["Iws_hat"]
+        @test Pipelines.get_inputs(card) == ["No", "TEMP", "PRES", "Iws", "partition"]
+        @test Pipelines.get_outputs(card) == ["Iws_hat"]
 
         state = Pipelines.train(repo, card, "partition")
         res = state.metadata

@@ -59,7 +59,7 @@ Evaluate:
   5. Selects only the required columns (original and transformed).
   6. Replaces the target table with the final results.
 """
-struct GaussianEncodingCard <: Card
+struct GaussianEncodingCard <: SQLCard
     column::String
     processed_column::SQLNode
     n_modes::Int
@@ -88,12 +88,16 @@ function GaussianEncodingCard(c::AbstractDict)
     return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
 end
 
-## Card interface
+## SQLCard interface
 
-invertible(::GaussianEncodingCard) = false
+weight_var(::GaussianEncodingCard) = nothing
+grouping_vars(::GaussianEncodingCard) = String[]
+sorting_vars(::GaussianEncodingCard) = String[]
 
-inputs(gec::GaussianEncodingCard) = [gec.column]
-outputs(gec::GaussianEncodingCard) = join_names.(gec.column, gec.suffix, 1:gec.n_modes)
+partition_var(::GaussianEncodingCard) = nothing
+input_vars(gec::GaussianEncodingCard) = [gec.column]
+target_vars(::GaussianEncodingCard) = String[]
+output_vars(gec::GaussianEncodingCard) = join_names.(gec.column, gec.suffix, 1:gec.n_modes)
 
 function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(start = 0, step = 1 / gec.n_modes, length = gec.n_modes)

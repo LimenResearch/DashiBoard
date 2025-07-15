@@ -1,22 +1,8 @@
-abstract type StandardCard <: Card end
-
-# StandardCard interface (instances must also be callable)
-
-function weights end
-function sorters end
-
-function partition end
-function predictors end
-function targets end
-function outputs end
-
-function _train end
+# StandardCard interface:
+# - `_train(c, tbl, id; weights) -> model`
+# - `(c)(model, tbl, id) -> new_tbl, new_id`
 
 # Implementation of Card methods
-
-invertible(::StandardCard) = false
-
-inputs(c::StandardCard) = stringlist(predictors(c), targets(c), sorters(c), weights(c), partition(c))
 
 function train(
         repository::Repository, c::StandardCard, source::AbstractString;
@@ -25,18 +11,17 @@ function train(
 
     ns = colnames(repository, source; schema)
     id_col = get_id_col(ns)
-    wts_col = weights(c)
     q = id_table(source, id_col) |>
-        filter_partition(partition(c)) |>
-        sort_columns(sorters(c)) |>
-        select_columns(id_col, wts_col, predictors(c), targets(c))
+        filter_partition(partition_var(c)) |>
+        sort_columns(sorting_vars(c)) |>
+        select_columns([id_col], input_vars(c), target_vars(c), grouping_vars(c), weight_vars(c))
 
     t = DBInterface.execute(fromtable, repository, q; schema)
     id = pop!(t, id_col)
-    model = if isnothing(wts_col)
+    model = if isnothing(weight_var(c))
         _train(c, t, id)
     else
-        wts = pop!(t, wts_col)
+        wts = pop!(t, weight_var(c))
         _train(c, t, id, weights = wts)
     end
     return CardState(content = jldserialize(model))
@@ -52,12 +37,12 @@ function evaluate(
     ns = colnames(repository, source; schema)
     id_col = get_id_col(ns)
     q = id_table(source, id_col) |>
-        sort_columns(sorters(c)) |>
-        select_columns(id_col, predictors(c))
+        sort_columns(sorting_vars(c)) |>
+        select_columns([id_col], input_vars(c), grouping_vars(c))
     t = DBInterface.execute(fromtable, repository, q; schema)
     id = pop!(t, id_col)
 
-    ks = outputs(c)
+    ks = output_vars(c)
     model = jlddeserialize(state.content)
     pred_table, id′ = c(model, t, id)
     id_col′ = get_id_col(keys(pred_table))

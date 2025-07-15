@@ -28,7 +28,7 @@ end
 
 Run a Streamliner model, predicting `targets` from `predictors`.
 """
-struct StreamlinerCard <: Card
+struct StreamlinerCard <: StreamingCard
     model::Model
     training::Training
     order_by::Vector{String}
@@ -67,15 +67,16 @@ function StreamlinerCard(c::AbstractDict)
     )
 end
 
-## Card interface
+## StreamingCard interface
 
-invertible(::StreamlinerCard) = false
+weight_var(::StreamlinerCard) = nothing
+grouping_vars(::StreamlinerCard) = String[]
+sorting_vars(sc::StreamlinerCard) = sc.order_by
 
-function inputs(sc::StreamlinerCard)
-    return stringlist(sc.order_by, sc.predictors, sc.targets, sc.partition)
-end
-
-outputs(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
+partition_var(sc::StreamlinerCard) = sc.partition
+input_vars(sc::StreamlinerCard) = sc.predictors
+target_vars(sc::StreamlinerCard) = sc.targets
+output_vars(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
 
 function train(
         repository::Repository,

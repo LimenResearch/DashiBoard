@@ -73,15 +73,16 @@ isterm(x::AbstractTerm) = x isa Term
 _target(gc::GLMCard) = termnames(gc.formula.lhs)
 _output(gc::GLMCard) = join_names(_target(gc), gc.suffix)
 
-weights(gc::GLMCard) = gc.weights
-sorters(::GLMCard) = String[]
-partition(gc) = gc.partition
+weight_var(gc::GLMCard) = gc.weights
+grouping_vars(::GLMCard) = String[]
+sorting_vars(::GLMCard) = String[]
 
-predictors(gc::GLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
-targets(gc::GLMCard) = [_target(gc)]
-outputs(gc::GLMCard) = [_output(gc)]
+partition_var(gc) = gc.partition
+input_vars(gc::GLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
+target_vars(gc::GLMCard) = [_target(gc)]
+output_vars(gc::GLMCard) = [_output(gc)]
 
-function _train(gc::GLMCard, t, id; weights = nothing)
+function _train(gc::GLMCard, t, ::Any; weights = nothing)
     (; formula, distribution, link) = gc
     wts = @something weights similar(t[_target(gc)], 0)
     # TODO save slim version of model with no data

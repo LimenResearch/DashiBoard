@@ -98,7 +98,7 @@ The supported methods are
 The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
-struct RescaleCard <: Card
+struct RescaleCard <: SQLCard
     rescaler::Rescaler
     by::Vector{String}
     columns::Vector{String}
@@ -124,10 +124,18 @@ function RescaleCard(c::AbstractDict)
     )
 end
 
+## SQLCard interface
+
 invertible(::RescaleCard) = true
 
-inputs(rc::RescaleCard) = stringlist(rc.by, rc.columns, rc.partition)
-outputs(rc::RescaleCard) = join_names.(rc.columns, rc.suffix)
+weight_var(::RescaleCard) = nothing
+sorting_vars(::RescaleCard) = String[]
+grouping_vars(rc::RescaleCard) = rc.by
+
+partition_var(rc::RescaleCard) = rc.partition
+input_vars(rc::RescaleCard) = rc.columns
+target_vars(::RescaleCard) = String[]
+output_vars(rc::RescaleCard) = join_names.(rc.columns, rc.suffix)
 
 function pair_wise_group_by(
         repository::Repository,

@@ -23,8 +23,8 @@ get_update(node::Node) = node.update
 get_state(node::Node) = node.state
 set_state!(node::Node, state) = setproperty!(node, :state, state)
 
-get_inputs(node::Node)::Vector{String} = inputs(get_card(node))
-get_outputs(node::Node)::Vector{String} = outputs(get_card(node))
+get_inputs(node::Node)::Vector{String} = get_inputs(get_card(node))
+get_outputs(node::Node)::Vector{String} = get_outputs(get_card(node))
 
 function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::AbstractString; schema = nothing)
     ns = colnames(repository, table; schema)

@@ -73,13 +73,14 @@ end
 
 ## StandardCard interface
 
-weights(::DimensionalityReductionCard) = nothing
-sorters(::DimensionalityReductionCard) = String[]
-partition(drc::DimensionalityReductionCard) = drc.partition
+weight_var(::DimensionalityReductionCard) = nothing
+grouping_vars(::DimensionalityReductionCard) = String[]
+sorting_vars(::DimensionalityReductionCard) = String[]
 
-predictors(drc::DimensionalityReductionCard) = drc.columns
-targets(::DimensionalityReductionCard) = String[]
-outputs(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
+partition_var(drc::DimensionalityReductionCard) = drc.partition
+input_vars(drc::DimensionalityReductionCard) = drc.columns
+target_vars(::DimensionalityReductionCard) = String[]
+output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
 
 function _train(drc::DimensionalityReductionCard, t, _)
     X = stack(Fix1(getindex, t), drc.columns, dims = 1)
@@ -92,7 +93,7 @@ function (drc::DimensionalityReductionCard)(model, t, id)
     M, N = size(Y)
 
     pred_table = SimpleTable()
-    for (i, k) in enumerate(outputs(drc))
+    for (i, k) in enumerate(output_vars(drc))
         pred_table[k] = i ≤ M ? Y[i, :] : fill(missing, N)
     end
     return pred_table, id

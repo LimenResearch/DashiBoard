@@ -16,6 +16,10 @@ Current implementations:
 """
 abstract type Card end
 
+abstract type StandardCard <: Card end
+abstract type SQLCard <: Card end
+abstract type StreamingCard <: Card end
+
 """
     Card(d::AbstractDict)
 
@@ -26,26 +30,47 @@ function Card(d::AbstractDict)
     return CARD_TYPES[type](d)
 end
 
+function weight_var end
+function sorting_vars end
+function grouping_vars end
+
+function partition_var end
+function input_vars end
+function target_vars end
+function output_vars end
+
+weight_vars(c::Card) = to_stringlist(weight_var(c))
+partition_vars(c::Card) = to_stringlist(partition_var(c))
+
 """
-    inputs(c::Card)
+    get_inputs(c::Card)
 
 Return the list of inputs for a given card.
 """
-function inputs end
+function get_inputs(c::Card)::Vector{String}
+    return union(
+        sorting_vars(c),
+        grouping_vars(c),
+        input_vars(c),
+        target_vars(c),
+        weight_vars(c),
+        partition_vars(c),
+    )
+end
 
 """
-    outputs(c::Card)
+    get_outputs(c::Card)
 
 Return the list of outputs for a given card.
 """
-function outputs end
+get_outputs(c::Card)::Vector{String} = output_vars(c)
 
 """
     invertible(c::Card)::Bool
 
 Return `true` for invertible cards, `false` otherwise.
 """
-function invertible end
+invertible(::Card) = false
 
 """
     train(repository::Repository, card::Card, source; schema = nothing)::CardState

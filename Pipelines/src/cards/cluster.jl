@@ -65,13 +65,14 @@ end
 
 ## StandardCard interface
 
-weights(cc::ClusterCard) = cc.weights
-sorters(::ClusterCard) = String[]
-partition(cc::ClusterCard) = cc.partition
+weight_var(cc::ClusterCard) = cc.weights
+grouping_vars(::ClusterCard) = String[]
+sorting_vars(::ClusterCard) = String[]
 
-predictors(cc::ClusterCard) = cc.columns
-targets(::ClusterCard) = String[]
-outputs(cc::ClusterCard) = [cc.output]
+partition_var(cc::ClusterCard) = cc.partition
+input_vars(cc::ClusterCard) = cc.columns
+target_vars(::ClusterCard) = String[]
+output_vars(cc::ClusterCard) = [cc.output]
 
 function _train(cc::ClusterCard, t, id; weights = nothing)
     X = stack(Fix1(getindex, t), cc.columns, dims = 1)

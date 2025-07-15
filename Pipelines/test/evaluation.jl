@@ -4,8 +4,8 @@
         inputs::Vector{String}
         outputs::Vector{String}
     end
-    Pipelines.inputs(t::TrivialCard) = t.inputs
-    Pipelines.outputs(t::TrivialCard) = t.outputs
+    Pipelines.get_inputs(t::TrivialCard) = t.inputs
+    Pipelines.get_outputs(t::TrivialCard) = t.outputs
     function Pipelines.train(::Repository, ::TrivialCard, ::AbstractString; schema = nothing)
         return Pipelines.CardState()
     end

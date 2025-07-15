@@ -30,7 +30,7 @@ Currently supported methods are
 - `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
-struct SplitCard <: Card
+struct SplitCard <: SQLCard
     splitter::SQLNode
     order_by::Vector{String}
     by::Vector{String}
@@ -47,12 +47,16 @@ function SplitCard(c::AbstractDict)
     return SplitCard(splitter, order_by, by, output)
 end
 
-## Card interface
+## SQLCard interface
 
-invertible(::SplitCard) = false
+weight_var(::SplitCard) = nothing
+sorting_vars(sc::SplitCard) = sc.order_by
+grouping_vars(sc::SplitCard) = sc.by
 
-inputs(sc::SplitCard) = stringlist(sc.order_by, sc.by)
-outputs(sc::SplitCard) = [sc.output]
+partition_var(::SplitCard) = nothing
+input_vars(::SplitCard) = String[]
+target_vars(::SplitCard) = String[]
+output_vars(sc::SplitCard) = String[sc.output]
 
 function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
     return CardState()

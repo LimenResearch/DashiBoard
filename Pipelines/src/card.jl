@@ -16,6 +16,10 @@ Current implementations:
 """
 abstract type Card end
 
+abstract type StandardCard <: Card end
+abstract type SQLCard <: Card end
+abstract type StreamingCard <: Card end
+
 """
     Card(d::AbstractDict)
 
@@ -26,37 +30,44 @@ function Card(d::AbstractDict)
     return CARD_TYPES[type](d)
 end
 
-function get_card(d::AbstractDict)
-    Base.depwarn(
-        """
-        Use `Pipelines.Card(d::AbstractDict)` instead of `Pipelines.get_card(d::AbstractDict)`
-        """,
-        :get_card,
-        force = true
-    )
-    return Card(d)
-end
+function weight_var end
+function sorting_vars end
+function grouping_vars end
+
+function partition_var end
+function input_vars end
+function target_vars end
+function output_vars end
 
 """
-    inputs(c::Card)::Vector{String}
+    get_inputs(c::Card)::Vector{String}
 
 Return the list of inputs for a given card.
 """
-function inputs end
+function get_inputs(c::Card)::Vector{String}
+    return union(
+        sorting_vars(c),
+        grouping_vars(c),
+        input_vars(c),
+        target_vars(c),
+        to_stringlist(weight_var(c)),
+        to_stringlist(partition_var(c)),
+    )
+end
 
 """
-    outputs(c::Card)::Vector{String}
+    get_outputs(c::Card)::Vector{String}
 
 Return the list of outputs for a given card.
 """
-function outputs end
+get_outputs(c::Card)::Vector{String} = output_vars(c)
 
 """
     invertible(c::Card)::Bool
 
 Return `true` for invertible cards, `false` otherwise.
 """
-function invertible end
+invertible(::Card) = false
 
 """
     train(repository::Repository, card::Card, source; schema = nothing)::CardState

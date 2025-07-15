@@ -28,7 +28,7 @@ end
 
 Run a Streamliner model, predicting `targets` from `predictors`.
 """
-struct StreamlinerCard <: Card
+struct StreamlinerCard <: StreamingCard
     model::Model
     training::Training
     order_by::Vector{String}
@@ -67,14 +67,20 @@ function StreamlinerCard(c::AbstractDict)
     )
 end
 
-invertible(::StreamlinerCard) = false
+## StreamingCard interface
 
-inputs(s::StreamlinerCard)::Vector{String} = stringlist(s.order_by, s.predictors, s.targets, s.partition)
-outputs(s::StreamlinerCard)::Vector{String} = join_names.(s.targets, s.suffix)
+weight_var(::StreamlinerCard) = nothing
+grouping_vars(::StreamlinerCard) = String[]
+sorting_vars(sc::StreamlinerCard) = sc.order_by
+
+partition_var(sc::StreamlinerCard) = sc.partition
+input_vars(sc::StreamlinerCard) = sc.predictors
+target_vars(sc::StreamlinerCard) = sc.targets
+output_vars(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
 
 function train(
         repository::Repository,
-        s::StreamlinerCard,
+        sc::StreamlinerCard,
         source::AbstractString;
         schema = nothing
     )
@@ -83,15 +89,15 @@ function train(
         table = source,
         repository,
         schema,
-        s.order_by,
-        s.predictors,
-        s.targets,
-        s.partition
+        sc.order_by,
+        sc.predictors,
+        sc.targets,
+        sc.partition
     )
 
     train!(data)
 
-    (; model, training) = s
+    (; model, training) = sc
 
     return mktempdir() do dir
         result = StreamlinerCore.train(dir, model, data, training)
@@ -109,7 +115,7 @@ end
 
 function evaluate(
         repository::Repository,
-        s::StreamlinerCard,
+        sc::StreamlinerCard,
         state::CardState,
         (source, destination)::Pair;
         schema = nothing
@@ -117,7 +123,7 @@ function evaluate(
 
     isnothing(state.content) && throw(ArgumentError("Invalid state"))
 
-    (; model, training, suffix) = s
+    (; model, training, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)
 
     return mktempdir() do dir
@@ -132,9 +138,9 @@ function evaluate(
             table = source,
             repository,
             schema,
-            s.order_by,
-            s.predictors,
-            s.targets,
+            sc.order_by,
+            sc.predictors,
+            sc.targets,
             partition,
             uvals
         )
@@ -152,6 +158,8 @@ function report(::Repository, sc::StreamlinerCard, state::CardState)
     validation = Dict(zip(names, stats[:, 2, end]))
     return Dict("training" => training, "validation" => validation)
 end
+
+## UI representation
 
 function list_tomls(dir)
     fls = Iterators.map(splitext, readdir(dir))

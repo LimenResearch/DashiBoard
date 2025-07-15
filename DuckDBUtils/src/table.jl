@@ -196,5 +196,5 @@ Return list of columns for a given table.
 """
 function colnames(repository::Repository, table::AbstractString; schema = nothing)
     catalog = get_catalog(repository; schema)
-    return [string(k) for (k, _) in catalog[table]]
+    return String[string(k) for (k, _) in catalog[table]]
 end

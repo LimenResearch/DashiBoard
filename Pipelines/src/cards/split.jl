@@ -10,7 +10,7 @@ function get_splitter(c::AbstractDict)
     elseif method == "percentile"
         check_order(c)
         percentile::Float64 = c["percentile"]
-        return Fun.case(Agg.percent_rank() .<= percentile, 1, 2)
+        return Fun.case(Agg.percent_rank() .≤ percentile, 1, 2)
     else
         throw(ArgumentError("method $method is not supported"))
     end
@@ -30,7 +30,7 @@ Currently supported methods are
 - `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
-struct SplitCard <: Card
+struct SplitCard <: SQLCard
     splitter::SQLNode
     order_by::Vector{String}
     by::Vector{String}
@@ -47,10 +47,16 @@ function SplitCard(c::AbstractDict)
     return SplitCard(splitter, order_by, by, output)
 end
 
-invertible(::SplitCard) = false
+## SQLCard interface
 
-inputs(s::SplitCard)::Vector{String} = stringlist(s.order_by, s.by)
-outputs(s::SplitCard)::Vector{String} = [s.output]
+weight_var(::SplitCard) = nothing
+sorting_vars(sc::SplitCard) = sc.order_by
+grouping_vars(sc::SplitCard) = sc.by
+
+partition_var(::SplitCard) = nothing
+input_vars(::SplitCard) = String[]
+target_vars(::SplitCard) = String[]
+output_vars(sc::SplitCard) = String[sc.output]
 
 function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
     return CardState()
@@ -58,21 +64,23 @@ end
 
 function evaluate(
         repository::Repository,
-        s::SplitCard,
+        sc::SplitCard,
         ::CardState,
         (source, destination)::Pair;
         schema = nothing
     )
 
-    by = Get.(s.by)
-    order_by = Get.(s.order_by)
+    by = Get.(sc.by)
+    order_by = Get.(sc.order_by)
 
     query = From(source) |>
         Partition(; by, order_by) |>
-        Define(s.output => s.splitter)
+        Define(sc.output => sc.splitter)
 
     return replace_table(repository, query, destination; schema)
 end
+
+## UI representation
 
 function CardWidget(
         ::Type{SplitCard};

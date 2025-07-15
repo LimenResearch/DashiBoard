@@ -1,8 +1,11 @@
-function _kmeans(X; classes, iterations = 100, tol = 1.0e-6, seed = nothing, options...)
-    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), options...)
+function _kmeans(X; classes, iterations = 100, tol = 1.0e-6, seed = nothing, weights, options...)
+    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights, options...)
 end
 
-_dbscan(X; radius, options...) = dbscan(X, radius; options...)
+function _dbscan(X; radius, weights, options...)
+    isnothing(weights) || @warn "Weights not supported in DBSCAN"
+    return dbscan(X, radius; options...)
+end
 
 const CLUSTERING_FUNCTIONS = OrderedDict{String, Function}(
     "kmeans" => _kmeans,
@@ -21,7 +24,7 @@ function Clusterer(method_name::AbstractString, d::AbstractDict)
     return Clusterer(method, options)
 end
 
-# TODO: support weights and custom metrics
+# TODO: support custom metrics
 """
     struct ClusterCard <: Card
         clusterer::Clusterer
@@ -33,8 +36,9 @@ end
 Cluster `columns` based on `clusterer`.
 Save resulting column as `output`.
 """
-struct ClusterCard <: Card
+struct ClusterCard <: StandardCard
     clusterer::Clusterer
+    weights::Union{String, Nothing}
     columns::Vector{String}
     partition::Union{String, Nothing}
     output::String
@@ -46,63 +50,45 @@ function ClusterCard(c::AbstractDict)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     clusterer::Clusterer = Clusterer(method_name, method_options)
+    weights::Union{String, Nothing} = get(c, "weights", nothing)
     columns::Vector{String} = c["columns"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
         clusterer,
+        weights,
         columns,
         partition,
         output
     )
 end
 
-invertible(::ClusterCard) = false
+## StandardCard interface
 
-inputs(cc::ClusterCard)::Vector{String} = stringlist(cc.columns, cc.partition)
-outputs(cc::ClusterCard)::Vector{String} = [cc.output]
+weight_var(cc::ClusterCard) = cc.weights
+grouping_vars(::ClusterCard) = String[]
+sorting_vars(::ClusterCard) = String[]
 
-function train(repository::Repository, cc::ClusterCard, source::AbstractString; schema = nothing)
-    ns = colnames(repository, source; schema)
-    id_col = get_id_col(ns)
-    q = id_table(source, id_col) |>
-        filter_partition(cc.partition) |>
-        Select(Get(id_col), Get.(cc.columns)...)
-    t = DBInterface.execute(fromtable, repository, q; schema)
+partition_var(cc::ClusterCard) = cc.partition
+input_vars(cc::ClusterCard) = cc.columns
+target_vars(::ClusterCard) = String[]
+output_vars(cc::ClusterCard) = [cc.output]
+
+function _train(cc::ClusterCard, t, id; weights = nothing)
     X = stack(Fix1(getindex, t), cc.columns, dims = 1)
-    id = t[id_col]
-    model = cc.clusterer.method(X; cc.clusterer.options...)
-    return CardState(
-        content = jldserialize((; id, model))
-    )
+    res = cc.clusterer.method(X; weights, cc.clusterer.options...)
+    label = assignments(res)
+    return (; label, id) # return `label`s and relative `id`s for the evaluation
 end
 
-function evaluate(
-        repository::Repository,
-        cc::ClusterCard,
-        state::CardState,
-        (source, destination)::Pair;
-        schema = nothing
-    )
-
-    ns = colnames(repository, source; schema)
-    id_col = get_id_col(ns)
-
-    (; id, model) = jlddeserialize(state.content)
-    pred_table = Dict{String, AbstractVector}(
-        id_col => id,
-        cc.output => assignments(model)
-    )
-
+function (cc::ClusterCard)(model, t, _)
     # as `predict` is not implemented, we cannot fill in data points outside partition
     # https://github.com/JuliaStats/Clustering.jl/issues/63
-    return with_table(repository, pred_table; schema) do tbl_name
-        query = id_table(source, id_col) |>
-            LeftJoin(tbl_name => From(tbl_name), on = Get(id_col) .== Get(id_col, over = Get(tbl_name))) |>
-            Select((ns .=> Get.(ns))..., cc.output => Get(cc.output, over = Get(tbl_name)))
-        replace_table(repository, query, destination; schema)
-    end
+    # we simply return those used for the prediction with the correct indices
+    return SimpleTable(cc.output => model.label), model.id
 end
+
+## UI representation
 
 function CardWidget(::Type{ClusterCard})
 
@@ -111,6 +97,7 @@ function CardWidget(::Type{ClusterCard})
     fields = Widget[
         Widget("method", options = method_names),
         Widget("columns"),
+        Widget("weights", visible = Dict("method" => ["kmeans"]), required = false),
         Widget("partition", required = false),
         Widget("output"),
     ]

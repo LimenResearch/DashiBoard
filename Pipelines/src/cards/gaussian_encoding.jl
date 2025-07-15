@@ -59,7 +59,7 @@ Evaluate:
   5. Selects only the required columns (original and transformed).
   6. Replaces the target table with the final results.
 """
-struct GaussianEncodingCard <: Card
+struct GaussianEncodingCard <: SQLCard
     column::String
     processed_column::SQLNode
     n_modes::Int
@@ -88,22 +88,26 @@ function GaussianEncodingCard(c::AbstractDict)
     return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
 end
 
-invertible(::GaussianEncodingCard) = false
+## SQLCard interface
 
-inputs(g::GaussianEncodingCard)::Vector{String} = [g.column]
-outputs(g::GaussianEncodingCard)::Vector{String} = join_names.(g.column, g.suffix, 1:g.n_modes)
+weight_var(::GaussianEncodingCard) = nothing
+grouping_vars(::GaussianEncodingCard) = String[]
+sorting_vars(::GaussianEncodingCard) = String[]
 
-function train(::Repository, g::GaussianEncodingCard, source::AbstractString; schema = nothing)
-    μs = range(start = 0, step = 1 / g.n_modes, length = g.n_modes)
-    σ = step(μs) * g.lambda
-    params = Dict("σ" => [σ], "d" => [g.max])
+partition_var(::GaussianEncodingCard) = nothing
+input_vars(gec::GaussianEncodingCard) = [gec.column]
+target_vars(::GaussianEncodingCard) = String[]
+output_vars(gec::GaussianEncodingCard) = join_names.(gec.column, gec.suffix, 1:gec.n_modes)
+
+function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)
+    μs = range(start = 0, step = 1 / gec.n_modes, length = gec.n_modes)
+    σ = step(μs) * gec.lambda
+    params = Dict("σ" => [σ], "d" => [gec.max])
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
     end
     tbl = SimpleTable(params)
-    return CardState(
-        content = jldserialize(tbl)
-    )
+    return CardState(content = jldserialize(tbl))
 end
 
 function gaussian_transform(x, μ, σ, d)
@@ -115,7 +119,7 @@ end
 
 function evaluate(
         repository::Repository,
-        g::GaussianEncodingCard,
+        gec::GaussianEncodingCard,
         state::CardState,
         (source, target)::Pair;
         schema = nothing
@@ -124,9 +128,9 @@ function evaluate(
     params_tbl = jlddeserialize(state.content)
 
     source_columns = colnames(repository, source; schema)
-    col = new_name("transformed", source_columns)
-    converted = map(1:g.n_modes) do i
-        k = join_names(g.column, g.suffix, i)
+    col = new_name("transformed", source_columns, get_outputs(gec))
+    converted = map(1:gec.n_modes) do i
+        k = join_names(gec.column, gec.suffix, i)
         v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
@@ -134,13 +138,15 @@ function evaluate(
 
     return with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
-            Define(col => g.processed_column) |>
+            Define(col => gec.processed_column) |>
             Join(From(tbl_name), on = true) |>
             Define(converted...) |>
             Select(Get.(target_columns)...)
         replace_table(repository, query, target; schema)
     end
 end
+
+## UI representation
 
 function CardWidget(
         ::Type{GaussianEncodingCard};

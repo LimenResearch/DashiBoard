@@ -4,8 +4,8 @@ lazy_pairs(cs, xs) = Iterators.map(=>, repeated_keys(cs), xs)
 positive_values(d, ks) = Iterators.filter(>(0), Iterators.map(Fix1(getindex, d), ks))
 positive_values(d) = Fix1(positive_values, d)
 
-function combine_vars(colnames, output_vars)
-    d = Dict{String, Int}(Iterators.zip(colnames, Iterators.repeated(0)))
+function combine_vars(table_vars, output_vars)
+    d = Dict{String, Int}(Iterators.zip(table_vars, Iterators.repeated(0)))
     repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(d, var, i))
     isempty(repeated) || throw(ArgumentError("Columns $(repeated) would be overwritten"))
     return d
@@ -23,17 +23,17 @@ end
 
 ##
 
-function digraph(nodes::AbstractVector{Node}, colnames::AbstractVector{<:AbstractString})
-    g, _ = digraph_metadata(nodes, colnames)
+function digraph(nodes::AbstractVector{Node}, table_vars::AbstractVector{<:AbstractString})
+    g, _ = digraph_metadata(nodes, table_vars)
     return g
 end
 
-function digraph_metadata(nodes::AbstractVector{Node}, colnames::AbstractVector{<:AbstractString})
+function digraph_metadata(nodes::AbstractVector{Node}, table_vars::AbstractVector{<:AbstractString})
     Base.require_one_based_indexing(nodes)
     # preprocess outbound edges
     output_vars, output_counts = flatten_and_count(get_outputs, String, nodes)
     # generate variable to index dictionary and validate result
-    d = combine_vars(colnames, output_vars)
+    d = combine_vars(table_vars, output_vars)
     # preprocess inbound edges
     inputs, input_counts = flatten_and_count(positive_values(d) ∘ get_inputs, Int, nodes)
     # return graph and variable names

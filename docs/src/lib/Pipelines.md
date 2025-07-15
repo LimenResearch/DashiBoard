@@ -12,8 +12,8 @@ Pipelines is a library designed to generate and evaluate data analysis pipelines
 Pipelines.Card
 Pipelines.train
 Pipelines.evaluate
-Pipelines.inputs
-Pipelines.outputs
+Pipelines.get_inputs
+Pipelines.get_outputs
 Pipelines.invertible
 ```
 

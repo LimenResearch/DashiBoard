@@ -42,7 +42,7 @@ const INTERPOLATORS = OrderedDict(
 
 Interpolate `targets` based on `predictor`.
 """
-struct InterpCard <: Card
+struct InterpCard <: StandardCard
     interpolator::Interpolator
     predictor::String
     targets::Vector{String}
@@ -78,60 +78,45 @@ function InterpCard(c::AbstractDict)
     )
 end
 
-invertible(::InterpCard) = false
+## StandardCard interface
 
-inputs(ic::InterpCard)::Vector{String} = stringlist(ic.predictor, ic.targets, ic.partition)
-outputs(ic::InterpCard)::Vector{String} = join_names.(ic.targets, ic.suffix)
+weight_var(::InterpCard) = nothing
+grouping_vars(::InterpCard) = String[]
+sorting_vars(ic::InterpCard) = [ic.predictor]
 
-function train(
-        repository::Repository,
-        ic::InterpCard,
-        source::AbstractString;
-        schema = nothing
-    )
+partition_var(ic::InterpCard) = ic.partition
+input_vars(ic::InterpCard) = [ic.predictor]
+target_vars(ic::InterpCard) = ic.targets
+output_vars(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
+function _train(ic::InterpCard, t, _)
     (; interpolator, extrapolation_left, extrapolation_right, dir, targets, predictor, partition) = ic
-
-    q = From(source) |>
-        filter_partition(partition) |>
-        Select(Get(predictor), Get.(targets)...) |>
-        Order(Get(predictor))
-    t = DBInterface.execute(fromtable, repository, q; schema)
-
-    ips = map(targets) do target
-        ip = interpolator
+    return map(targets) do target
+        itp = interpolator
         y, x = t[target], t[predictor]
-        return if ip.has_dir
-            ip.method(y, x; extrapolation_left, extrapolation_right, dir)
+        return if itp.has_dir
+            itp.method(y, x; extrapolation_left, extrapolation_right, dir)
         else
-            ip.method(y, x; extrapolation_left, extrapolation_right)
+            itp.method(y, x; extrapolation_left, extrapolation_right)
         end
     end
-    return CardState(content = jldserialize(ips))
 end
 
-function evaluate(
-        repository::Repository,
-        ic::InterpCard,
-        state::CardState,
-        (source, destination)::Pair;
-        schema = nothing
-    )
-
-    ips = jlddeserialize(state.content)
+function (ic::InterpCard)(itps, t, id)
     (; targets, predictor, suffix) = ic
-    query = From(source) |> Order(Get(predictor))
-    t = DBInterface.execute(fromtable, repository, query; schema)
     x = t[predictor]
+    pred_table = SimpleTable()
 
-    for (ip, target) in zip(ips, targets)
+    for (itp, target) in zip(itps, targets)
         pred_name = join_names(target, suffix)
         ŷ = similar(x, float(eltype(x)))
-        t[pred_name] = ip(ŷ, x)
+        pred_table[pred_name] = itp(ŷ, x)
     end
 
-    return load_table(repository, t, destination; schema)
+    return pred_table, id
 end
+
+## UI representation
 
 function CardWidget(::Type{InterpCard})
     options = collect(keys(INTERPOLATORS))

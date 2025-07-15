@@ -1,10 +1,6 @@
 # String list utils
 
-_append_strings!(v, ::Nothing) = v
-_append_strings!(v, s::AbstractString) = push!(v, s)
-_append_strings!(v, x) = append!(v, x)
-
-stringlist(xs...) = foldl(_append_strings!, xs, init = String[])
+to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]
 
 # Option computation and widget helpers
 
@@ -40,6 +36,10 @@ function generate_widget(
 end
 
 # Card computation utils
+
+select_columns(args...) = Select(args = Get.(union(args...)))
+
+sort_columns(cols::AbstractVector) = Order(by = Get.(cols))
 
 filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
 

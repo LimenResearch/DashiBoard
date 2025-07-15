@@ -1,10 +1,11 @@
 @testset "evaluation order" begin
+    # FIXME: test with `WildCard` instead
     struct TrivialCard <: Pipelines.Card
         inputs::Vector{String}
         outputs::Vector{String}
     end
-    Pipelines.inputs(t::TrivialCard) = t.inputs
-    Pipelines.outputs(t::TrivialCard) = t.outputs
+    Pipelines.get_inputs(t::TrivialCard) = t.inputs
+    Pipelines.get_outputs(t::TrivialCard) = t.outputs
     function Pipelines.train(::Repository, ::TrivialCard, ::AbstractString; schema = nothing)
         return Pipelines.CardState()
     end
@@ -63,9 +64,9 @@
         Pipelines.Node(TrivialCard(["b"], ["e"]), true),
         Pipelines.Node(TrivialCard(["e", "f"], ["g", "h", "i"]), true),
     ]
-    colnames = ["a", "b"]
+    table_vars = ["a", "b"]
 
-    g, vars = Pipelines.digraph_metadata(nodes, colnames)
+    g, vars = Pipelines.digraph_metadata(nodes, table_vars)
     @test nv(g) == 11
     # The graph nodes are
     # 1 => n1, 2 => n2, 3 => n3, 4 => n4,

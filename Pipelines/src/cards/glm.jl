@@ -38,7 +38,7 @@ const LINK_FUNCTIONS = OrderedDict(
 
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
-struct GLMCard <: Card
+struct GLMCard <: StandardCard
     formula::FormulaTerm
     weights::Union{String, Nothing}
     distribution::Distribution
@@ -67,52 +67,31 @@ function GLMCard(c::AbstractDict)
     return GLMCard(formula, weights, distribution, link, partition, suffix)
 end
 
-invertible(::GLMCard) = false
+## StandardCard interface
 
 isterm(x::AbstractTerm) = x isa Term
-predictors(g::GLMCard) = Iterators.map(termnames, Iterators.filter(isterm, terms(g.formula.rhs)))
-target(g::GLMCard) = termnames(g.formula.lhs)
+_target(gc::GLMCard) = termnames(gc.formula.lhs)
+_output(gc::GLMCard) = join_names(_target(gc), gc.suffix)
 
-inputs(g::GLMCard)::Vector{String} = stringlist(predictors(g), target(g), g.weights, g.partition)
-outputs(g::GLMCard)::Vector{String} = [join_names(target(g), g.suffix)]
+weight_var(gc::GLMCard) = gc.weights
+grouping_vars(::GLMCard) = String[]
+sorting_vars(::GLMCard) = String[]
 
-function train(
-        repository::Repository,
-        g::GLMCard,
-        source::AbstractString;
-        schema = nothing
-    )
+partition_var(gc) = gc.partition
+input_vars(gc::GLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
+target_vars(gc::GLMCard) = [_target(gc)]
+output_vars(gc::GLMCard) = [_output(gc)]
 
-    q = From(source) |> filter_partition(g.partition)
-    t = DBInterface.execute(fromtable, repository, q; schema)
-
-    (; formula, distribution, link) = g
-    # `weights` cannot yet be passed as a symbol
-    weights = isnothing(g.weights) ? similar(t[target(g)], 0) : t[g.weights]
-    # TODO save slim version with no data
-    m = fit(GeneralizedLinearModel, formula, t, distribution, link, wts = weights)
-    return CardState(
-        content = jldserialize(m)
-    )
+function _train(gc::GLMCard, t, ::Any; weights = nothing)
+    (; formula, distribution, link) = gc
+    wts = @something weights similar(t[_target(gc)], 0)
+    # TODO save slim version of model with no data
+    return fit(GeneralizedLinearModel, formula, t, distribution, link, wts = wts)
 end
 
-function evaluate(
-        repository::Repository,
-        g::GLMCard,
-        state::CardState,
-        (source, destination)::Pair;
-        schema = nothing
-    )
+(gc::GLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
 
-    model = jlddeserialize(state.content)
-
-    t = DBInterface.execute(fromtable, repository, From(source); schema)
-
-    pred_name = join_names(target(g), g.suffix)
-    t[pred_name] = predict(model, t)
-
-    return load_table(repository, t, destination; schema)
-end
+## UI representation
 
 function CardWidget(::Type{GLMCard})
 

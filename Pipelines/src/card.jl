@@ -117,12 +117,25 @@ function evaluate(repository::Repository, card::Card, (source, destination)::Pai
     return state
 end
 
-function evaluate(repository::Repository, card::Card, state::CardState, (source, destination)::Pair; schema = nothing)
-    inputs, outputs = get_inputs(card), get_outputs(card)
-    id_var = new_name("id", inputs, outputs)
-    evaluate(repository, card, state, source => destination, id_var; schema)
-    q = join_on_row_number(source, destination, id_var, outputs)
-    return replace_table(repository, q, destination; schema)
+function evaluate(
+        repository::Repository,
+        card::Card,
+        state::CardState,
+        (source, destination)::Pair;
+        schema = nothing,
+        invert = false
+    )
+    id_var, tmp = new_name("id", get_inputs(card), get_outputs(card)), string(uuid4())
+    if invert
+        new_vars = evaluate(repository, card, state, source => tmp, id_var; schema, invert)
+        select = @something new_vars input_vars(card)
+    else
+        new_vars = evaluate(repository, card, state, source => tmp, id_var; schema)
+        select = @something new_vars output_vars(card)
+    end
+    q = join_on_row_number(source, tmp, id_var, select)
+    replace_table(repository, q, destination; schema)
+    return
 end
 
 """

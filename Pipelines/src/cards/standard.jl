@@ -11,7 +11,9 @@ function train(
 
     id_var = new_name("id", get_inputs(c), get_outputs(c))
     wt_var = weight_var(c)
-    q = with_id(source, id_var) |>
+    q = From(source) |>
+        Partition() |>
+        Define(id_var => Agg.row_number()) |>
         filter_partition(partition_var(c)) |>
         sort_columns(sorting_vars(c)) |>
         select_columns([id_var], input_vars(c), target_vars(c), grouping_vars(c), to_stringlist(wt_var))
@@ -36,10 +38,9 @@ function evaluate(
         schema = nothing
     )
 
-    ks = output_vars(c)
-    id_table = with_id(source, id_var)
-
-    q = id_table |>
+    q = From(source) |>
+        Partition() |>
+        Define(id_var => Agg.row_number()) |>
         sort_columns(sorting_vars(c)) |>
         select_columns([id_var], input_vars(c), grouping_vars(c))
     t = DBInterface.execute(fromtable, repository, q; schema)
@@ -49,5 +50,6 @@ function evaluate(
     pred_table, new_id = c(model, t, id)
     pred_table[id_var] = new_id
 
-    return load_table(repository, pred_table, destination; schema)
+    load_table(repository, pred_table, destination; schema)
+    return
 end

@@ -63,18 +63,27 @@ function evaluate(
         repository::Repository,
         sc::SplitCard,
         ::CardState,
-        (source, destination)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing
     )
 
-    by = Get.(sc.by)
     order_by = Get.(sc.order_by)
+    by = Get.(sc.by)
+    selection = vcat(
+        [id_var => Agg.row_number()],
+        sc.order_by .=> order_by,
+        sc.by .=> by,
+    )
 
     query = From(source) |>
-        Partition(; by, order_by) |>
-        Define(sc.output => sc.splitter)
+        Partition() |>
+        Select(args = selection) |>
+        Partition(; order_by, by) |>
+        Select(Get(id_var), sc.output => sc.splitter)
 
-    return replace_table(repository, query, destination; schema)
+    replace_table(repository, query, destination; schema)
+    return
 end
 
 ## UI representation

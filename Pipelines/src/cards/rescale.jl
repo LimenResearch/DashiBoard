@@ -169,7 +169,8 @@ function evaluate(
         repository::Repository,
         rc::RescaleCard,
         state::CardState,
-        (source, destination)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing,
         invert = false
     )
@@ -188,18 +189,23 @@ function evaluate(
 
     stats_tbl = jlddeserialize(state.content)
 
-    return if isempty(stats)
-        query = From(source) |> Define(rescaled...)
+    if isempty(stats)
+        selection = vcat([id_var => Agg.row_number()], rescaled)
+        query = From(source) |> Partition() |> Select(args = selection)
         replace_table(repository, query, destination; schema)
     else
         with_table(repository, stats_tbl; schema) do tbl_name
             eqs = (.==).(Get.(by), GetStats.(by))
+            selection = vcat([id_var => Get(id_var)], rescaled)
             query = From(source) |>
+                Partition() |>
+                Define(id_var => Agg.row_number()) |>
                 LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
-                Define(rescaled...)
+                Select(args = selection)
             replace_table(repository, query, destination; schema)
         end
     end
+    return first.(rescaled)
 end
 
 function deevaluate(

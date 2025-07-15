@@ -130,13 +130,14 @@ function evaluate(
         v = gaussian_transform(Get.transformed, Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
+    selection = vcat([id_var => Get(id_var)], converted)
 
     with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
             Partition() |>
-            Select("transformed" => gec.processed_column, id_var => Agg.row_number()) |>
+            Select(id_var => Agg.row_number(), "transformed" => gec.processed_column) |>
             Join(From(tbl_name), on = true) |>
-            Select(id_var, converted...)
+            Select(args = selection)
         replace_table(repository, query, destination; schema)
     end
     return

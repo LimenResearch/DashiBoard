@@ -19,12 +19,6 @@ function new_name(c::AbstractString, cols...)
 end
 
 # note: with empty partition, DuckDB preserves order
-function with_id(table::AbstractString, id_var)
-    return From(table) |>
-        Partition() |>
-        Define(id_var => Agg.row_number())
-end
-
 function join_on_row_number(tbl1, tbl2, id_var, sel)
     cond = Agg.row_number() .== Get(id_var, over = Get(tbl2))
     return From(tbl1) |>

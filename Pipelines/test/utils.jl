@@ -1,4 +1,4 @@
-@testset "colnames" begin
+@testset "name manipulations" begin
     col = "temp"
     suffix = "hat"
     i = 3

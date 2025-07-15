@@ -64,9 +64,9 @@
         Pipelines.Node(TrivialCard(["b"], ["e"]), true),
         Pipelines.Node(TrivialCard(["e", "f"], ["g", "h", "i"]), true),
     ]
-    colnames = ["a", "b"]
+    table_vars = ["a", "b"]
 
-    g, vars = Pipelines.digraph_metadata(nodes, colnames)
+    g, vars = Pipelines.digraph_metadata(nodes, table_vars)
     @test nv(g) == 11
     # The graph nodes are
     # 1 => n1, 2 => n2, 3 => n3, 4 => n4,

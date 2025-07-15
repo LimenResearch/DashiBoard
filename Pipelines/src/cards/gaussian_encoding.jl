@@ -118,29 +118,28 @@ function evaluate(
         repository::Repository,
         gec::GaussianEncodingCard,
         state::CardState,
-        (source, target)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing
     )
 
     params_tbl = jlddeserialize(state.content)
 
-    source_columns = colnames(repository, source; schema)
-    col = new_name("transformed", source_columns, get_outputs(gec))
     converted = map(1:gec.n_modes) do i
         k = join_names(gec.column, gec.suffix, i)
-        v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)
+        v = gaussian_transform(Get.transformed, Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
-    target_columns = union(source_columns, first.(converted))
 
-    return with_table(repository, params_tbl; schema) do tbl_name
+    with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
-            Define(col => gec.processed_column) |>
+            Partition() |>
+            Select("transformed" => gec.processed_column, id_var => Agg.row_number()) |>
             Join(From(tbl_name), on = true) |>
-            Define(converted...) |>
-            Select(Get.(target_columns)...)
-        replace_table(repository, query, target; schema)
+            Select(id_var, converted...)
+        replace_table(repository, query, destination; schema)
     end
+    return
 end
 
 ## UI representation

@@ -25,9 +25,10 @@ function with_id(table::AbstractString, id_var)
         Define(id_var => Agg.row_number())
 end
 
-function join_on_row_number(tbl_name, id_var)
-    return LeftJoin(
-        tbl_name => From(tbl_name),
-        on = Agg.row_number() .== Get(id_var, over = Get(tbl_name))
-    )
+function join_on_row_number(tbl1, tbl2, id_var, sel)
+    cond = Agg.row_number() .== Get(id_var, over = Get(tbl2))
+    return From(tbl1) |>
+        Partition() |>
+        LeftJoin(tbl2 => From(tbl2), on = cond) |>
+        Define(args = sel .=> Get.(sel, over = Get(tbl2)))
 end

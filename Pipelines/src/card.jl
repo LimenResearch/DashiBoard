@@ -1,3 +1,27 @@
+@kwdef struct CardState
+    content::Union{Vector{UInt8}, Nothing} = nothing
+    metadata::StringDict = StringDict()
+end
+
+function jldserialize(m)
+    return mktemp() do path, io
+        jldopen(path, "w") do file
+            file["model_state"] = m
+        end
+        return read(io)
+    end
+end
+
+function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
+    return mktemp() do path, io
+        write(io, v)
+        flush(io)
+        jldopen(path) do file
+            return file[k]
+        end
+    end
+end
+
 """
     abstract type Card end
 
@@ -93,28 +117,12 @@ function evaluate(repository::Repository, card::Card, (source, destination)::Pai
     return state
 end
 
-@kwdef struct CardState
-    content::Union{Vector{UInt8}, Nothing} = nothing
-    metadata::StringDict = StringDict()
-end
-
-function jldserialize(m)
-    return mktemp() do path, io
-        jldopen(path, "w") do file
-            file["model_state"] = m
-        end
-        return read(io)
-    end
-end
-
-function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
-    return mktemp() do path, io
-        write(io, v)
-        flush(io)
-        jldopen(path) do file
-            return file[k]
-        end
-    end
+function evaluate(repository::Repository, card::Card, state::CardState, (source, destination)::Pair; schema = nothing)
+    inputs, outputs = get_inputs(card), get_outputs(card)
+    id_var = new_name("id", inputs, outputs)
+    evaluate(repository, card, state, source => destination, id_var; schema)
+    q = join_on_row_number(source, destination, id_var, outputs)
+    return replace_table(repository, q, destination; schema)
 end
 
 """

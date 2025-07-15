@@ -31,12 +31,12 @@ function evaluate(
         repository::Repository,
         c::StandardCard,
         state::CardState,
-        (source, destination)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing
     )
 
     ks = output_vars(c)
-    id_var = new_name("id", ks)
     id_table = with_id(source, id_var)
 
     q = id_table |>
@@ -49,11 +49,5 @@ function evaluate(
     pred_table, new_id = c(model, t, id)
     pred_table[id_var] = new_id
 
-    return with_table(repository, pred_table; schema) do tbl_name
-        query = From(source) |>
-            Partition() |>
-            join_on_row_number(tbl_name, id_var) |>
-            Define(args = ks .=> Get.(ks, over = Get(tbl_name)))
-        replace_table(repository, query, destination; schema)
-    end
+    return load_table(repository, pred_table, destination; schema)
 end

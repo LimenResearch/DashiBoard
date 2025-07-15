@@ -39,9 +39,6 @@ function input_vars end
 function target_vars end
 function output_vars end
 
-weight_vars(c::Card) = to_stringlist(weight_var(c))
-partition_vars(c::Card) = to_stringlist(partition_var(c))
-
 """
     get_inputs(c::Card)
 
@@ -53,8 +50,8 @@ function get_inputs(c::Card)::Vector{String}
         grouping_vars(c),
         input_vars(c),
         target_vars(c),
-        weight_vars(c),
-        partition_vars(c),
+        to_stringlist(weight_var(c)),
+        to_stringlist(partition_var(c)),
     )
 end
 

@@ -84,12 +84,13 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
     nrows = StreamlinerCore.get_nsamples(data, i)
     ns = colnames(data.repository, data.table; data.schema)
-    id_col = get_id_col(ns)
+    id_var = new_name("id", ns)
+    id_table = with_id(data.table, id_var)
 
     return with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(order_by)
-        stream_query = id_table(data.table, id_col) |>
+        stream_query = id_table |>
             filter_partition(partition, i) |>
             Order(by = sorters)
 
@@ -105,7 +106,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
 
         try
             batches = Batches(result, batchsize, nrows)
-            stream = Iterators.map(Processor(data, device, id_col), batches)
+            stream = Iterators.map(Processor(data, device, id_var), batches)
             f(stream)
         finally
             DBInterface.close!(result)
@@ -127,12 +128,13 @@ end
 function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination)
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
     ns = colnames(data.repository, data.table; data.schema)
-    id_col = get_id_col(ns)
+    id_var = new_name("id", ns, data.targets)
+    id_table = with_id(data.table, id_var)
 
     tmp = string(uuid4())
 
     tbl = SimpleTable()
-    tbl[id_col] = Int64[]
+    tbl[id_var] = Int64[]
     for k in data.targets
         T = column_type(k, data.uvals)
         tbl[k] = T[]
@@ -152,10 +154,10 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
     old_vars = old_ns .=> Get.(old_ns)
     join_clause = Join(
         "eval" => From(tmp),
-        on = Get(id_col) .== Get(id_col, over = Get.eval),
+        on = Get(id_var) .== Get(id_var, over = Get.eval),
         right = true
     )
-    query = id_table(data.table, id_col) |>
+    query = id_table |>
         join_clause |>
         Select(old_vars..., new_vars...)
     replace_table(data.repository, query, destination; data.schema)

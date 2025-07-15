@@ -128,7 +128,7 @@ function evaluate(
     params_tbl = jlddeserialize(state.content)
 
     source_columns = colnames(repository, source; schema)
-    col = new_name("transformed", source_columns)
+    col = new_name("transformed", source_columns, get_outputs(gec))
     converted = map(1:gec.n_modes) do i
         k = join_names(gec.column, gec.suffix, i)
         v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)

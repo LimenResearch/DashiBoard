@@ -180,7 +180,7 @@ function evaluate(
     (; by, columns, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 
-    available_columns = colnames(repository, source; schema)
+    available_columns = Set{String}(colnames(repository, source; schema))
     iter = ((c, join_names(c, suffix)) for c in columns)
 
     rescaled = if invert

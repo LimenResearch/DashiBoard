@@ -12,16 +12,15 @@ end
 
 join_names(args...) = join(args, "_")
 
-function new_name(c::AbstractString, cols)
+function new_name(c::AbstractString, cols...)
+    used_names = union!(Set{String}(), cols...)
     candidates = Iterators.map(Fix1(join_names, c), Iterators.countfrom(1))
-    return first(Iterators.dropwhile(in(Set{String}(cols)), candidates))
+    return first(Iterators.dropwhile(in(used_names), candidates))
 end
 
-get_id_col(ns) = new_name("id", ns)
-
 # note: with empty partition, DuckDB preserves order
-function id_table(table::AbstractString, col)
+function with_id(table::AbstractString, id_var)
     return From(table) |>
         Partition() |>
-        Define(col => Agg.row_number())
+        Define(id_var => Agg.row_number())
 end

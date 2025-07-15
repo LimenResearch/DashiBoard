@@ -40,7 +40,7 @@ function target_vars end
 function output_vars end
 
 """
-    get_inputs(c::Card)
+    get_inputs(c::Card)::Vector{String}
 
 Return the list of inputs for a given card.
 """
@@ -56,7 +56,7 @@ function get_inputs(c::Card)::Vector{String}
 end
 
 """
-    get_outputs(c::Card)
+    get_outputs(c::Card)::Vector{String}
 
 Return the list of outputs for a given card.
 """

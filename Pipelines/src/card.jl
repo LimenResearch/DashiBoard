@@ -86,6 +86,10 @@ Return the list of outputs for a given card.
 """
 get_outputs(c::Card)::Vector{String} = output_vars(c)
 
+# TODO: document
+function get_inverse_inputs end
+function get_inverse_outputs end
+
 """
     invertible(c::Card)::Bool
 
@@ -125,13 +129,14 @@ function evaluate(
         schema = nothing,
         invert = false
     )
-    id_var, tmp = new_name("id", get_inputs(card), get_outputs(card)), string(uuid4())
+    inputs, outputs = get_inputs(card), get_outputs(card)
+    id_var, tmp = new_name("id", inputs, outputs), string(uuid4())
     if invert
-        new_vars = evaluate(repository, card, state, source => tmp, id_var; schema, invert)
-        select = @something new_vars input_vars(card)
+        evaluate(repository, card, state, source => tmp, id_var; schema, invert)
+        select = get_inverse_outputs(card)
     else
-        new_vars = evaluate(repository, card, state, source => tmp, id_var; schema)
-        select = @something new_vars output_vars(card)
+        evaluate(repository, card, state, source => tmp, id_var; schema)
+        select = outputs
     end
     q = join_on_row_number(source, tmp, id_var, select)
     replace_table(repository, q, destination; schema)

@@ -102,6 +102,7 @@ struct RescaleCard <: SQLCard
     rescaler::Rescaler
     by::Vector{String}
     columns::Vector{String}
+    inverse_columns::Dict{String, String}
     partition::Union{String, Nothing}
     suffix::String
 end
@@ -111,12 +112,16 @@ function RescaleCard(c::AbstractDict)
     rescaler::Rescaler = RESCALERS[method]
     by::Vector{String} = get(c, "by", String[])
     columns::Vector{String} = c["columns"]
+    inverse_columns::Dict{String, String} = get(c, "inverse_columns") do
+        return Dict(zip(columns, columns))
+    end
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "rescaled")
     return RescaleCard(
         rescaler,
         by,
         columns,
+        inverse_columns,
         partition,
         suffix
     )
@@ -133,6 +138,17 @@ target_vars(::RescaleCard) = String[]
 weight_var(::RescaleCard) = nothing
 partition_var(rc::RescaleCard) = rc.partition
 output_vars(rc::RescaleCard) = join_names.(rc.columns, rc.suffix)
+
+function inverse_stats_vars(rc::RescaleCard)
+    (; columns, inverse_columns) = rc
+    cs = columns ∩ keys(inverse_columns)
+    return cs, getindex.((inverse_columns,), cs)
+end
+
+function get_inverse_outputs(rc::RescaleCard)
+    _, vars = inverse_stats_vars(rc)
+    return vars
+end
 
 function pair_wise_group_by(
         repository::Repository,
@@ -175,16 +191,14 @@ function evaluate(
         invert = false
     )
 
-    (; by, columns, rescaler, suffix) = rc
+    (; by, columns, inverse_columns, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 
-    available_columns = Set{String}(colnames(repository, source; schema))
-    iter = ((c, join_names(c, suffix)) for c in columns)
-
     rescaled = if invert
-        [c => invtransform(c, c′) for (c, c′) in iter if c′ in available_columns]
+        cs, cis = inverse_stats_vars(rc)
+        @. cis => invtransform(cs, join_names(cis, suffix))
     else
-        [c′ => transform(c) for (c, c′) in iter if c in available_columns]
+        @. join_names(columns, suffix) => transform(columns)
     end
 
     stats_tbl = jlddeserialize(state.content)
@@ -205,7 +219,7 @@ function evaluate(
             replace_table(repository, query, destination; schema)
         end
     end
-    return first.(rescaled)
+    return
 end
 
 function deevaluate(

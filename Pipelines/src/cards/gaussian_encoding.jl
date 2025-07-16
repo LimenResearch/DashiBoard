@@ -24,8 +24,8 @@ const TEMPORAL_MAX = OrderedDict(
 Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
-- `column::String`: Name of the column to transform.
-- `processed_column::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
+- `input::String`: Name of the column to transform.
+- `processed_input::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
 - `n_modes::Int`: Number of Gaussian curves to generate.
 - `max::Float64`: Maximum value used for normalization (denominator).
 - `lambda::Float64`: Coefficient for scaling the standard deviation.
@@ -60,8 +60,8 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 struct GaussianEncodingCard <: SQLCard
-    column::String
-    processed_column::SQLNode
+    input::String
+    processed_input::SQLNode
     n_modes::Int
     max::Float64
     lambda::Float64
@@ -69,13 +69,13 @@ struct GaussianEncodingCard <: SQLCard
 end
 
 function GaussianEncodingCard(c::AbstractDict)
-    column::String = c["column"]
+    input::String = c["input"]
     method::String = get(c, "method", "identity")
     if !haskey(TEMPORAL_PREPROCESSING, method)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
-    processed_column::SQLNode = TEMPORAL_PREPROCESSING[method](Get(column))
+    processed_input::SQLNode = TEMPORAL_PREPROCESSING[method](Get(input))
     n_modes::Int = c["n_modes"]
     if n_modes ≤ 0
         throw(ArgumentError("`n_modes` must be greater than `0`. Provided value: `$n_modes`."))
@@ -83,18 +83,18 @@ function GaussianEncodingCard(c::AbstractDict)
     max::Float64 = get(c, "max", TEMPORAL_MAX[method])
     lambda::Float64 = get(c, "lambda", 0.5)
     suffix::String = get(c, "suffix", "gaussian")
-    return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
+    return GaussianEncodingCard(input, processed_input, n_modes, max, lambda, suffix)
 end
 
 ## SQLCard interface
 
 sorting_vars(::GaussianEncodingCard) = String[]
 grouping_vars(::GaussianEncodingCard) = String[]
-input_vars(gec::GaussianEncodingCard) = [gec.column]
+input_vars(gec::GaussianEncodingCard) = [gec.input]
 target_vars(::GaussianEncodingCard) = String[]
 weight_var(::GaussianEncodingCard) = nothing
 partition_var(::GaussianEncodingCard) = nothing
-output_vars(gec::GaussianEncodingCard) = join_names.(gec.column, gec.suffix, 1:gec.n_modes)
+output_vars(gec::GaussianEncodingCard) = join_names.(gec.input, gec.suffix, 1:gec.n_modes)
 
 function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(start = 0, step = 1 / gec.n_modes, length = gec.n_modes)
@@ -126,7 +126,7 @@ function evaluate(
     params_tbl = jlddeserialize(state.content)
 
     converted = map(1:gec.n_modes) do i
-        k = join_names(gec.column, gec.suffix, i)
+        k = join_names(gec.input, gec.suffix, i)
         v = gaussian_transform(Get.transformed, Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
@@ -135,7 +135,7 @@ function evaluate(
     with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
             Partition() |>
-            Select(id_var => Agg.row_number(), "transformed" => gec.processed_column) |>
+            Select(id_var => Agg.row_number(), "transformed" => gec.processed_input) |>
             Join(From(tbl_name), on = true) |>
             Select(args = selection)
         replace_table(repository, query, destination; schema)
@@ -156,7 +156,7 @@ function CardWidget(
 
     fields = [
         Widget("method"; options),
-        Widget("column"),
+        Widget("input"),
         Widget("n_modes"; n_modes.min, n_modes.step, n_modes.max),
         Widget("max"; max.min, max.step, max.max),
         Widget("lambda"; lambda.min, lambda.step, lambda.max),
@@ -165,7 +165,7 @@ function CardWidget(
 
     return CardWidget(;
         type = "gaussian_encoding",
-        output = OutputSpec("column", "suffix", "n_modes"),
+        output = OutputSpec("input", "suffix", "n_modes"),
         fields
     )
 end

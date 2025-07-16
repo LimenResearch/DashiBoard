@@ -83,7 +83,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     end
 
     nrows = StreamlinerCore.get_nsamples(data, i)
-    id_var = new_name("id", order_by, data.predictors, data.targets, to_stringlist(partition))
+    id_var = new_name("id", order_by, data.inputs, data.targets, to_stringlist(partition))
 
     return with_connection(repository) do con
         catalog = get_catalog(repository; schema)

@@ -470,7 +470,7 @@ mktempdir() do dir
 
         @testset "GaussianEncodingCard construction" begin
             base_fields = Dict(
-                "column" => "date",
+                "input" => "date",
                 "n_modes" => 3,
                 "max" => 365.0,
                 "lambda" => 0.5,
@@ -480,7 +480,7 @@ mktempdir() do dir
             for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING)
                 c = merge(base_fields, Dict("method" => k))
                 card = GaussianEncodingCard(c)
-                @test string(card.processed_column) == string(v(Get("date")))
+                @test string(card.processed_input) == string(v(Get("date")))
             end
 
             invalid_method = "nonexistent_method"
@@ -488,7 +488,7 @@ mktempdir() do dir
             @test_throws ArgumentError GaussianEncodingCard(invalid_config)
 
             invalid_config = Dict(
-                "column" => "date",
+                "input" => "date",
                 "n_modes" => 0,
                 "max" => 365.0,
                 "lambda" => 0.5,
@@ -514,14 +514,14 @@ mktempdir() do dir
         function gauss_evaluate_test(result, card, origin; processing)
             @test names(result) == union(names(origin), Pipelines.get_outputs(card))
 
-            origin_column = origin[:, card.column]
+            origin_column = origin[:, card.input]
             max_value = card.max
             preprocessed_values = processing.(origin_column)
             μs = range(0, step = 1 / card.n_modes, length = card.n_modes)
             σ = step(μs) * card.lambda
             for (i, μ) in enumerate(μs)
                 expected_values = pdf.(Normal(0, σ), _rem.(preprocessed_values ./ max_value .- μ)) .* σ
-                @test result[:, "$(card.column)_gaussian_$i"] ≈ expected_values
+                @test result[:, "$(card.input)_gaussian_$i"] ≈ expected_values
             end
         end
 

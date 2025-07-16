@@ -83,11 +83,11 @@ const RESCALERS = OrderedDict{String, Rescaler}(
     struct RescaleCard <: Card
         rescaler::Rescaler
         by::Vector{String} = String[]
-        columns::Vector{String}
+        inputs::Vector{String}
         suffix::String = "rescaled"
     end
 
-Card to rescale of one or more columns according to a given `rescaler`.
+Card to rescale one or more columns according to a given `rescaler`.
 The supported methods are
 - `zscore`,
 - `maxabs`,
@@ -101,7 +101,7 @@ The resulting rescaled variable is added to the table under the name
 struct RescaleCard <: SQLCard
     rescaler::Rescaler
     by::Vector{String}
-    columns::Vector{String}
+    inputs::Vector{String}
     inverse_columns::Dict{String, String} # FIXME: make less general
     partition::Union{String, Nothing}
     suffix::String
@@ -111,16 +111,16 @@ function RescaleCard(c::AbstractDict)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
     by::Vector{String} = get(c, "by", String[])
-    columns::Vector{String} = c["columns"]
+    inputs::Vector{String} = c["inputs"]
     inverse_columns::Dict{String, String} = get(c, "inverse_columns") do
-        return Dict(zip(columns, columns))
+        return Dict(zip(inputs, inputs))
     end
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "rescaled")
     return RescaleCard(
         rescaler,
         by,
-        columns,
+        inputs,
         inverse_columns,
         partition,
         suffix
@@ -133,15 +133,15 @@ invertible(::RescaleCard) = true
 
 sorting_vars(::RescaleCard) = String[]
 grouping_vars(rc::RescaleCard) = rc.by
-input_vars(rc::RescaleCard) = rc.columns
+input_vars(rc::RescaleCard) = rc.inputs
 target_vars(::RescaleCard) = String[]
 weight_var(::RescaleCard) = nothing
 partition_var(rc::RescaleCard) = rc.partition
-output_vars(rc::RescaleCard) = join_names.(rc.columns, rc.suffix)
+output_vars(rc::RescaleCard) = join_names.(rc.inputs, rc.suffix)
 
 function inverse_stats_vars(rc::RescaleCard)
-    (; columns, inverse_columns) = rc
-    cs = columns ∩ keys(inverse_columns)
+    (; inputs, inverse_columns) = rc
+    cs = inputs ∩ keys(inverse_columns)
     return cs, getindex.((inverse_columns,), cs)
 end
 
@@ -171,12 +171,12 @@ function pair_wise_group_by(
 end
 
 function train(repository::Repository, rc::RescaleCard, source::AbstractString; schema = nothing)
-    (; by, columns, rescaler) = rc
+    (; by, inputs, rescaler) = rc
     (; stats) = rescaler
     tbl = if isempty(stats)
         SimpleTable()
     else
-        pair_wise_group_by(repository, source, by, columns, stats...; schema, rc.partition)
+        pair_wise_group_by(repository, source, by, inputs, stats...; schema, rc.partition)
     end
     return CardState(content = jldserialize(tbl))
 end
@@ -191,14 +191,14 @@ function evaluate(
         invert = false
     )
 
-    (; by, columns, inverse_columns, rescaler, suffix) = rc
+    (; by, inputs, inverse_columns, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 
     rescaled = if invert
         cs, cis = inverse_stats_vars(rc)
         @. cis => invtransform(cs, join_names(cis, suffix))
     else
-        @. join_names(columns, suffix) => transform(columns)
+        @. join_names(inputs, suffix) => transform(inputs)
     end
 
     stats_tbl = jlddeserialize(state.content)
@@ -243,14 +243,14 @@ function CardWidget(::Type{RescaleCard})
     fields = [
         Widget("method"; options),
         Widget("by", visible = Dict("method" => need_group), required = false),
-        Widget("columns"),
+        Widget("inputs"),
         Widget("partition", required = false),
         Widget("suffix", value = "rescaled"),
     ]
 
     return CardWidget(;
         type = "rescale",
-        output = OutputSpec("columns", "suffix"),
+        output = OutputSpec("inputs", "suffix"),
         fields
     )
 end

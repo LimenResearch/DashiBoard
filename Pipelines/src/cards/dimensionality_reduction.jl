@@ -35,18 +35,18 @@ end
 """
     struct DimensionalityReductionCard <: Card
         projector::Projector
-        columns::Vector{String}
+        inputs::Vector{String}
         partition::Union{String, Nothing}
         n_components::Int
         output::String
     end
 
-Project `columns` based on `projector`.
+Project `inputs` based on `projector`.
 Save resulting column as `output`.
 """
 struct DimensionalityReductionCard <: StandardCard
     projector::Projector
-    columns::Vector{String}
+    inputs::Vector{String}
     partition::Union{String, Nothing}
     n_components::Int
     output::String
@@ -56,13 +56,13 @@ function DimensionalityReductionCard(c::AbstractDict)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
-    columns::Vector{String} = c["columns"]
+    inputs::Vector{String} = c["inputs"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     n_components::Int = c["n_components"]
     output::String = get(c, "output", "component")
     return DimensionalityReductionCard(
         projector,
-        columns,
+        inputs,
         partition,
         n_components,
         output
@@ -73,19 +73,19 @@ end
 
 sorting_vars(::DimensionalityReductionCard) = String[]
 grouping_vars(::DimensionalityReductionCard) = String[]
-input_vars(drc::DimensionalityReductionCard) = drc.columns
+input_vars(drc::DimensionalityReductionCard) = drc.inputs
 target_vars(::DimensionalityReductionCard) = String[]
 weight_var(::DimensionalityReductionCard) = nothing
 partition_var(drc::DimensionalityReductionCard) = drc.partition
 output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
 
 function _train(drc::DimensionalityReductionCard, t, _)
-    X = stack(Fix1(getindex, t), drc.columns, dims = 1)
+    X = stack(Fix1(getindex, t), drc.inputs, dims = 1)
     return drc.projector.method(X, drc.n_components; drc.projector.options...)
 end
 
 function (drc::DimensionalityReductionCard)(model, t, id)
-    X = stack(Fix1(getindex, t), drc.columns, dims = 1)
+    X = stack(Fix1(getindex, t), drc.inputs, dims = 1)
     Y = _predict(model, X)
     M, N = size(Y)
 
@@ -104,7 +104,7 @@ function CardWidget(::Type{DimensionalityReductionCard})
 
     fields = Widget[
         Widget("method", options = method_names),
-        Widget("columns"),
+        Widget("inputs"),
         Widget("n_components"),
         Widget("partition", required = false),
         Widget("output", value = "component"),

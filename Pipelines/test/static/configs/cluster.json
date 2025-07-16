@@ -2,7 +2,7 @@
   "kmeans": {
     "type": "cluster",
     "method": "kmeans",
-    "columns": ["TEMP", "PRES"],
+    "inputs": ["TEMP", "PRES"],
     "output": "cluster",
     "method_options": {
       "classes": 3,
@@ -14,7 +14,7 @@
   "dbscan": {
     "type": "cluster",
     "method": "dbscan",
-    "columns": ["TEMP", "PRES"],
+    "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
     "method_options": {
       "radius": 0.02

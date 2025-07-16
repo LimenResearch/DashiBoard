@@ -3,10 +3,10 @@ digraph G{
 
   subgraph cards {
     node [shape = "box" style = "filled"];
-    "1" [label = "unknown" fillcolor = "transparent"];
-    "2" [label = "unknown" fillcolor = "white"];
-    "3" [label = "unknown" fillcolor = "white"];
-    "4" [label = "unknown" fillcolor = "white"];
+    "1" [label = "trivial" fillcolor = "transparent"];
+    "2" [label = "trivial" fillcolor = "white"];
+    "3" [label = "trivial" fillcolor = "white"];
+    "4" [label = "trivial" fillcolor = "white"];
   }
 
   subgraph vars {

@@ -1,38 +1,30 @@
 @testset "evaluation order" begin
-    # FIXME: test with `WildCard` instead
-    struct TrivialCard <: Pipelines.Card
-        inputs::Vector{String}
-        outputs::Vector{String}
+    _train(wc, t, id; weights = nothing) = nothing
+    function _evaluate(wc, model, t, id)
+        len = length(id)
+        t_new = Pipelines.SimpleTable()
+        for k in wc.outputs
+            t_new[k] = zeros(len)
+        end
+        return t_new, id
     end
-    Pipelines.get_inputs(t::TrivialCard) = t.inputs
-    Pipelines.get_outputs(t::TrivialCard) = t.outputs
-    function Pipelines.train(::Repository, ::TrivialCard, ::AbstractString; schema = nothing)
-        return Pipelines.CardState()
-    end
-    function Pipelines.evaluate(
-            ::Repository, ::TrivialCard, ::Pipelines.CardState, ::Pair;
-            schema = nothing
-        )
-        return nothing
+    Pipelines.register_wild_card("trivial", _train, _evaluate)
+
+    function trivialcard(inputs, outputs)
+        c = Dict("type" => "trivial", "inputs" => inputs, "outputs" => outputs)
+        return Pipelines.Card(c)
     end
 
     nodes = [
-        Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), true),
-        Pipelines.Node(TrivialCard(["pred humid"], ["pred wind"]), true),
-        Pipelines.Node(TrivialCard(["wind", "wind name"], ["pred temp"]), true),
-        Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
+        Pipelines.Node(trivialcard(["temp"], ["pred humid"]), true),
+        Pipelines.Node(trivialcard(["pred humid"], ["pred wind"]), true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], ["pred temp"]), true),
+        Pipelines.Node(trivialcard(["wind"], ["wind name"]), true),
     ]
 
     g = Pipelines.digraph(nodes, ["temp", "wind"])
     order = Pipelines.topological_sort(g)
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
-
-    nodes = [
-        Pipelines.Node(TrivialCard(["temp"], ["pred humid"]), false),
-        Pipelines.Node(TrivialCard(["pred humid"], ["pred wind"]), true),
-        Pipelines.Node(TrivialCard(["wind", "wind name"], ["pred temp"]), false),
-        Pipelines.Node(TrivialCard(["wind"], ["wind name"]), true),
-    ]
 
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
@@ -42,7 +34,7 @@
 
     @test_throws KeyError Pipelines.digraph(nodes, ["temp"])
     @test_throws ArgumentError Pipelines.digraph(nodes, ["temp", "wind", "pred humid"])
-    faulty_node = Pipelines.Node(TrivialCard(["temp"], ["pred temp"]), true)
+    faulty_node = Pipelines.Node(trivialcard(["temp"], ["pred temp"]), true)
     @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]), ["temp", "wind"])
 
     # Test returned value of `Pipelines.evaluate!`
@@ -50,6 +42,14 @@
     @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
+    nodes = [
+        Pipelines.Node(trivialcard(["temp"], ["pred humid"]), false),
+        Pipelines.Node(trivialcard(["pred humid"], ["pred wind"]), true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], ["pred temp"]), false),
+        Pipelines.Node(trivialcard(["wind"], ["wind name"]), true),
+    ]
+
+    g = Pipelines.digraph(nodes, ["temp", "wind"])
     hs = Pipelines.compute_height(g, nodes)
     @test hs == [-1, 0, 1, 0]
     @test Pipelines.layers(hs) == [[2, 4], [3]]
@@ -59,13 +59,14 @@
     @test Pipelines.digraph(Pipelines.Node[], String[]) == DiGraph(0)
 
     nodes = [
-        Pipelines.Node(TrivialCard(["a", "c", "e"], ["f"]), false),
-        Pipelines.Node(TrivialCard(["a"], ["c", "d"]), true),
-        Pipelines.Node(TrivialCard(["b"], ["e"]), true),
-        Pipelines.Node(TrivialCard(["e", "f"], ["g", "h", "i"]), true),
+        Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), false),
+        Pipelines.Node(trivialcard(["a"], ["c", "d"]), true),
+        Pipelines.Node(trivialcard(["b"], ["e"]), true),
+        Pipelines.Node(trivialcard(["e", "f"], ["g", "h", "i"]), true),
     ]
     table_vars = ["a", "b"]
 
+    # TODO fix evaluation when some update is not required
     g, vars = Pipelines.digraph_metadata(nodes, table_vars)
     @test nv(g) == 11
     # The graph nodes are

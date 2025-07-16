@@ -1,7 +1,5 @@
 """
-    struct WildCard <: Card
-        train::T
-        evaluate::E
+    struct WildCard{train, evaluate} <: Card
         order_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -12,9 +10,7 @@
 
 Custom `card` that uses arbitrary training and evaluations functions.
 """
-struct WildCard{T, E} <: StandardCard
-    train::T
-    evaluate::E
+struct WildCard{train, evaluate} <: StandardCard
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -23,23 +19,46 @@ struct WildCard{T, E} <: StandardCard
     outputs::Vector{String}
 end
 
+function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
+    order_by::Vector{String} = get(c, "order_by", String[])
+    inputs::Vector{String} = get(c, "inputs", String[])
+    targets::Vector{String} = get(c, "targets", String[])
+    outputs::Vector{String} = get(c, "outputs", String[])
+
+    weights = get(c, "weights", nothing)
+    partition = get(c, "partition", nothing)
+
+    return WildCard{train, evaluate}(
+        order_by,
+        inputs,
+        targets,
+        weights,
+        partition,
+        outputs,
+    )
+end
+
+function register_wild_card(name::AbstractString, train, evaluate)
+    return register_card(name, WildCard{train, evaluate})
+end
+
 ## StandardCard interface
 
 sorting_vars(wc::WildCard) = wc.order_by
 grouping_vars(::WildCard) = String[]
 input_vars(wc::WildCard) = wc.inputs
-target_vars(::WildCard) = wc.targets
+target_vars(wc::WildCard) = wc.targets
 weight_var(wc::WildCard) = wc.weights
 partition_var(wc::WildCard) = wc.partition
 output_vars(wc::WildCard) = wc.outputs
 
-_train(wc::WildCard, t, id; weights = nothing) = wc.train(wc, t, id; weights)
+_train(wc::WildCard{train}, t, id; weights = nothing) where {train} = train(wc, t, id; weights)
 
-(wc::WildCard)(model, t, id) = wc.evaluate(wc, model, t, id)
+(wc::WildCard{<:Any, evaluate})(model, t, id) where {evaluate} = evaluate(wc, model, t, id)
 
 ## UI representation
 
-# TODO: implement for a specific one and test
+# TODO: test
 function CardWidget(::Type{WildCard}; type, label)
 
     fields = Widget[

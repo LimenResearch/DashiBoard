@@ -13,7 +13,7 @@ function encode_column(cols, k::AbstractString, uvals::AbstractDict)::Matrix{Flo
     v = Tables.getcolumn(cols, Symbol(k))
     vals = get(uvals, k, nothing)
     # TODO: better error handling here
-    return isnothing(vals) ? v' : isequal.(vals, permutedims(v))
+    return isnothing(vals) ? v' : onehotbatch(v, vals)
 end
 
 function encode_columns(cols, ks::AbstractVector, uvals::AbstractDict)

@@ -115,6 +115,8 @@ using StreamlinerCore: StreamlinerCore,
     metricname,
     get_rng
 
+using OneHotArrays: onehotbatch
+
 using Clustering: assignments, kmeans, dbscan
 
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS

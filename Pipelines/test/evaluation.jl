@@ -1,12 +1,7 @@
 @testset "evaluation order" begin
     _train(wc, t, id; weights = nothing) = nothing
     function _evaluate(wc, model, t, id)
-        len = length(id)
-        t_new = Pipelines.SimpleTable()
-        for k in wc.outputs
-            t_new[k] = zeros(len)
-        end
-        return t_new, id
+        return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end
     Pipelines.register_wild_card("trivial", "Trivial", _train, _evaluate)
 

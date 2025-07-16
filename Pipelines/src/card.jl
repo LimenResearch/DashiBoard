@@ -12,7 +12,8 @@ Current implementations:
 - [`GLMCard`](@ref),
 - [`InterpCard`](@ref),
 - [`GaussianEncodingCard`](@ref),
-- [`StreamlinerCard`](@ref).
+- [`StreamlinerCard`](@ref),
+- [`WildCard`](@ref).
 """
 abstract type Card end
 

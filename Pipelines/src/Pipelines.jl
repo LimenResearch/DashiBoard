@@ -9,7 +9,8 @@ export card_configurations,
     GLMCard,
     InterpCard,
     GaussianEncodingCard,
-    StreamlinerCard
+    StreamlinerCard,
+    WildCard
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 

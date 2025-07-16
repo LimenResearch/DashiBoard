@@ -39,7 +39,8 @@ _train(wc::WildCard, t, id; weights = nothing) = wc.train(wc, t, id; weights)
 
 ## UI representation
 
-function CardWidget(::Type{WildCard})
+# TODO: implement for a specific one and test
+function CardWidget(::Type{WildCard}; type, label)
 
     fields = Widget[
         Widget("order_by"),
@@ -50,10 +51,5 @@ function CardWidget(::Type{WildCard})
         Widget("outputs"),
     ]
 
-    return CardWidget(;
-        type = "wild",
-        label = "Wild",
-        output = OutputSpec("outputs"),
-        fields
-    )
+    return CardWidget(; type, label, output = OutputSpec("outputs"), fields)
 end

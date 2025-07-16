@@ -1,38 +1,38 @@
 {
-    "identity": {
-        "type": "gaussian_encoding",
-        "column": "month",
-        "n_modes": 4,
-        "max": 12,
-        "lambda": 0.5,
-        "suffix": "gaussian",
-        "method": "identity"
-    },
-    "dayofyear": {
-        "type": "gaussian_encoding",
-        "column": "date",
-        "n_modes": 12,
-        "max": 365,
-        "lambda": 0.5,
-        "suffix": "gaussian",
-        "method": "dayofyear"
-    },
-    "hour": {
-        "type": "gaussian_encoding",
-        "column": "time",
-        "n_modes": 4,
-        "max": 24,
-        "lambda": 0.5,
-        "suffix": "gaussian",
-        "method": "hourofday"
-    },
-    "minute": {
-        "type": "gaussian_encoding",
-        "column": "time",
-        "n_modes": 1,
-        "max": 24,
-        "lambda": 0.5,
-        "suffix": "gaussian",
-        "method": "minuteofhour"
-    }
+  "identity": {
+    "type": "gaussian_encoding",
+    "column": "month",
+    "n_modes": 4,
+    "max": 12,
+    "lambda": 0.5,
+    "suffix": "gaussian",
+    "method": "identity"
+  },
+  "dayofyear": {
+    "type": "gaussian_encoding",
+    "column": "date",
+    "n_modes": 12,
+    "max": 365,
+    "lambda": 0.5,
+    "suffix": "gaussian",
+    "method": "dayofyear"
+  },
+  "hour": {
+    "type": "gaussian_encoding",
+    "column": "time",
+    "n_modes": 4,
+    "max": 24,
+    "lambda": 0.5,
+    "suffix": "gaussian",
+    "method": "hourofday"
+  },
+  "minute": {
+    "type": "gaussian_encoding",
+    "column": "time",
+    "n_modes": 1,
+    "max": 24,
+    "lambda": 0.5,
+    "suffix": "gaussian",
+    "method": "minuteofhour"
+  }
 }

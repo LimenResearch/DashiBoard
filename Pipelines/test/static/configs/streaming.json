@@ -1,14 +1,14 @@
 {
-    "shuffled": {
-        "batchsize": 32,
-        "device": "cpu",
-        "seed": 1234,
-        "shuffle": true
-    },
-    "unshuffled": {
-        "batchsize": 32,
-        "device": "cpu",
-        "seed": 1234,
-        "shuffle": false
-    }
+  "shuffled": {
+    "batchsize": 32,
+    "device": "cpu",
+    "seed": 1234,
+    "shuffle": true
+  },
+  "unshuffled": {
+    "batchsize": 32,
+    "device": "cpu",
+    "seed": 1234,
+    "shuffle": false
+  }
 }

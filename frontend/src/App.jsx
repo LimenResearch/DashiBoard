@@ -18,82 +18,103 @@ import { Tabs } from "./components/tabs";
 import { FiltersContext, LoaderContext, CardsContext } from "./create";
 
 export function App() {
-    const LoaderData = initLoader();
-    const metadata = LoaderData.state;
+  const LoaderData = initLoader();
+  const metadata = LoaderData.state;
 
-    const filtersData = initFilters(metadata);
-    const cardsData = initCards(metadata);
+  const filtersData = initFilters(metadata);
+  const cardsData = initCards(metadata);
 
-    const [result, setResult] = createSignal({summaries: [], visualization: [], report: []})
+  const [result, setResult] = createSignal({
+    summaries: [],
+    visualization: [],
+    report: [],
+  });
 
-    const loadingTab = <LoaderContext.Provider value={LoaderData}>
-        <Loader></Loader>
-    </LoaderContext.Provider>;
-    const filteringTab = <FiltersContext.Provider value={filtersData}>
-        <Filters></Filters>
-    </FiltersContext.Provider>;
-    const processingTab = <CardsContext.Provider value={cardsData}>
-        <Cards></Cards>
-    </CardsContext.Provider>;
+  const loadingTab = (
+    <LoaderContext.Provider value={LoaderData}>
+      <Loader></Loader>
+    </LoaderContext.Provider>
+  );
+  const filteringTab = (
+    <FiltersContext.Provider value={filtersData}>
+      <Filters></Filters>
+    </FiltersContext.Provider>
+  );
+  const processingTab = (
+    <CardsContext.Provider value={cardsData}>
+      <Cards></Cards>
+    </CardsContext.Provider>
+  );
 
-    const spec = () => ({
-        filters: getFilters(filtersData.state),
-        cards: getCards(cardsData.state)
-    });
+  const spec = () => ({
+    filters: getFilters(filtersData.state),
+    cards: getCards(cardsData.state),
+  });
 
-    const spreadsheetTab = <Spreadsheet
-        sourceMetadata={metadata}
-        selectionMetadata={result().summaries}
-        report={result().report}
-        cards={spec().cards}></Spreadsheet>;
-    const visualizationTab = <Visualization visualization={result().visualization}></Visualization>;
-    const graphTab = <Graph graph={result().graph}></Graph>;
+  const spreadsheetTab = (
+    <Spreadsheet
+      sourceMetadata={metadata}
+      selectionMetadata={result().summaries}
+      report={result().report}
+      cards={spec().cards}
+    ></Spreadsheet>
+  );
+  const visualizationTab = (
+    <Visualization visualization={result().visualization}></Visualization>
+  );
+  const graphTab = <Graph graph={result().graph}></Graph>;
 
-    const isValid = () => spec().cards.every(c => c != null);
+  const isValid = () => spec().cards.every((c) => c != null);
 
-    // TODO: control-enter to submit?
-    // TODO: only update metadata if there was no error
+  // TODO: control-enter to submit?
+  // TODO: only update metadata if there was no error
 
-    const onSubmit = () => {
-        if (isValid()) {
-            postRequest("evaluate-pipeline", spec(), result()).then(setResult);
-        } else {
-            window.alert("Invalid request, please fill out all required fields.");
-        }
-    };
-
-    const onBeforeunload = e => {
-        const href = _.get(document, "activeElement.href", "");
-        const toSamePage = href.startsWith(getURL(""));
-        if (!toSamePage) {
-            e.preventDefault();
-        }
+  const onSubmit = () => {
+    if (isValid()) {
+      postRequest("evaluate-pipeline", spec(), result()).then(setResult);
+    } else {
+      window.alert("Invalid request, please fill out all required fields.");
     }
+  };
 
-    const leftTabs = [
-        {key: "Load", value: loadingTab},
-        {key: "Filter", value: filteringTab},
-        {key: "Process", value: processingTab},
-    ];
+  const onBeforeunload = (e) => {
+    const href = _.get(document, "activeElement.href", "");
+    const toSamePage = href.startsWith(getURL(""));
+    if (!toSamePage) {
+      e.preventDefault();
+    }
+  };
 
-    const rightTabs = [
-        {key: "Spreadsheet", value: spreadsheetTab},
-        {key: "Visualization", value: visualizationTab},
-        {key: "Graph", value: graphTab},
-    ];
+  const leftTabs = [
+    { key: "Load", value: loadingTab },
+    { key: "Filter", value: filteringTab },
+    { key: "Process", value: processingTab },
+  ];
 
-    const outerClass = `bg-gray-100 w-full max-h-screen min-h-screen
+  const rightTabs = [
+    { key: "Spreadsheet", value: spreadsheetTab },
+    { key: "Visualization", value: visualizationTab },
+    { key: "Graph", value: graphTab },
+  ];
+
+  const outerClass = `bg-gray-100 w-full max-h-screen min-h-screen
         overflow-y-auto scrollbar-gutter-stable`;
 
-    return <div class={outerClass}>
-        <WindowEventListener onBeforeunload={onBeforeunload}></WindowEventListener>
-        <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
-            <div class="col-span-2">
-                <Tabs submit="Submit" onSubmit={onSubmit}>{leftTabs}</Tabs>
-            </div>
-            <div class="col-span-3">
-                <Tabs>{rightTabs}</Tabs>
-            </div>
+  return (
+    <div class={outerClass}>
+      <WindowEventListener
+        onBeforeunload={onBeforeunload}
+      ></WindowEventListener>
+      <div class="max-w-full grid grid-cols-5 gap-8 mr-4">
+        <div class="col-span-2">
+          <Tabs submit="Submit" onSubmit={onSubmit}>
+            {leftTabs}
+          </Tabs>
         </div>
-    </div>;
+        <div class="col-span-3">
+          <Tabs>{rightTabs}</Tabs>
+        </div>
+      </div>
+    </div>
+  );
 }

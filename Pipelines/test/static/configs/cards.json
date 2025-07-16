@@ -1,42 +1,25 @@
 [
-    {
-        "type": "split",
-        "method": "percentile",
-        "order_by": [
-            "No"
-        ],
-        "by": [
-            "cbwd"
-        ],
-        "percentile": 0.9,
-        "output": "_percentile_partition"
-    },
-    {
-        "type": "split",
-        "method": "tiles",
-        "order_by": [
-            "No"
-        ],
-        "by": [
-            "cbwd"
-        ],
-        "tiles": [
-            1,
-            1,
-            2,
-            1,
-            1,
-            2
-        ],
-        "output": "_tiled_partition"
-    },
-    {
-        "type": "rescale",
-        "method": "zscore",
-        "by": [
-            "cbwd"
-        ],
-        "columns": ["PRES", "TEMP"],
-        "partition": "_tiled_partition"
-    }
+  {
+    "type": "split",
+    "method": "percentile",
+    "order_by": ["No"],
+    "by": ["cbwd"],
+    "percentile": 0.9,
+    "output": "_percentile_partition"
+  },
+  {
+    "type": "split",
+    "method": "tiles",
+    "order_by": ["No"],
+    "by": ["cbwd"],
+    "tiles": [1, 1, 2, 1, 1, 2],
+    "output": "_tiled_partition"
+  },
+  {
+    "type": "rescale",
+    "method": "zscore",
+    "by": ["cbwd"],
+    "columns": ["PRES", "TEMP"],
+    "partition": "_tiled_partition"
+  }
 ]

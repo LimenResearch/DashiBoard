@@ -1,7 +1,7 @@
 seed = 5678
 device = "cpu"
 batchsize = 32
-iterations = {"-v" = "iterations"}
+iterations = { "-v" = "iterations" }
 shuffle = false
 
 [optimizer]

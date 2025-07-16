@@ -34,7 +34,7 @@ displayed on the bottom right.
 
 ## Processing data
 
-Data is processed via cards, small building blocks that add new columns to the 
+Data is processed via cards, small building blocks that add new columns to the
 filtered data.
 
 To add a new card, click on the `＋` and select the type of card you wish to add.

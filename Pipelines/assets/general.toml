@@ -17,63 +17,63 @@ placeholder = "Select method..."
 widget = "select"
 label = "Column"
 placeholder = "Select column..."
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [columns]
 widget = "select"
 label = "Columns"
 placeholder = "Select columns..."
 multiple = true
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [target]
 widget = "select"
 label = "Target"
 placeholder = "Select target variable..."
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [targets]
 widget = "select"
 label = "Targets"
 placeholder = "Select target variables..."
 multiple = true
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [predictor]
 widget = "select"
 label = "Predictor"
 placeholder = "Select predictor variable..."
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [predictors]
 widget = "select"
 label = "Predictors"
 placeholder = "Select predictor variables..."
 multiple = true
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [weights]
 widget = "select"
 label = "Weights"
 placeholder = "Select weight variable..."
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [partition]
 widget = "select"
 label = "Partition"
 placeholder = "Select partition variable..."
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [by]
 widget = "select"
 label = "Group"
 placeholder = "Select grouping variables..."
 multiple = true
-options = {"-v" = "names"}
+options = { "-v" = "names" }
 
 [order_by]
 widget = "select"
 label = "Order"
 placeholder = "Select ordering variables..."
 multiple = true
-options = {"-v" = "names"}
+options = { "-v" = "names" }

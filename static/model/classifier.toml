@@ -4,7 +4,7 @@ seed = 1234
 [components]
 
 model = [
-    { name = "dense", features = {"-v" = "features"}, sigma = "relu" },
+    { name = "dense", features = { "-v" = "features" }, sigma = "relu" },
     { name = "dense" },
 ]
 

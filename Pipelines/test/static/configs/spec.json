@@ -1,9 +1,7 @@
 {
-    "data": {
-        "name": "pollution",
-        "files": [
-            "pollution.csv"
-        ]
-    },
-    "filters": []
+  "data": {
+    "name": "pollution",
+    "files": ["pollution.csv"]
+  },
+  "filters": []
 }

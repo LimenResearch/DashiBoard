@@ -1,35 +1,33 @@
 {
-    "basic": {
-        "type": "streamliner",
-        "order_by": ["No"],
-        "predictors": ["TEMP", "PRES"],
-        "targets": ["Iws"],
-        "partition": "partition",
-        "suffix": "hat",
-        "model": "dense",
-        "model_options": {"features": 5},
-        "training": "batched",
-        "training_options": {"iterations": 4}
-    },
-    "classifier": {
-        "type": "streamliner",
-        "order_by": ["No"],
-        "predictors": ["TEMP", "PRES"],
-        "targets": ["cbwd"],
-        "partition": "partition",
-        "suffix": "hat",
-        "model": "classifier",
-        "model_options": {"features": 5},
-        "training": "batched",
-        "training_options": {"iterations": 4}
-    },
-    "partition": {
-        "type": "split",
-        "method": "percentile",
-        "order_by": [
-            "No"
-        ],
-        "percentile": 0.9,
-        "output": "partition"
-    }
+  "basic": {
+    "type": "streamliner",
+    "order_by": ["No"],
+    "predictors": ["TEMP", "PRES"],
+    "targets": ["Iws"],
+    "partition": "partition",
+    "suffix": "hat",
+    "model": "dense",
+    "model_options": { "features": 5 },
+    "training": "batched",
+    "training_options": { "iterations": 4 }
+  },
+  "classifier": {
+    "type": "streamliner",
+    "order_by": ["No"],
+    "predictors": ["TEMP", "PRES"],
+    "targets": ["cbwd"],
+    "partition": "partition",
+    "suffix": "hat",
+    "model": "classifier",
+    "model_options": { "features": 5 },
+    "training": "batched",
+    "training_options": { "iterations": 4 }
+  },
+  "partition": {
+    "type": "split",
+    "method": "percentile",
+    "order_by": ["No"],
+    "percentile": 0.9,
+    "output": "partition"
+  }
 }

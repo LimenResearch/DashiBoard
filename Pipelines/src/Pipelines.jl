@@ -126,7 +126,7 @@ const SymbolDict = Dict{Symbol, Any}
 
 const WIDGET_CONFIG = ScopedValue{StringDict}()
 
-function parse_toml_config(args...)
+function parse_toml_config(args...)::StringDict
     fs..., l = args
     path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
     return parsefile(path)

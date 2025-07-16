@@ -3,19 +3,19 @@
     schema::Union{String, Nothing}
     table::String
     order_by::Vector{String}
-    predictors::Vector{String}
+    inputs::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
     uvals::Dict{String, AbstractVector} = Dict{String, AbstractVector}()
 end
 
 function train!(data::DBData)
-    (; repository, table, schema, predictors, targets, partition, uvals) = data
+    (; repository, table, schema, inputs, targets, partition, uvals) = data
 
     empty!(uvals)
     src = From(table) |> filter_partition(partition)
     schm = DBInterface.execute(Tables.schema, repository, src |> Limit(0); schema)
-    cols = union(predictors, targets)
+    cols = union(inputs, targets)
     idxs = indexin(Symbol.(cols), collect(schm.names))
 
     for (i, k) in zip(idxs, cols)
@@ -37,18 +37,18 @@ struct Processor{N, D}
 end
 
 function (p::Processor)(cols)
-    (; predictors, targets, uvals) = p.data
-    input::Array{Float32, 2} = encode_columns(cols, predictors, uvals)
+    (; inputs, targets, uvals) = p.data
+    input::Array{Float32, 2} = encode_columns(cols, inputs, uvals)
     target::Array{Float32, 2} = encode_columns(cols, targets, uvals)
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
     return (; id, input = p.device(input), target = p.device(target))
 end
 
 function StreamlinerCore.get_templates(data::DBData)
-    (; predictors, targets, uvals) = data
-    n_predictors = sum(Fix2(column_number, uvals), predictors)
+    (; inputs, targets, uvals) = data
+    n_inputs = sum(Fix2(column_number, uvals), inputs)
     n_targets = sum(Fix2(column_number, uvals), targets)
-    input = Template(Float32, (n_predictors,))
+    input = Template(Float32, (n_inputs,))
     target = Template(Float32, (n_targets,))
     return (; input, target)
 end
@@ -59,7 +59,7 @@ function StreamlinerCore.get_metadata(data::DBData)
         "schema" => data.schema,
         "table" => data.table,
         "order_by" => data.order_by,
-        "predictors" => data.predictors,
+        "inputs" => data.inputs,
         "targets" => data.targets,
         "partition" => data.partition
     )

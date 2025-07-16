@@ -1,7 +1,7 @@
 {
   "hasPartition": {
     "type": "glm",
-    "predictors": [1, ["cbwd", "year"], "No"],
+    "inputs": [1, ["cbwd", "year"], "No"],
     "target": "TEMP",
     "distribution": "normal",
     "partition": "partition",
@@ -9,7 +9,7 @@
   },
   "hasWeights": {
     "type": "glm",
-    "predictors": [1, ["cbwd", "year"], "No"],
+    "inputs": [1, ["cbwd", "year"], "No"],
     "weights": "TEMP",
     "target": "PRES",
     "distribution": "gamma"

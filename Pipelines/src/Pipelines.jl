@@ -9,7 +9,8 @@ export card_configurations,
     GLMCard,
     InterpCard,
     GaussianEncodingCard,
-    StreamlinerCard
+    StreamlinerCard,
+    WildCard
 
 public train, evaluate, deevaluate, inputs, outputs, invertible
 
@@ -125,7 +126,7 @@ const SymbolDict = Dict{Symbol, Any}
 
 const WIDGET_CONFIG = ScopedValue{StringDict}()
 
-function parse_toml_config(args...)
+function parse_toml_config(args...)::StringDict
     fs..., l = args
     path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
     return parsefile(path)
@@ -149,8 +150,25 @@ include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
+include("cards/wild.jl")
 
 include("pipeline.jl")
 include("dag.jl")
+
+function __init__()
+    register_card("split", "Split", SplitCard)
+    register_card("rescale", "Rescale", RescaleCard)
+    register_card("cluster", "Cluster", ClusterCard)
+    register_card(
+        "dimensionality_reduction",
+        "Dimensionality Reduction",
+        DimensionalityReductionCard
+    )
+    register_card("glm", "GLM", GLMCard)
+    register_card("interp", "Interpolation", InterpCard)
+    register_card("gaussian_encoding", "Gaussian Encoding", GaussianEncodingCard)
+    register_card("streamliner", "Streamliner", StreamlinerCard)
+    return
+end
 
 end

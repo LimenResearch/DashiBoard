@@ -2,7 +2,7 @@
   "constant": {
     "type": "interp",
     "method": "constant",
-    "predictor": "No",
+    "input": "No",
     "targets": ["TEMP", "PRES"],
     "extrapolation_left": "extension",
     "extrapolation_right": "extension",
@@ -12,7 +12,7 @@
   "quadratic": {
     "type": "interp",
     "method": "quadratic",
-    "predictor": "No",
+    "input": "No",
     "targets": ["TEMP", "PRES"],
     "extrapolation_left": "linear",
     "extrapolation_right": "linear",

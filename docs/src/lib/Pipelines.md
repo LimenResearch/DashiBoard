@@ -47,4 +47,5 @@ Pipelines.GLMCard
 Pipelines.InterpCard
 Pipelines.GaussianEncodingCard
 Pipelines.StreamlinerCard
+Pipelines.WildCard
 ```

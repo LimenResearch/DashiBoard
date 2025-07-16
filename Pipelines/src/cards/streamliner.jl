@@ -20,29 +20,27 @@ end
         model::Model
         training::Training
         order_by::Vector{String}
-        predictors::Vector{String}
+        inputs::Vector{String}
         targets::Vector{String}
         partition::Union{String, Nothing} = nothing
         suffix::String = "hat"
     end
 
-Run a Streamliner model, predicting `targets` from `predictors`.
+Run a Streamliner model, predicting `targets` from `inputs`.
 """
 struct StreamlinerCard <: StreamingCard
     model::Model
     training::Training
     order_by::Vector{String}
-    predictors::Vector{String}
+    inputs::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
     suffix::String
 end
 
-register_card("streamliner", StreamlinerCard)
-
 function StreamlinerCard(c::AbstractDict)
     order_by::Vector{String} = get(c, "order_by", String[])
-    predictors::Vector{String} = get(c, "predictors", String[])
+    inputs::Vector{String} = get(c, "inputs", String[])
     targets::Vector{String} = get(c, "targets", String[])
 
     parser = PARSER[]
@@ -60,7 +58,7 @@ function StreamlinerCard(c::AbstractDict)
         model,
         training,
         order_by,
-        predictors,
+        inputs,
         targets,
         partition,
         suffix
@@ -71,7 +69,7 @@ end
 
 sorting_vars(sc::StreamlinerCard) = sc.order_by
 grouping_vars(::StreamlinerCard) = String[]
-input_vars(sc::StreamlinerCard) = sc.predictors
+input_vars(sc::StreamlinerCard) = sc.inputs
 target_vars(sc::StreamlinerCard) = sc.targets
 weight_var(::StreamlinerCard) = nothing
 partition_var(sc::StreamlinerCard) = sc.partition
@@ -89,7 +87,7 @@ function train(
         repository,
         schema,
         sc.order_by,
-        sc.predictors,
+        sc.inputs,
         sc.targets,
         sc.partition
     )
@@ -138,7 +136,7 @@ function evaluate(
             repository,
             schema,
             sc.order_by,
-            sc.predictors,
+            sc.inputs,
             sc.targets,
             partition,
             uvals
@@ -174,7 +172,7 @@ function CardWidget(::Type{StreamlinerCard})
         Widget("model", options = model_tomls),
         Widget("training", options = training_tomls),
         Widget("order_by"),
-        Widget("predictors"),
+        Widget("inputs"),
         Widget("targets"),
         Widget("partition"),
         Widget("suffix", value = "hat"),
@@ -194,7 +192,6 @@ function CardWidget(::Type{StreamlinerCard})
 
     return CardWidget(;
         type = "streamliner",
-        label = "Streamliner",
         output = OutputSpec("targets", "suffix"),
         fields
     )

@@ -32,6 +32,13 @@ mktempdir() do data_dir
     model_directory = joinpath(static_directory, "model")
     training_directory = joinpath(static_directory, "training")
 
+    # Add trivial card
+    _train(wc, t, id; weights = nothing) = nothing
+    function _evaluate(wc, model, t, id)
+        return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
+    end
+    Pipelines.register_wild_card("trivial", "Trivial", _train, _evaluate)
+
     server = DashiBoard.launch(
         data_dir;
         async = true,
@@ -46,7 +53,7 @@ mktempdir() do data_dir
         resp = HTTP.post(url * "get-card-configurations", body = body)
         configs = JSON.parse(IOBuffer(resp.body))
         @test configs isa AbstractVector
-        @test length(configs) == 8
+        @test length(configs) == 9
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",

@@ -31,7 +31,7 @@ const INTERPOLATORS = OrderedDict(
 """
     struct InterpCard <: Card
         interpolator::Interpolator
-        predictor::String
+        input::String
         targets::Vector{String}
         extrapolation_left::ExtrapolationType.T
         extrapolation_right::ExtrapolationType.T
@@ -40,11 +40,11 @@ const INTERPOLATORS = OrderedDict(
         suffix::String = "hat"
     end
 
-Interpolate `targets` based on `predictor`.
+Interpolate `targets` based on `input`.
 """
 struct InterpCard <: StandardCard
     interpolator::Interpolator
-    predictor::String
+    input::String
     targets::Vector{String}
     extrapolation_left::ExtrapolationType.T
     extrapolation_right::ExtrapolationType.T
@@ -53,12 +53,10 @@ struct InterpCard <: StandardCard
     suffix::String
 end
 
-register_card("interp", InterpCard)
-
 function InterpCard(c::AbstractDict)
     method::String = c["method"]
     interpolator::Interpolator = INTERPOLATORS[method]
-    predictor::String = c["predictor"]
+    input::String = c["input"]
     targets::Vector{String} = c["targets"]
     extrapolation_left::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_left", "none")]
     extrapolation_right::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_right", "none")]
@@ -68,7 +66,7 @@ function InterpCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "hat")
     return InterpCard(
         interpolator,
-        predictor,
+        input,
         targets,
         extrapolation_left,
         extrapolation_right,
@@ -80,19 +78,19 @@ end
 
 ## StandardCard interface
 
-sorting_vars(ic::InterpCard) = [ic.predictor]
+sorting_vars(ic::InterpCard) = [ic.input]
 grouping_vars(::InterpCard) = String[]
-input_vars(ic::InterpCard) = [ic.predictor]
+input_vars(ic::InterpCard) = [ic.input]
 target_vars(ic::InterpCard) = ic.targets
 weight_var(::InterpCard) = nothing
 partition_var(ic::InterpCard) = ic.partition
 output_vars(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
 function _train(ic::InterpCard, t, _)
-    (; interpolator, extrapolation_left, extrapolation_right, dir, targets, predictor, partition) = ic
+    (; interpolator, extrapolation_left, extrapolation_right, dir, targets, input, partition) = ic
     return map(targets) do target
         itp = interpolator
-        y, x = t[target], t[predictor]
+        y, x = t[target], t[input]
         return if itp.has_dir
             itp.method(y, x; extrapolation_left, extrapolation_right, dir)
         else
@@ -102,8 +100,8 @@ function _train(ic::InterpCard, t, _)
 end
 
 function (ic::InterpCard)(itps, t, id)
-    (; targets, predictor, suffix) = ic
-    x = t[predictor]
+    (; targets, input, suffix) = ic
+    x = t[input]
     pred_table = SimpleTable()
 
     for (itp, target) in zip(itps, targets)
@@ -123,7 +121,7 @@ function CardWidget(::Type{InterpCard})
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
     fields = [
-        Widget("predictor"),
+        Widget("input"),
         Widget("targets"),
         Widget("method"; options, value = "linear"),
         Widget(
@@ -148,7 +146,6 @@ function CardWidget(::Type{InterpCard})
 
     return CardWidget(;
         type = "interp",
-        label = "Interpolation",
         output = OutputSpec("targets", "suffix"),
         fields
     )

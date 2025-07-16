@@ -20,7 +20,7 @@
         schema = schema,
         table = "split",
         order_by = ["No"],
-        predictors = ["TEMP", "PRES"],
+        inputs = ["TEMP", "PRES"],
         targets = ["Iws"],
         partition = "_tiled_partition"
     )
@@ -39,7 +39,7 @@
         "schema" => schema,
         "table" => "split",
         "order_by" => ["No"],
-        "predictors" => ["TEMP", "PRES"],
+        "inputs" => ["TEMP", "PRES"],
         "targets" => ["Iws"],
         "partition" => "_tiled_partition",
     )
@@ -100,7 +100,7 @@
         schema = schema,
         table = "split",
         order_by = ["No"],
-        predictors = ["TEMP", "PRES"],
+        inputs = ["TEMP", "PRES"],
         targets = ["cbwd"],
         partition = "_tiled_partition"
     )

@@ -2,7 +2,7 @@
   "basic": {
     "type": "streamliner",
     "order_by": ["No"],
-    "predictors": ["TEMP", "PRES"],
+    "inputs": ["TEMP", "PRES"],
     "targets": ["Iws"],
     "partition": "partition",
     "suffix": "hat",
@@ -14,7 +14,7 @@
   "classifier": {
     "type": "streamliner",
     "order_by": ["No"],
-    "predictors": ["TEMP", "PRES"],
+    "inputs": ["TEMP", "PRES"],
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",

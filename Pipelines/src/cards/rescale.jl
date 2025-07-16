@@ -106,8 +106,6 @@ struct RescaleCard <: SQLCard
     suffix::String
 end
 
-register_card("rescale", RescaleCard)
-
 function RescaleCard(c::AbstractDict)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
@@ -232,7 +230,6 @@ function CardWidget(::Type{RescaleCard})
 
     return CardWidget(;
         type = "rescale",
-        label = "Rescale",
         output = OutputSpec("columns", "suffix"),
         fields
     )

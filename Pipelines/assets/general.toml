@@ -8,6 +8,13 @@ widget = "input"
 label = "Output"
 placeholder = "Select output name..."
 
+# FIXME: implement multiple selection without given options
+[outputs]
+widget = "input"
+label = "Output"
+placeholder = "Select output names..."
+multiple = true
+
 [method]
 widget = "select"
 label = "Method"
@@ -39,16 +46,16 @@ placeholder = "Select target variables..."
 multiple = true
 options = { "-v" = "names" }
 
-[predictor]
+[input]
 widget = "select"
-label = "Predictor"
-placeholder = "Select predictor variable..."
+label = "Input"
+placeholder = "Select input variable..."
 options = { "-v" = "names" }
 
-[predictors]
+[inputs]
 widget = "select"
-label = "Predictors"
-placeholder = "Select predictor variables..."
+label = "Inputs"
+placeholder = "Select input variables..."
 multiple = true
 options = { "-v" = "names" }
 

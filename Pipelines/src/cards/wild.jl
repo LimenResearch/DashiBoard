@@ -38,8 +38,8 @@ function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     )
 end
 
-function register_wild_card(name::AbstractString, train, evaluate)
-    return register_card(name, WildCard{train, evaluate})
+function register_wild_card(name::AbstractString, label::AbstractString, train, evaluate)
+    return register_card(name, label, WildCard{train, evaluate})
 end
 
 ## StandardCard interface
@@ -58,8 +58,7 @@ _train(wc::WildCard{train}, t, id; weights = nothing) where {train} = train(wc, 
 
 ## UI representation
 
-# TODO: test
-function CardWidget(::Type{WildCard}; type, label)
+function CardWidget(::Type{WildCard{train, evaluate}}) where {train, evaluate}
 
     fields = Widget[
         Widget("order_by"),
@@ -70,5 +69,7 @@ function CardWidget(::Type{WildCard}; type, label)
         Widget("outputs"),
     ]
 
-    return CardWidget(; type, label, output = OutputSpec("outputs"), fields)
+    type = _card_type(WildCard{train, evaluate})
+
+    return CardWidget(; type, output = OutputSpec("outputs"), fields)
 end

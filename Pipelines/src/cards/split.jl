@@ -37,8 +37,6 @@ struct SplitCard <: SQLCard
     output::String
 end
 
-register_card("split", SplitCard)
-
 function SplitCard(c::AbstractDict)
     splitter::SQLNode = get_splitter(c)
     order_by::Vector{String} = get(c, "order_by", String[])
@@ -103,5 +101,5 @@ function CardWidget(
         Widget("tiles", visible = Dict("method" => ["tiles"])),
     ]
 
-    return CardWidget(; type = "split", label = "Split", output = OutputSpec("output"), fields)
+    return CardWidget(; type = "split", output = OutputSpec("output"), fields)
 end

@@ -52,8 +52,6 @@ struct DimensionalityReductionCard <: StandardCard
     output::String
 end
 
-register_card("dimensionality_reduction", DimensionalityReductionCard)
-
 function DimensionalityReductionCard(c::AbstractDict)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
@@ -120,7 +118,6 @@ function CardWidget(::Type{DimensionalityReductionCard})
 
     return CardWidget(;
         type = "dimensionality_reduction",
-        label = "Dimensionality Reduction",
         output = OutputSpec("output", nothing, "n_components"),
         fields
     )

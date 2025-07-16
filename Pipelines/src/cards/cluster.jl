@@ -45,8 +45,6 @@ struct ClusterCard <: StandardCard
     output::String
 end
 
-register_card("cluster", ClusterCard)
-
 function ClusterCard(c::AbstractDict)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
@@ -110,7 +108,6 @@ function CardWidget(::Type{ClusterCard})
 
     return CardWidget(;
         type = "cluster",
-        label = "Cluster",
         output = OutputSpec("output"),
         fields
     )

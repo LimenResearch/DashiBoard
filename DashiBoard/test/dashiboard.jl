@@ -46,7 +46,7 @@ mktempdir() do data_dir
         resp = HTTP.post(url * "get-card-configurations", body = body)
         configs = JSON.parse(IOBuffer(resp.body))
         @test configs isa AbstractVector
-        @test length(configs) == 8
+        @test length(configs) == 9
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",

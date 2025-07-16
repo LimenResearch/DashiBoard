@@ -2,7 +2,7 @@ to_term(x::String) = Term(Symbol(x))
 to_term(x::Number) = ConstantTerm(x)
 to_term(x::AbstractVector) = mapfoldl(to_term, *, x)
 
-to_predictors(x::AbstractVector) = mapfoldl(to_term, +, x)
+to_inputs(x::AbstractVector) = mapfoldl(to_term, +, x)
 to_target(x::AbstractString) = to_term(x)
 
 const NOISE_MODELS = OrderedDict(
@@ -47,12 +47,10 @@ struct GLMCard <: StandardCard
     suffix::String
 end
 
-register_card("glm", GLMCard)
-
 function GLMCard(c::AbstractDict)
-    predictors::Vector{Any} = c["predictors"]
+    inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
-    formula::FormulaTerm = to_target(target) ~ to_predictors(predictors)
+    formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
     weights::Union{String, Nothing} = get(c, "weights", nothing)
     distribution::Distribution = NOISE_MODELS[get(c, "distribution", "normal")]
     link_key::Union{String, Nothing} = get(c, "link", nothing)
@@ -95,7 +93,7 @@ end
 function CardWidget(::Type{GLMCard})
 
     fields = [
-        Widget("predictors"),
+        Widget("inputs"),
         Widget("target"),
         Widget("weights", required = false),
         Widget("distribution", options = collect(keys(NOISE_MODELS)), required = false),
@@ -106,7 +104,6 @@ function CardWidget(::Type{GLMCard})
 
     return CardWidget(;
         type = "glm",
-        label = "GLM",
         output = OutputSpec("target", "suffix"),
         fields
     )

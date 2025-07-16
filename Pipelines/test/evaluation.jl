@@ -8,7 +8,7 @@
         end
         return t_new, id
     end
-    Pipelines.register_wild_card("trivial", _train, _evaluate)
+    Pipelines.register_wild_card("trivial", "Trivial", _train, _evaluate)
 
     function trivialcard(inputs, outputs)
         c = Dict("type" => "trivial", "inputs" => inputs, "outputs" => outputs)

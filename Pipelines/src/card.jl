@@ -155,6 +155,7 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 
 # Construct cards
 
+const CARD_LABELS = OrderedDict{String, String}()
 const CARD_TYPES = OrderedDict{String, Type}()
 
 # Generate widgets and widget configurations
@@ -176,12 +177,13 @@ function card_configurations(options::AbstractDict = Dict())
     return [card_widget(d, k; get(options, k, (;))...) for k in keys(CARD_TYPES)]
 end
 
-function register_card(name::AbstractString, ::Type{T}) where {T <: Card}
+function register_card(name::AbstractString, label::AbstractString, ::Type{T}) where {T <: Card}
+    CARD_LABELS[name] = label
     CARD_TYPES[name] = T
     return
 end
 
-function card_name(c::Card)
-    name = findfirst(Fix1(isa, c), CARD_TYPES)
-    return something(name, "unknown")
-end
+_card_type(::Type{T}) where {T <: Card} = findfirst(Fix1(<:, T), CARD_TYPES)
+_card_type(c::T) where {T <: Card} = _card_type(T)
+
+card_label(c::Card) = CARD_LABELS[_card_type(c)]

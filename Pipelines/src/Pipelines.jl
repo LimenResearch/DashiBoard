@@ -155,4 +155,20 @@ include("cards/wild.jl")
 include("pipeline.jl")
 include("dag.jl")
 
+function __init__()
+    register_card("split", "Split", SplitCard)
+    register_card("rescale", "Rescale", RescaleCard)
+    register_card("cluster", "Cluster", ClusterCard)
+    register_card(
+        "dimensionality_reduction",
+        "Dimensionality Reduction",
+        DimensionalityReductionCard
+    )
+    register_card("glm", "GLM", GLMCard)
+    register_card("interp", "Interpolation", InterpCard)
+    register_card("gaussian_encoding", "Gaussian Encoding", GaussianEncodingCard)
+    register_card("streamliner", "Streamliner", StreamlinerCard)
+    return
+end
+
 end

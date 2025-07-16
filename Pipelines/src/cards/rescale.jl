@@ -102,7 +102,7 @@ struct RescaleCard <: SQLCard
     rescaler::Rescaler
     by::Vector{String}
     columns::Vector{String}
-    inverse_columns::Dict{String, String}
+    inverse_columns::Dict{String, String} # FIXME: make less general
     partition::Union{String, Nothing}
     suffix::String
 end

@@ -6,6 +6,13 @@
     "columns": ["TEMP"],
     "suffix": "rescaled"
   },
+  "zscore_flipped": {
+    "type": "rescale",
+    "method": "zscore",
+    "columns": ["TEMP", "PRES"],
+    "inverse_columns": { "TEMP": "PRES" },
+    "suffix": "rescaled"
+  },
   "maxabs": {
     "type": "rescale",
     "method": "maxabs",

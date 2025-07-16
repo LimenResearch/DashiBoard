@@ -77,6 +77,32 @@ mktempdir() do dir
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
+        card = Pipelines.Card(d["zscore_flipped"])
+        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+        df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled", "PRES_rescaled",
+        ]
+
+        TEMP_mean, TEMP_std = mean(df.TEMP), std(df.TEMP, corrected = false)
+        PRES_mean, PRES_std = mean(df.PRES), std(df.PRES, corrected = false)
+
+        @test df.TEMP_rescaled ≈ @. (df.TEMP - TEMP_mean) / TEMP_std
+        @test df.PRES_rescaled ≈ @. (df.PRES - PRES_mean) / PRES_std
+        DBInterface.execute(
+            Returns(nothing),
+            repo,
+            """
+            CREATE OR REPLACE TABLE tbl AS
+            SELECT PRES_rescaled FROM rescaled;
+            """
+        )
+
+        Pipelines.evaluate(repo, card, state, "tbl" => "inverted", invert = true)
+        df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
+        @test df′.PRES ≈ @. TEMP_mean + df.PRES_rescaled * TEMP_std
+
         card = Pipelines.Card(d["maxabs"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")

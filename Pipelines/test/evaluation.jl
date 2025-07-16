@@ -24,6 +24,12 @@
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl2(temp DOUBLE, wind DOUBLE)")
+    DBInterface.execute(
+        Returns(nothing), repo, """
+        CREATE TABLE tbl3("temp" DOUBLE, "wind" DOUBLE, "pred humid" DOUBLE)
+        """
+    )
+    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl4(temp DOUBLE, wind DOUBLE)")
 
     @test_throws KeyError Pipelines.evaluate!(repo, nodes, "tbl1")
 
@@ -44,6 +50,14 @@
         Pipelines.Node(trivialcard(["wind"], ["wind name"]), true),
     ]
 
+    # Test returned value of `Pipelines.evaluate!` when some update is not needed
+    g, output_vars = Pipelines.evaluate!(repo, nodes, "tbl3", ["temp", "wind"])
+    @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
+    @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+
+    # original table must supply precomputed variabels
+    @test_throws "pred humid" Pipelines.evaluate!(repo, nodes, "tbl4", ["temp", "wind"])
+
     g = Pipelines.digraph(nodes, ["temp", "wind"])
     hs = Pipelines.compute_height(g, nodes)
     @test hs == [-1, 0, 1, 0]
@@ -61,7 +75,6 @@
     ]
     table_vars = ["a", "b"]
 
-    # TODO fix evaluation when some update is not required
     g, vars = Pipelines.digraph_metadata(nodes, table_vars)
     @test nv(g) == 11
     # The graph nodes are

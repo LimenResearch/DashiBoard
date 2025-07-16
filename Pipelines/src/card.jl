@@ -131,15 +131,19 @@ function evaluate(
     )
     inputs, outputs = get_inputs(card), get_outputs(card)
     id_var, tmp = new_name("id", inputs, outputs), string(uuid4())
-    if invert
-        evaluate(repository, card, state, source => tmp, id_var; schema, invert)
-        select = get_inverse_outputs(card)
-    else
-        evaluate(repository, card, state, source => tmp, id_var; schema)
-        select = outputs
+    try
+        if invert
+            evaluate(repository, card, state, source => tmp, id_var; schema, invert)
+            select = get_inverse_outputs(card)
+        else
+            evaluate(repository, card, state, source => tmp, id_var; schema)
+            select = outputs
+        end
+        q = join_on_row_number(source, tmp, id_var, select)
+        replace_table(repository, q, destination; schema)
+    finally
+        delete_table(repository, tmp; schema)
     end
-    q = join_on_row_number(source, tmp, id_var, select)
-    replace_table(repository, q, destination; schema)
     return
 end
 

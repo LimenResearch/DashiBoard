@@ -26,10 +26,31 @@ set_state!(node::Node, state) = setproperty!(node, :state, state)
 get_inputs(node::Node)::Vector{String} = get_inputs(get_card(node))
 get_outputs(node::Node)::Vector{String} = get_outputs(get_card(node))
 
-function evaluate!(repository::Repository, nodes::AbstractVector{Node}, table::AbstractString; schema = nothing)
-    ns = colnames(repository, table; schema)
-    g, output_vars = digraph_metadata(nodes, ns)
+function evaluate!(
+        repository::Repository, nodes::AbstractVector{Node},
+        table::AbstractString; schema = nothing
+    )
+    source_vars = colnames(repository, table; schema)
+    return evaluate!(repository, nodes, table, source_vars; schema)
+end
+
+function evaluate!(
+        repository::Repository,
+        nodes::AbstractVector{Node},
+        table::AbstractString,
+        source_vars::AbstractVector;
+        schema = nothing
+    )
+
+    g, output_vars = digraph_metadata(nodes, source_vars)
     hs = compute_height(g, nodes)
+
+    # keep original columns if no update is needed, discard everything else
+    N, no_update = length(nodes), findall(==(-1), hs)
+    keep_vars = (output_vars[idx - N] for i in no_update for idx in outneighbors(g, i))
+    q = From(table) |> select_columns(source_vars, keep_vars)
+    replace_table(repository, q, table; schema)
+
     for idxs in layers(hs)
         # TODO: this can be run in parallel (cards must be made thread-safe first)
         for idx in idxs

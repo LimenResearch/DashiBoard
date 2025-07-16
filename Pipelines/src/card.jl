@@ -168,8 +168,9 @@ end
 
 function card_configurations(options::AbstractDict = Dict())
     d = Dict{String, AbstractDict}("general" => parse_toml_config("general"))
-    for k in keys(CARD_TYPES)
-        d[k] = parse_toml_config(k)
+    for (k, v) in pairs(CARD_TYPES)
+        # At the moment, `WildCard`s don't have config files
+        (v <: WildCard) || (d[k] = parse_toml_config(k))
     end
 
     return [card_widget(d, k; get(options, k, (;))...) for k in keys(CARD_TYPES)]

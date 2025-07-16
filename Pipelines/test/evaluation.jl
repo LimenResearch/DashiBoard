@@ -126,7 +126,7 @@ mktempdir() do dir
         @test count(==(1), df._percentile_partition) == 39441
         @test count(==(2), df._percentile_partition) == 4383
 
-        Pipelines.evaluatenodes(repo, nodes, "source")
+        Pipelines.evaluate(repo, nodes, "source")
         df = DBInterface.execute(DataFrame, repo, "FROM source")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",

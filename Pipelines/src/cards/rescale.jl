@@ -144,12 +144,16 @@ weight_var(::RescaleCard) = nothing
 partition_var(rc::RescaleCard) = rc.partition
 output_vars(rc::RescaleCard) = join_names.(all_input_vars(rc), rc.suffix)
 
-get_inverse_inputs(rc::RescaleCard) = join_names.(get_inverse_outputs(rc), rc.suffix)
+inverse_input_vars(rc::RescaleCard) = join_names.(inverse_output_vars(rc), rc.suffix)
 
-function get_inverse_outputs(rc::RescaleCard)
+function inverse_output_vars(rc::RescaleCard)
     (; targets, target_suffix) = rc
     return isnothing(target_suffix) ? targets : join_names.(targets, target_suffix)
 end
+
+# FIXME: what is the general fallback?
+get_inverse_inputs(rc::RescaleCard) = union(grouping_vars(rc), inverse_output_vars(rc))
+get_inverse_outputs(rc::RescaleCard) = inverse_output_vars(rc)
 
 function pair_wise_group_by(
         repository::Repository,
@@ -197,7 +201,7 @@ function evaluate(
     (; stats, transform, invtransform) = rescaler
 
     rescaled = if invert
-        inverse_inputs, inverse_outputs = get_inverse_inputs(rc), get_inverse_outputs(rc)
+        inverse_inputs, inverse_outputs = inverse_input_vars(rc), inverse_output_vars(rc)
         @. inverse_outputs => invtransform(targets, inverse_inputs)
     else
         inputs, outputs = all_input_vars(rc), get_outputs(rc)

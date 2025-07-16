@@ -149,7 +149,7 @@ function delete_table(
         "DROP",
         " ",
         virtual ? "VIEW" : "TABLE",
-        " ",
+        " IF EXISTS ",
         in_schema(name, schema)
     )
     return DBInterface.execute(Returns(nothing), repository, sql)

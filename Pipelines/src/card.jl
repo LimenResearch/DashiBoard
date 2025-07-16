@@ -115,40 +115,16 @@ See also [`train`](@ref).
 """
 function evaluate end
 
-function evaluate(repository::Repository, card::Card, (source, destination)::Pair; schema = nothing)
-    state = train(repository, card, source; schema)::CardState
-    evaluate(repository, card, state, source => destination; schema)
-    return state
+function evaluate(repository::Repository, card::Card, sd::Pair; schema = nothing)
+    return only(evaluate_many(repository, [card], sd; schema))
 end
 
 function evaluate(
-        repository::Repository,
-        card::Card,
-        state::CardState,
-        (source, destination)::Pair;
-        schema = nothing,
-        invert = false
+        repository::Repository, card::Card, state::CardState, sd::Pair;
+        schema = nothing, invert = false
     )
-    inputs, outputs = get_inputs(card), get_outputs(card)
-    id_var, tmp = new_name("id", inputs, outputs), string(uuid4())
-    try
-        if invert
-            evaluate(repository, card, state, source => tmp, id_var; schema, invert)
-            select = get_inverse_outputs(card)
-        else
-            evaluate(repository, card, state, source => tmp, id_var; schema)
-            select = outputs
-        end
-        q = join_on_row_number(source, tmp, id_var, select)
-        replace_table(repository, q, destination; schema)
-    finally
-        delete_table(repository, tmp; schema)
-    end
+    evaluate_many(repository, [card], [state], sd; schema, invert)
     return
-end
-
-function deevaluate(repository::Repository, c::Card, state::CardState, sd::Pair; schema = nothing)
-    return evaluate(repository, rc, state, sd; schema, invert = true)
 end
 
 """

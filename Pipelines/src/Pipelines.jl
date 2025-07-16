@@ -12,9 +12,9 @@ export card_configurations,
     StreamlinerCard,
     WildCard
 
-public train, evaluate, deevaluate, inputs, outputs, invertible
+public train, evaluate, inputs, outputs, invertible
 
-public evaluatenodes, deevaluatenodes, report, visualize, get_card, get_state, Node
+public evaluatenodes, report, visualize, get_card, get_state, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
@@ -154,6 +154,7 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 include("cards/wild.jl")
 
+include("parallel.jl")
 include("pipeline.jl")
 include("dag.jl")
 

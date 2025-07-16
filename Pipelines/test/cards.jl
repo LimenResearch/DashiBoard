@@ -93,15 +93,16 @@ mktempdir() do dir
         DBInterface.execute(
             Returns(nothing),
             repo,
+            # Simulate that we have a `PRES_hat_rescaled` column to denormalize
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT PRES_rescaled FROM rescaled;
+            SELECT TEMP_rescaled AS PRES_hat_rescaled FROM rescaled;
             """
         )
 
         Pipelines.evaluate(repo, card, state, "tbl" => "inverted", invert = true)
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
-        @test df′.PRES ≈ @. TEMP_mean + df.PRES_rescaled * TEMP_std
+        @test df′.PRES_hat ≈ @. PRES_mean + df.TEMP_rescaled * PRES_std
 
         card = Pipelines.Card(d["maxabs"])
         state = Pipelines.evaluate(repo, card, "selection" => "rescaled")

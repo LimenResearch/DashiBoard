@@ -143,6 +143,10 @@ function evaluate(
     return
 end
 
+function deevaluate(repository::Repository, c::Card, state::CardState, sd::Pair; schema = nothing)
+    return evaluate(repository, rc, state, sd; schema, invert = true)
+end
+
 """
     report(repository::Repository, nodes::AbstractVector)
 

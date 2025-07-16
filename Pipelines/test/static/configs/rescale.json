@@ -3,42 +3,49 @@
     "type": "rescale",
     "method": "zscore",
     "by": ["cbwd"],
-    "inputs": ["TEMP"],
+    "inputs": [],
+    "targets": ["TEMP"],
     "suffix": "rescaled"
   },
   "zscore_flipped": {
     "type": "rescale",
     "method": "zscore",
-    "inputs": ["TEMP", "PRES"],
+    "inputs": ["TEMP"],
+    "targets": ["PRES"],
     "inverse_columns": { "TEMP": "PRES" },
-    "suffix": "rescaled"
+    "suffix": "rescaled",
+    "target_suffix": "hat"
   },
   "maxabs": {
     "type": "rescale",
     "method": "maxabs",
     "by": ["year", "month", "cbwd"],
-    "inputs": ["TEMP"],
+    "inputs": [],
+    "targets": ["TEMP"],
     "suffix": "rescaled"
   },
   "minmax": {
     "type": "rescale",
     "method": "minmax",
     "by": [],
-    "inputs": ["TEMP"],
+    "inputs": [],
+    "targets": ["TEMP"],
     "suffix": "rescaled"
   },
   "log": {
     "type": "rescale",
     "method": "log",
     "by": [],
-    "inputs": ["PRES"],
+    "inputs": [],
+    "targets": ["PRES"],
     "suffix": "rescaled"
   },
   "logistic": {
     "type": "rescale",
     "method": "logistic",
     "by": [],
-    "inputs": ["hour"],
+    "inputs": [],
+    "targets": ["hour"],
     "suffix": "rescaled"
   }
 }

@@ -1,1 +1,4 @@
-
+[target_suffix]
+widget = "input"
+label = "Target suffix"
+placeholder = "Select target suffix..."

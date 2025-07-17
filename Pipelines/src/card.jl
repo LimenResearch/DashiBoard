@@ -55,6 +55,8 @@ function Card(d::AbstractDict)
     return CARD_TYPES[type](d)
 end
 
+# TODO: document
+
 function sorting_vars end
 function grouping_vars end
 function input_vars end
@@ -63,32 +65,39 @@ function weight_var end
 function partition_var end
 function output_vars end
 
+function inverse_input_vars end
+function inverse_output_vars end
+
 """
-    get_inputs(c::Card)::Vector{String}
+    get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
 
 Return the list of inputs for a given card.
 """
-function get_inputs(c::Card)::Vector{String}
-    return union(
-        sorting_vars(c),
-        grouping_vars(c),
-        input_vars(c),
-        target_vars(c),
-        to_stringlist(weight_var(c)),
-        to_stringlist(partition_var(c)),
-    )
+function get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
+    always_include = (sorting_vars(c), grouping_vars(c))
+    return if invert
+        union(always_include..., inverse_input_vars(c))
+    elseif train
+        union(
+            always_include...,
+            input_vars(c),
+            target_vars(c),
+            to_stringlist(weight_var(c)),
+            to_stringlist(partition_var(c)),
+        )
+    else
+        union(always_include..., input_vars(c))
+    end
 end
 
 """
-    get_outputs(c::Card)::Vector{String}
+    get_outputs(c::Card; invert::Bool = false)::Vector{String}
 
 Return the list of outputs for a given card.
 """
-get_outputs(c::Card)::Vector{String} = output_vars(c)
-
-# TODO: document
-function get_inverse_inputs end
-function get_inverse_outputs end
+function get_outputs(c::Card; invert::Bool = false)::Vector{String}
+    return invert ? inverse_output_vars(c) : output_vars(c)
+end
 
 """
     invertible(c::Card)::Bool
@@ -114,18 +123,6 @@ Here, `state` represents the result of `train(repository, card, source; schema)`
 See also [`train`](@ref).
 """
 function evaluate end
-
-function evaluate(repository::Repository, card::Card, sd::Pair; schema = nothing)
-    return only(evaluate_many(repository, [card], sd; schema))
-end
-
-function evaluate(
-        repository::Repository, card::Card, state::CardState, sd::Pair;
-        schema = nothing, invert = false
-    )
-    evaluate_many(repository, [card], [state], sd; schema, invert)
-    return
-end
 
 """
     report(repository::Repository, nodes::AbstractVector)

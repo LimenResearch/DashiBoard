@@ -14,7 +14,7 @@ export card_configurations,
 
 public train, evaluate, inputs, outputs, invertible
 
-public evaluatenodes, report, visualize, get_card, get_state, Node
+public evaluatenodes, report, visualize, get_card, get_state, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 

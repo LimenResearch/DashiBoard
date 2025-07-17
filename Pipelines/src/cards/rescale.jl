@@ -151,10 +151,6 @@ function inverse_output_vars(rc::RescaleCard)
     return isnothing(target_suffix) ? targets : join_names.(targets, target_suffix)
 end
 
-# FIXME: what is the general fallback?
-get_inverse_inputs(rc::RescaleCard) = union(grouping_vars(rc), inverse_output_vars(rc))
-get_inverse_outputs(rc::RescaleCard) = inverse_output_vars(rc)
-
 function pair_wise_group_by(
         repository::Repository,
         source::AbstractString,
@@ -194,7 +190,7 @@ function evaluate(
         (source, destination)::Pair,
         id_var::AbstractString;
         schema = nothing,
-        invert = false
+        invert::Bool = false
     )
 
     (; by, targets, rescaler, suffix) = rc

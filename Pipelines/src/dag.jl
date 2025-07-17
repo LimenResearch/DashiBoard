@@ -4,8 +4,8 @@ lazy_pairs(cs, xs) = Iterators.map(=>, repeated_keys(cs), xs)
 positive_values(d, ks) = Iterators.filter(>(0), Iterators.map(Fix1(getindex, d), ks))
 positive_values(d) = Fix1(positive_values, d)
 
-function combine_vars(table_vars, output_vars)
-    d = Dict{String, Int}(Iterators.zip(table_vars, Iterators.repeated(0)))
+function combine_vars(source_vars, output_vars)
+    d = Dict{String, Int}(Iterators.zip(source_vars, Iterators.repeated(0)))
     repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(d, var, i))
     isempty(repeated) || throw(ArgumentError("Columns $(repeated) would be overwritten"))
     return d
@@ -23,20 +23,22 @@ end
 
 ##
 
-function digraph(nodes::AbstractVector{Node}, table_vars::AbstractVector{<:AbstractString})
-    g, _ = digraph_metadata(nodes, table_vars)
+function digraph(nodes::AbstractVector{Node}, source_vars::AbstractVector{<:AbstractString})
+    g, _ = digraph_metadata(nodes, source_vars)
     return g
 end
 
-function digraph_metadata(nodes::AbstractVector{Node}, table_vars::AbstractVector{<:AbstractString}; invert = false)
+function digraph_metadata(
+        nodes::AbstractVector{Node},
+        source_vars::AbstractVector{<:AbstractString}
+    )
     Base.require_one_based_indexing(nodes)
-    _inputs, _outputs = invert ? (get_inverse_outputs, get_inverse_outputs) : (get_inputs, get_outputs)
     # preprocess outbound edges
-    output_vars, output_counts = flatten_and_count(_outputs, String, nodes)
+    output_vars, output_counts = flatten_and_count(get_outputs, String, nodes)
     # generate variable to index dictionary and validate result
-    d = combine_vars(table_vars, output_vars)
+    d = combine_vars(source_vars, output_vars)
     # preprocess inbound edges
-    inputs, input_counts = flatten_and_count(positive_values(d) ∘ _inputs, Int, nodes)
+    inputs, input_counts = flatten_and_count(positive_values(d) ∘ get_inputs, Int, nodes)
     # return graph and variable names
     return digraph(inputs, input_counts, output_counts), output_vars
 end

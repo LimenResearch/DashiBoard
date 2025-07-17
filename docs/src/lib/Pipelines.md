@@ -20,8 +20,9 @@ Pipelines.invertible
 ## Pipeline computation
 
 ```@docs
-Pipelines.Card(c::AbstractDict)
-Pipelines.evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
+Pipelines.Node
+Pipelines.train_evaluate!
+Pipelines.evaluate(repository::Repository, nodes::AbstractVector, table; schema = nothing)
 ```
 
 ## Pipeline reports

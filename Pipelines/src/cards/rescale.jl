@@ -134,7 +134,7 @@ end
 
 invertible(::RescaleCard) = true
 
-all_input_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
+_input_and_target_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
 
 sorting_vars(::RescaleCard) = String[]
 grouping_vars(rc::RescaleCard) = rc.by
@@ -142,7 +142,7 @@ input_vars(rc::RescaleCard) = rc.inputs
 target_vars(rc::RescaleCard) = rc.targets
 weight_var(::RescaleCard) = nothing
 partition_var(rc::RescaleCard) = rc.partition
-output_vars(rc::RescaleCard) = join_names.(all_input_vars(rc), rc.suffix)
+output_vars(rc::RescaleCard) = join_names.(_input_and_target_vars(rc), rc.suffix)
 
 inverse_input_vars(rc::RescaleCard) = join_names.(inverse_output_vars(rc), rc.suffix)
 
@@ -177,7 +177,7 @@ function train(repository::Repository, rc::RescaleCard, source::AbstractString; 
     tbl = if isempty(stats)
         SimpleTable()
     else
-        vars = all_input_vars(rc)
+        vars = _input_and_target_vars(rc)
         pair_wise_group_by(repository, source, by, vars, stats...; schema, rc.partition)
     end
     return CardState(content = jldserialize(tbl))
@@ -200,7 +200,7 @@ function evaluate(
         inverse_inputs, inverse_outputs = inverse_input_vars(rc), inverse_output_vars(rc)
         @. inverse_outputs => invtransform(targets, inverse_inputs)
     else
-        inputs, outputs = all_input_vars(rc), get_outputs(rc)
+        inputs, outputs = _input_and_target_vars(rc), output_vars(rc)
         @. outputs => transform(inputs)
     end
 

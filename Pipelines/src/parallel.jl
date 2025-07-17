@@ -1,7 +1,3 @@
-function train_many! end
-function evaluate_many end
-function train_evaluate_many! end
-
 to_pair(s::AbstractString) = s => s
 to_pair(s::Pair) = s
 
@@ -16,7 +12,7 @@ function train_many!(
     return
 end
 
-function evaluate_many(
+function evaljoin_many(
         repository::Repository, nodes::AbstractVector,
         table_names; schema = nothing
     )
@@ -40,12 +36,12 @@ function evaluate_many(
     return
 end
 
-function train_evaluate_many!(
+function train_evaljoin_many!(
         repository::Repository, nodes::AbstractVector,
         table_names; schema = nothing
     )
     (source, destination) = to_pair(table_names)
     train_many!(repository, nodes, source; schema)
-    evaluate_many(repository, nodes, source => destination; schema)
+    evaljoin_many(repository, nodes, source => destination; schema)
     return
 end

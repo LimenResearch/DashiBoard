@@ -114,10 +114,19 @@ Return a trained model for a given `card` on a table `table` in the database `re
 function train end
 
 """
-    evaluate(repository::Repository, card::Card, state::CardState, (source, destination)::Pair; schema = nothing)
+    evaluate(
+        repository::Repository,
+        card::Card,
+        state::CardState,
+        (source, destination)::Pair,
+        id::AbstractString;
+        schema = nothing
+    )
 
 Replace table `destination` in the database `repository.db` with the outcome of executing the `card`
 on the table `source`.
+The new table `destination` will have an additional column `id`, to be joined with the row
+number of the original table.
 
 Here, `state` represents the result of `train(repository, card, source; schema)`.
 See also [`train`](@ref).

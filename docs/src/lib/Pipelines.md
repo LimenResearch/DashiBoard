@@ -21,8 +21,9 @@ Pipelines.invertible
 
 ```@docs
 Pipelines.Node
-Pipelines.train_evaluate!
-Pipelines.evaluate(repository::Repository, nodes::AbstractVector, table; schema = nothing)
+Pipelines.train!
+Pipelines.evaljoin
+Pipelines.train_evaljoin!
 ```
 
 ## Pipeline reports

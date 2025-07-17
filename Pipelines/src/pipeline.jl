@@ -61,6 +61,19 @@ invertible(n::Node) = invertible(get_card(n))
 
 invert(n::Node) = invertible(n) ? Node(n, invert = true) : throw(ArgumentError("Node is not invertible"))
 
+"""
+    train!(
+        repository::Repository,
+        node::Node,
+        table::AbstractString;
+        schema = nothing
+    )
+
+Train `node` on table `table` in `repository`.
+The field `state` of `node` is modified.
+
+See also [`evaljoin`](@ref), [`train_evaljoin!`](@ref).
+"""
 function train!(repository::Repository, node::Node, table::AbstractString; schema = nothing)
     get_train(node) || return node
     get_invert(node) && throw(ArgumentError("Cannot train an inverted node"))
@@ -79,13 +92,71 @@ function evaluate(repository::Repository, node::Node, sd::Pair, id_var::Abstract
     return
 end
 
-function evaluate(repository::Repository, node::Node, table_names; schema = nothing)
-    evaluate_many(repository, [node], table_names; schema)
+"""
+    evaljoin!(
+        repository::Repository,
+        nodes::AbstractVector,
+        table::AbstractString,
+        [source_vars];
+        schema = nothing
+    )
+
+    evaljoin!(
+        repository::Repository,
+        node::Node,
+        tables::Union{AbstractString, Pair},
+        [source_vars];
+        schema = nothing
+    )
+
+Replace `table` in the database `repository.db` with the outcome of executing all
+the transformations in `nodes`, _without training the nodes_.
+The resulting outputs of the pipeline are joined with the original columns `source_vars`.
+
+If only a `node` is provided, then it is possible to have distinct source and destination tables.
+
+See also [`train!`](@ref), [`train_evaljoin!`](@ref).
+
+Return pipeline graph and metadata.
+"""
+function evaljoin end
+
+"""
+    train_evaljoin!(
+        repository::Repository,
+        nodes::AbstractVector,
+        table::AbstractString,
+        [source_vars];
+        schema = nothing
+    )
+
+    train_evaljoin!(
+        repository::Repository,
+        node::Node,
+        tables::Union{AbstractString, Pair},
+        [source_vars];
+        schema = nothing
+    )
+
+Replace `table` in the database `repository.db` with the outcome of executing all
+the transformations in `nodes`, _after having trained the nodes_.
+The resulting outputs of the pipeline are joined with the original columns `source_vars`.
+
+If only a `node` is provided, then it is possible to have distinct source and destination tables.
+
+See also [`train!`](@ref), [`evaljoin`](@ref).
+
+Return pipeline graph and metadata.
+"""
+function train_evaljoin! end
+
+function evaljoin(repository::Repository, node::Node, table_names; schema = nothing)
+    evaljoin_many(repository, [node], table_names; schema)
     return
 end
 
-function train_evaluate!(repository::Repository, node::Node, table_names; schema = nothing)
-    train_evaluate_many!(repository, [node], table_names; schema)
+function train_evaljoin!(repository::Repository, node::Node, table_names; schema = nothing)
+    train_evaljoin_many!(repository, [node], table_names; schema)
     return
 end
 
@@ -127,32 +198,24 @@ function foreach_layer(
     return
 end
 
-"""
-    train_evaluate!(repository::Repository, nodes::AbstractVector, table::AbstractString, [source_vars]; schema = nothing)
-
-Replace `table` in the database `repository.db` with the outcome of executing all
-the transformations in `nodes`, after having trained the nodes.
-
-Return pipeline object.
-"""
-function train_evaluate!(
-        repository::Repository, nodes::AbstractVector{Node},
-        table::AbstractString, source_vars = nothing;
-        schema = nothing
-    )
-    source_vars = @something source_vars colnames(repository, table; schema)
-    p = Pipeline(nodes, source_vars)
-    foreach_layer(train_evaluate_many!, p, repository, table; schema)
-    return p.g, p.output_vars
-end
-
-function evaluate(
+function evaljoin(
         repository::Repository, nodes::AbstractVector{Node},
         table::AbstractString, source_vars = nothing;
         schema = nothing
     )
     source_vars = @something source_vars colnames(repository, table; schema)
     p = Pipeline(Node.(nodes, train = false), source_vars)
-    foreach_layer(evaluate_many, p, repository, table; schema)
+    foreach_layer(evaljoin_many, p, repository, table; schema)
+    return p.g, p.output_vars
+end
+
+function train_evaljoin!(
+        repository::Repository, nodes::AbstractVector{Node},
+        table::AbstractString, source_vars = nothing;
+        schema = nothing
+    )
+    source_vars = @something source_vars colnames(repository, table; schema)
+    p = Pipeline(nodes, source_vars)
+    foreach_layer(train_evaljoin_many!, p, repository, table; schema)
     return p.g, p.output_vars
 end

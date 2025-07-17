@@ -12,9 +12,11 @@ export card_configurations,
     StreamlinerCard,
     WildCard
 
+public train!, evaljoin, train_evaljoin!
+
 public train, evaluate, inputs, outputs, invertible
 
-public evaluatenodes, report, visualize, get_card, get_state, invert, Node
+public report, visualize, get_card, get_state, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 

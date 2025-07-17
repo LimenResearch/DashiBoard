@@ -31,15 +31,15 @@
     )
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl4(temp DOUBLE, wind DOUBLE)")
 
-    @test_throws KeyError Pipelines.train_evaluate!(repo, nodes, "tbl1")
+    @test_throws KeyError Pipelines.train_evaljoin!(repo, nodes, "tbl1")
 
     @test_throws KeyError Pipelines.digraph(nodes, ["temp"])
     @test_throws ArgumentError Pipelines.digraph(nodes, ["temp", "wind", "pred humid"])
     faulty_node = Pipelines.Node(trivialcard(["temp"], ["pred temp"]))
     @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]), ["temp", "wind"])
 
-    # Test returned value of `Pipelines.train_evaluate!`
-    g, output_vars = Pipelines.train_evaluate!(repo, nodes, "tbl2")
+    # Test returned value of `Pipelines.train_evaljoin!`
+    g, output_vars = Pipelines.train_evaljoin!(repo, nodes, "tbl2")
     @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
@@ -50,13 +50,13 @@
         Pipelines.Node(trivialcard(["wind"], ["wind name"]), update = true),
     ]
 
-    # Test returned value of `Pipelines.train_evaluate!` when some update is not needed
-    g, output_vars = Pipelines.train_evaluate!(repo, nodes, "tbl3", ["temp", "wind"])
+    # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
+    g, output_vars = Pipelines.train_evaljoin!(repo, nodes, "tbl3", ["temp", "wind"])
     @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     # original table must supply precomputed variabels
-    @test_throws "pred humid" Pipelines.train_evaluate!(repo, nodes, "tbl4", ["temp", "wind"])
+    @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4", ["temp", "wind"])
 
     g = Pipelines.digraph(nodes, ["temp", "wind"])
     hs = Pipelines.compute_height(g, nodes)
@@ -114,7 +114,7 @@ mktempdir() do dir
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cards.json"))
         cards = Pipelines.Card.(d)
         nodes = Node.(cards)
-        Pipelines.train_evaluate!(repo, nodes, "selection")
+        Pipelines.train_evaljoin!(repo, nodes, "selection")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -127,7 +127,7 @@ mktempdir() do dir
         @test count(==(1), df._percentile_partition) == 39441
         @test count(==(2), df._percentile_partition) == 4383
 
-        Pipelines.evaluate(repo, nodes, "source")
+        Pipelines.evaljoin(repo, nodes, "source")
         df = DBInterface.execute(DataFrame, repo, "FROM source")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",

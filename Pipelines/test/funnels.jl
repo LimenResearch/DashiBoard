@@ -13,7 +13,7 @@
         )
         DataIngestion.load_files(repo, data_dir, spec["data"]; schema)
     end
-    Pipelines.train_evaluate!(repo, node, "source" => "split"; schema)
+    Pipelines.train_evaljoin!(repo, node, "source" => "split"; schema)
 
     data = Pipelines.DBData{2}(
         repository = repo,

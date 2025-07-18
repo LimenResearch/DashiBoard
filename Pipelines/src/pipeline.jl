@@ -1,4 +1,8 @@
-const StateRef = Base.RefValue{CardState}
+mutable struct StateRef
+    state::CardState
+end
+Base.getindex(ref::StateRef) = getfield(ref, 1)
+Base.setindex!(ref::StateRef, state::CardState) = setfield!(ref, 1, state)
 
 struct Node
     card::Card

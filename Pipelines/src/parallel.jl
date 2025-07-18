@@ -2,7 +2,7 @@ to_pair(s::AbstractString) = s => s
 to_pair(s::Pair) = s
 
 function train_many!(
-        repository::Repository, nodes::AbstractVector,
+        repository::Repository, nodes::Union{Tuple, AbstractVector},
         table::AbstractString; schema = nothing
     )
     n = length(nodes)
@@ -13,8 +13,8 @@ function train_many!(
 end
 
 function evaljoin_many(
-        repository::Repository, nodes::AbstractVector,
-        table_names; schema = nothing
+        repository::Repository, nodes::Union{Tuple, AbstractVector},
+        table_names::Union{AbstractString, Pair}; schema = nothing
     )
     n = length(nodes)
     outputs = get_outputs.(nodes)
@@ -37,8 +37,8 @@ function evaljoin_many(
 end
 
 function train_evaljoin_many!(
-        repository::Repository, nodes::AbstractVector,
-        table_names; schema = nothing
+        repository::Repository, nodes::Union{Tuple, AbstractVector},
+        table_names::Union{AbstractString, Pair}; schema = nothing
     )
     (source, destination) = to_pair(table_names)
     train_many!(repository, nodes, source; schema)

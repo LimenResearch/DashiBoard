@@ -151,12 +151,12 @@ Return pipeline graph and metadata.
 function train_evaljoin! end
 
 function evaljoin(repository::Repository, node::Node, table_names; schema = nothing)
-    evaljoin_many(repository, [node], table_names; schema)
+    evaljoin_many(repository, (node,), table_names; schema)
     return
 end
 
 function train_evaljoin!(repository::Repository, node::Node, table_names; schema = nothing)
-    train_evaljoin_many!(repository, [node], table_names; schema)
+    train_evaljoin_many!(repository, (node,), table_names; schema)
     return
 end
 
@@ -169,8 +169,8 @@ struct Pipeline
     output_vars::Vector{String}
 end
 
-function Pipeline(nodes::AbstractVector{Node}, source_vars::AbstractVector{<:AbstractString})
-    g, output_vars = digraph_metadata(nodes, source_vars)
+function Pipeline(nodes::AbstractVector{Node})
+    g, source_vars, output_vars = digraph_metadata(nodes)
     return Pipeline(nodes, g, source_vars, output_vars)
 end
 
@@ -178,7 +178,8 @@ function foreach_layer(
         f::F,
         p::Pipeline,
         repository::Repository,
-        table::AbstractString;
+        table::AbstractString,
+        keep_vars::AbstractVector;
         schema = nothing
     ) where {F}
 
@@ -187,8 +188,8 @@ function foreach_layer(
 
     # keep original columns if no update is needed, discard everything else
     N, no_update = length(nodes), findall(==(-1), hs)
-    keep_vars = (output_vars[idx - N] for i in no_update for idx in outneighbors(g, i))
-    q = From(table) |> select_columns(source_vars, keep_vars)
+    precomputed_vars = (output_vars[idx - N] for i in no_update for idx in outneighbors(g, i))
+    q = From(table) |> select_columns(keep_vars, source_vars, precomputed_vars)
     replace_table(repository, q, table; schema)
 
     for idxs in layers(hs)
@@ -200,22 +201,22 @@ end
 
 function evaljoin(
         repository::Repository, nodes::AbstractVector{Node},
-        table::AbstractString, source_vars = nothing;
+        table::AbstractString, keep_vars::Union{AbstractString, Nothing} = nothing;
         schema = nothing
     )
-    source_vars = @something source_vars colnames(repository, table; schema)
-    p = Pipeline(Node.(nodes, train = false), source_vars)
-    foreach_layer(evaljoin_many, p, repository, table; schema)
-    return p.g, p.output_vars
+    p = Pipeline(Node.(nodes, train = false))
+    keep_vars = @something keep_vars colnames(repository, table; schema)
+    foreach_layer(evaljoin_many, p, repository, table, keep_vars; schema)
+    return Pipeline(nodes, p.g, p.source_vars, p.output_vars)
 end
 
 function train_evaljoin!(
         repository::Repository, nodes::AbstractVector{Node},
-        table::AbstractString, source_vars = nothing;
+        table::AbstractString, keep_vars::Union{AbstractString, Nothing} = nothing;
         schema = nothing
     )
-    source_vars = @something source_vars colnames(repository, table; schema)
-    p = Pipeline(nodes, source_vars)
-    foreach_layer(train_evaljoin_many!, p, repository, table; schema)
-    return p.g, p.output_vars
+    p = Pipeline(nodes)
+    keep_vars = @something keep_vars colnames(repository, table; schema)
+    foreach_layer(train_evaljoin_many!, p, repository, table, keep_vars; schema)
+    return p
 end

@@ -31,7 +31,7 @@ using RelocatableFolders: @path
 using JLD2: jldopen
 using StructUtils: make
 
-using OrderedCollections: OrderedDict
+using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface
 

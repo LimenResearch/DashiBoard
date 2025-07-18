@@ -17,7 +17,7 @@
         Pipelines.Node(trivialcard(["wind"], ["wind name"]), update = true),
     ]
 
-    g = Pipelines.digraph(nodes, ["temp", "wind"])
+    g = Pipelines.digraph(nodes)
     order = Pipelines.topological_sort(g)
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
@@ -31,17 +31,21 @@
     )
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl4(temp DOUBLE, wind DOUBLE)")
 
-    @test_throws KeyError Pipelines.train_evaljoin!(repo, nodes, "tbl1")
+    @test_throws "wind" Pipelines.train_evaljoin!(repo, nodes, "tbl1")
 
-    @test_throws KeyError Pipelines.digraph(nodes, ["temp"])
-    @test_throws ArgumentError Pipelines.digraph(nodes, ["temp", "wind", "pred humid"])
+    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    @test source_vars == ["temp", "wind"]
+    @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+
     faulty_node = Pipelines.Node(trivialcard(["temp"], ["pred temp"]))
-    @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]), ["temp", "wind"])
+    @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]))
 
     # Test returned value of `Pipelines.train_evaljoin!`
-    g, output_vars = Pipelines.train_evaljoin!(repo, nodes, "tbl2")
-    @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
-    @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+    p = Pipelines.train_evaljoin!(repo, nodes, "tbl2")
+    @test p.nodes === nodes
+    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.source_vars == ["temp", "wind"]
+    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     nodes = [
         Pipelines.Node(trivialcard(["temp"], ["pred humid"]), update = false),
@@ -51,21 +55,22 @@
     ]
 
     # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
-    g, output_vars = Pipelines.train_evaljoin!(repo, nodes, "tbl3", ["temp", "wind"])
-    @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
-    @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+    p = Pipelines.train_evaljoin!(repo, nodes, "tbl3")
+    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.source_vars == ["temp", "wind"]
+    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     # original table must supply precomputed variabels
-    @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4", ["temp", "wind"])
+    @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4")
 
-    g = Pipelines.digraph(nodes, ["temp", "wind"])
+    g = Pipelines.digraph(nodes)
     hs = Pipelines.compute_height(g, nodes)
     @test hs == [-1, 0, 1, 0]
     @test Pipelines.layers(hs) == [[2, 4], [3]]
     @test isempty(Pipelines.layers(Int[]))
 
     # Empty case
-    @test Pipelines.digraph(Pipelines.Node[], String[]) == DiGraph(0)
+    @test Pipelines.digraph(Pipelines.Node[]) == DiGraph(0)
 
     nodes = [
         Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), update = false),
@@ -73,9 +78,9 @@
         Pipelines.Node(trivialcard(["b"], ["e"]), update = true),
         Pipelines.Node(trivialcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
-    table_vars = ["a", "b"]
 
-    g, vars = Pipelines.digraph_metadata(nodes, table_vars)
+    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    @test source_vars == ["a", "b"]
     @test nv(g) == 11
     # The graph nodes are
     # 1 => n1, 2 => n2, 3 => n3, 4 => n4,
@@ -95,7 +100,7 @@
         Edge(8, 4),
     ]
 
-    s = sprint(Pipelines.graphviz, g, nodes, vars)
+    s = sprint(Pipelines.graphviz, g, nodes, output_vars)
     @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 end
 

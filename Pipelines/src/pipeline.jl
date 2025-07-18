@@ -93,6 +93,8 @@ end
 struct Pipeline
     nodes::Vector{Node}
     g::DiGraph{Int}
+    precomputed_nodes::Vector{Int}
+    layers::Vector{Vector{Int}}
     source_vars::Vector{String}
     output_vars::Vector{String}
 end
@@ -101,8 +103,21 @@ function Pipeline(node_iter; train::Bool = true)
     nodes::Vector{Node} = train ? collect(Node, node_iter) : map(notrain, node_iter)
     foreach(check_inverted_no_train, nodes)
     g, source_vars, output_vars = digraph_metadata(nodes)
-    return Pipeline(nodes, g, source_vars, output_vars)
+    hs = compute_height(g, get_update.(nodes))
+    precomputed_nodes = findall(==(-1), hs)
+    return Pipeline(
+        nodes,
+        g,
+        precomputed_nodes,
+        layers(hs),
+        source_vars,
+        output_vars
+    )
 end
+
+no_update_vars(p::Pipeline) = Iterators.flatmap(Fix1(get_outputs, p), p.precomputed_nodes)
+
+get_outputs(p::Pipeline, i::Integer) = p.output_vars[outneighbors(p.g, i) .- length(p.nodes)]
 
 graphviz(io::IO, p::Pipeline) = graphviz(io, p.g, p.nodes, p.output_vars)
 
@@ -116,20 +131,65 @@ function foreach_layer(
     ) where {F}
 
     keep_vars = @something keep_vars colnames(repository, table; schema)
-    (; nodes, g, source_vars, output_vars) = p
-    hs = compute_height(g, nodes)
+    (; nodes, g, layers, source_vars, output_vars) = p
 
-    # keep original columns if no update is needed, discard everything else
-    N, no_update = length(nodes), findall(==(-1), hs)
-    precomputed_vars = (output_vars[idx - N] for i in no_update for idx in outneighbors(g, i))
-    q = From(table) |> select_columns(keep_vars, source_vars, precomputed_vars)
+    # Keep columns if any of the following condition applies:
+    # - they belong to `keep_vars`,
+    # - they are the input of a node,
+    # - they are the output of a precomputed node.
+    q = From(table) |> select_columns(keep_vars, source_vars, no_update_vars(p))
     replace_table(repository, q, table; schema)
 
-    for idxs in layers(hs)
-        f(repository, nodes[idxs], table; schema)
+    for idxs in layers
+        f(repository, nodes[idxs], table => table; schema)
     end
 
     return p
+end
+
+## Parallel computations
+
+function train_many!(
+        repository::Repository, nodes::Union{Tuple, AbstractVector},
+        table::AbstractString; schema = nothing
+    )
+    n = length(nodes)
+    Threads.@threads for i in 1:n
+        train!(repository, nodes[i], table; schema)
+    end
+    return
+end
+
+function evaljoin_many(
+        repository::Repository, nodes::Union{Tuple, AbstractVector},
+        (source, destination)::Pair; schema = nothing
+    )
+    n = length(nodes)
+    outputs = get_outputs.(nodes)
+    tmp_names = join_names.(string(uuid4()), 1:n)
+    id_vars = new_name.("id", outputs)
+
+    try
+        Threads.@threads for i in 1:n
+            evaluate(repository, nodes[i], source => tmp_names[i], id_vars[i]; schema)
+        end
+        q = join_on_row_number(source, tmp_names, id_vars, outputs)
+        replace_table(repository, q, destination; schema)
+    finally
+        for tmp in tmp_names
+            delete_table(repository, tmp; schema)
+        end
+    end
+    return
+end
+
+function train_evaljoin_many!(
+        repository::Repository, nodes::Union{Tuple, AbstractVector},
+        (source, destination)::Pair; schema = nothing
+    )
+    train_many!(repository, nodes, source; schema)
+    evaljoin_many(repository, nodes, source => destination; schema)
+    return
 end
 
 ## Training and evaluation methods
@@ -146,7 +206,7 @@ end
     evaljoin!(
         repository::Repository,
         node::Node,
-        tables::Union{AbstractString, Pair},
+        (source, destination)::Pair,
         [keep_vars];
         schema = nothing
     )
@@ -156,7 +216,7 @@ the transformations in `nodes`, _without training the nodes_.
 The resulting outputs of the pipeline are joined with the original columns `keep_vars`
 (defaults to keeping all columns).
 
-If only a `node` is provided, then it is possible to have distinct source and destination tables.
+If only a `node` is provided, then one should pass both source and destination tables.
 
 See also [`train!`](@ref), [`train_evaljoin!`](@ref).
 
@@ -176,7 +236,7 @@ function evaljoin end
     train_evaljoin!(
         repository::Repository,
         node::Node,
-        tables::Union{AbstractString, Pair},
+        (source, destination)::Pair,
         [keep_vars];
         schema = nothing
     )
@@ -186,7 +246,7 @@ the transformations in `nodes`, _after having trained the nodes_.
 The resulting outputs of the pipeline are joined with the original columns `keep_vars`
 (defaults to keeping all columns).
 
-If only a `node` is provided, then it is possible to have distinct source and destination tables.
+If only a `node` is provided, then one should pass both source and destination tables.
 
 See also [`train!`](@ref), [`evaljoin`](@ref).
 
@@ -196,7 +256,7 @@ function train_evaljoin! end
 
 function evaljoin(
         repository::Repository, node::Node,
-        table_names::StringOrPair; schema = nothing
+        table_names::Pair; schema = nothing
     )
     evaljoin_many(repository, (node,), table_names; schema)
     return
@@ -221,7 +281,7 @@ end
 
 function train_evaljoin!(
         repository::Repository, node::Node,
-        table_names::StringOrPair; schema = nothing
+        table_names::Pair; schema = nothing
     )
     train_evaljoin_many!(repository, (node,), table_names; schema)
     return

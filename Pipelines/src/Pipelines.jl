@@ -156,7 +156,6 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 include("cards/wild.jl")
 
-include("parallel.jl")
 include("pipeline.jl")
 include("dag.jl")
 

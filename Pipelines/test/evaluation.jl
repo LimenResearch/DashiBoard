@@ -42,7 +42,10 @@
 
     # Test returned value of `Pipelines.train_evaljoin!`
     p = Pipelines.train_evaljoin!(repo, nodes, "tbl2")
-    @test p.nodes === nodes
+    @test p.nodes == nodes
+    for (n1, n2) in zip(nodes, p.nodes)
+        @test n1.state === n2.state
+    end
     @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
     @test p.source_vars == ["temp", "wind"]
     @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
@@ -102,6 +105,10 @@
 
     s = sprint(Pipelines.graphviz, g, nodes, output_vars)
     @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
+
+    p = Pipelines.Pipeline(nodes)
+    s = sprint(Pipelines.graphviz, p)
+    @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 end
 
 mktempdir() do dir
@@ -160,11 +167,19 @@ mktempdir() do dir
             )
         )
 
-        @test node.card isa Pipelines.RescaleCard
+        @test get_card(node) isa Pipelines.RescaleCard
         for k in fieldnames(Pipelines.RescaleCard)
-            @test getfield(node.card, k) == getfield(card, k)
+            @test getfield(get_card(node), k) == getfield(card, k)
         end
-        @test node.state.content == state.content
-        @test node.state.metadata == state.metadata
+        @test get_state(node).content == state.content
+        @test get_state(node).metadata == state.metadata
+
+        node2 = Pipelines.unlink(node)
+        @test node.card == node2.card
+        @test node.update == node2.update
+        @test node.train == node2.train
+        @test node.invert == node2.invert
+        @test node.state[] == node2.state[]
+        @test node.state !== node2.state
     end
 end

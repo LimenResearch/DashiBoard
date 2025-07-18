@@ -101,7 +101,7 @@ mktempdir() do dir
             # Simulate that we have a `PRES_hat_rescaled` column to denormalize
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT TEMP_rescaled AS PRES_hat_rescaled FROM rescaled;
+            SELECT TEMP_rescaled AS PRES_rescaled_hat FROM rescaled;
             """
         )
 

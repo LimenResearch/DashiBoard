@@ -144,12 +144,10 @@ weight_var(::RescaleCard) = nothing
 partition_var(rc::RescaleCard) = rc.partition
 output_vars(rc::RescaleCard) = join_names.(_input_and_target_vars(rc), rc.suffix)
 
-inverse_input_vars(rc::RescaleCard) = join_names.(inverse_output_vars(rc), rc.suffix)
+_append_suffix(s::AbstractString, suffix) = isnothing(suffix) ? s : join_names(s, suffix)
 
-function inverse_output_vars(rc::RescaleCard)
-    (; targets, target_suffix) = rc
-    return isnothing(target_suffix) ? targets : join_names.(targets, target_suffix)
-end
+inverse_input_vars(rc::RescaleCard) = _append_suffix.(join_names.(rc.targets, rc.suffix), rc.target_suffix)
+inverse_output_vars(rc::RescaleCard) = _append_suffix.(rc.targets, rc.target_suffix)
 
 function pair_wise_group_by(
         repository::Repository,

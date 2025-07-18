@@ -12,9 +12,11 @@ export card_configurations,
     StreamlinerCard,
     WildCard
 
-public train, evaluate, deevaluate, inputs, outputs, invertible
+public train!, evaljoin, train_evaljoin!
 
-public evaluatenodes, deevaluatenodes, report, visualize, get_card, get_state, Node
+public train, evaluate, inputs, outputs, invertible
+
+public report, visualize, get_card, get_state, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
@@ -29,7 +31,7 @@ using RelocatableFolders: @path
 using JLD2: jldopen
 using StructUtils: make
 
-using OrderedCollections: OrderedDict
+using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface
 

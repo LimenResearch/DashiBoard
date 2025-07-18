@@ -1,7 +1,7 @@
 {
   "identity": {
     "type": "gaussian_encoding",
-    "column": "month",
+    "input": "month",
     "n_modes": 4,
     "max": 12,
     "lambda": 0.5,
@@ -10,7 +10,7 @@
   },
   "dayofyear": {
     "type": "gaussian_encoding",
-    "column": "date",
+    "input": "date",
     "n_modes": 12,
     "max": 365,
     "lambda": 0.5,
@@ -19,7 +19,7 @@
   },
   "hour": {
     "type": "gaussian_encoding",
-    "column": "time",
+    "input": "time",
     "n_modes": 4,
     "max": 24,
     "lambda": 0.5,
@@ -28,7 +28,7 @@
   },
   "minute": {
     "type": "gaussian_encoding",
-    "column": "time",
+    "input": "time",
     "n_modes": 1,
     "max": 24,
     "lambda": 0.5,

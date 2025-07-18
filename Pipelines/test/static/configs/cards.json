@@ -19,7 +19,7 @@
     "type": "rescale",
     "method": "zscore",
     "by": ["cbwd"],
-    "columns": ["PRES", "TEMP"],
+    "inputs": ["PRES", "TEMP"],
     "partition": "_tiled_partition"
   }
 ]

@@ -28,18 +28,18 @@ end
 """
     struct ClusterCard <: Card
         clusterer::Clusterer
-        columns::Vector{String}
+        inputs::Vector{String}
         weights::Union{String, Nothing}
         partition::Union{String, Nothing}
         output::String
     end
 
-Cluster `columns` based on `clusterer`.
+Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
     clusterer::Clusterer
-    columns::Vector{String}
+    inputs::Vector{String}
     weights::Union{String, Nothing}
     partition::Union{String, Nothing}
     output::String
@@ -49,13 +49,13 @@ function ClusterCard(c::AbstractDict)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     clusterer::Clusterer = Clusterer(method_name, method_options)
-    columns::Vector{String} = c["columns"]
+    inputs::Vector{String} = c["inputs"]
     weights::Union{String, Nothing} = get(c, "weights", nothing)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
         clusterer,
-        columns,
+        inputs,
         weights,
         partition,
         output
@@ -66,14 +66,14 @@ end
 
 sorting_vars(::ClusterCard) = String[]
 grouping_vars(::ClusterCard) = String[]
-input_vars(cc::ClusterCard) = cc.columns
+input_vars(cc::ClusterCard) = cc.inputs
 target_vars(::ClusterCard) = String[]
 weight_var(cc::ClusterCard) = cc.weights
 partition_var(cc::ClusterCard) = cc.partition
 output_vars(cc::ClusterCard) = [cc.output]
 
 function _train(cc::ClusterCard, t, id; weights = nothing)
-    X = stack(Fix1(getindex, t), cc.columns, dims = 1)
+    X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
     res = cc.clusterer.method(X; weights, cc.clusterer.options...)
     label = assignments(res)
     return (; label, id) # return `label`s and relative `id`s for the evaluation
@@ -94,7 +94,7 @@ function CardWidget(::Type{ClusterCard})
 
     fields = Widget[
         Widget("method", options = method_names),
-        Widget("columns"),
+        Widget("inputs"),
         Widget("weights", visible = Dict("method" => ["kmeans"]), required = false),
         Widget("partition", required = false),
         Widget("output"),

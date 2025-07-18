@@ -3,35 +3,49 @@
     "type": "rescale",
     "method": "zscore",
     "by": ["cbwd"],
-    "columns": ["TEMP"],
+    "inputs": [],
+    "targets": ["TEMP"],
     "suffix": "rescaled"
+  },
+  "zscore_flipped": {
+    "type": "rescale",
+    "method": "zscore",
+    "inputs": ["TEMP"],
+    "targets": ["PRES"],
+    "inverse_columns": { "TEMP": "PRES" },
+    "suffix": "rescaled",
+    "target_suffix": "hat"
   },
   "maxabs": {
     "type": "rescale",
     "method": "maxabs",
     "by": ["year", "month", "cbwd"],
-    "columns": ["TEMP"],
+    "inputs": [],
+    "targets": ["TEMP"],
     "suffix": "rescaled"
   },
   "minmax": {
     "type": "rescale",
     "method": "minmax",
     "by": [],
-    "columns": ["TEMP"],
+    "inputs": [],
+    "targets": ["TEMP"],
     "suffix": "rescaled"
   },
   "log": {
     "type": "rescale",
     "method": "log",
     "by": [],
-    "columns": ["PRES"],
+    "inputs": [],
+    "targets": ["PRES"],
     "suffix": "rescaled"
   },
   "logistic": {
     "type": "rescale",
     "method": "logistic",
     "by": [],
-    "columns": ["hour"],
+    "inputs": [],
+    "targets": ["hour"],
     "suffix": "rescaled"
   }
 }

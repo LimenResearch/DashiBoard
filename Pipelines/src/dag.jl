@@ -1,43 +1,47 @@
 repeated_keys(cs) = Iterators.flatmap(splat(Iterators.repeated), pairs(cs))
 lazy_pairs(cs, xs) = Iterators.map(=>, repeated_keys(cs), xs)
 
-positive_values(d, ks) = Iterators.filter(>(0), Iterators.map(Fix1(getindex, d), ks))
-positive_values(d) = Fix1(positive_values, d)
-
-function combine_vars(table_vars, output_vars)
-    d = Dict{String, Int}(Iterators.zip(table_vars, Iterators.repeated(0)))
+function output_dict(output_vars)
+    d = Dict{String, Int}(Iterators.map(reverse, enumerate(output_vars)))
     repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(d, var, i))
     isempty(repeated) || throw(ArgumentError("Columns $(repeated) would be overwritten"))
     return d
 end
 
-function flatten_and_count(f::F, ::Type{T}, v::AbstractVector) where {F, T}
-    vals, counts = T[], fill(0, length(v))
+function flatten_and_count!(f::F, vals::AbstractVector, v::AbstractVector) where {F}
+    counts = fill(0, length(v))
     for (i, x) in pairs(v)
         l = length(vals)
         append!(vals, f(x))
         counts[i] = length(vals) - l
     end
-    return vals::Vector{T}, counts::Vector{Int}
+    return counts::Vector{Int}
 end
 
 ##
 
-function digraph(nodes::AbstractVector{Node}, table_vars::AbstractVector{<:AbstractString})
-    g, _ = digraph_metadata(nodes, table_vars)
+function digraph(nodes::AbstractVector{Node})
+    g, _... = digraph_metadata(nodes)
     return g
 end
 
-function digraph_metadata(nodes::AbstractVector{Node}, table_vars::AbstractVector{<:AbstractString})
+function digraph_metadata(nodes::AbstractVector{Node})
     Base.require_one_based_indexing(nodes)
+    inputs, source_vars, output_vars = Int[], OrderedSet{String}(), String[]
     # preprocess outbound edges
-    output_vars, output_counts = flatten_and_count(get_outputs, String, nodes)
+    output_counts = flatten_and_count!(get_outputs, output_vars, nodes)
     # generate variable to index dictionary and validate result
-    d = combine_vars(table_vars, output_vars)
+    d = output_dict(output_vars)
     # preprocess inbound edges
-    inputs, input_counts = flatten_and_count(positive_values(d) ∘ get_inputs, Int, nodes)
+    input_counts = flatten_and_count!(inputs, nodes) do node
+        vars = get_inputs(node)
+        idxs = get.((d,), vars, 0)
+        is_source = idxs .== 0
+        union!(source_vars, view(vars, is_source))
+        return view(idxs, .!is_source)
+    end
     # return graph and variable names
-    return digraph(inputs, input_counts, output_counts), output_vars
+    return digraph(inputs, input_counts, output_counts), collect(String, source_vars), output_vars
 end
 
 function digraph(

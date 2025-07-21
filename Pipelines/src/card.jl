@@ -220,13 +220,6 @@ const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 
 # Generate widgets and widget configurations
 
-function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
-    return @with WIDGET_CONFIG => merge(d["general"], d[key]) begin
-        config = CARD_CONFIGS[key]
-        CardWidget(config, key; kwargs...)
-    end
-end
-
 function card_configurations(options::AbstractDict = Dict())
     general_widgets = parse_toml_config("general")
     card_widgets = CardWidget[]

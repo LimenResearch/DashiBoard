@@ -51,8 +51,9 @@ abstract type StreamingCard <: Card end
 Generate a [`Card`](@ref) based on a configuration dictionary.
 """
 function Card(d::AbstractDict)
-    type = d["type"]
-    return CARD_TYPES[type](d)
+    type::String = d["type"]
+    config = CARD_CONFIGS[type]
+    return config(d)
 end
 
 # TODO: document
@@ -171,37 +172,84 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 
 # Construct cards
 
-const CARD_LABELS = OrderedDict{String, String}()
-const CARD_TYPES = OrderedDict{String, Type}()
+"""
+    @kwdef struct CardConfig{T <: Card}
+        key::String
+        label::String
+        needs_targets::Bool
+        needs_order::Bool
+        allows_weights::Bool
+        allows_partition::Bool
+        widgets::StringDict = StringDict()
+    end
+"""
+@kwdef struct CardConfig{T <: Card}
+    key::String
+    label::String
+    needs_targets::Bool
+    needs_order::Bool
+    allows_weights::Bool
+    allows_partition::Bool
+    widgets::StringDict = StringDict()
+end
+
+function CardConfig{T}(c::AbstractDict) where {T <: Card}
+    key::String = c["key"]
+    label::String = c["label"]
+    needs_targets::Bool = c["needs_targets"]
+    needs_order::Bool = c["needs_order"]
+    allows_weights::Bool = c["allows_weights"]
+    allows_partition::Bool = c["allows_partition"]
+    widgets::StringDict = c["widgets"]
+    return CardConfig{T}(;
+        key,
+        label,
+        needs_targets,
+        needs_order,
+        allows_weights,
+        allows_partition,
+        widgets
+    )
+end
+
+(::CardConfig{T})(c::AbstractDict) where {T} = T(c)
+
+const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 
 # Generate widgets and widget configurations
 
 function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
     return @with WIDGET_CONFIG => merge(d["general"], d[key]) begin
-        card = CARD_TYPES[key]
-        CardWidget(card, key; kwargs...)
+        config = CARD_CONFIGS[key]
+        CardWidget(config, key; kwargs...)
     end
 end
 
 function card_configurations(options::AbstractDict = Dict())
-    d = Dict{String, AbstractDict}("general" => parse_toml_config("general"))
-    for (k, v) in pairs(CARD_TYPES)
-        # At the moment, `WildCard`s don't have config files
-        d[k] = (v <: WildCard) ? StringDict() : parse_toml_config(k)
+    general_widgets = parse_toml_config("general")
+    card_widgets = CardWidget[]
+    for (k, config) in pairs(CARD_CONFIGS)
+        specific_options = get(options, k, (;))
+        @with WIDGET_CONFIG => merge(general_widgets, config.widgets) begin
+            push!(card_widgets, CardWidget(config; specific_options...))
+        end
     end
-
-    return [card_widget(d, k; get(options, k, (;))...) for k in keys(CARD_TYPES)]
+    return card_widgets
 end
 
 """
-    register_card(::Type{T}, name::AbstractString, label::AbstractString) where {T <: Card}
+    register_card(config::CardConfig)
 """
-function register_card(::Type{T}, name::AbstractString, label::AbstractString) where {T <: Card}
-    CARD_LABELS[name] = label
-    CARD_TYPES[name] = T
+function register_card(config::CardConfig)
+    CARD_CONFIGS[config.key] = config
     return
 end
 
 card_label(c::Card) = c.label
 
-card_label(c::AbstractDict) = get(() -> CARD_LABELS[c["type"]], c, "label")
+function card_label(c::AbstractDict)
+    return get(c, "label") do
+        type::String = c["type"]
+        return CARD_CONFIGS[type].label
+    end
+end

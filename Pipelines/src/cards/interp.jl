@@ -55,6 +55,8 @@ struct InterpCard <: StandardCard
     suffix::String
 end
 
+const INTERP_CARD_CONFIG = CardConfig{InterpCard}(parse_toml_config("interp"))
+
 function InterpCard(c::AbstractDict)
     label::String = card_label(c)
     method::String = c["method"]
@@ -119,7 +121,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{InterpCard}, type::AbstractString)
+function CardWidget(config::CardConfig{InterpCard})
     options = collect(keys(INTERPOLATORS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
@@ -148,5 +150,5 @@ function CardWidget(::Type{InterpCard}, type::AbstractString)
         Widget("suffix", value = "hat"),
     ]
 
-    return CardWidget(type, fields, OutputSpec("targets", "suffix"))
+    return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

@@ -1,14 +1,21 @@
-[extrapolation_left]
+key = "interp"
+label = "Interpolation"
+needs_targets = true
+needs_order = false
+allows_weights = false
+allows_partition = true
+
+[widgets.extrapolation_left]
 widget = "select"
 label = "Extrapolation (left)"
 placeholder = "Select extrapolation function..."
 
-[extrapolation_right]
+[widgets.extrapolation_right]
 widget = "select"
 label = "Extrapolation (right)"
 placeholder = "Select extrapolation function..."
 
-[dir]
+[widgets.dir]
 widget = "select"
 label = "Extrapolation direction"
 placeholder = "Select extrapolation direction..."

@@ -1,4 +1,11 @@
-[target_suffix]
+key = "rescale"
+label = "Rescale"
+needs_targets = false
+needs_order = false
+allows_weights = false
+allows_partition = true
+
+[widgets.target_suffix]
 widget = "input"
 label = "Target suffix"
 placeholder = "Select target suffix..."

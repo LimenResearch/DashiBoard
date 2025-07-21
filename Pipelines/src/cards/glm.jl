@@ -49,6 +49,8 @@ struct GLMCard <: StandardCard
     suffix::String
 end
 
+const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("glm"))
+
 function GLMCard(c::AbstractDict)
     label::String = card_label(c)
     inputs::Vector{Any} = c["inputs"]
@@ -93,7 +95,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{GLMCard}, type::AbstractString)
+function CardWidget(config::CardConfig{GLMCard})
 
     fields = [
         Widget("inputs"),
@@ -105,5 +107,5 @@ function CardWidget(::Type{GLMCard}, type::AbstractString)
         Widget("suffix", value = "hat"),
     ]
 
-    return CardWidget(type, fields, OutputSpec("target", "suffix"))
+    return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))
 end

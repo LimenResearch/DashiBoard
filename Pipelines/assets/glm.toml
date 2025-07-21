@@ -1,9 +1,16 @@
-[distribution]
+key = "glm"
+label = "GLM"
+needs_targets = true
+needs_order = false
+allows_weights = true
+allows_partition = true
+
+[widgets.distribution]
 widget = "select"
 label = "Noise"
 placeholder = "Select noise model..."
 
-[link]
+[widgets.link]
 widget = "select"
 label = "Link"
 placeholder = "Select link function..."

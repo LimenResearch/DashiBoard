@@ -1,4 +1,11 @@
-[n_components]
+key = "dimensionality_reduction"
+label = "Dimensionality Reduction"
+needs_targets = false
+needs_order = false
+allows_weights = false
+allows_partition = true
+
+[widgets.n_components]
 widget = "input"
 label = "Number of components"
 placeholder = "Select number of components..."

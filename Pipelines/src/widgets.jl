@@ -75,7 +75,3 @@ struct CardWidget
     fields::Vector{Widget}
     output::OutputSpec
 end
-
-function CardWidget(type::AbstractString, fields::AbstractVector, output::OutputSpec)
-    return CardWidget(type, CARD_LABELS[type], fields, output)
-end

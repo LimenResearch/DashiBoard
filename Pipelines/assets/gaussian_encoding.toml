@@ -1,16 +1,23 @@
-[n_modes]
+key = "gaussian_encoding"
+label = "Gaussian Encoding"
+needs_targets = false
+needs_order = false
+allows_weights = false
+allows_partition = false
+
+[widgets.n_modes]
 widget = "input"
 label = "Number of modes"
 placeholder = "Select number of modes..."
 type = "number"
 
-[max]
+[widgets.max]
 widget = "input"
 label = "Maximum value"
 placeholder = "Select maximum value of column..."
 type = "number"
 
-[lambda]
+[widgets.lambda]
 widget = "input"
 label = "Scaling coefficient"
 placeholder = "Rescale Gaussian curves horizontally by a given factor..."

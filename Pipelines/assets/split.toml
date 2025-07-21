@@ -1,4 +1,11 @@
-[tiles]
+key = "split"
+label = "Split"
+needs_targets = false
+needs_order = true
+allows_weights = false
+allows_partition = false
+
+[widgets.tiles]
 widget = "select"
 label = "Tiles"
 placeholder = "Select tiles..."
@@ -6,7 +13,7 @@ multiple = true
 type = "number"
 options = [1, 2]
 
-[percentile]
+[widgets.percentile]
 widget = "input"
 label = "Percentile"
 placeholder = "Select percentile..."

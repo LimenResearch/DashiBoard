@@ -40,6 +40,8 @@ struct StreamlinerCard <: StreamingCard
     suffix::String
 end
 
+const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("streamliner"))
+
 function StreamlinerCard(c::AbstractDict)
     label::String = card_label(c)
 
@@ -170,7 +172,7 @@ function list_tomls(dir)
     return [f for (f, ext) in fls if ext == ".toml"]
 end
 
-function CardWidget(::Type{StreamlinerCard}, type::AbstractString)
+function CardWidget(config::CardConfig{StreamlinerCard})
 
     model_tomls = list_tomls(MODEL_DIR[])
     training_tomls = list_tomls(TRAINING_DIR[])
@@ -197,5 +199,5 @@ function CardWidget(::Type{StreamlinerCard}, type::AbstractString)
         append!(fields, generate_widget.(wdgs, "training", t, idx))
     end
 
-    return CardWidget(type, fields, OutputSpec("targets", "suffix"))
+    return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

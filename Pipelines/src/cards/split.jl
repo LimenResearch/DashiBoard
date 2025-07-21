@@ -39,6 +39,8 @@ struct SplitCard <: SQLCard
     output::String
 end
 
+const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("split"))
+
 function SplitCard(c::AbstractDict)
     label::String = card_label(c)
     splitter::SQLNode = get_splitter(c)
@@ -92,7 +94,7 @@ end
 ## UI representation
 
 function CardWidget(
-        ::Type{SplitCard}, type::AbstractString;
+        config::CardConfig{SplitCard};
         percentile = (min = 0, max = 1, step = 0.01),
     )
 
@@ -113,5 +115,5 @@ function CardWidget(
         Widget("tiles", visible = Dict("method" => ["tiles"])),
     ]
 
-    return CardWidget(type, fields, OutputSpec("output"))
+    return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

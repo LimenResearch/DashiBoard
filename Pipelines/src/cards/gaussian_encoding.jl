@@ -70,6 +70,9 @@ struct GaussianEncodingCard <: SQLCard
     suffix::String
 end
 
+const GAUSSIAN_ENCODING_CARD_CONFIG =
+    CardConfig{GaussianEncodingCard}(parse_toml_config("gaussian_encoding"))
+
 function GaussianEncodingCard(c::AbstractDict)
     label::String = card_label(c)
     input::String = c["input"]
@@ -149,7 +152,7 @@ end
 ## UI representation
 
 function CardWidget(
-        ::Type{GaussianEncodingCard}, type::AbstractString;
+        config::CardConfig{GaussianEncodingCard};
         n_modes = (min = 2, step = 1, max = nothing),
         max = (min = 0, step = nothing, max = nothing),
         lambda = (min = 0, step = nothing, max = nothing),
@@ -166,5 +169,5 @@ function CardWidget(
         Widget("suffix", value = "gaussian"),
     ]
 
-    return CardWidget(type, fields, OutputSpec("input", "suffix", "n_modes"))
+    return CardWidget(config.key, config.label, fields, OutputSpec("input", "suffix", "n_modes"))
 end

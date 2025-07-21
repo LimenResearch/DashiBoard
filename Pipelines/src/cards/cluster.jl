@@ -47,6 +47,8 @@ struct ClusterCard <: StandardCard
     output::String
 end
 
+const CLUSTER_CARD_CONFIG = CardConfig{ClusterCard}(parse_toml_config("cluster"))
+
 function ClusterCard(c::AbstractDict)
     label::String = card_label(c)
     method_name::String = c["method"]
@@ -92,7 +94,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{ClusterCard}, type::AbstractString)
+function CardWidget(config::CardConfig{ClusterCard})
 
     method_names = collect(keys(CLUSTERING_FUNCTIONS))
 
@@ -110,5 +112,5 @@ function CardWidget(::Type{ClusterCard}, type::AbstractString)
         append!(fields, generate_widget.(wdgs, "method", m, idx))
     end
 
-    return CardWidget(type, fields, OutputSpec("output"))
+    return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

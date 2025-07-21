@@ -193,7 +193,10 @@ function card_configurations(options::AbstractDict = Dict())
     return [card_widget(d, k; get(options, k, (;))...) for k in keys(CARD_TYPES)]
 end
 
-function register_card(name::AbstractString, label::AbstractString, ::Type{T}) where {T <: Card}
+"""
+    register_card(::Type{T}, name::AbstractString, label::AbstractString) where {T <: Card}
+"""
+function register_card(::Type{T}, name::AbstractString, label::AbstractString) where {T <: Card}
     CARD_LABELS[name] = label
     CARD_TYPES[name] = T
     return

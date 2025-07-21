@@ -3,18 +3,34 @@
     function _evaluate(wc, model, t, id)
         return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end
-    Pipelines.register_wild_card("trivial", "Trivial", _train, _evaluate)
+    Pipelines.register_wild_card(
+        WildCard{_train, _evaluate},
+        "trivial", "Trivial",
+        WildCardConfig(needs_targets = false)
+    )
 
-    function trivialcard(inputs, outputs)
-        c = Dict("type" => "trivial", "inputs" => inputs, "outputs" => outputs)
+    function trivialcard(inputs::AbstractVector, output::AbstractString)
+        c = Dict("type" => "trivial", "inputs" => inputs, "output" => output)
         return Pipelines.Card(c)
     end
 
+    function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
+        return WildCard{_train, _evaluate}(
+            label = "Trivial",
+            order_by = String[],
+            inputs = inputs,
+            targets = String[],
+            weights = nothing,
+            partition = nothing,
+            outputs = outputs
+        )
+    end
+
     nodes = [
-        Pipelines.Node(trivialcard(["temp"], ["pred humid"]), update = true),
-        Pipelines.Node(trivialcard(["pred humid"], ["pred wind"]), update = true),
-        Pipelines.Node(trivialcard(["wind", "wind name"], ["pred temp"]), update = true),
-        Pipelines.Node(trivialcard(["wind"], ["wind name"]), update = true),
+        Pipelines.Node(trivialcard(["temp"], "pred humid"), update = true),
+        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), update = true),
+        Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
     ]
 
     g = Pipelines.digraph(nodes)
@@ -37,7 +53,7 @@
     @test source_vars == ["temp", "wind"]
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
-    faulty_node = Pipelines.Node(trivialcard(["temp"], ["pred temp"]))
+    faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"))
     @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]))
 
     # Test returned value of `Pipelines.train_evaljoin!`
@@ -51,10 +67,10 @@
     @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     nodes = [
-        Pipelines.Node(trivialcard(["temp"], ["pred humid"]), update = false),
-        Pipelines.Node(trivialcard(["pred humid"], ["pred wind"]), update = true),
-        Pipelines.Node(trivialcard(["wind", "wind name"], ["pred temp"]), update = false),
-        Pipelines.Node(trivialcard(["wind"], ["wind name"]), update = true),
+        Pipelines.Node(trivialcard(["temp"], "pred humid"), update = false),
+        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), update = false),
+        Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
     ]
 
     # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
@@ -76,10 +92,10 @@
     @test Pipelines.digraph(Pipelines.Node[]) == DiGraph(0)
 
     nodes = [
-        Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), update = false),
-        Pipelines.Node(trivialcard(["a"], ["c", "d"]), update = true),
-        Pipelines.Node(trivialcard(["b"], ["e"]), update = true),
-        Pipelines.Node(trivialcard(["e", "f"], ["g", "h", "i"]), update = true),
+        Pipelines.Node(trivialmultioutputcard(["a", "c", "e"], ["f"]), update = false),
+        Pipelines.Node(trivialmultioutputcard(["a"], ["c", "d"]), update = true),
+        Pipelines.Node(trivialmultioutputcard(["b"], ["e"]), update = true),
+        Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
 
     g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)

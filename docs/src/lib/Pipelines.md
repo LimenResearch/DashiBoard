@@ -51,3 +51,11 @@ Pipelines.GaussianEncodingCard
 Pipelines.StreamlinerCard
 Pipelines.WildCard
 ```
+
+## Card registration
+
+```@docs
+Pipelines.register_card
+Pipelines.register_wild_card
+Pipelines.WildCardConfig
+```

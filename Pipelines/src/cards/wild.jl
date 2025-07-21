@@ -1,4 +1,21 @@
 """
+    @kwdef struct WildCardConfig
+        needs_targets::Bool = true
+        needs_order::Bool = false
+        allows_weights::Bool = false
+        allows_partition::Bool = true
+    end
+"""
+@kwdef struct WildCardConfig
+    needs_targets::Bool = true
+    needs_order::Bool = false
+    allows_weights::Bool = false
+    allows_partition::Bool = true
+end
+
+const WILD_CARD_CONFIGS = OrderedDict{String, WildCardConfig}()
+
+"""
     struct WildCard{train, evaluate} <: Card
         label::String
         order_by::Vector{String}
@@ -10,8 +27,10 @@
     end
 
 Custom `card` that uses arbitrary training and evaluations functions.
+
+See also [`register_wild_card`](@ref).
 """
-struct WildCard{train, evaluate} <: StandardCard
+@kwdef struct WildCard{train, evaluate} <: StandardCard
     label::String
     order_by::Vector{String}
     inputs::Vector{String}
@@ -24,10 +43,19 @@ end
 function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     label::String = card_label(c)
 
-    order_by::Vector{String} = get(c, "order_by", String[])
-    inputs::Vector{String} = get(c, "inputs", String[])
-    targets::Vector{String} = get(c, "targets", String[])
-    outputs::Vector{String} = get(c, "outputs", String[])
+    config = WILD_CARD_CONFIGS[c["type"]]
+
+    order_by::Vector{String} = config.needs_order ? c["order_by"] : String[]
+    inputs::Vector{String} = c["inputs"]
+    targets::Vector{String} = config.needs_targets ? c["targets"] : String[]
+
+    outputs::Vector{String} = if config.needs_targets
+        suffix::String = c["suffix"]
+        join_names(targets, suffix)
+    else
+        output::String = c["output"]
+        [output]
+    end
 
     weights = get(c, "weights", nothing)
     partition = get(c, "partition", nothing)
@@ -43,8 +71,21 @@ function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     )
 end
 
-function register_wild_card(name::AbstractString, label::AbstractString, train, evaluate)
-    return register_card(name, label, WildCard{train, evaluate})
+"""
+    function register_wild_card(
+        ::Type{WildCard{train, evaluate}},
+        name::AbstractString, label::AbstractString,
+        config::WildCardConfig
+    ) where {train, evaluate}
+"""
+function register_wild_card(
+        ::Type{WildCard{train, evaluate}},
+        name::AbstractString, label::AbstractString,
+        config::WildCardConfig
+    ) where {train, evaluate}
+
+    WILD_CARD_CONFIGS[name] = config
+    return register_card(WildCard{train, evaluate}, name, label)
 end
 
 ## StandardCard interface
@@ -63,16 +104,24 @@ _train(wc::WildCard{train}, t, id; weights = nothing) where {train} = train(wc, 
 
 ## UI representation
 
-function CardWidget(::Type{<:WildCard}, type::AbstractString)
+function CardWidget(
+        ::Type{WildCard{train, evaluate}},
+        type::AbstractString
+    ) where {train, evaluate}
 
-    fields = Widget[
-        Widget("order_by"),
-        Widget("inputs"),
-        Widget("targets", required = false),
-        Widget("weights", required = false),
-        Widget("partition", required = false),
-        Widget("outputs"),
+    config = WILD_CARD_CONFIGS[type]
+
+    conditional_fields = Tuple{Widget, Bool}[
+        (Widget("order_by"), config.needs_order),
+        (Widget("inputs"), true),
+        (Widget("targets"), config.needs_targets),
+        (Widget("weights"), config.allows_weights),
+        (Widget("partition"), config.allows_partition),
+        (Widget("output"), !config.needs_targets),
+        (Widget("suffix"), config.needs_targets),
     ]
 
-    return CardWidget(type, fields, OutputSpec("outputs"))
+    fields = map(first, filter(last, conditional_fields))
+    output = config.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
+    return CardWidget(type, fields, output)
 end

@@ -8,13 +8,6 @@ widget = "input"
 label = "Output"
 placeholder = "Select output name..."
 
-# FIXME: implement multiple selection without given options
-[outputs]
-widget = "input"
-label = "Output"
-placeholder = "Select output names..."
-multiple = true
-
 [method]
 widget = "select"
 label = "Method"

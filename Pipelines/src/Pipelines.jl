@@ -12,6 +12,8 @@ export card_configurations,
     StreamlinerCard,
     WildCard
 
+export register_card, register_wild_card, WildCardConfig
+
 public train!, evaljoin, train_evaljoin!
 
 public train, evaluate, inputs, outputs, invertible
@@ -160,18 +162,18 @@ include("pipeline.jl")
 include("dag.jl")
 
 function __init__()
-    register_card("split", "Split", SplitCard)
-    register_card("rescale", "Rescale", RescaleCard)
-    register_card("cluster", "Cluster", ClusterCard)
+    register_card(SplitCard, "split", "Split")
+    register_card(RescaleCard, "rescale", "Rescale")
+    register_card(ClusterCard, "cluster", "Cluster")
     register_card(
+        DimensionalityReductionCard,
         "dimensionality_reduction",
-        "Dimensionality Reduction",
-        DimensionalityReductionCard
+        "Dimensionality Reduction"
     )
-    register_card("glm", "GLM", GLMCard)
-    register_card("interp", "Interpolation", InterpCard)
-    register_card("gaussian_encoding", "Gaussian Encoding", GaussianEncodingCard)
-    register_card("streamliner", "Streamliner", StreamlinerCard)
+    register_card(GLMCard, "glm", "GLM")
+    register_card(InterpCard, "interp", "Interpolation")
+    register_card(GaussianEncodingCard, "gaussian_encoding", "Gaussian Encoding")
+    register_card(StreamlinerCard, "streamliner", "Streamliner")
     return
 end
 

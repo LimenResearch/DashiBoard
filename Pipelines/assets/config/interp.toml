@@ -5,17 +5,17 @@ needs_order = false
 allows_weights = false
 allows_partition = true
 
-[widgets.extrapolation_left]
+[widget_types.extrapolation_left]
 widget = "select"
 label = "Extrapolation (left)"
 placeholder = "Select extrapolation function..."
 
-[widgets.extrapolation_right]
+[widget_types.extrapolation_right]
 widget = "select"
 label = "Extrapolation (right)"
 placeholder = "Select extrapolation function..."
 
-[widgets.dir]
+[widget_types.dir]
 widget = "select"
 label = "Extrapolation direction"
 placeholder = "Select extrapolation direction..."

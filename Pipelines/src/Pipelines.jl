@@ -1,6 +1,6 @@
 module Pipelines
 
-export card_configurations,
+export card_widgets,
     Card,
     SplitCard,
     RescaleCard,
@@ -23,7 +23,7 @@ public report, visualize, get_card, get_state, invert, Node
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2
-using Base.ScopedValues: @with, ScopedValue
+using Base.ScopedValues: ScopedValue
 
 using UUIDs: uuid4
 
@@ -130,13 +130,13 @@ using Dates: hour, minute
 const StringDict = Dict{String, Any}
 const SymbolDict = Dict{Symbol, Any}
 
-const WIDGET_CONFIG = ScopedValue{StringDict}()
-
 function parse_toml_config(args...)::StringDict
     fs..., l = args
     path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
     return parsefile(path)
 end
+
+const WIDGET_TYPES = ScopedValue{StringDict}(parse_toml_config("widget_types"))
 
 include("tables.jl")
 include("widgets.jl")

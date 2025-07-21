@@ -68,7 +68,7 @@ _train(wc::WildCard{train}, t, id; weights = nothing) where {train} = train(wc, 
 
 ## UI representation
 
-function CardWidget(config::CardConfig{WildCard{train, evaluate}}) where {train, evaluate}
+function CardWidget(config::CardConfig{WildCard{train, evaluate}}, ::AbstractDict) where {train, evaluate}
 
     conditional_fields = Tuple{Widget, Bool}[
         (Widget("order_by"), config.needs_order),

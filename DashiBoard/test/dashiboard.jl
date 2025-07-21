@@ -57,8 +57,8 @@ mktempdir() do data_dir
     @testset "request" begin
         url = "http://127.0.0.1:8080/"
 
-        body = read(joinpath(@__DIR__, "static", "card-configurations.json"), String)
-        resp = HTTP.post(url * "get-card-configurations", body = body)
+        body = read(joinpath(@__DIR__, "static", "card-widgets.json"), String)
+        resp = HTTP.post(url * "get-card-widgets", body = body)
         configs = JSON.parse(IOBuffer(resp.body))
         @test configs isa AbstractVector
         @test length(configs) == 9
@@ -67,7 +67,7 @@ mktempdir() do data_dir
             "Content-Type" => "application/json",
             "Transfer-Encoding" => "chunked",
         ]
-        resp = HTTP.request("OPTIONS", url * "get-card-configurations")
+        resp = HTTP.request("OPTIONS", url * "get-card-widgets")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
             "Transfer-Encoding" => "chunked",

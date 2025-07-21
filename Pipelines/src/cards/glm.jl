@@ -95,14 +95,16 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{GLMCard})
+function CardWidget(config::CardConfig{GLMCard}, ::AbstractDict)
+    noise_models = collect(keys(NOISE_MODELS))
+    link_functions = collect(keys(LINK_FUNCTIONS))
 
     fields = [
         Widget("inputs"),
         Widget("target"),
         Widget("weights", required = false),
-        Widget("distribution", options = collect(keys(NOISE_MODELS)), required = false),
-        Widget("link", options = collect(keys(LINK_FUNCTIONS)), required = false),
+        Widget("distribution", config.widget_types, options = noise_models, required = false),
+        Widget("link", config.widget_types, options = link_functions, required = false),
         Widget("partition", required = false),
         Widget("suffix", value = "hat"),
     ]

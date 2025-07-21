@@ -151,21 +151,19 @@ end
 
 ## UI representation
 
-function CardWidget(
-        config::CardConfig{GaussianEncodingCard};
-        n_modes = (min = 2, step = 1, max = nothing),
-        max = (min = 0, step = nothing, max = nothing),
-        lambda = (min = 0, step = nothing, max = nothing),
-    )
+function CardWidget(config::CardConfig{GaussianEncodingCard}, options::AbstractDict)
+    methods = collect(keys(TEMPORAL_PREPROCESSING))
 
-    options = collect(keys(TEMPORAL_PREPROCESSING))
+    n_modes_options = get(options, "n_modes", StringDict("min" => 1, "step" => 1))
+    max_options = get(options, "max", StringDict("min" => 0))
+    lambda_options = get(options, "lambda", StringDict("min" => 0))
 
     fields = [
-        Widget("method"; options),
+        Widget("method"; options = methods),
         Widget("input"),
-        Widget("n_modes"; n_modes.min, n_modes.step, n_modes.max),
-        Widget("max"; max.min, max.step, max.max),
-        Widget("lambda"; lambda.min, lambda.step, lambda.max),
+        Widget("n_modes", config.widget_types, n_modes_options),
+        Widget("max", config.widget_types, max_options),
+        Widget("lambda", config.widget_types, lambda_options),
         Widget("suffix", value = "gaussian"),
     ]
 

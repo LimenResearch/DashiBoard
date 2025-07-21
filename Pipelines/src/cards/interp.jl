@@ -121,27 +121,30 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{InterpCard})
-    options = collect(keys(INTERPOLATORS))
+function CardWidget(config::CardConfig{InterpCard}, ::AbstractDict)
+    methods = collect(keys(INTERPOLATORS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
     fields = [
         Widget("input"),
         Widget("targets"),
-        Widget("method"; options, value = "linear"),
+        Widget("method"; options = methods, value = "linear"),
         Widget(
             "extrapolation_left",
+            config.widget_types,
             value = "linear",
             options = extrapolation_options
         ),
         Widget(
             "extrapolation_right",
+            config.widget_types,
             value = "linear",
             options = extrapolation_options
         ),
         Widget(
             "dir",
+            config.widget_types,
             options = direction_options,
             value = "left",
             visible = Dict("method" => ["constant"])

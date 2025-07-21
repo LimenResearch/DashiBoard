@@ -5,7 +5,9 @@ needs_order = false
 allows_weights = true
 allows_partition = true
 
-widgets = {}
+widget_types = {}
+
+[methods.kmeans]
 
 [[methods.kmeans.widgets]]
 key = "classes"
@@ -37,6 +39,8 @@ min = 1e-6
 step = 1e-6
 value = 1e-6
 required = false
+
+[methods.dbscan]
 
 # TODO: add other options
 [[methods.dbscan.widgets]]

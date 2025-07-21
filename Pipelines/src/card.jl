@@ -1,3 +1,5 @@
+## Card state type
+
 @kwdef struct CardState
     content::Union{Vector{UInt8}, Nothing} = nothing
     metadata::StringDict = StringDict()
@@ -21,6 +23,8 @@ function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
         end
     end
 end
+
+## Card interface
 
 """
     abstract type Card end
@@ -170,7 +174,7 @@ to implement a default visualization for a given card type.
 """
 visualize(::Repository, ::Card, ::CardState) = nothing
 
-# Construct cards
+## Define new cards
 
 """
     @kwdef struct CardConfig{T <: Card}
@@ -180,7 +184,7 @@ visualize(::Repository, ::Card, ::CardState) = nothing
         needs_order::Bool
         allows_weights::Bool
         allows_partition::Bool
-        widgets::StringDict = StringDict()
+        widget_types::StringDict = StringDict()
         methods::StringDict = StringDict()
     end
 
@@ -193,7 +197,7 @@ Configuration used to register a card.
     needs_order::Bool
     allows_weights::Bool
     allows_partition::Bool
-    widgets::StringDict = StringDict()
+    widget_types::StringDict = StringDict()
     methods::StringDict = StringDict()
 end
 
@@ -204,7 +208,7 @@ function CardConfig{T}(c::AbstractDict) where {T <: Card}
     needs_order::Bool = c["needs_order"]
     allows_weights::Bool = c["allows_weights"]
     allows_partition::Bool = c["allows_partition"]
-    widgets::StringDict = c["widgets"]
+    widget_types::StringDict = c["widget_types"]
     methods::StringDict = get(c, "methods", StringDict())
     return CardConfig{T}(;
         key,
@@ -213,7 +217,7 @@ function CardConfig{T}(c::AbstractDict) where {T <: Card}
         needs_order,
         allows_weights,
         allows_partition,
-        widgets,
+        widget_types,
         methods
     )
 end
@@ -222,21 +226,17 @@ end
 
 const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 
-# Generate widgets and widget configurations
+## Generate widgets
 
-function card_configurations(options::AbstractDict = Dict())
-    general_widgets = parse_toml_config("widgets")
-    card_widgets = CardWidget[]
+function card_widgets(options::AbstractDict = StringDict())
+    widgets = CardWidget[]
     for (k, config) in pairs(CARD_CONFIGS)
-        specific_options = get(options, k, (;))
-        @with WIDGET_CONFIG => merge(general_widgets, config.widgets) begin
-            push!(card_widgets, CardWidget(config; specific_options...))
-        end
+        specific_options = get(options, k, StringDict())
+        push!(widgets, CardWidget(config, specific_options))
     end
-    return card_widgets
+    return widgets
 end
 
-# TODO: improve docs
 """
     register_card(config::CardConfig)
 
@@ -248,6 +248,8 @@ function register_card(config::CardConfig)
     CARD_CONFIGS[config.key] = config
     return
 end
+
+## Labeling tools
 
 card_label(c::Card) = c.label
 

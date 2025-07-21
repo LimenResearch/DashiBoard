@@ -93,26 +93,27 @@ end
 
 ## UI representation
 
-function CardWidget(
-        config::CardConfig{SplitCard};
-        percentile = (min = 0, max = 1, step = 0.01),
-    )
-
-    options = ["percentile", "tiles"]
+function CardWidget(config::CardConfig{SplitCard}, options::AbstractDict)
+    methods = ["percentile", "tiles"]
+    percentile_options =
+        get(options, "percentile", StringDict("min" => 0, "max" => 1, "step" => 0.01))
 
     fields = [
-        Widget("method"; options),
+        Widget("method"; options = methods),
         Widget("order_by"),
         Widget("by", required = false),
         Widget("output", value = "partition"),
         Widget(
-            "percentile";
-            percentile.min,
-            percentile.max,
-            percentile.step,
+            "percentile",
+            config.widget_types,
+            percentile_options,
             visible = Dict("method" => ["percentile"])
         ),
-        Widget("tiles", visible = Dict("method" => ["tiles"])),
+        Widget(
+            "tiles",
+            config.widget_types,
+            visible = Dict("method" => ["tiles"])
+        ),
     ]
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))

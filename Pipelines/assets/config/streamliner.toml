@@ -5,12 +5,12 @@ needs_order = true
 allows_weights = false
 allows_partition = true
 
-[widgets.model]
+[widget_types.model]
 widget = "select"
 label = "Model configuration"
 placeholder = "Select a model configuration..."
 
-[widgets.training]
+[widget_types.training]
 widget = "select"
 label = "Training configuration"
 placeholder = "Select a training configuration..."

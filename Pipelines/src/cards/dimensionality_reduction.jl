@@ -106,21 +106,19 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{DimensionalityReductionCard})
-
-    method_names = collect(keys(PROJECTION_FUNCTIONS))
+function CardWidget(config::CardConfig{DimensionalityReductionCard}, ::AbstractDict)
+    methods = collect(keys(PROJECTION_FUNCTIONS))
 
     fields = Widget[
-        Widget("method", options = method_names),
+        Widget("method", options = methods),
         Widget("inputs"),
-        Widget("n_components"),
+        Widget("n_components", config.widget_types),
         Widget("partition", required = false),
         Widget("output", value = "component"),
     ]
 
-    for (idx, m) in enumerate(method_names)
-        method_config = config.methods[m]
-        wdgs = get(method_config, "widgets", AbstractDict[])
+    for (idx, m) in enumerate(methods)
+        wdgs = config.methods[m]["widgets"]
         append!(fields, generate_widget.(wdgs, "method", m, idx))
     end
 

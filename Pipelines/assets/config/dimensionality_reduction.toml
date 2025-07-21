@@ -5,14 +5,17 @@ needs_order = false
 allows_weights = false
 allows_partition = true
 
-[widgets.n_components]
+[widget_types.n_components]
 widget = "input"
 label = "Number of components"
 placeholder = "Select number of components..."
 type = "number"
 
 [methods.pca]
+
 widgets = []
+
+[methods.ppca]
 
 [[methods.ppca.widgets]]
 key = "iterations"
@@ -35,6 +38,8 @@ min = 1e-6
 step = 1e-6
 value = 1e-6
 required = false
+
+[methods.factoranalysis]
 
 [[methods.factoranalysis.widgets]]
 key = "iterations"
@@ -59,4 +64,5 @@ value = 1e-6
 required = false
 
 [methods.mds]
+
 widgets = []

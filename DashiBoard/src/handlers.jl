@@ -13,9 +13,9 @@ function load_files(stream::HTTP.Stream)
     return
 end
 
-function get_card_configurations(stream::HTTP.Stream)
+function get_card_widgets(stream::HTTP.Stream)
     spec = json_read(stream)
-    configs = Pipelines.card_configurations(spec)
+    configs = Pipelines.card_widgets(spec)
     json_write(stream, configs)
     return
 end

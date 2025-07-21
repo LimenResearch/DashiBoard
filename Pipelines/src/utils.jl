@@ -23,18 +23,6 @@ function extract_options(c::AbstractDict, key::AbstractString, r::Regex)
     end
 end
 
-function generate_widget(
-        conf::AbstractDict,
-        type::AbstractString,
-        name::AbstractString,
-        idx::Integer
-    )
-
-    key = string(type, "_", "options", ".", idx, ".", conf["key"])
-    visible = Dict(type => [name])
-    return Widget(key, conf; visible)
-end
-
 # Card computation utils
 
 select_columns(args...) = Select(args = Get.(union(args...)))

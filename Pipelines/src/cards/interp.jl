@@ -30,6 +30,7 @@ const INTERPOLATORS = OrderedDict(
 
 """
     struct InterpCard <: Card
+        label::String
         interpolator::Interpolator
         input::String
         targets::Vector{String}
@@ -43,6 +44,7 @@ const INTERPOLATORS = OrderedDict(
 Interpolate `targets` based on `input`.
 """
 struct InterpCard <: StandardCard
+    label::String
     interpolator::Interpolator
     input::String
     targets::Vector{String}
@@ -54,6 +56,7 @@ struct InterpCard <: StandardCard
 end
 
 function InterpCard(c::AbstractDict)
+    label::String = card_label(c)
     method::String = c["method"]
     interpolator::Interpolator = INTERPOLATORS[method]
     input::String = c["input"]
@@ -65,6 +68,7 @@ function InterpCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
     return InterpCard(
+        label,
         interpolator,
         input,
         targets,
@@ -115,7 +119,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{InterpCard})
+function CardWidget(::Type{InterpCard}, type::AbstractString)
     options = collect(keys(INTERPOLATORS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
@@ -144,9 +148,5 @@ function CardWidget(::Type{InterpCard})
         Widget("suffix", value = "hat"),
     ]
 
-    return CardWidget(;
-        type = "interp",
-        output = OutputSpec("targets", "suffix"),
-        fields
-    )
+    return CardWidget(type, fields, OutputSpec("targets", "suffix"))
 end

@@ -179,7 +179,7 @@ const CARD_TYPES = OrderedDict{String, Type}()
 function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
     return @with WIDGET_CONFIG => merge(d["general"], d[key]) begin
         card = CARD_TYPES[key]
-        CardWidget(card; kwargs...)
+        CardWidget(card, key; kwargs...)
     end
 end
 
@@ -199,7 +199,6 @@ function register_card(name::AbstractString, label::AbstractString, ::Type{T}) w
     return
 end
 
-_card_type(::Type{T}) where {T <: Card} = findfirst(Fix1(<:, T), CARD_TYPES)
-_card_type(c::T) where {T <: Card} = _card_type(T)
+card_label(c::Card) = c.label
 
-card_label(c::Card) = CARD_LABELS[_card_type(c)]
+card_label(c::AbstractDict) = get(() -> CARD_LABELS[c["type"]], c, "label")

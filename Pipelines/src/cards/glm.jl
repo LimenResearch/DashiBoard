@@ -28,6 +28,7 @@ const LINK_FUNCTIONS = OrderedDict(
 
 """
     struct GLMCard <: Card
+        label::String
         formula::FormulaTerm
         weights::Union{String, Nothing}
         distribution::Distribution
@@ -39,6 +40,7 @@ const LINK_FUNCTIONS = OrderedDict(
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
 struct GLMCard <: StandardCard
+    label::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
     distribution::Distribution
@@ -48,6 +50,7 @@ struct GLMCard <: StandardCard
 end
 
 function GLMCard(c::AbstractDict)
+    label::String = card_label(c)
     inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
     formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
@@ -62,7 +65,7 @@ function GLMCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
-    return GLMCard(formula, weights, distribution, link, partition, suffix)
+    return GLMCard(label, formula, weights, distribution, link, partition, suffix)
 end
 
 ## StandardCard interface
@@ -90,7 +93,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{GLMCard})
+function CardWidget(::Type{GLMCard}, type::AbstractString)
 
     fields = [
         Widget("inputs"),
@@ -102,9 +105,5 @@ function CardWidget(::Type{GLMCard})
         Widget("suffix", value = "hat"),
     ]
 
-    return CardWidget(;
-        type = "glm",
-        output = OutputSpec("target", "suffix"),
-        fields
-    )
+    return CardWidget(type, fields, OutputSpec("target", "suffix"))
 end

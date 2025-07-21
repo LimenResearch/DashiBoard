@@ -34,6 +34,7 @@ end
 
 """
     struct DimensionalityReductionCard <: Card
+        label::String
         projector::Projector
         inputs::Vector{String}
         partition::Union{String, Nothing}
@@ -45,6 +46,7 @@ Project `inputs` based on `projector`.
 Save resulting column as `output`.
 """
 struct DimensionalityReductionCard <: StandardCard
+    label::String
     projector::Projector
     inputs::Vector{String}
     partition::Union{String, Nothing}
@@ -53,6 +55,7 @@ struct DimensionalityReductionCard <: StandardCard
 end
 
 function DimensionalityReductionCard(c::AbstractDict)
+    label::String = card_label(c)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
@@ -61,6 +64,7 @@ function DimensionalityReductionCard(c::AbstractDict)
     n_components::Int = c["n_components"]
     output::String = get(c, "output", "component")
     return DimensionalityReductionCard(
+        label,
         projector,
         inputs,
         partition,
@@ -98,7 +102,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{DimensionalityReductionCard})
+function CardWidget(::Type{DimensionalityReductionCard}, type::AbstractString)
 
     method_names = collect(keys(PROJECTION_FUNCTIONS))
 
@@ -116,9 +120,5 @@ function CardWidget(::Type{DimensionalityReductionCard})
         append!(fields, generate_widget.(wdgs, "method", m, idx))
     end
 
-    return CardWidget(;
-        type = "dimensionality_reduction",
-        output = OutputSpec("output", nothing, "n_components"),
-        fields
-    )
+    return CardWidget(type, fields, OutputSpec("output", nothing, "n_components"))
 end

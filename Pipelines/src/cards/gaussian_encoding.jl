@@ -24,6 +24,7 @@ const TEMPORAL_MAX = OrderedDict(
 Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
+- `label::String`: Label to represent the card in a UI.
 - `input::String`: Name of the column to transform.
 - `processed_input::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
 - `n_modes::Int`: Number of Gaussian curves to generate.
@@ -60,6 +61,7 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 struct GaussianEncodingCard <: SQLCard
+    label::String
     input::String
     processed_input::SQLNode
     n_modes::Int
@@ -69,6 +71,7 @@ struct GaussianEncodingCard <: SQLCard
 end
 
 function GaussianEncodingCard(c::AbstractDict)
+    label::String = card_label(c)
     input::String = c["input"]
     method::String = get(c, "method", "identity")
     if !haskey(TEMPORAL_PREPROCESSING, method)
@@ -83,7 +86,7 @@ function GaussianEncodingCard(c::AbstractDict)
     max::Float64 = get(c, "max", TEMPORAL_MAX[method])
     lambda::Float64 = get(c, "lambda", 0.5)
     suffix::String = get(c, "suffix", "gaussian")
-    return GaussianEncodingCard(input, processed_input, n_modes, max, lambda, suffix)
+    return GaussianEncodingCard(label, input, processed_input, n_modes, max, lambda, suffix)
 end
 
 ## SQLCard interface
@@ -146,7 +149,7 @@ end
 ## UI representation
 
 function CardWidget(
-        ::Type{GaussianEncodingCard};
+        ::Type{GaussianEncodingCard}, type::AbstractString;
         n_modes = (min = 2, step = 1, max = nothing),
         max = (min = 0, step = nothing, max = nothing),
         lambda = (min = 0, step = nothing, max = nothing),
@@ -163,9 +166,5 @@ function CardWidget(
         Widget("suffix", value = "gaussian"),
     ]
 
-    return CardWidget(;
-        type = "gaussian_encoding",
-        output = OutputSpec("input", "suffix", "n_modes"),
-        fields
-    )
+    return CardWidget(type, fields, OutputSpec("input", "suffix", "n_modes"))
 end

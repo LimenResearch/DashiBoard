@@ -1,5 +1,6 @@
 """
     struct WildCard{train, evaluate} <: Card
+        label::String
         order_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -11,6 +12,7 @@
 Custom `card` that uses arbitrary training and evaluations functions.
 """
 struct WildCard{train, evaluate} <: StandardCard
+    label::String
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -20,6 +22,8 @@ struct WildCard{train, evaluate} <: StandardCard
 end
 
 function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
+    label::String = card_label(c)
+
     order_by::Vector{String} = get(c, "order_by", String[])
     inputs::Vector{String} = get(c, "inputs", String[])
     targets::Vector{String} = get(c, "targets", String[])
@@ -29,6 +33,7 @@ function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     partition = get(c, "partition", nothing)
 
     return WildCard{train, evaluate}(
+        label,
         order_by,
         inputs,
         targets,
@@ -58,7 +63,7 @@ _train(wc::WildCard{train}, t, id; weights = nothing) where {train} = train(wc, 
 
 ## UI representation
 
-function CardWidget(::Type{WildCard{train, evaluate}}) where {train, evaluate}
+function CardWidget(::Type{<:WildCard}, type::AbstractString)
 
     fields = Widget[
         Widget("order_by"),
@@ -69,7 +74,5 @@ function CardWidget(::Type{WildCard{train, evaluate}}) where {train, evaluate}
         Widget("outputs"),
     ]
 
-    type = _card_type(WildCard{train, evaluate})
-
-    return CardWidget(; type, output = OutputSpec("outputs"), fields)
+    return CardWidget(type, fields, OutputSpec("outputs"))
 end

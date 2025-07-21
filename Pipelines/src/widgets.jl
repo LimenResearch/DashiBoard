@@ -72,16 +72,10 @@ end
 struct CardWidget
     type::String
     label::String
-    output::OutputSpec
     fields::Vector{Widget}
+    output::OutputSpec
 end
 
-function CardWidget(;
-        type::AbstractString,
-        label::AbstractString = CARD_LABELS[type],
-        output::OutputSpec,
-        fields::AbstractVector
-    )
-
-    return CardWidget(type, label, output, fields)
+function CardWidget(type::AbstractString, fields::AbstractVector, output::OutputSpec)
+    return CardWidget(type, CARD_LABELS[type], fields, output)
 end

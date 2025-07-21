@@ -17,6 +17,7 @@ end
 
 """
     struct StreamlinerCard <: Card
+        label::String
         model::Model
         training::Training
         order_by::Vector{String}
@@ -29,6 +30,7 @@ end
 Run a Streamliner model, predicting `targets` from `inputs`.
 """
 struct StreamlinerCard <: StreamingCard
+    label::String
     model::Model
     training::Training
     order_by::Vector{String}
@@ -39,6 +41,8 @@ struct StreamlinerCard <: StreamingCard
 end
 
 function StreamlinerCard(c::AbstractDict)
+    label::String = card_label(c)
+
     order_by::Vector{String} = get(c, "order_by", String[])
     inputs::Vector{String} = get(c, "inputs", String[])
     targets::Vector{String} = get(c, "targets", String[])
@@ -55,6 +59,7 @@ function StreamlinerCard(c::AbstractDict)
     suffix = get(c, "suffix", "hat")
 
     return StreamlinerCard(
+        label,
         model,
         training,
         order_by,
@@ -165,7 +170,7 @@ function list_tomls(dir)
     return [f for (f, ext) in fls if ext == ".toml"]
 end
 
-function CardWidget(::Type{StreamlinerCard})
+function CardWidget(::Type{StreamlinerCard}, type::AbstractString)
 
     model_tomls = list_tomls(MODEL_DIR[])
     training_tomls = list_tomls(TRAINING_DIR[])
@@ -192,9 +197,5 @@ function CardWidget(::Type{StreamlinerCard})
         append!(fields, generate_widget.(wdgs, "training", t, idx))
     end
 
-    return CardWidget(;
-        type = "streamliner",
-        output = OutputSpec("targets", "suffix"),
-        fields
-    )
+    return CardWidget(type, fields, OutputSpec("targets", "suffix"))
 end

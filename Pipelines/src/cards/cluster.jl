@@ -27,6 +27,7 @@ end
 # TODO: support custom metrics
 """
     struct ClusterCard <: Card
+        label::AbstractString
         clusterer::Clusterer
         inputs::Vector{String}
         weights::Union{String, Nothing}
@@ -38,6 +39,7 @@ Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
+    label::AbstractString
     clusterer::Clusterer
     inputs::Vector{String}
     weights::Union{String, Nothing}
@@ -46,6 +48,7 @@ struct ClusterCard <: StandardCard
 end
 
 function ClusterCard(c::AbstractDict)
+    label::String = card_label(c)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     clusterer::Clusterer = Clusterer(method_name, method_options)
@@ -54,6 +57,7 @@ function ClusterCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
+        label,
         clusterer,
         inputs,
         weights,
@@ -88,7 +92,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{ClusterCard})
+function CardWidget(::Type{ClusterCard}, type::AbstractString)
 
     method_names = collect(keys(CLUSTERING_FUNCTIONS))
 
@@ -106,9 +110,5 @@ function CardWidget(::Type{ClusterCard})
         append!(fields, generate_widget.(wdgs, "method", m, idx))
     end
 
-    return CardWidget(;
-        type = "cluster",
-        output = OutputSpec("output"),
-        fields
-    )
+    return CardWidget(type, fields, OutputSpec("output"))
 end

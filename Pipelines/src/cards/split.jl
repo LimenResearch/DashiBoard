@@ -18,6 +18,7 @@ end
 
 """
     struct SplitCard <: Card
+        label::String
         splitter::SQLNode
         order_by::Vector{String}
         by::Vector{String}
@@ -31,6 +32,7 @@ Currently supported methods are
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
 struct SplitCard <: SQLCard
+    label::String
     splitter::SQLNode
     order_by::Vector{String}
     by::Vector{String}
@@ -38,11 +40,12 @@ struct SplitCard <: SQLCard
 end
 
 function SplitCard(c::AbstractDict)
+    label::String = card_label(c)
     splitter::SQLNode = get_splitter(c)
     order_by::Vector{String} = get(c, "order_by", String[])
     by::Vector{String} = get(c, "by", String[])
     output::String = c["output"]
-    return SplitCard(splitter, order_by, by, output)
+    return SplitCard(label, splitter, order_by, by, output)
 end
 
 ## SQLCard interface
@@ -89,7 +92,7 @@ end
 ## UI representation
 
 function CardWidget(
-        ::Type{SplitCard};
+        ::Type{SplitCard}, type::AbstractString;
         percentile = (min = 0, max = 1, step = 0.01),
     )
 
@@ -110,5 +113,5 @@ function CardWidget(
         Widget("tiles", visible = Dict("method" => ["tiles"])),
     ]
 
-    return CardWidget(; type = "split", output = OutputSpec("output"), fields)
+    return CardWidget(type, fields, OutputSpec("output"))
 end

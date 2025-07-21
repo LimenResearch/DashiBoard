@@ -493,6 +493,7 @@ mktempdir() do dir
 
         @testset "GaussianEncodingCard construction" begin
             base_fields = Dict(
+                "type" => "gaussian_encoding",
                 "input" => "date",
                 "n_modes" => 3,
                 "max" => 365.0,
@@ -511,6 +512,7 @@ mktempdir() do dir
             @test_throws ArgumentError GaussianEncodingCard(invalid_config)
 
             invalid_config = Dict(
+                "type" => "gaussian_encoding",
                 "input" => "date",
                 "n_modes" => 0,
                 "max" => 365.0,

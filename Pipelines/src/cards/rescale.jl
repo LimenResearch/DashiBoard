@@ -81,12 +81,13 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 
 """
     struct RescaleCard <: Card
-      by::Vector{String}
-      inputs::Vector{String}
-      targets::Vector{String}
-      partition::Union{String, Nothing}
-      suffix::String
-      target_suffix::Union{String, Nothing}
+        label::String
+        by::Vector{String}
+        inputs::Vector{String}
+        targets::Vector{String}
+        partition::Union{String, Nothing}
+        suffix::String
+        target_suffix::Union{String, Nothing}
     end
 
 Card to rescale one or more columns according to a given `rescaler`.
@@ -101,6 +102,7 @@ The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
 struct RescaleCard <: SQLCard
+    label::String
     rescaler::Rescaler
     by::Vector{String}
     inputs::Vector{String}
@@ -111,6 +113,7 @@ struct RescaleCard <: SQLCard
 end
 
 function RescaleCard(c::AbstractDict)
+    label::String = card_label(c)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
     by::Vector{String} = get(c, "by", String[])
@@ -120,6 +123,7 @@ function RescaleCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "rescaled")
     target_suffix = get(c, "target_suffix", nothing)
     return RescaleCard(
+        label,
         rescaler,
         by,
         inputs,
@@ -225,7 +229,7 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{RescaleCard})
+function CardWidget(::Type{RescaleCard}, type::AbstractString)
 
     options = collect(keys(RESCALERS))
     need_group = String[k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
@@ -240,9 +244,5 @@ function CardWidget(::Type{RescaleCard})
         Widget("target_suffix", value = "", required = false),
     ]
 
-    return CardWidget(;
-        type = "rescale",
-        output = OutputSpec("inputs", "suffix"),
-        fields
-    )
+    return CardWidget(type, fields, OutputSpec("inputs", "suffix"))
 end

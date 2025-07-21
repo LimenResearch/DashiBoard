@@ -40,7 +40,7 @@ struct StreamlinerCard <: StreamingCard
     suffix::String
 end
 
-const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("streamliner"))
+const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("config", "streamliner"))
 
 function StreamlinerCard(c::AbstractDict)
     label::String = card_label(c)

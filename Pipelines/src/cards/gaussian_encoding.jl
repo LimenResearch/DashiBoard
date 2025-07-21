@@ -71,7 +71,7 @@ struct GaussianEncodingCard <: SQLCard
 end
 
 const GAUSSIAN_ENCODING_CARD_CONFIG =
-    CardConfig{GaussianEncodingCard}(parse_toml_config("gaussian_encoding"))
+    CardConfig{GaussianEncodingCard}(parse_toml_config("config", "gaussian_encoding"))
 
 function GaussianEncodingCard(c::AbstractDict)
     label::String = card_label(c)

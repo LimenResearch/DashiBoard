@@ -1,8 +1,0 @@
-[[widgets]]
-key = "radius"
-widget = "input"
-label = "Radius"
-placeholder = "Select radius"
-type = "number"
-
-# TODO: add other options

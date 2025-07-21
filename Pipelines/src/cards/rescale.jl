@@ -112,7 +112,7 @@ struct RescaleCard <: SQLCard
     target_suffix::Union{String, Nothing}
 end
 
-const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("rescale"))
+const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("config", "rescale"))
 
 function RescaleCard(c::AbstractDict)
     label::String = card_label(c)

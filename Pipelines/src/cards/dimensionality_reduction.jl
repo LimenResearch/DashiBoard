@@ -54,8 +54,9 @@ struct DimensionalityReductionCard <: StandardCard
     output::String
 end
 
-const DIMENSIONALITY_REDUCTION_CARD_CONFIG =
-    CardConfig{DimensionalityReductionCard}(parse_toml_config("dimensionality_reduction"))
+const DIMENSIONALITY_REDUCTION_CARD_CONFIG = CardConfig{DimensionalityReductionCard}(
+    parse_toml_config("config", "dimensionality_reduction")
+)
 
 function DimensionalityReductionCard(c::AbstractDict)
     label::String = card_label(c)
@@ -118,7 +119,7 @@ function CardWidget(config::CardConfig{DimensionalityReductionCard})
     ]
 
     for (idx, m) in enumerate(method_names)
-        method_config = parse_toml_config("dimensionality_reduction", m)
+        method_config = config.methods[m]
         wdgs = get(method_config, "widgets", AbstractDict[])
         append!(fields, generate_widget.(wdgs, "method", m, idx))
     end

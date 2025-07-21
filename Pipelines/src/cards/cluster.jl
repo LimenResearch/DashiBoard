@@ -47,7 +47,7 @@ struct ClusterCard <: StandardCard
     output::String
 end
 
-const CLUSTER_CARD_CONFIG = CardConfig{ClusterCard}(parse_toml_config("cluster"))
+const CLUSTER_CARD_CONFIG = CardConfig{ClusterCard}(parse_toml_config("config", "cluster"))
 
 function ClusterCard(c::AbstractDict)
     label::String = card_label(c)
@@ -107,7 +107,7 @@ function CardWidget(config::CardConfig{ClusterCard})
     ]
 
     for (idx, m) in enumerate(method_names)
-        method_config = parse_toml_config("cluster", m)
+        method_config = config.methods[m]
         wdgs = get(method_config, "widgets", AbstractDict[])
         append!(fields, generate_widget.(wdgs, "method", m, idx))
     end

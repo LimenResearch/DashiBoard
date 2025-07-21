@@ -49,7 +49,7 @@ struct GLMCard <: StandardCard
     suffix::String
 end
 
-const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("glm"))
+const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
 function GLMCard(c::AbstractDict)
     label::String = card_label(c)

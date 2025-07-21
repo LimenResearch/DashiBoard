@@ -181,6 +181,7 @@ visualize(::Repository, ::Card, ::CardState) = nothing
         allows_weights::Bool
         allows_partition::Bool
         widgets::StringDict = StringDict()
+        methods::StringDict = StringDict()
     end
 
 Configuration used to register a card.
@@ -193,6 +194,7 @@ Configuration used to register a card.
     allows_weights::Bool
     allows_partition::Bool
     widgets::StringDict = StringDict()
+    methods::StringDict = StringDict()
 end
 
 function CardConfig{T}(c::AbstractDict) where {T <: Card}
@@ -203,6 +205,7 @@ function CardConfig{T}(c::AbstractDict) where {T <: Card}
     allows_weights::Bool = c["allows_weights"]
     allows_partition::Bool = c["allows_partition"]
     widgets::StringDict = c["widgets"]
+    methods::StringDict = get(c, "methods", StringDict())
     return CardConfig{T}(;
         key,
         label,
@@ -210,7 +213,8 @@ function CardConfig{T}(c::AbstractDict) where {T <: Card}
         needs_order,
         allows_weights,
         allows_partition,
-        widgets
+        widgets,
+        methods
     )
 end
 
@@ -221,7 +225,7 @@ const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 # Generate widgets and widget configurations
 
 function card_configurations(options::AbstractDict = Dict())
-    general_widgets = parse_toml_config("general")
+    general_widgets = parse_toml_config("widgets")
     card_widgets = CardWidget[]
     for (k, config) in pairs(CARD_CONFIGS)
         specific_options = get(options, k, (;))

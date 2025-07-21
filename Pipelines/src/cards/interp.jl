@@ -55,7 +55,7 @@ struct InterpCard <: StandardCard
     suffix::String
 end
 
-const INTERP_CARD_CONFIG = CardConfig{InterpCard}(parse_toml_config("interp"))
+const INTERP_CARD_CONFIG = CardConfig{InterpCard}(parse_toml_config("config", "interp"))
 
 function InterpCard(c::AbstractDict)
     label::String = card_label(c)

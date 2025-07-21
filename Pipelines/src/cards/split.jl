@@ -39,7 +39,7 @@ struct SplitCard <: SQLCard
     output::String
 end
 
-const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("split"))
+const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "split"))
 
 function SplitCard(c::AbstractDict)
     label::String = card_label(c)

@@ -11,7 +11,8 @@ label = "Number of components"
 placeholder = "Select number of components..."
 type = "number"
 
-methods.pca.widgets = []
+[methods.pca]
+widgets = []
 
 [[methods.ppca.widgets]]
 key = "iterations"
@@ -57,4 +58,5 @@ step = 1e-6
 value = 1e-6
 required = false
 
-methods.mds.widgets = []
+[methods.mds]
+widgets = []

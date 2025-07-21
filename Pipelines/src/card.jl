@@ -182,6 +182,8 @@ visualize(::Repository, ::Card, ::CardState) = nothing
         allows_partition::Bool
         widgets::StringDict = StringDict()
     end
+
+Configuration used to register a card.
 """
 @kwdef struct CardConfig{T <: Card}
     key::String
@@ -237,8 +239,13 @@ function card_configurations(options::AbstractDict = Dict())
     return card_widgets
 end
 
+# TODO: improve docs
 """
     register_card(config::CardConfig)
+
+Set a given card configuration as globally available.
+
+See also [`CardConfig`](@ref).
 """
 function register_card(config::CardConfig)
     CARD_CONFIGS[config.key] = config

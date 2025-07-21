@@ -56,6 +56,5 @@ Pipelines.WildCard
 
 ```@docs
 Pipelines.register_card
-Pipelines.register_wild_card
-Pipelines.WildCardConfig
+Pipelines.CardConfig
 ```

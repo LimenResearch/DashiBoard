@@ -222,7 +222,9 @@ function CardConfig{T}(c::AbstractDict) where {T <: Card}
     )
 end
 
-(::CardConfig{T})(c::AbstractDict) where {T} = T(c)
+card_type(::CardConfig{T}) where {T <: Card} = T
+
+(::CardConfig{T})(c::AbstractDict) where {T <: Card} = T(c)
 
 const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 

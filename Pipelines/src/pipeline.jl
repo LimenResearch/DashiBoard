@@ -199,7 +199,7 @@ end
 ## Training and evaluation methods
 
 """
-    evaljoin!(
+    evaljoin(
         repository::Repository,
         nodes::AbstractVector,
         table::AbstractString,
@@ -207,7 +207,7 @@ end
         schema = nothing
     )
 
-    evaljoin!(
+    evaljoin(
         repository::Repository,
         node::Node,
         (source, destination)::Pair,

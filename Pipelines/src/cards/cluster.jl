@@ -27,7 +27,7 @@ end
 # TODO: support custom metrics
 """
     struct ClusterCard <: Card
-        label::AbstractString
+        label::String
         clusterer::Clusterer
         inputs::Vector{String}
         weights::Union{String, Nothing}
@@ -39,7 +39,7 @@ Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
-    label::AbstractString
+    label::String
     clusterer::Clusterer
     inputs::Vector{String}
     weights::Union{String, Nothing}

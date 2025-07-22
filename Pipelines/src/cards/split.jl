@@ -104,14 +104,14 @@ function CardWidget(config::CardConfig{SplitCard}, options::AbstractDict)
         Widget("by", required = false),
         Widget("output", value = "partition"),
         Widget(
+            config,
             "percentile",
-            config.widget_configs,
             percentile_options,
             visible = Dict("method" => ["percentile"])
         ),
         Widget(
+            config,
             "tiles",
-            config.widget_configs,
             visible = Dict("method" => ["tiles"])
         ),
     ]

@@ -103,8 +103,8 @@ function CardWidget(config::CardConfig{GLMCard}, ::AbstractDict)
         Widget("inputs"),
         Widget("target"),
         Widget("weights", required = false),
-        Widget("distribution", config.widget_configs, options = noise_models, required = false),
-        Widget("link", config.widget_configs, options = link_functions, required = false),
+        Widget(config, "distribution", options = noise_models, required = false),
+        Widget(config, "link", options = link_functions, required = false),
         Widget("partition", required = false),
         Widget("suffix", value = "hat"),
     ]

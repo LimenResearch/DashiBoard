@@ -22,14 +22,6 @@ function default_value(widget, type, multiple)
     return nothing
 end
 
-function Widget(key::AbstractString, widget_configs::AbstractDict = WIDGET_CONFIGS[]; options...)
-    return Widget(widget_configs[key]; key, options...)
-end
-
-function Widget(key::AbstractString, widget_configs::AbstractDict, conf::AbstractDict; options...)
-    return Widget(merge(widget_configs[key], conf); key, options...)
-end
-
 function Widget(
         conf::AbstractDict;
         widget = conf["widget"],
@@ -66,6 +58,10 @@ function Widget(
         required,
     )
 end
+
+Widget(key::AbstractString; options...) = Widget(WIDGET_CONFIGS[][key]; key, options...)
+Widget(key::AbstractString, c::AbstractDict; options...) =
+    Widget(merge(WIDGET_CONFIGS[][key], c); key, options...)
 
 function generate_widget(
         conf::AbstractDict,

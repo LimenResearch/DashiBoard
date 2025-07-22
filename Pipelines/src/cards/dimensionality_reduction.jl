@@ -112,7 +112,7 @@ function CardWidget(config::CardConfig{DimensionalityReductionCard}, ::AbstractD
     fields = Widget[
         Widget("method", options = methods),
         Widget("inputs"),
-        Widget("n_components", config.widget_configs),
+        Widget(config, "n_components"),
         Widget("partition", required = false),
         Widget("output", value = "component"),
     ]

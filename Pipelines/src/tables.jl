@@ -27,5 +27,7 @@ end
 # note: with empty partition, DuckDB preserves order
 function join_on_row_number(tbl, tbls, id_vars, sels)
     init = From(tbl) |> Partition()
-    return mapfoldl(splat(join_on_row_number), |>, zip(tbls, id_vars, sels); init)
+    q = mapfoldl(splat(join_on_row_number), |>, zip(tbls, id_vars, sels); init)
+    # Preserve initial order in final output
+    return q |> Order(Agg.row_number())
 end

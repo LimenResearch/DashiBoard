@@ -17,7 +17,7 @@ end
 # JSON utils
 
 # TODO: consider using some JSON setting for this
-
+# or even a different format
 function jsonify(x::Real)
     isinf(x) && return x > 0 ? "Inf" : "-Inf"
     isnan(x) && return "NaN"

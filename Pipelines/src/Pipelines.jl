@@ -137,8 +137,6 @@ function parse_toml_config(args...)::StringDict
     return parsefile(path)
 end
 
-const WIDGET_TYPES = ScopedValue{StringDict}(parse_toml_config("widget_types"))
-
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")

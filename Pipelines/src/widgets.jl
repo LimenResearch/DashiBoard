@@ -1,3 +1,5 @@
+const WIDGET_CONFIGS = ScopedValue{StringDict}(parse_toml_config("widget_configs"))
+
 struct Widget
     widget::String
     key::String
@@ -20,12 +22,12 @@ function default_value(widget, type, multiple)
     return nothing
 end
 
-function Widget(key::AbstractString, widget_types::AbstractDict = WIDGET_TYPES[]; options...)
-    return Widget(widget_types[key]; key, options...)
+function Widget(key::AbstractString, widget_configs::AbstractDict = WIDGET_CONFIGS[]; options...)
+    return Widget(widget_configs[key]; key, options...)
 end
 
-function Widget(key::AbstractString, widget_types::AbstractDict, conf::AbstractDict; options...)
-    return Widget(merge(widget_types[key], conf); key, options...)
+function Widget(key::AbstractString, widget_configs::AbstractDict, conf::AbstractDict; options...)
+    return Widget(merge(widget_configs[key], conf); key, options...)
 end
 
 function Widget(

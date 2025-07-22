@@ -132,19 +132,19 @@ function CardWidget(config::CardConfig{InterpCard}, ::AbstractDict)
         Widget("method"; options = methods, value = "linear"),
         Widget(
             "extrapolation_left",
-            config.widget_types,
+            config.widget_configs,
             value = "linear",
             options = extrapolation_options
         ),
         Widget(
             "extrapolation_right",
-            config.widget_types,
+            config.widget_configs,
             value = "linear",
             options = extrapolation_options
         ),
         Widget(
             "dir",
-            config.widget_types,
+            config.widget_configs,
             options = direction_options,
             value = "left",
             visible = Dict("method" => ["constant"])

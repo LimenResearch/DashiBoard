@@ -5,7 +5,7 @@ needs_order = false
 allows_weights = false
 allows_partition = true
 
-[widget_types.target_suffix]
+[widget_configs.target_suffix]
 widget = "input"
 label = "Target suffix"
 placeholder = "Select target suffix..."

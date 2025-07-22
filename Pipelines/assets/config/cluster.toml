@@ -5,7 +5,7 @@ needs_order = false
 allows_weights = true
 allows_partition = true
 
-widget_types = {}
+widget_configs = {}
 
 [methods.kmeans]
 

@@ -178,8 +178,8 @@ function CardWidget(config::CardConfig{StreamlinerCard}, ::AbstractDict)
     training_tomls = list_tomls(TRAINING_DIR[])
 
     fields = Widget[
-        Widget("model", config.widget_types, options = model_tomls),
-        Widget("training", config.widget_types, options = training_tomls),
+        Widget("model", config.widget_configs, options = model_tomls),
+        Widget("training", config.widget_configs, options = training_tomls),
         Widget("order_by"),
         Widget("inputs"),
         Widget("targets"),

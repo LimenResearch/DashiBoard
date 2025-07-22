@@ -5,19 +5,19 @@ needs_order = false
 allows_weights = false
 allows_partition = false
 
-[widget_types.n_modes]
+[widget_configs.n_modes]
 widget = "input"
 label = "Number of modes"
 placeholder = "Select number of modes..."
 type = "number"
 
-[widget_types.max]
+[widget_configs.max]
 widget = "input"
 label = "Maximum value"
 placeholder = "Select maximum value of column..."
 type = "number"
 
-[widget_types.lambda]
+[widget_configs.lambda]
 widget = "input"
 label = "Scaling coefficient"
 placeholder = "Rescale Gaussian curves horizontally by a given factor..."

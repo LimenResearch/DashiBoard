@@ -184,7 +184,7 @@ visualize(::Repository, ::Card, ::CardState) = nothing
         needs_order::Bool
         allows_weights::Bool
         allows_partition::Bool
-        widget_types::StringDict = StringDict()
+        widget_configs::StringDict = StringDict()
         methods::StringDict = StringDict()
     end
 
@@ -197,7 +197,7 @@ Configuration used to register a card.
     needs_order::Bool
     allows_weights::Bool
     allows_partition::Bool
-    widget_types::StringDict = StringDict()
+    widget_configs::StringDict = StringDict()
     methods::StringDict = StringDict()
 end
 
@@ -208,7 +208,7 @@ function CardConfig{T}(c::AbstractDict) where {T <: Card}
     needs_order::Bool = c["needs_order"]
     allows_weights::Bool = c["allows_weights"]
     allows_partition::Bool = c["allows_partition"]
-    widget_types::StringDict = c["widget_types"]
+    widget_configs::StringDict = c["widget_configs"]
     methods::StringDict = get(c, "methods", StringDict())
     return CardConfig{T}(;
         key,
@@ -217,7 +217,7 @@ function CardConfig{T}(c::AbstractDict) where {T <: Card}
         needs_order,
         allows_weights,
         allows_partition,
-        widget_types,
+        widget_configs,
         methods
     )
 end

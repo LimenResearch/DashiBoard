@@ -5,12 +5,12 @@ needs_order = false
 allows_weights = true
 allows_partition = true
 
-[widget_types.distribution]
+[widget_configs.distribution]
 widget = "select"
 label = "Noise"
 placeholder = "Select noise model..."
 
-[widget_types.link]
+[widget_configs.link]
 widget = "select"
 label = "Link"
 placeholder = "Select link function..."

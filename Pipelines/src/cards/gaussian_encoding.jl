@@ -161,9 +161,9 @@ function CardWidget(config::CardConfig{GaussianEncodingCard}, options::AbstractD
     fields = [
         Widget("method"; options = methods),
         Widget("input"),
-        Widget("n_modes", config.widget_types, n_modes_options),
-        Widget("max", config.widget_types, max_options),
-        Widget("lambda", config.widget_types, lambda_options),
+        Widget("n_modes", config.widget_configs, n_modes_options),
+        Widget("max", config.widget_configs, max_options),
+        Widget("lambda", config.widget_configs, lambda_options),
         Widget("suffix", value = "gaussian"),
     ]
 

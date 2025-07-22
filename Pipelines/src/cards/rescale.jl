@@ -242,7 +242,7 @@ function CardWidget(config::CardConfig{RescaleCard}, ::AbstractDict)
         Widget("targets", required = false),
         Widget("partition", required = false),
         Widget("suffix", value = "rescaled"),
-        Widget("target_suffix", config.widget_types, value = "", required = false),
+        Widget("target_suffix", config.widget_configs, value = "", required = false),
     ]
 
     return CardWidget(config.key, config.label, fields, OutputSpec("inputs", "suffix"))

@@ -27,6 +27,7 @@ end
 # TODO: support custom metrics
 """
     struct ClusterCard <: Card
+        type::String
         label::String
         clusterer::Clusterer
         inputs::Vector{String}
@@ -39,6 +40,7 @@ Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
+    type::String
     label::String
     clusterer::Clusterer
     inputs::Vector{String}
@@ -50,7 +52,9 @@ end
 const CLUSTER_CARD_CONFIG = CardConfig{ClusterCard}(parse_toml_config("config", "cluster"))
 
 function ClusterCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     clusterer::Clusterer = Clusterer(method_name, method_options)
@@ -59,6 +63,7 @@ function ClusterCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
+        type,
         label,
         clusterer,
         inputs,

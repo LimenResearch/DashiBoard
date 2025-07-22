@@ -34,6 +34,7 @@ end
 
 """
     struct DimensionalityReductionCard <: Card
+        type::String
         label::String
         projector::Projector
         inputs::Vector{String}
@@ -46,6 +47,7 @@ Project `inputs` based on `projector`.
 Save resulting column as `output`.
 """
 struct DimensionalityReductionCard <: StandardCard
+    type::String
     label::String
     projector::Projector
     inputs::Vector{String}
@@ -59,7 +61,9 @@ const DIMENSIONALITY_REDUCTION_CARD_CONFIG = CardConfig{DimensionalityReductionC
 )
 
 function DimensionalityReductionCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
     method_name::String = c["method"]
     method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     projector::Projector = Projector(method_name, method_options)
@@ -68,6 +72,7 @@ function DimensionalityReductionCard(c::AbstractDict)
     n_components::Int = c["n_components"]
     output::String = get(c, "output", "component")
     return DimensionalityReductionCard(
+        type,
         label,
         projector,
         inputs,

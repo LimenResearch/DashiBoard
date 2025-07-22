@@ -21,6 +21,7 @@
 
     function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
         return WildCard{_train, _evaluate}(
+            type = "trivial",
             label = "Trivial",
             order_by = String[],
             inputs = inputs,

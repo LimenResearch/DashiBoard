@@ -18,6 +18,7 @@ end
 
 """
     struct SplitCard <: Card
+        type::String
         label::String
         splitter::SQLNode
         order_by::Vector{String}
@@ -32,6 +33,7 @@ Currently supported methods are
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
 struct SplitCard <: SQLCard
+    type::String
     label::String
     splitter::SQLNode
     order_by::Vector{String}
@@ -42,12 +44,14 @@ end
 const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "split"))
 
 function SplitCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
     splitter::SQLNode = get_splitter(c)
     order_by::Vector{String} = get(c, "order_by", String[])
     by::Vector{String} = get(c, "by", String[])
     output::String = c["output"]
-    return SplitCard(label, splitter, order_by, by, output)
+    return SplitCard(type, label, splitter, order_by, by, output)
 end
 
 ## SQLCard interface

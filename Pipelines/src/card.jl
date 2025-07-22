@@ -261,9 +261,4 @@ end
 
 card_label(c::Card) = c.label
 
-function card_label(c::AbstractDict)
-    return get(c, "label") do
-        type::String = c["type"]
-        return CARD_CONFIGS[type].label
-    end
-end
+card_label(c::AbstractDict, config::CardConfig) = get(c, "label", config.label)

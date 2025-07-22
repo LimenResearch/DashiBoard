@@ -1,5 +1,6 @@
 """
     struct WildCard{train, evaluate} <: Card
+        type::String
         label::String
         order_by::Vector{String}
         inputs::Vector{String}
@@ -12,6 +13,7 @@
 Custom `card` that uses arbitrary training and evaluations functions.
 """
 @kwdef struct WildCard{train, evaluate} <: StandardCard
+    type::String
     label::String
     order_by::Vector{String}
     inputs::Vector{String}
@@ -21,10 +23,22 @@ Custom `card` that uses arbitrary training and evaluations functions.
     outputs::Vector{String}
 end
 
-function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
-    label::String = card_label(c)
+function get_metadata(wc::WildCard)
+    return StringDict(
+        "type" => wc.type,
+        "label" => wc.label,
+        "order_by" => wc.order_by,
+        "inputs" => wc.inputs,
+        "weights" => wc.weights,
+        "partition" => wc.partition,
+        "outputs" => wc.outputs
+    )
+end
 
-    config = CARD_CONFIGS[c["type"]]
+function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
 
     order_by::Vector{String} = config.needs_order ? c["order_by"] : String[]
     inputs::Vector{String} = c["inputs"]
@@ -42,6 +56,7 @@ function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     partition = get(c, "partition", nothing)
 
     return WildCard{train, evaluate}(
+        type,
         label,
         order_by,
         inputs,

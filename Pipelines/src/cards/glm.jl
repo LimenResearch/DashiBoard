@@ -28,6 +28,7 @@ const LINK_FUNCTIONS = OrderedDict(
 
 """
     struct GLMCard <: Card
+        type::String
         label::String
         formula::FormulaTerm
         weights::Union{String, Nothing}
@@ -40,6 +41,7 @@ const LINK_FUNCTIONS = OrderedDict(
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
 struct GLMCard <: StandardCard
+    type::String
     label::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
@@ -52,7 +54,9 @@ end
 const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
 function GLMCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
     inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
     formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
@@ -67,7 +71,7 @@ function GLMCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
-    return GLMCard(label, formula, weights, distribution, link, partition, suffix)
+    return GLMCard(type, label, formula, weights, distribution, link, partition, suffix)
 end
 
 ## StandardCard interface

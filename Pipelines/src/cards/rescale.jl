@@ -81,6 +81,7 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 
 """
     struct RescaleCard <: Card
+        type::String
         label::String
         by::Vector{String}
         inputs::Vector{String}
@@ -102,6 +103,7 @@ The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
 struct RescaleCard <: SQLCard
+    type::String
     label::String
     rescaler::Rescaler
     by::Vector{String}
@@ -115,7 +117,9 @@ end
 const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("config", "rescale"))
 
 function RescaleCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
     by::Vector{String} = get(c, "by", String[])
@@ -125,6 +129,7 @@ function RescaleCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "rescaled")
     target_suffix = get(c, "target_suffix", nothing)
     return RescaleCard(
+        type,
         label,
         rescaler,
         by,

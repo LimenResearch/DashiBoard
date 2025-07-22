@@ -24,6 +24,7 @@ const TEMPORAL_MAX = OrderedDict(
 Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
+- `type::String`: Card type, i.e., `"gaussian_encoding"`.
 - `label::String`: Label to represent the card in a UI.
 - `input::String`: Name of the column to transform.
 - `processed_input::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
@@ -61,6 +62,7 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 struct GaussianEncodingCard <: SQLCard
+    type::String
     label::String
     input::String
     processed_input::SQLNode
@@ -74,7 +76,9 @@ const GAUSSIAN_ENCODING_CARD_CONFIG =
     CardConfig{GaussianEncodingCard}(parse_toml_config("config", "gaussian_encoding"))
 
 function GaussianEncodingCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
     input::String = c["input"]
     method::String = get(c, "method", "identity")
     if !haskey(TEMPORAL_PREPROCESSING, method)
@@ -89,7 +93,7 @@ function GaussianEncodingCard(c::AbstractDict)
     max::Float64 = get(c, "max", TEMPORAL_MAX[method])
     lambda::Float64 = get(c, "lambda", 0.5)
     suffix::String = get(c, "suffix", "gaussian")
-    return GaussianEncodingCard(label, input, processed_input, n_modes, max, lambda, suffix)
+    return GaussianEncodingCard(type, label, input, processed_input, n_modes, max, lambda, suffix)
 end
 
 ## SQLCard interface

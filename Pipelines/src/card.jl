@@ -224,7 +224,7 @@ end
 
 card_type(::CardConfig{T}) where {T <: Card} = T
 
-(::CardConfig{T})(c::AbstractDict) where {T <: Card} = T(c)
+(config::CardConfig)(c::AbstractDict) = card_type(config)(c)
 
 const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 

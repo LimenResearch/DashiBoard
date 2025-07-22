@@ -11,6 +11,7 @@
         allows_partition = false,
         allows_weights = false
     )
+    @test card_type(config) === WildCard{_train, _evaluate}
     Pipelines.register_card(config)
 
     function trivialcard(inputs::AbstractVector, output::AbstractString)

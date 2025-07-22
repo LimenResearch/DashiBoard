@@ -1,7 +1,8 @@
 module Pipelines
 
-export card_widgets,
-    Card,
+export card_type, card_widgets
+
+export Card,
     SplitCard,
     RescaleCard,
     ClusterCard,

@@ -28,7 +28,7 @@ function evaluate_pipeline(stream::HTTP.Stream)
     DataIngestion.select(REPOSITORY[], filters)
     p = Pipelines.train_evaljoin!(REPOSITORY[], nodes, "selection")
 
-    report = Pipelines.report(REPOSITORY[], nodes) |> jsonify
+    report = Pipelines.report(REPOSITORY[], nodes)
     vs = Pipelines.visualize(REPOSITORY[], nodes)
     visualization = stringify_visualization.(vs)
     graph = sprint(Pipelines.graphviz, p)

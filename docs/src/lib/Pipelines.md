@@ -20,8 +20,10 @@ Pipelines.invertible
 ## Pipeline computation
 
 ```@docs
-Pipelines.Card(c::AbstractDict)
-Pipelines.evaluate(repository::Repository, cards::AbstractVector, table::AbstractString; schema = nothing)
+Pipelines.Node
+Pipelines.train!
+Pipelines.evaljoin
+Pipelines.train_evaljoin!
 ```
 
 ## Pipeline reports
@@ -48,4 +50,11 @@ Pipelines.InterpCard
 Pipelines.GaussianEncodingCard
 Pipelines.StreamlinerCard
 Pipelines.WildCard
+```
+
+## Card registration
+
+```@docs
+Pipelines.register_card
+Pipelines.CardConfig
 ```

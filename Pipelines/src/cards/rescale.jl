@@ -81,13 +81,16 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 
 """
     struct RescaleCard <: Card
-        rescaler::Rescaler
-        by::Vector{String} = String[]
-        columns::Vector{String}
-        suffix::String = "rescaled"
+        label::String
+        by::Vector{String}
+        inputs::Vector{String}
+        targets::Vector{String}
+        partition::Union{String, Nothing}
+        suffix::String
+        target_suffix::Union{String, Nothing}
     end
 
-Card to rescale of one or more columns according to a given `rescaler`.
+Card to rescale one or more columns according to a given `rescaler`.
 The supported methods are
 - `zscore`,
 - `maxabs`,
@@ -99,26 +102,37 @@ The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
 struct RescaleCard <: SQLCard
+    label::String
     rescaler::Rescaler
     by::Vector{String}
-    columns::Vector{String}
+    inputs::Vector{String}
+    targets::Vector{String}
     partition::Union{String, Nothing}
     suffix::String
+    target_suffix::Union{String, Nothing}
 end
 
+const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("config", "rescale"))
+
 function RescaleCard(c::AbstractDict)
+    label::String = card_label(c)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
     by::Vector{String} = get(c, "by", String[])
-    columns::Vector{String} = c["columns"]
+    inputs::Vector{String} = c["inputs"]
+    targets::Vector{String} = get(c, "targets", String[])
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "rescaled")
+    target_suffix = get(c, "target_suffix", nothing)
     return RescaleCard(
+        label,
         rescaler,
         by,
-        columns,
+        inputs,
+        targets,
         partition,
-        suffix
+        suffix,
+        target_suffix,
     )
 end
 
@@ -126,13 +140,20 @@ end
 
 invertible(::RescaleCard) = true
 
+_input_and_target_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
+
 sorting_vars(::RescaleCard) = String[]
 grouping_vars(rc::RescaleCard) = rc.by
-input_vars(rc::RescaleCard) = rc.columns
-target_vars(::RescaleCard) = String[]
+input_vars(rc::RescaleCard) = rc.inputs
+target_vars(rc::RescaleCard) = rc.targets
 weight_var(::RescaleCard) = nothing
 partition_var(rc::RescaleCard) = rc.partition
-output_vars(rc::RescaleCard) = join_names.(rc.columns, rc.suffix)
+output_vars(rc::RescaleCard) = join_names.(_input_and_target_vars(rc), rc.suffix)
+
+_append_suffix(s::AbstractString, suffix) = isnothing(suffix) ? s : join_names(s, suffix)
+
+inverse_input_vars(rc::RescaleCard) = _append_suffix.(join_names.(rc.targets, rc.suffix), rc.target_suffix)
+inverse_output_vars(rc::RescaleCard) = _append_suffix.(rc.targets, rc.target_suffix)
 
 function pair_wise_group_by(
         repository::Repository,
@@ -155,12 +176,13 @@ function pair_wise_group_by(
 end
 
 function train(repository::Repository, rc::RescaleCard, source::AbstractString; schema = nothing)
-    (; by, columns, rescaler) = rc
+    (; by, rescaler) = rc
     (; stats) = rescaler
     tbl = if isempty(stats)
         SimpleTable()
     else
-        pair_wise_group_by(repository, source, by, columns, stats...; schema, rc.partition)
+        vars = _input_and_target_vars(rc)
+        pair_wise_group_by(repository, source, by, vars, stats...; schema, rc.partition)
     end
     return CardState(content = jldserialize(tbl))
 end
@@ -169,68 +191,59 @@ function evaluate(
         repository::Repository,
         rc::RescaleCard,
         state::CardState,
-        (source, destination)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing,
-        invert = false
+        invert::Bool = false
     )
 
-    (; by, columns, rescaler, suffix) = rc
+    (; by, targets, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 
-    available_columns = Set{String}(colnames(repository, source; schema))
-    iter = ((c, join_names(c, suffix)) for c in columns)
-
     rescaled = if invert
-        [c => invtransform(c, c′) for (c, c′) in iter if c′ in available_columns]
+        inverse_inputs, inverse_outputs = inverse_input_vars(rc), inverse_output_vars(rc)
+        @. inverse_outputs => invtransform(targets, inverse_inputs)
     else
-        [c′ => transform(c) for (c, c′) in iter if c in available_columns]
+        inputs, outputs = _input_and_target_vars(rc), output_vars(rc)
+        @. outputs => transform(inputs)
     end
 
     stats_tbl = jlddeserialize(state.content)
 
-    return if isempty(stats)
-        query = From(source) |> Define(rescaled...)
+    if isempty(stats)
+        selection = vcat([id_var => Agg.row_number()], rescaled)
+        query = From(source) |> Partition() |> Select(args = selection)
         replace_table(repository, query, destination; schema)
     else
         with_table(repository, stats_tbl; schema) do tbl_name
             eqs = (.==).(Get.(by), GetStats.(by))
+            selection = vcat([id_var => Get(id_var)], rescaled)
             query = From(source) |>
+                Partition() |>
+                Define(id_var => Agg.row_number()) |>
                 LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
-                Define(rescaled...)
+                Select(args = selection)
             replace_table(repository, query, destination; schema)
         end
     end
-end
-
-function deevaluate(
-        repository::Repository,
-        rc::RescaleCard,
-        state::CardState,
-        (source, destination)::Pair;
-        schema = nothing
-    )
-
-    return evaluate(repository, rc, state, source => destination; schema, invert = true)
+    return
 end
 
 ## UI representation
 
-function CardWidget(::Type{RescaleCard})
-
-    options = collect(keys(RESCALERS))
-    need_group = [k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
+function CardWidget(config::CardConfig{RescaleCard}, ::AbstractDict)
+    methods = collect(keys(RESCALERS))
+    need_group = String[k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 
     fields = [
-        Widget("method"; options),
+        Widget("method"; options = methods),
         Widget("by", visible = Dict("method" => need_group), required = false),
-        Widget("columns"),
+        Widget("inputs"),
+        Widget("targets", required = false),
         Widget("partition", required = false),
         Widget("suffix", value = "rescaled"),
+        Widget("target_suffix", config.widget_types, value = "", required = false),
     ]
 
-    return CardWidget(;
-        type = "rescale",
-        output = OutputSpec("columns", "suffix"),
-        fields
-    )
+    return CardWidget(config.key, config.label, fields, OutputSpec("inputs", "suffix"))
 end

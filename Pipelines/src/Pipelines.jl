@@ -1,6 +1,6 @@
 module Pipelines
 
-export card_configurations,
+export card_widgets,
     Card,
     SplitCard,
     RescaleCard,
@@ -12,14 +12,18 @@ export card_configurations,
     StreamlinerCard,
     WildCard
 
-public train, evaluate, deevaluate, inputs, outputs, invertible
+export register_card, CardConfig
 
-public evaluatenodes, deevaluatenodes, report, visualize, get_card, get_state, Node
+public train!, evaljoin, train_evaljoin!
+
+public train, evaluate, inputs, outputs, invertible
+
+public report, visualize, get_card, get_state, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2
-using Base.ScopedValues: @with, ScopedValue
+using Base.ScopedValues: ScopedValue
 
 using UUIDs: uuid4
 
@@ -29,7 +33,7 @@ using RelocatableFolders: @path
 using JLD2: jldopen
 using StructUtils: make
 
-using OrderedCollections: OrderedDict
+using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface
 
@@ -126,13 +130,13 @@ using Dates: hour, minute
 const StringDict = Dict{String, Any}
 const SymbolDict = Dict{Symbol, Any}
 
-const WIDGET_CONFIG = ScopedValue{StringDict}()
-
 function parse_toml_config(args...)::StringDict
     fs..., l = args
     path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
     return parsefile(path)
 end
+
+const WIDGET_TYPES = ScopedValue{StringDict}(parse_toml_config("widget_types"))
 
 include("tables.jl")
 include("widgets.jl")
@@ -158,18 +162,14 @@ include("pipeline.jl")
 include("dag.jl")
 
 function __init__()
-    register_card("split", "Split", SplitCard)
-    register_card("rescale", "Rescale", RescaleCard)
-    register_card("cluster", "Cluster", ClusterCard)
-    register_card(
-        "dimensionality_reduction",
-        "Dimensionality Reduction",
-        DimensionalityReductionCard
-    )
-    register_card("glm", "GLM", GLMCard)
-    register_card("interp", "Interpolation", InterpCard)
-    register_card("gaussian_encoding", "Gaussian Encoding", GaussianEncodingCard)
-    register_card("streamliner", "Streamliner", StreamlinerCard)
+    register_card(SPLIT_CARD_CONFIG)
+    register_card(RESCALE_CARD_CONFIG)
+    register_card(CLUSTER_CARD_CONFIG)
+    register_card(DIMENSIONALITY_REDUCTION_CARD_CONFIG)
+    register_card(GLM_CARD_CONFIG)
+    register_card(INTERP_CARD_CONFIG)
+    register_card(GAUSSIAN_ENCODING_CARD_CONFIG)
+    register_card(STREAMLINER_CARD_CONFIG)
     return
 end
 

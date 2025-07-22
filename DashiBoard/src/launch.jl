@@ -47,7 +47,7 @@ function launch(
 
     _register!(router, "POST", "/get-acceptable-paths", get_acceptable_paths, settings)
     _register!(router, "POST", "/load-files", load_files, settings)
-    _register!(router, "POST", "/get-card-configurations", get_card_configurations, settings)
+    _register!(router, "POST", "/get-card-widgets", get_card_widgets, settings)
     _register!(router, "POST", "/evaluate-pipeline", evaluate_pipeline, settings)
     _register!(router, "POST", "/fetch-data", fetch_data, settings)
     _register!(router, "GET", "/get-processed-data", get_processed_data, settings)

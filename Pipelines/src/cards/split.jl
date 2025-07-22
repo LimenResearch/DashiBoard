@@ -18,6 +18,7 @@ end
 
 """
     struct SplitCard <: Card
+        label::String
         splitter::SQLNode
         order_by::Vector{String}
         by::Vector{String}
@@ -31,18 +32,22 @@ Currently supported methods are
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
 struct SplitCard <: SQLCard
+    label::String
     splitter::SQLNode
     order_by::Vector{String}
     by::Vector{String}
     output::String
 end
 
+const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "split"))
+
 function SplitCard(c::AbstractDict)
+    label::String = card_label(c)
     splitter::SQLNode = get_splitter(c)
     order_by::Vector{String} = get(c, "order_by", String[])
     by::Vector{String} = get(c, "by", String[])
     output::String = c["output"]
-    return SplitCard(splitter, order_by, by, output)
+    return SplitCard(label, splitter, order_by, by, output)
 end
 
 ## SQLCard interface
@@ -63,43 +68,53 @@ function evaluate(
         repository::Repository,
         sc::SplitCard,
         ::CardState,
-        (source, destination)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing
     )
 
-    by = Get.(sc.by)
     order_by = Get.(sc.order_by)
+    by = Get.(sc.by)
+    selection = vcat(
+        [id_var => Agg.row_number()],
+        sc.order_by .=> order_by,
+        sc.by .=> by,
+    )
 
     query = From(source) |>
-        Partition(; by, order_by) |>
-        Define(sc.output => sc.splitter)
+        Partition() |>
+        Select(args = selection) |>
+        Partition(; order_by, by) |>
+        Select(Get(id_var), sc.output => sc.splitter)
 
-    return replace_table(repository, query, destination; schema)
+    replace_table(repository, query, destination; schema)
+    return
 end
 
 ## UI representation
 
-function CardWidget(
-        ::Type{SplitCard};
-        percentile = (min = 0, max = 1, step = 0.01),
-    )
-
-    options = ["percentile", "tiles"]
+function CardWidget(config::CardConfig{SplitCard}, options::AbstractDict)
+    methods = ["percentile", "tiles"]
+    percentile_options =
+        get(options, "percentile", StringDict("min" => 0, "max" => 1, "step" => 0.01))
 
     fields = [
-        Widget("method"; options),
+        Widget("method"; options = methods),
         Widget("order_by"),
         Widget("by", required = false),
         Widget("output", value = "partition"),
         Widget(
-            "percentile";
-            percentile.min,
-            percentile.max,
-            percentile.step,
+            "percentile",
+            config.widget_types,
+            percentile_options,
             visible = Dict("method" => ["percentile"])
         ),
-        Widget("tiles", visible = Dict("method" => ["tiles"])),
+        Widget(
+            "tiles",
+            config.widget_types,
+            visible = Dict("method" => ["tiles"])
+        ),
     ]
 
-    return CardWidget(; type = "split", output = OutputSpec("output"), fields)
+    return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

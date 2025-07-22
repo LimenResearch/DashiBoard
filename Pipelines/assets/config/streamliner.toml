@@ -1,9 +1,16 @@
-[model]
+key = "streamliner"
+label = "Streamliner"
+needs_targets = true
+needs_order = true
+allows_weights = false
+allows_partition = true
+
+[widget_types.model]
 widget = "select"
 label = "Model configuration"
 placeholder = "Select a model configuration..."
 
-[training]
+[widget_types.training]
 widget = "select"
 label = "Training configuration"
 placeholder = "Select a training configuration..."

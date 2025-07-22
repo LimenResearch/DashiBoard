@@ -18,9 +18,14 @@ function new_name(c::AbstractString, cols...)
     return first(Iterators.dropwhile(in(used_names), candidates))
 end
 
+function join_on_row_number(tbl, id_var, sel)
+    cond = Agg.row_number() .== Get(id_var, over = Get(tbl))
+    return LeftJoin(tbl => From(tbl), on = cond) |>
+        Define(args = sel .=> Get.(sel, over = Get(tbl)))
+end
+
 # note: with empty partition, DuckDB preserves order
-function with_id(table::AbstractString, id_var)
-    return From(table) |>
-        Partition() |>
-        Define(id_var => Agg.row_number())
+function join_on_row_number(tbl, tbls, id_vars, sels)
+    init = From(tbl) |> Partition()
+    return mapfoldl(splat(join_on_row_number), |>, zip(tbls, id_vars, sels); init)
 end

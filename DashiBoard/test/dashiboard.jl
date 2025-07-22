@@ -19,7 +19,7 @@ mktempdir() do data_dir
     DataIngestion.select(repo, filters)
 
     cards = Pipelines.Card.(pipeline_config["cards"])
-    Pipelines.evaluate(repo, cards, "selection")
+    Pipelines.train_evaljoin!(repo, Pipelines.Node.(cards), "selection")
 
     res = DBInterface.execute(DataFrame, repo, "FROM selection")
 
@@ -37,7 +37,15 @@ mktempdir() do data_dir
     function _evaluate(wc, model, t, id)
         return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end
-    Pipelines.register_wild_card("trivial", "Trivial", _train, _evaluate)
+    config = CardConfig{WildCard{_train, _evaluate}}(
+        key = "trivial",
+        label = "Trivial",
+        needs_targets = false,
+        needs_order = false,
+        allows_partition = false,
+        allows_weights = false
+    )
+    Pipelines.register_card(config)
 
     server = DashiBoard.launch(
         data_dir;
@@ -49,8 +57,8 @@ mktempdir() do data_dir
     @testset "request" begin
         url = "http://127.0.0.1:8080/"
 
-        body = read(joinpath(@__DIR__, "static", "card-configurations.json"), String)
-        resp = HTTP.post(url * "get-card-configurations", body = body)
+        body = read(joinpath(@__DIR__, "static", "card-widgets.json"), String)
+        resp = HTTP.post(url * "get-card-widgets", body = body)
         configs = JSON.parse(IOBuffer(resp.body))
         @test configs isa AbstractVector
         @test length(configs) == 9
@@ -59,7 +67,7 @@ mktempdir() do data_dir
             "Content-Type" => "application/json",
             "Transfer-Encoding" => "chunked",
         ]
-        resp = HTTP.request("OPTIONS", url * "get-card-configurations")
+        resp = HTTP.request("OPTIONS", url * "get-card-widgets")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
             "Transfer-Encoding" => "chunked",

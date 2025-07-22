@@ -28,6 +28,7 @@ const LINK_FUNCTIONS = OrderedDict(
 
 """
     struct GLMCard <: Card
+        label::String
         formula::FormulaTerm
         weights::Union{String, Nothing}
         distribution::Distribution
@@ -39,6 +40,7 @@ const LINK_FUNCTIONS = OrderedDict(
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
 struct GLMCard <: StandardCard
+    label::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
     distribution::Distribution
@@ -47,7 +49,10 @@ struct GLMCard <: StandardCard
     suffix::String
 end
 
+const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
+
 function GLMCard(c::AbstractDict)
+    label::String = card_label(c)
     inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
     formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
@@ -62,7 +67,7 @@ function GLMCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
-    return GLMCard(formula, weights, distribution, link, partition, suffix)
+    return GLMCard(label, formula, weights, distribution, link, partition, suffix)
 end
 
 ## StandardCard interface
@@ -90,21 +95,19 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{GLMCard})
+function CardWidget(config::CardConfig{GLMCard}, ::AbstractDict)
+    noise_models = collect(keys(NOISE_MODELS))
+    link_functions = collect(keys(LINK_FUNCTIONS))
 
     fields = [
         Widget("inputs"),
         Widget("target"),
         Widget("weights", required = false),
-        Widget("distribution", options = collect(keys(NOISE_MODELS)), required = false),
-        Widget("link", options = collect(keys(LINK_FUNCTIONS)), required = false),
+        Widget("distribution", config.widget_types, options = noise_models, required = false),
+        Widget("link", config.widget_types, options = link_functions, required = false),
         Widget("partition", required = false),
         Widget("suffix", value = "hat"),
     ]
 
-    return CardWidget(;
-        type = "glm",
-        output = OutputSpec("target", "suffix"),
-        fields
-    )
+    return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))
 end

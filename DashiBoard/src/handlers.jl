@@ -13,9 +13,9 @@ function load_files(stream::HTTP.Stream)
     return
 end
 
-function get_card_configurations(stream::HTTP.Stream)
+function get_card_widgets(stream::HTTP.Stream)
     spec = json_read(stream)
-    configs = Pipelines.card_configurations(spec)
+    configs = Pipelines.card_widgets(spec)
     json_write(stream, configs)
     return
 end
@@ -26,12 +26,12 @@ function evaluate_pipeline(stream::HTTP.Stream)
     cards = Card.(spec["cards"])
     nodes = Pipelines.Node.(cards)
     DataIngestion.select(REPOSITORY[], filters)
-    g, vars = Pipelines.evaluate!(REPOSITORY[], nodes, "selection")
+    p = Pipelines.train_evaljoin!(REPOSITORY[], nodes, "selection")
 
     report = Pipelines.report(REPOSITORY[], nodes) |> jsonify
     vs = Pipelines.visualize(REPOSITORY[], nodes)
     visualization = stringify_visualization.(vs)
-    graph = sprint(Pipelines.graphviz, g, nodes, vars)
+    graph = sprint(Pipelines.graphviz, p)
     summaries = DataIngestion.summarize(REPOSITORY[], "selection")
     json_write(stream, (; summaries, visualization, graph, report))
     return

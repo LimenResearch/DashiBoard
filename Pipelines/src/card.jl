@@ -1,3 +1,31 @@
+## Card state type
+
+@kwdef struct CardState
+    content::Union{Vector{UInt8}, Nothing} = nothing
+    metadata::StringDict = StringDict()
+end
+
+function jldserialize(m)
+    return mktemp() do path, io
+        jldopen(path, "w") do file
+            file["model_state"] = m
+        end
+        return read(io)
+    end
+end
+
+function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
+    return mktemp() do path, io
+        write(io, v)
+        flush(io)
+        jldopen(path) do file
+            return file[k]
+        end
+    end
+end
+
+## Card interface
+
 """
     abstract type Card end
 
@@ -27,9 +55,12 @@ abstract type StreamingCard <: Card end
 Generate a [`Card`](@ref) based on a configuration dictionary.
 """
 function Card(d::AbstractDict)
-    type = d["type"]
-    return CARD_TYPES[type](d)
+    type::String = d["type"]
+    config = CARD_CONFIGS[type]
+    return config(d)
 end
+
+# TODO: document
 
 function sorting_vars end
 function grouping_vars end
@@ -39,28 +70,39 @@ function weight_var end
 function partition_var end
 function output_vars end
 
+function inverse_input_vars end
+function inverse_output_vars end
+
 """
-    get_inputs(c::Card)::Vector{String}
+    get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
 
 Return the list of inputs for a given card.
 """
-function get_inputs(c::Card)::Vector{String}
-    return union(
-        sorting_vars(c),
-        grouping_vars(c),
-        input_vars(c),
-        target_vars(c),
-        to_stringlist(weight_var(c)),
-        to_stringlist(partition_var(c)),
-    )
+function get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
+    always_include = (sorting_vars(c), grouping_vars(c))
+    return if invert
+        union(always_include..., inverse_input_vars(c))
+    elseif train
+        union(
+            always_include...,
+            input_vars(c),
+            target_vars(c),
+            to_stringlist(weight_var(c)),
+            to_stringlist(partition_var(c)),
+        )
+    else
+        union(always_include..., input_vars(c))
+    end
 end
 
 """
-    get_outputs(c::Card)::Vector{String}
+    get_outputs(c::Card; invert::Bool = false)::Vector{String}
 
 Return the list of outputs for a given card.
 """
-get_outputs(c::Card)::Vector{String} = output_vars(c)
+function get_outputs(c::Card; invert::Bool = false)::Vector{String}
+    return invert ? inverse_output_vars(c) : output_vars(c)
+end
 
 """
     invertible(c::Card)::Bool
@@ -77,45 +119,24 @@ Return a trained model for a given `card` on a table `table` in the database `re
 function train end
 
 """
-    evaluate(repository::Repository, card::Card, state::CardState, (source, destination)::Pair; schema = nothing)
+    evaluate(
+        repository::Repository,
+        card::Card,
+        state::CardState,
+        (source, destination)::Pair,
+        id::AbstractString;
+        schema = nothing
+    )
 
 Replace table `destination` in the database `repository.db` with the outcome of executing the `card`
 on the table `source`.
+The new table `destination` will have an additional column `id`, to be joined with the row
+number of the original table.
 
 Here, `state` represents the result of `train(repository, card, source; schema)`.
 See also [`train`](@ref).
 """
 function evaluate end
-
-function evaluate(repository::Repository, card::Card, (source, destination)::Pair; schema = nothing)
-    state = train(repository, card, source; schema)::CardState
-    evaluate(repository, card, state, source => destination; schema)
-    return state
-end
-
-@kwdef struct CardState
-    content::Union{Vector{UInt8}, Nothing} = nothing
-    metadata::StringDict = StringDict()
-end
-
-function jldserialize(m)
-    return mktemp() do path, io
-        jldopen(path, "w") do file
-            file["model_state"] = m
-        end
-        return read(io)
-    end
-end
-
-function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
-    return mktemp() do path, io
-        write(io, v)
-        flush(io)
-        jldopen(path) do file
-            return file[k]
-        end
-    end
-end
 
 """
     report(repository::Repository, nodes::AbstractVector)
@@ -153,37 +174,90 @@ to implement a default visualization for a given card type.
 """
 visualize(::Repository, ::Card, ::CardState) = nothing
 
-# Construct cards
+## Define new cards
 
-const CARD_LABELS = OrderedDict{String, String}()
-const CARD_TYPES = OrderedDict{String, Type}()
-
-# Generate widgets and widget configurations
-
-function card_widget(d::AbstractDict, key::AbstractString; kwargs...)
-    return @with WIDGET_CONFIG => merge(d["general"], d[key]) begin
-        card = CARD_TYPES[key]
-        CardWidget(card; kwargs...)
-    end
-end
-
-function card_configurations(options::AbstractDict = Dict())
-    d = Dict{String, AbstractDict}("general" => parse_toml_config("general"))
-    for (k, v) in pairs(CARD_TYPES)
-        # At the moment, `WildCard`s don't have config files
-        d[k] = (v <: WildCard) ? StringDict() : parse_toml_config(k)
+"""
+    @kwdef struct CardConfig{T <: Card}
+        key::String
+        label::String
+        needs_targets::Bool
+        needs_order::Bool
+        allows_weights::Bool
+        allows_partition::Bool
+        widget_types::StringDict = StringDict()
+        methods::StringDict = StringDict()
     end
 
-    return [card_widget(d, k; get(options, k, (;))...) for k in keys(CARD_TYPES)]
+Configuration used to register a card.
+"""
+@kwdef struct CardConfig{T <: Card}
+    key::String
+    label::String
+    needs_targets::Bool
+    needs_order::Bool
+    allows_weights::Bool
+    allows_partition::Bool
+    widget_types::StringDict = StringDict()
+    methods::StringDict = StringDict()
 end
 
-function register_card(name::AbstractString, label::AbstractString, ::Type{T}) where {T <: Card}
-    CARD_LABELS[name] = label
-    CARD_TYPES[name] = T
+function CardConfig{T}(c::AbstractDict) where {T <: Card}
+    key::String = c["key"]
+    label::String = c["label"]
+    needs_targets::Bool = c["needs_targets"]
+    needs_order::Bool = c["needs_order"]
+    allows_weights::Bool = c["allows_weights"]
+    allows_partition::Bool = c["allows_partition"]
+    widget_types::StringDict = c["widget_types"]
+    methods::StringDict = get(c, "methods", StringDict())
+    return CardConfig{T}(;
+        key,
+        label,
+        needs_targets,
+        needs_order,
+        allows_weights,
+        allows_partition,
+        widget_types,
+        methods
+    )
+end
+
+card_type(::CardConfig{T}) where {T <: Card} = T
+
+(::CardConfig{T})(c::AbstractDict) where {T <: Card} = T(c)
+
+const CARD_CONFIGS = OrderedDict{String, CardConfig}()
+
+## Generate widgets
+
+function card_widgets(options::AbstractDict = StringDict())
+    widgets = CardWidget[]
+    for (k, config) in pairs(CARD_CONFIGS)
+        specific_options = get(options, k, StringDict())
+        push!(widgets, CardWidget(config, specific_options))
+    end
+    return widgets
+end
+
+"""
+    register_card(config::CardConfig)
+
+Set a given card configuration as globally available.
+
+See also [`CardConfig`](@ref).
+"""
+function register_card(config::CardConfig)
+    CARD_CONFIGS[config.key] = config
     return
 end
 
-_card_type(::Type{T}) where {T <: Card} = findfirst(Fix1(<:, T), CARD_TYPES)
-_card_type(c::T) where {T <: Card} = _card_type(T)
+## Labeling tools
 
-card_label(c::Card) = CARD_LABELS[_card_type(c)]
+card_label(c::Card) = c.label
+
+function card_label(c::AbstractDict)
+    return get(c, "label") do
+        type::String = c["type"]
+        return CARD_CONFIGS[type].label
+    end
+end

@@ -1,4 +1,15 @@
-[[widgets]]
+key = "cluster"
+label = "Cluster"
+needs_targets = false
+needs_order = false
+allows_weights = true
+allows_partition = true
+
+widget_types = {}
+
+[methods.kmeans]
+
+[[methods.kmeans.widgets]]
 key = "classes"
 widget = "input"
 label = "Classes"
@@ -7,7 +18,7 @@ type = "number"
 min = 1
 step = 1
 
-[[widgets]]
+[[methods.kmeans.widgets]]
 key = "iterations"
 widget = "input"
 label = "Iterations"
@@ -18,7 +29,7 @@ step = 1
 value = 100
 required = false
 
-[[widgets]]
+[[methods.kmeans.widgets]]
 key = "tol"
 widget = "input"
 label = "Tolerance"
@@ -28,3 +39,13 @@ min = 1e-6
 step = 1e-6
 value = 1e-6
 required = false
+
+[methods.dbscan]
+
+# TODO: add other options
+[[methods.dbscan.widgets]]
+key = "radius"
+widget = "input"
+label = "Radius"
+placeholder = "Select radius"
+type = "number"

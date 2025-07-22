@@ -3,66 +3,107 @@
     function _evaluate(wc, model, t, id)
         return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end
-    Pipelines.register_wild_card("trivial", "Trivial", _train, _evaluate)
+    config = CardConfig{WildCard{_train, _evaluate}}(
+        key = "trivial",
+        label = "Trivial",
+        needs_targets = false,
+        needs_order = false,
+        allows_partition = false,
+        allows_weights = false
+    )
+    Pipelines.register_card(config)
 
-    function trivialcard(inputs, outputs)
-        c = Dict("type" => "trivial", "inputs" => inputs, "outputs" => outputs)
+    function trivialcard(inputs::AbstractVector, output::AbstractString)
+        c = Dict("type" => "trivial", "inputs" => inputs, "output" => output)
         return Pipelines.Card(c)
     end
 
+    function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
+        return WildCard{_train, _evaluate}(
+            label = "Trivial",
+            order_by = String[],
+            inputs = inputs,
+            targets = String[],
+            weights = nothing,
+            partition = nothing,
+            outputs = outputs
+        )
+    end
+
     nodes = [
-        Pipelines.Node(trivialcard(["temp"], ["pred humid"]), true),
-        Pipelines.Node(trivialcard(["pred humid"], ["pred wind"]), true),
-        Pipelines.Node(trivialcard(["wind", "wind name"], ["pred temp"]), true),
-        Pipelines.Node(trivialcard(["wind"], ["wind name"]), true),
+        Pipelines.Node(trivialcard(["temp"], "pred humid"), update = true),
+        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), update = true),
+        Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
     ]
 
-    g = Pipelines.digraph(nodes, ["temp", "wind"])
+    g = Pipelines.digraph(nodes)
     order = Pipelines.topological_sort(g)
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
     DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl2(temp DOUBLE, wind DOUBLE)")
+    DBInterface.execute(
+        Returns(nothing), repo, """
+        CREATE TABLE tbl3("temp" DOUBLE, "wind" DOUBLE, "pred humid" DOUBLE)
+        """
+    )
+    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl4(temp DOUBLE, wind DOUBLE)")
 
-    @test_throws KeyError Pipelines.evaluate!(repo, nodes, "tbl1")
+    @test_throws "wind" Pipelines.train_evaljoin!(repo, nodes, "tbl1")
 
-    @test_throws KeyError Pipelines.digraph(nodes, ["temp"])
-    @test_throws ArgumentError Pipelines.digraph(nodes, ["temp", "wind", "pred humid"])
-    faulty_node = Pipelines.Node(trivialcard(["temp"], ["pred temp"]), true)
-    @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]), ["temp", "wind"])
-
-    # Test returned value of `Pipelines.evaluate!`
-    g, output_vars = Pipelines.evaluate!(repo, nodes, "tbl2")
-    @test collect(edges(g)) == collect(edges(Pipelines.digraph(nodes, ["temp", "wind"])))
+    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    @test source_vars == ["temp", "wind"]
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
+    faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"))
+    @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]))
+
+    # Test returned value of `Pipelines.train_evaljoin!`
+    p = Pipelines.train_evaljoin!(repo, nodes, "tbl2")
+    @test p.nodes == nodes
+    for (n1, n2) in zip(nodes, p.nodes)
+        @test n1.state === n2.state
+    end
+    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.source_vars == ["temp", "wind"]
+    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+
     nodes = [
-        Pipelines.Node(trivialcard(["temp"], ["pred humid"]), false),
-        Pipelines.Node(trivialcard(["pred humid"], ["pred wind"]), true),
-        Pipelines.Node(trivialcard(["wind", "wind name"], ["pred temp"]), false),
-        Pipelines.Node(trivialcard(["wind"], ["wind name"]), true),
+        Pipelines.Node(trivialcard(["temp"], "pred humid"), update = false),
+        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), update = false),
+        Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
     ]
 
-    g = Pipelines.digraph(nodes, ["temp", "wind"])
+    # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
+    p = Pipelines.train_evaljoin!(repo, nodes, "tbl3")
+    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.source_vars == ["temp", "wind"]
+    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+
+    # original table must supply precomputed variabels
+    @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4")
+
+    g = Pipelines.digraph(nodes)
     hs = Pipelines.compute_height(g, nodes)
     @test hs == [-1, 0, 1, 0]
     @test Pipelines.layers(hs) == [[2, 4], [3]]
     @test isempty(Pipelines.layers(Int[]))
 
     # Empty case
-    @test Pipelines.digraph(Pipelines.Node[], String[]) == DiGraph(0)
+    @test Pipelines.digraph(Pipelines.Node[]) == DiGraph(0)
 
     nodes = [
-        Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), false),
-        Pipelines.Node(trivialcard(["a"], ["c", "d"]), true),
-        Pipelines.Node(trivialcard(["b"], ["e"]), true),
-        Pipelines.Node(trivialcard(["e", "f"], ["g", "h", "i"]), true),
+        Pipelines.Node(trivialmultioutputcard(["a", "c", "e"], ["f"]), update = false),
+        Pipelines.Node(trivialmultioutputcard(["a"], ["c", "d"]), update = true),
+        Pipelines.Node(trivialmultioutputcard(["b"], ["e"]), update = true),
+        Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
-    table_vars = ["a", "b"]
 
-    # TODO fix evaluation when some update is not required
-    g, vars = Pipelines.digraph_metadata(nodes, table_vars)
+    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    @test source_vars == ["a", "b"]
     @test nv(g) == 11
     # The graph nodes are
     # 1 => n1, 2 => n2, 3 => n3, 4 => n4,
@@ -82,7 +123,11 @@
         Edge(8, 4),
     ]
 
-    s = sprint(Pipelines.graphviz, g, nodes, vars)
+    s = sprint(Pipelines.graphviz, g, nodes, output_vars)
+    @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
+
+    p = Pipelines.Pipeline(nodes)
+    s = sprint(Pipelines.graphviz, p)
     @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 end
 
@@ -100,7 +145,8 @@ mktempdir() do dir
     @testset "cards" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cards.json"))
         cards = Pipelines.Card.(d)
-        nodes = Pipelines.evaluate(repo, cards, "selection")
+        nodes = Node.(cards)
+        Pipelines.train_evaljoin!(repo, nodes, "selection")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -113,7 +159,7 @@ mktempdir() do dir
         @test count(==(1), df._percentile_partition) == 39441
         @test count(==(2), df._percentile_partition) == 4383
 
-        Pipelines.evaluatenodes(repo, nodes, "source")
+        Pipelines.evaljoin(repo, nodes, "source")
         df = DBInterface.execute(DataFrame, repo, "FROM source")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -130,8 +176,9 @@ mktempdir() do dir
     @testset "nodes" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
-        card = Pipelines.Card(d["zscore"])
-        state = Pipelines.evaluate(repo, card, "selection" => "rescaled")
+        _node = Node(Pipelines.Card(d["zscore"]))
+        Pipelines.train!(repo, _node, "selection")
+        card, state = get_card(_node), get_state(_node)
 
         node = Pipelines.Node(
             Dict(
@@ -140,11 +187,19 @@ mktempdir() do dir
             )
         )
 
-        @test node.card isa Pipelines.RescaleCard
+        @test get_card(node) isa Pipelines.RescaleCard
         for k in fieldnames(Pipelines.RescaleCard)
-            @test getfield(node.card, k) == getfield(card, k)
+            @test getfield(get_card(node), k) == getfield(card, k)
         end
-        @test node.state.content == state.content
-        @test node.state.metadata == state.metadata
+        @test get_state(node).content == state.content
+        @test get_state(node).metadata == state.metadata
+
+        node2 = Pipelines.unlink(node)
+        @test node.card == node2.card
+        @test node.update == node2.update
+        @test node.train == node2.train
+        @test node.invert == node2.invert
+        @test node.state[] == node2.state[]
+        @test node.state !== node2.state
     end
 end

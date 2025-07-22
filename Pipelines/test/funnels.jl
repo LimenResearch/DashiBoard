@@ -4,7 +4,7 @@
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
-    card = Pipelines.Card(d["tiles"])
+    node = Node(Card(d["tiles"]))
 
     mktempdir() do data_dir
         Downloads.download(
@@ -13,7 +13,7 @@
         )
         DataIngestion.load_files(repo, data_dir, spec["data"]; schema)
     end
-    Pipelines.evaluate(repo, card, "source" => "split"; schema)
+    Pipelines.train_evaljoin!(repo, node, "source" => "split"; schema)
 
     data = Pipelines.DBData{2}(
         repository = repo,

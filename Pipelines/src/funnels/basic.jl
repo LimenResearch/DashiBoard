@@ -83,14 +83,14 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     end
 
     nrows = StreamlinerCore.get_nsamples(data, i)
-    ns = colnames(data.repository, data.table; data.schema)
-    id_var = new_name("id", ns)
-    id_table = with_id(data.table, id_var)
+    id_var = new_name("id", order_by, data.inputs, data.targets, to_stringlist(partition))
 
     return with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(order_by)
-        stream_query = id_table |>
+        stream_query = From(data.table) |>
+            Partition() |>
+            Define(id_var => Agg.row_number()) |>
             filter_partition(partition, i) |>
             Order(by = sorters)
 
@@ -125,43 +125,22 @@ function append_batch(appender::DuckDBUtils.Appender, id, vs)
     return
 end
 
-function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination)
+function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination, id)
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
-    ns = colnames(data.repository, data.table; data.schema)
-    id_var = new_name("id", ns, data.targets)
-    id_table = with_id(data.table, id_var)
-
-    tmp = string(uuid4())
 
     tbl = SimpleTable()
-    tbl[id_var] = Int64[]
+    tbl[id] = Int64[]
     for k in data.targets
         T = column_type(k, data.uvals)
-        tbl[k] = T[]
+        tbl[join_names(k, suffix)] = T[]
     end
-    load_table(data.repository, tbl, tmp; data.schema)
+    load_table(data.repository, tbl, destination; data.schema)
 
-    appender = DuckDBUtils.Appender(data.repository.db, tmp, data.schema)
+    appender = DuckDBUtils.Appender(data.repository.db, destination, data.schema)
     for batch in eval_stream
         v = collect(batch.prediction)
         append_batch(appender, batch.id, decode_columns(v, data.targets, data.uvals))
     end
     DuckDBUtils.close(appender)
-
-    new_vars = join_names.(data.targets, suffix) .=> Get.(data.targets, over = Get.eval)
-    # avoid selecting overlapping columns (TODO: is this needed?)
-    old_ns = setdiff(ns, first.(new_vars))
-    old_vars = old_ns .=> Get.(old_ns)
-    join_clause = Join(
-        "eval" => From(tmp),
-        on = Get(id_var) .== Get(id_var, over = Get.eval),
-        right = true
-    )
-    query = id_table |>
-        join_clause |>
-        Select(old_vars..., new_vars...)
-    replace_table(data.repository, query, destination; data.schema)
-    # TODO: finally block to ensure table gets deleted
-    delete_table(data.repository, tmp; data.schema)
     return
 end

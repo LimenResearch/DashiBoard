@@ -1,5 +1,3 @@
-widget_config(key::AbstractString) = WIDGET_CONFIG[][key]
-
 struct Widget
     widget::String
     key::String
@@ -22,10 +20,18 @@ function default_value(widget, type, multiple)
     return nothing
 end
 
+function Widget(key::AbstractString, widget_types::AbstractDict = WIDGET_TYPES[]; options...)
+    return Widget(widget_types[key]; key, options...)
+end
+
+function Widget(key::AbstractString, widget_types::AbstractDict, conf::AbstractDict; options...)
+    return Widget(merge(widget_types[key], conf); key, options...)
+end
+
 function Widget(
-        key::AbstractString,
-        conf::AbstractDict = widget_config(key);
+        conf::AbstractDict;
         widget = conf["widget"],
+        key = conf["key"],
         type = get(conf, "type", "text"),
         label = get(conf, "label", ""),
         placeholder = get(conf, "placeholder", ""),
@@ -59,6 +65,18 @@ function Widget(
     )
 end
 
+function generate_widget(
+        conf::AbstractDict,
+        type::AbstractString,
+        name::AbstractString,
+        idx::Integer
+    )
+
+    key = string(type, "_", "options", ".", idx, ".", conf["key"])
+    visible = Dict(type => [name])
+    return Widget(conf; key, visible)
+end
+
 struct OutputSpec
     field::String
     suffixField::Union{String, Nothing}
@@ -72,16 +90,6 @@ end
 struct CardWidget
     type::String
     label::String
-    output::OutputSpec
     fields::Vector{Widget}
-end
-
-function CardWidget(;
-        type::AbstractString,
-        label::AbstractString = CARD_LABELS[type],
-        output::OutputSpec,
-        fields::AbstractVector
-    )
-
-    return CardWidget(type, label, output, fields)
+    output::OutputSpec
 end

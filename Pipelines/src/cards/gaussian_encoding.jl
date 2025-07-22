@@ -24,8 +24,9 @@ const TEMPORAL_MAX = OrderedDict(
 Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
-- `column::String`: Name of the column to transform.
-- `processed_column::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
+- `label::String`: Label to represent the card in a UI.
+- `input::String`: Name of the column to transform.
+- `processed_input::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
 - `n_modes::Int`: Number of Gaussian curves to generate.
 - `max::Float64`: Maximum value used for normalization (denominator).
 - `lambda::Float64`: Coefficient for scaling the standard deviation.
@@ -60,22 +61,27 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 struct GaussianEncodingCard <: SQLCard
-    column::String
-    processed_column::SQLNode
+    label::String
+    input::String
+    processed_input::SQLNode
     n_modes::Int
     max::Float64
     lambda::Float64
     suffix::String
 end
 
+const GAUSSIAN_ENCODING_CARD_CONFIG =
+    CardConfig{GaussianEncodingCard}(parse_toml_config("config", "gaussian_encoding"))
+
 function GaussianEncodingCard(c::AbstractDict)
-    column::String = c["column"]
+    label::String = card_label(c)
+    input::String = c["input"]
     method::String = get(c, "method", "identity")
     if !haskey(TEMPORAL_PREPROCESSING, method)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
-    processed_column::SQLNode = TEMPORAL_PREPROCESSING[method](Get(column))
+    processed_input::SQLNode = TEMPORAL_PREPROCESSING[method](Get(input))
     n_modes::Int = c["n_modes"]
     if n_modes ≤ 0
         throw(ArgumentError("`n_modes` must be greater than `0`. Provided value: `$n_modes`."))
@@ -83,18 +89,18 @@ function GaussianEncodingCard(c::AbstractDict)
     max::Float64 = get(c, "max", TEMPORAL_MAX[method])
     lambda::Float64 = get(c, "lambda", 0.5)
     suffix::String = get(c, "suffix", "gaussian")
-    return GaussianEncodingCard(column, processed_column, n_modes, max, lambda, suffix)
+    return GaussianEncodingCard(label, input, processed_input, n_modes, max, lambda, suffix)
 end
 
 ## SQLCard interface
 
 sorting_vars(::GaussianEncodingCard) = String[]
 grouping_vars(::GaussianEncodingCard) = String[]
-input_vars(gec::GaussianEncodingCard) = [gec.column]
+input_vars(gec::GaussianEncodingCard) = [gec.input]
 target_vars(::GaussianEncodingCard) = String[]
 weight_var(::GaussianEncodingCard) = nothing
 partition_var(::GaussianEncodingCard) = nothing
-output_vars(gec::GaussianEncodingCard) = join_names.(gec.column, gec.suffix, 1:gec.n_modes)
+output_vars(gec::GaussianEncodingCard) = join_names.(gec.input, gec.suffix, 1:gec.n_modes)
 
 function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)
     μs = range(start = 0, step = 1 / gec.n_modes, length = gec.n_modes)
@@ -118,54 +124,48 @@ function evaluate(
         repository::Repository,
         gec::GaussianEncodingCard,
         state::CardState,
-        (source, target)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing
     )
 
     params_tbl = jlddeserialize(state.content)
 
-    source_columns = colnames(repository, source; schema)
-    col = new_name("transformed", source_columns, get_outputs(gec))
     converted = map(1:gec.n_modes) do i
-        k = join_names(gec.column, gec.suffix, i)
-        v = gaussian_transform(Get(col), Get(join_names("μ", i)), Get.σ, Get.d)
+        k = join_names(gec.input, gec.suffix, i)
+        v = gaussian_transform(Get.transformed, Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
-    target_columns = union(source_columns, first.(converted))
+    selection = vcat([id_var => Get(id_var)], converted)
 
-    return with_table(repository, params_tbl; schema) do tbl_name
+    with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
-            Define(col => gec.processed_column) |>
+            Partition() |>
+            Select(id_var => Agg.row_number(), "transformed" => gec.processed_input) |>
             Join(From(tbl_name), on = true) |>
-            Define(converted...) |>
-            Select(Get.(target_columns)...)
-        replace_table(repository, query, target; schema)
+            Select(args = selection)
+        replace_table(repository, query, destination; schema)
     end
+    return
 end
 
 ## UI representation
 
-function CardWidget(
-        ::Type{GaussianEncodingCard};
-        n_modes = (min = 2, step = 1, max = nothing),
-        max = (min = 0, step = nothing, max = nothing),
-        lambda = (min = 0, step = nothing, max = nothing),
-    )
+function CardWidget(config::CardConfig{GaussianEncodingCard}, options::AbstractDict)
+    methods = collect(keys(TEMPORAL_PREPROCESSING))
 
-    options = collect(keys(TEMPORAL_PREPROCESSING))
+    n_modes_options = get(options, "n_modes", StringDict("min" => 1, "step" => 1))
+    max_options = get(options, "max", StringDict("min" => 0))
+    lambda_options = get(options, "lambda", StringDict("min" => 0))
 
     fields = [
-        Widget("method"; options),
-        Widget("column"),
-        Widget("n_modes"; n_modes.min, n_modes.step, n_modes.max),
-        Widget("max"; max.min, max.step, max.max),
-        Widget("lambda"; lambda.min, lambda.step, lambda.max),
+        Widget("method"; options = methods),
+        Widget("input"),
+        Widget("n_modes", config.widget_types, n_modes_options),
+        Widget("max", config.widget_types, max_options),
+        Widget("lambda", config.widget_types, lambda_options),
         Widget("suffix", value = "gaussian"),
     ]
 
-    return CardWidget(;
-        type = "gaussian_encoding",
-        output = OutputSpec("column", "suffix", "n_modes"),
-        fields
-    )
+    return CardWidget(config.key, config.label, fields, OutputSpec("input", "suffix", "n_modes"))
 end

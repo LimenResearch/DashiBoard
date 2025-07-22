@@ -20,7 +20,7 @@ export function getCards(state) {
 export function Cards() {
   const { state, setState } = useContext(CardsContext);
   const [configs] = createResource(() =>
-    postRequest("get-card-configurations", {}, null),
+    postRequest("get-card-widgets", {}, null),
   );
   const safeConfigs = () => configs() || [];
 

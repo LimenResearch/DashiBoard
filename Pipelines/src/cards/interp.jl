@@ -30,6 +30,7 @@ const INTERPOLATORS = OrderedDict(
 
 """
     struct InterpCard <: Card
+        label::String
         interpolator::Interpolator
         input::String
         targets::Vector{String}
@@ -43,6 +44,7 @@ const INTERPOLATORS = OrderedDict(
 Interpolate `targets` based on `input`.
 """
 struct InterpCard <: StandardCard
+    label::String
     interpolator::Interpolator
     input::String
     targets::Vector{String}
@@ -53,7 +55,10 @@ struct InterpCard <: StandardCard
     suffix::String
 end
 
+const INTERP_CARD_CONFIG = CardConfig{InterpCard}(parse_toml_config("config", "interp"))
+
 function InterpCard(c::AbstractDict)
+    label::String = card_label(c)
     method::String = c["method"]
     interpolator::Interpolator = INTERPOLATORS[method]
     input::String = c["input"]
@@ -65,6 +70,7 @@ function InterpCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
     return InterpCard(
+        label,
         interpolator,
         input,
         targets,
@@ -115,27 +121,30 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{InterpCard})
-    options = collect(keys(INTERPOLATORS))
+function CardWidget(config::CardConfig{InterpCard}, ::AbstractDict)
+    methods = collect(keys(INTERPOLATORS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
     fields = [
         Widget("input"),
         Widget("targets"),
-        Widget("method"; options, value = "linear"),
+        Widget("method"; options = methods, value = "linear"),
         Widget(
             "extrapolation_left",
+            config.widget_types,
             value = "linear",
             options = extrapolation_options
         ),
         Widget(
             "extrapolation_right",
+            config.widget_types,
             value = "linear",
             options = extrapolation_options
         ),
         Widget(
             "dir",
+            config.widget_types,
             options = direction_options,
             value = "left",
             visible = Dict("method" => ["constant"])
@@ -144,9 +153,5 @@ function CardWidget(::Type{InterpCard})
         Widget("suffix", value = "hat"),
     ]
 
-    return CardWidget(;
-        type = "interp",
-        output = OutputSpec("targets", "suffix"),
-        fields
-    )
+    return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

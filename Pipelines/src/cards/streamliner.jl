@@ -17,6 +17,7 @@ end
 
 """
     struct StreamlinerCard <: Card
+        label::String
         model::Model
         training::Training
         order_by::Vector{String}
@@ -29,6 +30,7 @@ end
 Run a Streamliner model, predicting `targets` from `inputs`.
 """
 struct StreamlinerCard <: StreamingCard
+    label::String
     model::Model
     training::Training
     order_by::Vector{String}
@@ -38,7 +40,11 @@ struct StreamlinerCard <: StreamingCard
     suffix::String
 end
 
+const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("config", "streamliner"))
+
 function StreamlinerCard(c::AbstractDict)
+    label::String = card_label(c)
+
     order_by::Vector{String} = get(c, "order_by", String[])
     inputs::Vector{String} = get(c, "inputs", String[])
     targets::Vector{String} = get(c, "targets", String[])
@@ -55,6 +61,7 @@ function StreamlinerCard(c::AbstractDict)
     suffix = get(c, "suffix", "hat")
 
     return StreamlinerCard(
+        label,
         model,
         training,
         order_by,
@@ -114,7 +121,8 @@ function evaluate(
         repository::Repository,
         sc::StreamlinerCard,
         state::CardState,
-        (source, destination)::Pair;
+        (source, destination)::Pair,
+        id_var::AbstractString;
         schema = nothing
     )
 
@@ -123,7 +131,7 @@ function evaluate(
     (; model, training, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)
 
-    return mktempdir() do dir
+    mktempdir() do dir
         path = StreamlinerCore.output_path(dir)
         write(path, state.content)
         uvals = jldopen(path) do file
@@ -142,8 +150,9 @@ function evaluate(
             uvals
         )
 
-        StreamlinerCore.evaluate(dir, model, data, streaming; destination, suffix)
+        StreamlinerCore.evaluate(dir, model, data, streaming; destination, suffix, id = id_var)
     end
+    return
 end
 
 function report(::Repository, sc::StreamlinerCard, state::CardState)
@@ -163,14 +172,14 @@ function list_tomls(dir)
     return [f for (f, ext) in fls if ext == ".toml"]
 end
 
-function CardWidget(::Type{StreamlinerCard})
+function CardWidget(config::CardConfig{StreamlinerCard}, ::AbstractDict)
 
     model_tomls = list_tomls(MODEL_DIR[])
     training_tomls = list_tomls(TRAINING_DIR[])
 
     fields = Widget[
-        Widget("model", options = model_tomls),
-        Widget("training", options = training_tomls),
+        Widget("model", config.widget_types, options = model_tomls),
+        Widget("training", config.widget_types, options = training_tomls),
         Widget("order_by"),
         Widget("inputs"),
         Widget("targets"),
@@ -190,9 +199,5 @@ function CardWidget(::Type{StreamlinerCard})
         append!(fields, generate_widget.(wdgs, "training", t, idx))
     end
 
-    return CardWidget(;
-        type = "streamliner",
-        output = OutputSpec("targets", "suffix"),
-        fields
-    )
+    return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

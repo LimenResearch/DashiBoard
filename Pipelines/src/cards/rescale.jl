@@ -105,6 +105,7 @@ The resulting rescaled variable is added to the table under the name
 struct RescaleCard <: SQLCard
     type::String
     label::String
+    method::String
     rescaler::Rescaler
     by::Vector{String}
     inputs::Vector{String}
@@ -115,6 +116,21 @@ struct RescaleCard <: SQLCard
 end
 
 const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("config", "rescale"))
+
+function get_metadata(rc::RescaleCard)
+    return StringDict(
+        "type" => rc.type,
+        "label" => rc.label,
+        "method" => rc.method,
+        "order_by" => rc.order_by,
+        "by" => rc.by,
+        "inputs" => rc.inputs,
+        "targets" => rc.targets,
+        "partition" => rc.partition,
+        "suffix" => rc.suffix,
+        "target_suffix" => rc.target_suffix,
+    )
+end
 
 function RescaleCard(c::AbstractDict)
     type::String = c["type"]
@@ -131,6 +147,7 @@ function RescaleCard(c::AbstractDict)
     return RescaleCard(
         type,
         label,
+        method,
         rescaler,
         by,
         inputs,
@@ -201,7 +218,6 @@ function evaluate(
         schema = nothing,
         invert::Bool = false
     )
-
     (; by, targets, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 

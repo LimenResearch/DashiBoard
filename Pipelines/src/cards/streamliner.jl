@@ -15,6 +15,30 @@ function parse_config(
     return T(parser, c, options)
 end
 
+function get_streamliner_model(parser::Parser, c::AbstractDict)
+    model = c["model"]
+    return if model isa AbstractDict
+        Model(parser, model)
+    elseif model isa AbstractString
+        model_options = extract_options(c, "model_options", MODEL_OPTIONS_REGEX)
+        parse_config(Model, parser, MODEL_DIR[], model, model_options)
+    else
+        throw(ArgumentError("Invalid model config $(model)"))
+    end
+end
+
+function get_streamliner_training(parser::Parser, c::AbstractDict)
+    training = c["training"]
+    return if training isa AbstractDict
+        Training(parser, training)
+    elseif training isa AbstractString
+        training_options = extract_options(c, "training_options", TRAINING_OPTIONS_REGEX)
+        parse_config(Training, parser, TRAINING_DIR[], training, training_options)
+    else
+        throw(ArgumentError("Invalid training config $(training)"))
+    end
+end
+
 """
     struct StreamlinerCard <: Card
         type::String
@@ -44,6 +68,20 @@ end
 
 const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("config", "streamliner"))
 
+function get_metadata(sc::StreamlinerCard)
+    return StringDict(
+        "type" => sc.type,
+        "label" => sc.label,
+        "model" => StreamlinerCore.get_metadata(sc.model),
+        "training" => StreamlinerCore.get_metadata(sc.training),
+        "order_by" => sc.order_by,
+        "inputs" => sc.inputs,
+        "targets" => sc.targets,
+        "partition" => sc.partition,
+        "suffix" => sc.suffix,
+    )
+end
+
 function StreamlinerCard(c::AbstractDict)
     type::String = c["type"]
     config = CARD_CONFIGS[type]
@@ -55,11 +93,8 @@ function StreamlinerCard(c::AbstractDict)
 
     parser = PARSER[]
 
-    model_options = extract_options(c, "model_options", MODEL_OPTIONS_REGEX)
-    model = parse_config(Model, parser, MODEL_DIR[], c["model"], model_options)
-
-    training_options = extract_options(c, "training_options", TRAINING_OPTIONS_REGEX)
-    training = parse_config(Training, parser, TRAINING_DIR[], c["training"], training_options)
+    model = get_streamliner_model(parser, c)
+    training = get_streamliner_training(parser, c)
 
     partition = get(c, "partition", nothing)
     suffix = get(c, "suffix", "hat")
@@ -178,7 +213,6 @@ function list_tomls(dir)
 end
 
 function CardWidget(config::CardConfig{StreamlinerCard}, ::AbstractDict)
-
     model_tomls = list_tomls(MODEL_DIR[])
     training_tomls = list_tomls(TRAINING_DIR[])
 

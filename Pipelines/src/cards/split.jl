@@ -1,6 +1,4 @@
-function get_splitter(c::AbstractDict)
-    method::String = c["method"]
-
+function get_splitter(c::AbstractDict, method::AbstractString)
     # TODO: add randomized methods
     if method == "tiles"
         check_order(c)
@@ -20,6 +18,7 @@ end
     struct SplitCard <: Card
         type::String
         label::String
+        method::String
         splitter::SQLNode
         order_by::Vector{String}
         by::Vector{String}
@@ -35,6 +34,7 @@ Currently supported methods are
 struct SplitCard <: SQLCard
     type::String
     label::String
+    method::String
     splitter::SQLNode
     order_by::Vector{String}
     by::Vector{String}
@@ -43,15 +43,27 @@ end
 
 const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "split"))
 
+function get_metadata(sc::SplitCard)
+    return StringDict(
+        "type" => sc.type,
+        "label" => sc.label,
+        "method" => sc.method,
+        "order_by" => sc.order_by,
+        "by" => sc.by,
+        "output" => sc.output,
+    )
+end
+
 function SplitCard(c::AbstractDict)
     type::String = c["type"]
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
-    splitter::SQLNode = get_splitter(c)
+    method::String = c["method"]
+    splitter::SQLNode = get_splitter(c, method)
     order_by::Vector{String} = get(c, "order_by", String[])
     by::Vector{String} = get(c, "by", String[])
     output::String = c["output"]
-    return SplitCard(type, label, splitter, order_by, by, output)
+    return SplitCard(type, label, method, splitter, order_by, by, output)
 end
 
 ## SQLCard interface
@@ -76,7 +88,6 @@ function evaluate(
         id_var::AbstractString;
         schema = nothing
     )
-
     order_by = Get.(sc.order_by)
     by = Get.(sc.by)
     selection = vcat(

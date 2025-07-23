@@ -73,6 +73,8 @@ function output_vars end
 function inverse_input_vars end
 function inverse_output_vars end
 
+## Accessor functions
+
 """
     get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
 
@@ -103,6 +105,12 @@ Return the list of outputs for a given card.
 function get_outputs(c::Card; invert::Bool = false)::Vector{String}
     return invert ? inverse_output_vars(c) : output_vars(c)
 end
+
+function get_metadata end
+
+get_label(c::Card) = c.label
+
+## Training and evaluation
 
 """
     invertible(c::Card)::Bool
@@ -257,8 +265,6 @@ function register_card(config::CardConfig)
     return
 end
 
-## Labeling tools
-
-card_label(c::Card) = c.label
+## Helpers
 
 card_label(c::AbstractDict, config::CardConfig) = get(c, "label", config.label)

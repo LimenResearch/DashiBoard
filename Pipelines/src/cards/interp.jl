@@ -32,6 +32,7 @@ const INTERPOLATORS = OrderedDict(
     struct InterpCard <: Card
         type::String
         label::String
+        method::String
         interpolator::Interpolator
         input::String
         targets::Vector{String}
@@ -47,6 +48,7 @@ Interpolate `targets` based on `input`.
 struct InterpCard <: StandardCard
     type::String
     label::String
+    method::String
     interpolator::Interpolator
     input::String
     targets::Vector{String}
@@ -58,6 +60,21 @@ struct InterpCard <: StandardCard
 end
 
 const INTERP_CARD_CONFIG = CardConfig{InterpCard}(parse_toml_config("config", "interp"))
+
+function get_metadata(ic::InterpCard)
+    return StringDict(
+        "type" => ic.type,
+        "label" => ic.label,
+        "method" => ic.method,
+        "input" => ic.inputs,
+        "targets" => ic.targets,
+        "extrapolation_left" => lowercase(string(Symbol(ic.extrapolation_left))),
+        "extrapolation_right" => lowercase(string(Symbol(ic.extrapolation_right))),
+        "dir" => isnothing(ic.dir) ? nothing : string(ic.dir),
+        "partition" => ic.partition,
+        "suffix" => ic.suffix,
+    )
+end
 
 function InterpCard(c::AbstractDict)
     type::String = c["type"]
@@ -76,6 +93,7 @@ function InterpCard(c::AbstractDict)
     return InterpCard(
         type,
         label,
+        method,
         interpolator,
         input,
         targets,

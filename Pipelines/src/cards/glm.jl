@@ -13,7 +13,7 @@ const NOISE_MODELS = OrderedDict(
     "poisson" => Poisson(),
 )
 
-const LINK_FUNCTIONS = OrderedDict(
+const LINK_TYPES = OrderedDict(
     "cauchit" => CauchitLink,
     "cloglog" => CloglogLink,
     "identity" => IdentityLink,
@@ -28,14 +28,18 @@ const LINK_FUNCTIONS = OrderedDict(
 
 """
     struct GLMCard <: Card
-        type::String
-        label::String
-        formula::FormulaTerm
-        weights::Union{String, Nothing}
-        distribution::Distribution
-        link::Link
-        partition::Union{String, Nothing}
-        suffix::String
+      type::String
+      label::String
+      distribution_name::String
+      distribution::Distribution
+      link_name::Union{String, Nothing}
+      link::Link
+      inputs::Vector{Any}
+      target::String
+      formula::FormulaTerm
+      weights::Union{String, Nothing}
+      partition::Union{String, Nothing}
+      suffix::String
     end
 
 Run a Generalized Linear Model (GLM) based on `formula`.
@@ -43,35 +47,69 @@ Run a Generalized Linear Model (GLM) based on `formula`.
 struct GLMCard <: StandardCard
     type::String
     label::String
+    distribution_name::String
+    distribution::Distribution
+    link_name::Union{String, Nothing}
+    link::Link
+    inputs::Vector{Any}
+    target::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
-    distribution::Distribution
-    link::Link
     partition::Union{String, Nothing}
     suffix::String
 end
 
 const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
+function get_metadata(gc::GLMCard)
+    return StringDict(
+        "type" => gc.type,
+        "label" => gc.label,
+        "inputs" => gc.inputs,
+        "target" => gc.target,
+        "weights" => gc.weights,
+        "distribution" => gc.distribution_name,
+        "link" => gc.link_name,
+        "link_params" => isnothing(gc.link_name) ? nothing : get_params(gc.link),
+        "partition" => gc.partition,
+        "suffix" => gc.suffix,
+    )
+end
+
 function GLMCard(c::AbstractDict)
     type::String = c["type"]
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
+    distribution_name::String = get(c, "distribution", "normal")
+    link_name::Union{String, Nothing} = get(c, "link", nothing)
     inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
-    formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
     weights::Union{String, Nothing} = get(c, "weights", nothing)
-    distribution::Distribution = NOISE_MODELS[get(c, "distribution", "normal")]
-    link_key::Union{String, Nothing} = get(c, "link", nothing)
-    link::Link = if isnothing(link_key)
+    distribution::Distribution = NOISE_MODELS[distribution_name]
+    link::Link = if isnothing(link_name)
         canonicallink(distribution)
     else
-        LINK_FUNCTIONS[link_key](get(c, "link_params", ())...)
+        link_params::Vector{Any} = get(c, "link_params", [])
+        LINK_TYPES[link_name](link_params...)
     end
+    formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
-    return GLMCard(type, label, formula, weights, distribution, link, partition, suffix)
+    return GLMCard(
+        type,
+        label,
+        distribution_name,
+        distribution,
+        link_name,
+        link,
+        inputs,
+        target,
+        formula,
+        weights,
+        partition,
+        suffix
+    )
 end
 
 ## StandardCard interface
@@ -101,7 +139,7 @@ end
 
 function CardWidget(config::CardConfig{GLMCard}, ::AbstractDict)
     noise_models = collect(keys(NOISE_MODELS))
-    link_functions = collect(keys(LINK_FUNCTIONS))
+    link_functions = collect(keys(LINK_TYPES))
 
     fields = [
         Widget("inputs"),

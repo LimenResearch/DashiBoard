@@ -64,6 +64,7 @@ Evaluate:
 struct GaussianEncodingCard <: SQLCard
     type::String
     label::String
+    method::String
     input::String
     processed_input::SQLNode
     n_modes::Int
@@ -75,12 +76,25 @@ end
 const GAUSSIAN_ENCODING_CARD_CONFIG =
     CardConfig{GaussianEncodingCard}(parse_toml_config("config", "gaussian_encoding"))
 
+function get_metadata(gec::GaussianEncodingCard)
+    return StringDict(
+        "type" => gec.type,
+        "label" => gec.label,
+        "method" => gec.method,
+        "input" => gec.input,
+        "n_modes" => gec.n_modes,
+        "max" => gec.max,
+        "lambda" => gec.lambda,
+        "suffix" => gec.suffix,
+    )
+end
+
 function GaussianEncodingCard(c::AbstractDict)
     type::String = c["type"]
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
-    input::String = c["input"]
     method::String = get(c, "method", "identity")
+    input::String = c["input"]
     if !haskey(TEMPORAL_PREPROCESSING, method)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
@@ -93,7 +107,7 @@ function GaussianEncodingCard(c::AbstractDict)
     max::Float64 = get(c, "max", TEMPORAL_MAX[method])
     lambda::Float64 = get(c, "lambda", 0.5)
     suffix::String = get(c, "suffix", "gaussian")
-    return GaussianEncodingCard(type, label, input, processed_input, n_modes, max, lambda, suffix)
+    return GaussianEncodingCard(type, label, method, input, processed_input, n_modes, max, lambda, suffix)
 end
 
 ## SQLCard interface

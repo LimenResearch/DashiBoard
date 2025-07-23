@@ -122,7 +122,6 @@ function get_metadata(rc::RescaleCard)
         "type" => rc.type,
         "label" => rc.label,
         "method" => rc.method,
-        "order_by" => rc.order_by,
         "by" => rc.by,
         "inputs" => rc.inputs,
         "targets" => rc.targets,

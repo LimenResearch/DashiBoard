@@ -10,5 +10,6 @@ using Test
 include("evaluation.jl")
 include("funnels.jl")
 include("cards.jl")
+include("metadata.jl")
 include("frontend.jl")
 include("utils.jl")

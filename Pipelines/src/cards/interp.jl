@@ -66,7 +66,7 @@ function get_metadata(ic::InterpCard)
         "type" => ic.type,
         "label" => ic.label,
         "method" => ic.method,
-        "input" => ic.inputs,
+        "input" => ic.input,
         "targets" => ic.targets,
         "extrapolation_left" => lowercase(string(Symbol(ic.extrapolation_left))),
         "extrapolation_right" => lowercase(string(Symbol(ic.extrapolation_right))),

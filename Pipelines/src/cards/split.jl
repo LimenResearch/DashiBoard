@@ -1,25 +1,42 @@
-function get_splitter(c::AbstractDict, method::AbstractString)
-    # TODO: add randomized methods
-    if method == "tiles"
-        check_order(c)
-        tiles::Vector{Int} = c["tiles"]
-        N = length(tiles)
-        return Fun.list_extract(Fun.list_value(tiles...), Agg.ntile(N))
-    elseif method == "percentile"
-        check_order(c)
-        percentile::Float64 = c["percentile"]
-        return Fun.case(Agg.percent_rank() .≤ percentile, 1, 2)
-    else
-        throw(ArgumentError("method $method is not supported"))
-    end
+abstract type SplittingMethod end
+
+# TODO: add randomized methods
+
+struct PercentileMethod <: SplittingMethod
+    percentile::Float64
 end
+
+get_sql(s::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ s.percentile, 1, 2)
+
+function PercentileMethod(c::AbstractDict)
+    check_order(c)
+    percentile::Float64 = c["percentile"]
+    return PercentileMethod(percentile)
+end
+
+struct TilesMethod <: SplittingMethod
+    tiles::Vector{Int}
+end
+
+get_sql(s::TilesMethod) = Fun.list_extract(Fun.list_value(s.tiles...), Agg.ntile(length(s.tiles)))
+
+function TilesMethod(c::AbstractDict)
+    check_order(c)
+    tiles::Vector{Int} = c["tiles"]
+    return TilesMethod(tiles)
+end
+
+const SPLITTING_METHODS = OrderedDict{String, DataType}(
+    "percentile" => PercentileMethod,
+    "tiles" => TilesMethod,
+)
 
 """
     struct SplitCard <: Card
         type::String
         label::String
         method::String
-        splitter::SQLNode
+        splitter::SplittingMethod
         order_by::Vector{String}
         by::Vector{String}
         output::String
@@ -35,7 +52,7 @@ struct SplitCard <: SQLCard
     type::String
     label::String
     method::String
-    splitter::SQLNode
+    splitter::SplittingMethod
     order_by::Vector{String}
     by::Vector{String}
     output::String
@@ -44,7 +61,7 @@ end
 const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "split"))
 
 function get_metadata(sc::SplitCard)
-    return StringDict(
+    d = StringDict(
         "type" => sc.type,
         "label" => sc.label,
         "method" => sc.method,
@@ -52,6 +69,8 @@ function get_metadata(sc::SplitCard)
         "by" => sc.by,
         "output" => sc.output,
     )
+    # TODO: decide on nesting vs no nesting (compare Cluster and DimRed)
+    return merge!(d, get_options(sc.splitter))
 end
 
 function SplitCard(c::AbstractDict)
@@ -59,7 +78,7 @@ function SplitCard(c::AbstractDict)
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
     method::String = c["method"]
-    splitter::SQLNode = get_splitter(c, method)
+    splitter::SplittingMethod = SPLITTING_METHODS[method](c)
     order_by::Vector{String} = get(c, "order_by", String[])
     by::Vector{String} = get(c, "by", String[])
     output::String = c["output"]
@@ -100,7 +119,7 @@ function evaluate(
         Partition() |>
         Select(args = selection) |>
         Partition(; order_by, by) |>
-        Select(Get(id_var), sc.output => sc.splitter)
+        Select(Get(id_var), sc.output => get_sql(sc.splitter))
 
     replace_table(repository, query, destination; schema)
     return
@@ -109,7 +128,7 @@ end
 ## UI representation
 
 function CardWidget(config::CardConfig{SplitCard}, options::AbstractDict)
-    methods = ["percentile", "tiles"]
+    methods = collect(keys(SPLITTING_METHODS))
     percentile_options =
         get(options, "percentile", StringDict("min" => 0, "max" => 1, "step" => 0.01))
 

@@ -1,42 +1,24 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
-function parse_config(
-        ::Type{T},
-        parser::Parser,
-        dir::AbstractString,
-        name::AbstractString,
-        options::AbstractDict
-    ) where {T}
-
-    file = string(name, ".toml")
+function maybe_parse(dir, x)
+    x isa AbstractString || return x
+    file = string(x, ".toml")
     c = parsefile(joinpath(dir, file))
     delete!(c, "widgets")
-    return T(parser, c, options)
+    return c
 end
 
 function get_streamliner_model(parser::Parser, c::AbstractDict)
-    model = c["model"]
-    return if model isa AbstractDict
-        Model(parser, model)
-    elseif model isa AbstractString
-        model_options = extract_options(c, "model_options", MODEL_OPTIONS_REGEX)
-        parse_config(Model, parser, MODEL_DIR[], model, model_options)
-    else
-        throw(ArgumentError("Invalid model config $(model)"))
-    end
+    model_options = extract_options(c, "model_options", MODEL_OPTIONS_REGEX)
+    model = maybe_parse(MODEL_DIR[], c["model"])
+    return Model(parser, model, model_options)
 end
 
 function get_streamliner_training(parser::Parser, c::AbstractDict)
-    training = c["training"]
-    return if training isa AbstractDict
-        Training(parser, training)
-    elseif training isa AbstractString
-        training_options = extract_options(c, "training_options", TRAINING_OPTIONS_REGEX)
-        parse_config(Training, parser, TRAINING_DIR[], training, training_options)
-    else
-        throw(ArgumentError("Invalid training config $(training)"))
-    end
+    training_options = extract_options(c, "training_options", TRAINING_OPTIONS_REGEX)
+    training = maybe_parse(TRAINING_DIR[], c["training"])
+    return Training(parser, training, training_options)
 end
 
 """

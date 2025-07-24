@@ -126,12 +126,24 @@ end
     for k in fields
         @test metadata[k] == config[k]
     end
+    @test metadata["label"] == "Interpolation"
     @test metadata["suffix"] == "hat"
 end
 
 @testset "metadata gaussian encoding" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
-    # TODO
+
+    config = d["identity"]
+    card = Pipelines.Card(config)
+    metadata = Pipelines.get_metadata(card)
+    fields = [
+        "type", "method", "input", "n_modes", "max",
+        "lambda", "suffix",
+    ]
+    for k in fields
+        @test metadata[k] == config[k]
+    end
+    @test metadata["label"] == "Gaussian Encoding"
 end
 
 @testset "metadata streamliner" begin

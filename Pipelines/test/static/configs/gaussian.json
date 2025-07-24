@@ -29,7 +29,7 @@
   "minute": {
     "type": "gaussian_encoding",
     "input": "time",
-    "max": 24,
+    "n_components": 1,
     "lambda": 0.5,
     "suffix": "gaussian",
     "method": "minuteofhour",

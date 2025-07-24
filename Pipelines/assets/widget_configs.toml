@@ -26,6 +26,12 @@ placeholder = "Select target variables..."
 multiple = true
 options = { "-v" = "names" }
 
+[n_components]
+widget = "input"
+label = "Number of components"
+placeholder = "Select number of components..."
+type = "number"
+
 [input]
 widget = "select"
 label = "Input"

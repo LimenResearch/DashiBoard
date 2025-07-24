@@ -3,19 +3,31 @@ abstract type TemporalProcessingMethod end
 struct IdentityMethod <: TemporalProcessingMethod
     max::Float64
 end
-IdentityMethod(::Nothing) = IdentityMethod(1)
+IdentityMethod(c::AbstractDict) = IdentityMethod(Float64(get(c, "max", 1)))
 (::IdentityMethod)(x::SQLNode) = x
 
-struct DayOfYearMethod <: TemporalProcessingMethod end
+struct DayOfYearMethod <: TemporalProcessingMethod
+    max::Float64
+end
+DayOfYearMethod(c::AbstractDict) = DayOfYearMethod(Float64(get(c, "max", 366)))
 (::DayOfYearMethod)(x::SQLNode) = Fun.dayofyear(x)
 
-struct HourOfDayMethod <: TemporalProcessingMethod end
+struct HourOfDayMethod <: TemporalProcessingMethod
+    max::Float64
+end
+HourOfDayMethod(c::AbstractDict) = HourOfDayMethod(Float64(get(c, "max", 24)))
 (::HourOfDayMethod)(x::SQLNode) = Fun.hour(x)
 
-struct MinuteOfDayMethod <: TemporalProcessingMethod end
+struct MinuteOfDayMethod <: TemporalProcessingMethod
+    max::Float64
+end
+MinuteOfDayMethod(c::AbstractDict) = MinuteOfDayMethod(Float64(get(c, "max", 1440)))
 (::MinuteOfDayMethod)(x::SQLNode) = @. hour(x) * 60 + minute(x)
 
-struct MinuteOfHourMethod <: TemporalProcessingMethod end
+struct MinuteOfHourMethod <: TemporalProcessingMethod
+    max::Float64
+end
+MinuteOfHourMethod(c::AbstractDict) = MinuteOfHourMethod(Float64(get(c, "max", 60)))
 (::MinuteOfHourMethod)(x::SQLNode) = @. minute(x)
 
 const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
@@ -24,14 +36,6 @@ const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "hourofday" => HourOfDayMethod,
     "minuteofday" => MinuteOfDayMethod,
     "minuteofhour" => MinuteOfHourMethod,
-)
-
-const TEMPORAL_MAX = OrderedDict{String, Int}(
-    "identity" => 1,
-    "dayofyear" => 366,
-    "hourofday" => 24,
-    "minuteofday" => 1440,
-    "minuteofhour" => 60,
 )
 
 """
@@ -45,8 +49,7 @@ Fields:
 - `method::String`: Name of the processing method (see below).
 - `temporal_preprocessor::TemporalProcessingMethod`: Tranformation to process a given column (see below).
 - `input::String`: Name of the column to transform.
-- `n_modes::Int`: Number of Gaussian curves to generate.
-- `max::Float64`: Maximum value used for normalization (denominator).
+- `n_components::Int`: Number of Gaussian curves to generate.
 - `lambda::Float64`: Coefficient for scaling the standard deviation.
 - `suffix::String`: Suffix added to the output column names.
 
@@ -86,8 +89,7 @@ struct GaussianEncodingCard <: SQLCard
     method::String
     temporal_preprocessor::TemporalProcessingMethod
     input::String
-    n_modes::Int
-    max::Float64
+    n_components::Int
     lambda::Float64
     suffix::String
 end
@@ -100,9 +102,9 @@ function get_metadata(gec::GaussianEncodingCard)
         "type" => gec.type,
         "label" => gec.label,
         "method" => gec.method,
+        "method_options" => get_options(gec.temporal_preprocessor),
         "input" => gec.input,
-        "n_modes" => gec.n_modes,
-        "max" => gec.max,
+        "n_components" => gec.n_components,
         "lambda" => gec.lambda,
         "suffix" => gec.suffix,
     )
@@ -118,22 +120,24 @@ function GaussianEncodingCard(c::AbstractDict)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING_METHODS), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
-    max::Union{Float64, Nothing} = get(c, "max", nothing)
-    temporal_preprocessor = TEMPORAL_PREPROCESSING_METHODS[method]()
-    n_modes::Int = c["n_modes"]
-    if n_modes ≤ 0
-        throw(ArgumentError("`n_modes` must be greater than `0`. Provided value: `$n_modes`."))
+    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
+    temporal_preprocessor = TEMPORAL_PREPROCESSING_METHODS[method](method_options)
+
+    n_components::Int = c["n_components"]
+    if n_components ≤ 0
+        throw(ArgumentError("`n_components` must be greater than `0`. Provided value: `$n_components`."))
     end
+
     lambda::Float64 = get(c, "lambda", 0.5)
     suffix::String = get(c, "suffix", "gaussian")
+
     return GaussianEncodingCard(
         type,
         label,
         method,
         temporal_preprocessor,
         input,
-        n_modes,
-        max,
+        n_components,
         lambda,
         suffix
     )
@@ -147,12 +151,12 @@ input_vars(gec::GaussianEncodingCard) = [gec.input]
 target_vars(::GaussianEncodingCard) = String[]
 weight_var(::GaussianEncodingCard) = nothing
 partition_var(::GaussianEncodingCard) = nothing
-output_vars(gec::GaussianEncodingCard) = join_names.(gec.input, gec.suffix, 1:gec.n_modes)
+output_vars(gec::GaussianEncodingCard) = join_names.(gec.input, gec.suffix, 1:gec.n_components)
 
 function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)
-    μs = range(start = 0, step = 1 / gec.n_modes, length = gec.n_modes)
+    μs = range(start = 0, step = 1 / gec.n_components, length = gec.n_components)
     σ = step(μs) * gec.lambda
-    params = Dict("σ" => [σ], "d" => [gec.max])
+    params = Dict("σ" => [σ], "d" => [gec.temporal_preprocessor.max])
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
     end
@@ -178,7 +182,7 @@ function evaluate(
 
     params_tbl = jlddeserialize(state.content)
 
-    converted = map(1:gec.n_modes) do i
+    converted = map(1:gec.n_components) do i
         k = join_names(gec.input, gec.suffix, i)
         v = gaussian_transform(Get.transformed, Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
@@ -202,18 +206,18 @@ end
 function CardWidget(config::CardConfig{GaussianEncodingCard}, options::AbstractDict)
     methods = collect(keys(TEMPORAL_PREPROCESSING_METHODS))
 
-    n_modes_options = get(options, "n_modes", StringDict("min" => 1, "step" => 1))
+    n_modes_options = get(options, "n_components", StringDict("min" => 1, "step" => 1))
     max_options = get(options, "max", StringDict("min" => 0))
     lambda_options = get(options, "lambda", StringDict("min" => 0))
 
     fields = [
         Widget("method"; options = methods),
         Widget("input"),
-        Widget(config, "n_modes", n_modes_options),
+        Widget(config, "n_components", n_modes_options),
         Widget(config, "max", max_options),
         Widget(config, "lambda", lambda_options),
         Widget("suffix", value = "gaussian"),
     ]
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("input", "suffix", "n_modes"))
+    return CardWidget(config.key, config.label, fields, OutputSpec("input", "suffix", "n_components"))
 end

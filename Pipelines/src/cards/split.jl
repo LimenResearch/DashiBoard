@@ -82,7 +82,7 @@ function SplitCard(c::AbstractDict)
     has_order = !isempty(order_by)
     by::Vector{String} = get(c, "by", String[])
     method::String = c["method"]
-    method_options::StringDict = get(c, "method_options", StringDict())
+    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
     splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
     output::String = c["output"]
     return SplitCard(type, label, method, splitter, order_by, by, output)
@@ -132,26 +132,24 @@ end
 
 function CardWidget(config::CardConfig{SplitCard}, options::AbstractDict)
     methods = collect(keys(SPLITTING_METHODS))
-    percentile_options =
-        get(options, "percentile", StringDict("min" => 0, "max" => 1, "step" => 0.01))
+    complete_options = merge(
+        options,
+        StringDict(
+            "percentile" => StringDict("min" => 0, "max" => 1, "step" => 0.01)
+        )
+    )
 
     fields = [
         Widget("method"; options = methods),
         Widget("order_by"),
         Widget("by", required = false),
         Widget("output", value = "partition"),
-        Widget(
-            config,
-            "percentile",
-            percentile_options,
-            visible = Dict("method" => ["percentile"])
-        ),
-        Widget(
-            config,
-            "tiles",
-            visible = Dict("method" => ["tiles"])
-        ),
     ]
+
+    for (idx, m) in enumerate(methods)
+        wdgs = merge_configs(config.methods[m]["widgets"], complete_options)
+        append!(fields, generate_widget.(wdgs, "method", m, idx))
+    end
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

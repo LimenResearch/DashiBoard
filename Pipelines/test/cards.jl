@@ -495,8 +495,8 @@ mktempdir() do dir
             base_fields = Dict(
                 "type" => "gaussian_encoding",
                 "input" => "date",
-                "n_modes" => 3,
-                "max" => 365.0,
+                "n_components" => 3,
+                "method_options" => Dict("max" => 365.0),
                 "lambda" => 0.5,
                 "suffix" => "gaussian"
             )
@@ -504,7 +504,8 @@ mktempdir() do dir
             for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
                 c = merge(base_fields, Dict("method" => k))
                 card = GaussianEncodingCard(c)
-                @test card.temporal_preprocessor == v
+                _max = base_fields["method_options"]["max"]
+                @test card.temporal_preprocessor == v(_max)
             end
 
             invalid_method = "nonexistent_method"
@@ -514,7 +515,7 @@ mktempdir() do dir
             invalid_config = Dict(
                 "type" => "gaussian_encoding",
                 "input" => "date",
-                "n_modes" => 0,
+                "n_components" => 0,
                 "max" => 365.0,
                 "lambda" => 0.5,
                 "method" => "identity"
@@ -524,10 +525,10 @@ mktempdir() do dir
 
         function gauss_train_test(node::Node)
             card, state = get_card(node), get_state(node)
-            expected_means = range(0, step = 1 / card.n_modes, length = card.n_modes)
+            expected_means = range(0, step = 1 / card.n_components, length = card.n_components)
             expected_sigma = step(expected_means) * card.lambda
-            expected_d = card.max
-            expected_keys = vcat(["μ_$i" for i in 1:card.n_modes], ["σ", "d"])
+            expected_d = card.temporal_preprocessor.max
+            expected_keys = vcat(["μ_$i" for i in 1:card.n_components], ["σ", "d"])
 
             params = Pipelines.jlddeserialize(state.content)
             @test isempty(setdiff(expected_keys, keys(params)))
@@ -542,9 +543,9 @@ mktempdir() do dir
             @test names(result) == union(names(origin), Pipelines.get_outputs(card))
 
             origin_column = origin[:, card.input]
-            max_value = card.max
+            max_value = card.temporal_preprocessor.max
             preprocessed_values = processing.(origin_column)
-            μs = range(0, step = 1 / card.n_modes, length = card.n_modes)
+            μs = range(0, step = 1 / card.n_components, length = card.n_components)
             σ = step(μs) * card.lambda
             for (i, μ) in enumerate(μs)
                 expected_values = pdf.(Normal(0, σ), _rem.(preprocessed_values ./ max_value .- μ)) .* σ

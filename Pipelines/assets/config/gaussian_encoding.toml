@@ -5,12 +5,6 @@ needs_order = false
 allows_weights = false
 allows_partition = false
 
-[widget_configs.n_modes]
-widget = "input"
-label = "Number of modes"
-placeholder = "Select number of modes..."
-type = "number"
-
 [widget_configs.max]
 widget = "input"
 label = "Maximum value"

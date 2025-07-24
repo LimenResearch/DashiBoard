@@ -63,6 +63,8 @@ Widget(key::AbstractString; options...) = Widget(WIDGET_CONFIGS[][key]; key, opt
 Widget(key::AbstractString, c::AbstractDict; options...) =
     Widget(merge(WIDGET_CONFIGS[][key], c); key, options...)
 
+merge_configs(wdgs, c) = merge.(wdgs, get.((c,), getindex.(wdgs, "key"), (StringDict(),)))
+
 function generate_widget(
         conf::AbstractDict,
         type::AbstractString,

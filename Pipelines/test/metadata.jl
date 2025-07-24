@@ -128,6 +128,8 @@ end
     end
     @test metadata["label"] == "Interpolation"
     @test metadata["suffix"] == "hat"
+    card2 = Pipelines.Card(metadata)
+    @test card.interpolator == card2.interpolator
 end
 
 @testset "metadata gaussian encoding" begin
@@ -144,6 +146,8 @@ end
         @test metadata[k] == config[k]
     end
     @test metadata["label"] == "Gaussian Encoding"
+    card2 = Pipelines.Card(metadata)
+    @test card.processed_input == card2.processed_input
 end
 
 @testset "metadata streamliner" begin
@@ -165,5 +169,11 @@ end
         allows_weights = false
     )
     Pipelines.register_card(card_config)
+
+    config = Dict("type" => "trivial", "inputs" => ["a", "b"], "output" => "c")
+    card = Pipelines.Card(config)
+    metadata = Pipelines.get_metadata(card)
+    fields =
+        @test
     # TODO
 end

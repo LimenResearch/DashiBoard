@@ -1,5 +1,7 @@
 abstract type SplittingMethod end
 
+order_error() = throw(ArgumentError("At least one sorter is required."))
+
 # TODO: add randomized methods
 
 struct PercentileMethod <: SplittingMethod
@@ -8,8 +10,8 @@ end
 
 get_sql(s::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ s.percentile, 1, 2)
 
-function PercentileMethod(c::AbstractDict)
-    check_order(c)
+function PercentileMethod(c::AbstractDict, has_order::Bool)
+    has_order || order_error()
     percentile::Float64 = c["percentile"]
     return PercentileMethod(percentile)
 end
@@ -20,8 +22,8 @@ end
 
 get_sql(s::TilesMethod) = Fun.list_extract(Fun.list_value(s.tiles...), Agg.ntile(length(s.tiles)))
 
-function TilesMethod(c::AbstractDict)
-    check_order(c)
+function TilesMethod(c::AbstractDict, has_order::Bool)
+    has_order || order_error()
     tiles::Vector{Int} = c["tiles"]
     return TilesMethod(tiles)
 end
@@ -61,26 +63,27 @@ end
 const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "split"))
 
 function get_metadata(sc::SplitCard)
-    d = StringDict(
+    return StringDict(
         "type" => sc.type,
         "label" => sc.label,
         "method" => sc.method,
+        "method_options" => get_options(sc.splitter),
         "order_by" => sc.order_by,
         "by" => sc.by,
         "output" => sc.output,
     )
-    # TODO: decide on nesting vs no nesting (compare Cluster and DimRed)
-    return merge!(d, get_options(sc.splitter))
 end
 
 function SplitCard(c::AbstractDict)
     type::String = c["type"]
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
-    method::String = c["method"]
-    splitter::SplittingMethod = SPLITTING_METHODS[method](c)
     order_by::Vector{String} = get(c, "order_by", String[])
+    has_order = !isempty(order_by)
     by::Vector{String} = get(c, "by", String[])
+    method::String = c["method"]
+    method_options::StringDict = get(c, "method_options", StringDict())
+    splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
     output::String = c["output"]
     return SplitCard(type, label, method, splitter, order_by, by, output)
 end

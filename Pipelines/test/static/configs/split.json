@@ -1,26 +1,26 @@
 {
   "percentile": {
     "type": "split",
-    "method": "percentile",
     "order_by": ["No"],
     "by": ["cbwd"],
-    "percentile": 0.9,
+    "method": "percentile",
+    "method_options": { "percentile": 0.9 },
     "output": "_percentile_partition"
   },
   "tiles": {
     "type": "split",
-    "method": "tiles",
     "order_by": ["No"],
     "by": ["cbwd"],
-    "tiles": [1, 1, 2, 1, 1, 2],
+    "method": "tiles",
+    "method_options": { "tiles": [1, 1, 2, 1, 1, 2] },
     "output": "_tiled_partition"
   },
   "unsorted": {
     "type": "split",
-    "method": "percentile",
     "order_by": [],
     "by": ["cbwd"],
-    "percentile": 0.9,
+    "method": "percentile",
+    "method_options": { "percentile": 0.9 },
     "output": "_percentile_partition"
   }
 }

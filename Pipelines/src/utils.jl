@@ -38,20 +38,6 @@ function filter_partition(::Nothing, n::Integer = 1)
     return identity
 end
 
-function check_order(c::AbstractDict)
-    order_by = get(c, "order_by", String[])
-    if isempty(order_by)
-        throw(
-            ArgumentError(
-                """
-                At least one sorter is required.
-                """
-            )
-        )
-    end
-    return true
-end
-
 # Prediction utils
 
 _predict(m::RegressionModel, X::AbstractMatrix) = predict(m, X)

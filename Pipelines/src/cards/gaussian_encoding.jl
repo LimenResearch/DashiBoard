@@ -1,16 +1,32 @@
-minuteofday(x) = @. hour(x) * 60 + minute(x)
+abstract type TemporalProcessingMethod end
 
-minuteofhour(x) = @. minute(x)
+struct IdentityMethod <: TemporalProcessingMethod
+    max::Float64
+end
+IdentityMethod(::Nothing) = IdentityMethod(1)
+(::IdentityMethod)(x::SQLNode) = x
 
-const TEMPORAL_PREPROCESSING = OrderedDict(
-    "identity" => identity,
-    "dayofyear" => Fun.dayofyear,
-    "hourofday" => Fun.hour,
-    "minuteofday" => minuteofday,
-    "minuteofhour" => minuteofhour,
+struct DayOfYearMethod <: TemporalProcessingMethod end
+(::DayOfYearMethod)(x::SQLNode) = Fun.dayofyear(x)
+
+struct HourOfDayMethod <: TemporalProcessingMethod end
+(::HourOfDayMethod)(x::SQLNode) = Fun.hour(x)
+
+struct MinuteOfDayMethod <: TemporalProcessingMethod end
+(::MinuteOfDayMethod)(x::SQLNode) = @. hour(x) * 60 + minute(x)
+
+struct MinuteOfHourMethod <: TemporalProcessingMethod end
+(::MinuteOfHourMethod)(x::SQLNode) = @. minute(x)
+
+const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
+    "identity" => IdentityMethod,
+    "dayofyear" => DayOfYearMethod,
+    "hourofday" => HourOfDayMethod,
+    "minuteofday" => MinuteOfDayMethod,
+    "minuteofhour" => MinuteOfHourMethod,
 )
 
-const TEMPORAL_MAX = OrderedDict(
+const TEMPORAL_MAX = OrderedDict{String, Int}(
     "identity" => 1,
     "dayofyear" => 366,
     "hourofday" => 24,
@@ -26,8 +42,9 @@ Defines a card for applying Gaussian transformations to a specified column.
 Fields:
 - `type::String`: Card type, i.e., `"gaussian_encoding"`.
 - `label::String`: Label to represent the card in a UI.
+- `method::String`: Name of the processing method (see below).
+- `temporal_preprocessor::TemporalProcessingMethod`: Tranformation to process a given column (see below).
 - `input::String`: Name of the column to transform.
-- `processed_input::Union{FunClosure, Nothing}`: Processed column using a given method (see below).
 - `n_modes::Int`: Number of Gaussian curves to generate.
 - `max::Float64`: Maximum value used for normalization (denominator).
 - `lambda::Float64`: Coefficient for scaling the standard deviation.
@@ -41,10 +58,12 @@ Notes:
   - `"hourofday"`: Assumes the column is a time or timestamp.
 
 Methods:
-- Defined in the `TEMPORAL_PREPROCESSING` dictionary:
+- Defined in the `TEMPORAL_PREPROCESSING_METHODS` dictionary:
   - `"identity"`: No transformation.
   - `"dayofyear"`: Applies the SQL `dayofyear` function.
   - `"hourofday"`: Applies the SQL `hour` function.
+  - `"minuteofhour"`: Computes the minute within the hour.
+  - `"minuteofday"`: Computes the minute within the day.
 
 Train:
 - Returns: SimpleTable (Dict{String, AbstractVector}) with Gaussian parameters:
@@ -65,8 +84,8 @@ struct GaussianEncodingCard <: SQLCard
     type::String
     label::String
     method::String
+    temporal_preprocessor::TemporalProcessingMethod
     input::String
-    processed_input::SQLNode
     n_modes::Int
     max::Float64
     lambda::Float64
@@ -95,19 +114,29 @@ function GaussianEncodingCard(c::AbstractDict)
     label::String = card_label(c, config)
     method::String = get(c, "method", "identity")
     input::String = c["input"]
-    if !haskey(TEMPORAL_PREPROCESSING, method)
-        valid_methods = join(keys(TEMPORAL_PREPROCESSING), ", ")
+    if !haskey(TEMPORAL_PREPROCESSING_METHODS, method)
+        valid_methods = join(keys(TEMPORAL_PREPROCESSING_METHODS), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
-    processed_input::SQLNode = TEMPORAL_PREPROCESSING[method](Get(input))
+    max::Union{Float64, Nothing} = get(c, "max", nothing)
+    temporal_preprocessor = TEMPORAL_PREPROCESSING_METHODS[method]()
     n_modes::Int = c["n_modes"]
     if n_modes ≤ 0
         throw(ArgumentError("`n_modes` must be greater than `0`. Provided value: `$n_modes`."))
     end
-    max::Float64 = get(c, "max", TEMPORAL_MAX[method])
     lambda::Float64 = get(c, "lambda", 0.5)
     suffix::String = get(c, "suffix", "gaussian")
-    return GaussianEncodingCard(type, label, method, input, processed_input, n_modes, max, lambda, suffix)
+    return GaussianEncodingCard(
+        type,
+        label,
+        method,
+        temporal_preprocessor,
+        input,
+        n_modes,
+        max,
+        lambda,
+        suffix
+    )
 end
 
 ## SQLCard interface
@@ -156,10 +185,11 @@ function evaluate(
     end
     selection = vcat([id_var => Get(id_var)], converted)
 
+    processed_input = gec.temporal_preprocessor(Get(gec.input))
     with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
             Partition() |>
-            Select(id_var => Agg.row_number(), "transformed" => gec.processed_input) |>
+            Select(id_var => Agg.row_number(), "transformed" => processed_input) |>
             Join(From(tbl_name), on = true) |>
             Select(args = selection)
         replace_table(repository, query, destination; schema)
@@ -170,7 +200,7 @@ end
 ## UI representation
 
 function CardWidget(config::CardConfig{GaussianEncodingCard}, options::AbstractDict)
-    methods = collect(keys(TEMPORAL_PREPROCESSING))
+    methods = collect(keys(TEMPORAL_PREPROCESSING_METHODS))
 
     n_modes_options = get(options, "n_modes", StringDict("min" => 1, "step" => 1))
     max_options = get(options, "max", StringDict("min" => 0))

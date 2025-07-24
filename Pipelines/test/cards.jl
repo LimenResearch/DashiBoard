@@ -501,10 +501,10 @@ mktempdir() do dir
                 "suffix" => "gaussian"
             )
 
-            for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING)
+            for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
                 c = merge(base_fields, Dict("method" => k))
                 card = GaussianEncodingCard(c)
-                @test string(card.processed_input) == string(v(Get("date")))
+                @test card.temporal_preprocessor == v
             end
 
             invalid_method = "nonexistent_method"

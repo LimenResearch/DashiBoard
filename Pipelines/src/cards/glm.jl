@@ -70,7 +70,6 @@ function get_metadata(gc::GLMCard)
         "weights" => gc.weights,
         "distribution" => gc.distribution_name,
         "link" => gc.link_name,
-        "link_params" => isnothing(gc.link_name) ? nothing : get_params(gc.link),
         "partition" => gc.partition,
         "suffix" => gc.suffix,
     )
@@ -89,8 +88,7 @@ function GLMCard(c::AbstractDict)
     link::Link = if isnothing(link_name)
         canonicallink(distribution)
     else
-        link_params::Vector{Any} = get(c, "link_params", [])
-        LINK_TYPES[link_name](link_params...)
+        LINK_TYPES[link_name]()
     end
     formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
     partition::Union{String, Nothing} = get(c, "partition", nothing)

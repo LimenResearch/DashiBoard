@@ -105,7 +105,6 @@ end
     end
     @test metadata["label"] == "GLM"
     @test metadata["suffix"] == "hat"
-    @test isempty(metadata["link_params"])
     card2 = Pipelines.Card(metadata)
     @test card.link == card2.link
     @test card.distribution == card2.distribution
@@ -119,9 +118,7 @@ end
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
     fields = [
-        "type", "method", "input", "targets",
-        "extrapolation_left", "extrapolation_right",
-        "dir", "partition",
+        "type", "method", "input", "targets", "partition", "method_options",
     ]
     for k in fields
         @test metadata[k] == config[k]

@@ -2,20 +2,24 @@
   "constant": {
     "type": "interp",
     "method": "constant",
+    "method_options": {
+      "extrapolation_left": "extension",
+      "extrapolation_right": "extension",
+      "dir": "right"
+    },
     "input": "No",
     "targets": ["TEMP", "PRES"],
-    "extrapolation_left": "extension",
-    "extrapolation_right": "extension",
-    "dir": "right",
     "partition": "partition"
   },
   "quadratic": {
     "type": "interp",
     "method": "quadratic",
+    "method_options": {
+      "extrapolation_left": "linear",
+      "extrapolation_right": "linear"
+    },
     "input": "No",
     "targets": ["TEMP", "PRES"],
-    "extrapolation_left": "linear",
-    "extrapolation_right": "linear",
     "partition": "partition"
   },
   "partition": {

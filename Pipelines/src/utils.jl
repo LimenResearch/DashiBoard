@@ -1,6 +1,8 @@
-# String list utils
+# General utils
 
 to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]
+
+get_options(m) = StringDict(string(k) => getproperty(m, k) for k in propertynames(m))
 
 # Card computation utils
 
@@ -22,13 +24,3 @@ end
 _predict(m::RegressionModel, X::AbstractMatrix) = predict(m, X)
 
 _predict(m::MDS, X::AbstractMatrix) = stack(Fix1(vec ∘ predict, m), eachcol(X))
-
-# Configuration utils
-
-function get_params(m)
-    return Any[getproperty(m, k) for k in propertynames(m)]
-end
-
-function get_options(m)
-    return StringDict(string(k) => getproperty(m, k) for k in propertynames(m))
-end

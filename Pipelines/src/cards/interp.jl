@@ -1,11 +1,83 @@
-struct Interpolator
-    method::Base.Callable
-    has_dir::Bool
+abstract type InterpolationMethod end
+
+function get_options(m::InterpolationMethod)
+    options = StringDict()
+    hasproperty(m, :dir) && (options["dir"] = string(m.dir))
+    options["extrapolation_left"] = lowercase(string(Symbol(m.extrapolation_left)))
+    options["extrapolation_right"] = lowercase(string(Symbol(m.extrapolation_right)))
+    return options
 end
 
-function Interpolator(method::Base.Callable; has_dir::Bool = false)
-    return Interpolator(method, has_dir)
+function get_extrapolation_options(c::AbstractDict)
+    left::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_left", "none")]
+    right::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_right", "none")]
+    return left, right
 end
+
+## Constant interpolation
+
+struct ConstantInterpolationMethod <: InterpolationMethod
+    dir::Symbol
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+end
+
+function ConstantInterpolationMethod(c::AbstractDict)
+    dir::String = c["dir"]
+    return ConstantInterpolationMethod(
+        DIRECTION_OPTIONS[dir],
+        get_extrapolation_options(c)...
+    )
+end
+
+function (m::ConstantInterpolationMethod)(y, x)
+    return ConstantInterpolation(y, x; m.dir, m.extrapolation_left, m.extrapolation_right)
+end
+
+## Non-constant interpolation
+
+struct LinearInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+end
+
+struct QuadraticInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+end
+
+struct QuadraticSplineMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+end
+
+struct CubicSplineMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+end
+
+struct AkimaInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+end
+
+struct PCHIPInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T
+    extrapolation_right::ExtrapolationType.T
+end
+
+for sym in [
+        :LinearInterpolation, :QuadraticInterpolation, :QuadraticSpline,
+        :CubicSpline, :AkimaInterpolation, :PCHIPInterpolation,
+    ]
+    method = Symbol(sym, :Method)
+    @eval begin
+        $(method)(c::AbstractDict) = $(method)(get_extrapolation_options(c)...)
+        (m::$(method))(y, x) = $sym(y, x; m.extrapolation_left, m.extrapolation_right)
+    end
+end
+
+## Global dictionaries of options
 
 const EXTRAPOLATION_OPTIONS = OrderedDict(
     "none" => ExtrapolationType.None,
@@ -18,14 +90,14 @@ const EXTRAPOLATION_OPTIONS = OrderedDict(
 
 const DIRECTION_OPTIONS = OrderedDict("left" => :left, "right" => :right)
 
-const INTERPOLATORS = OrderedDict(
-    "constant" => Interpolator(ConstantInterpolation, has_dir = true),
-    "linear" => Interpolator(LinearInterpolation),
-    "quadratic" => Interpolator(QuadraticInterpolation),
-    "quadraticspline" => Interpolator(QuadraticSpline),
-    "cubicspline" => Interpolator(CubicSpline),
-    "akima" => Interpolator(AkimaInterpolation),
-    "pchip" => Interpolator(PCHIPInterpolation),
+const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
+    "constant" => ConstantInterpolationMethod,
+    "linear" => LinearInterpolationMethod,
+    "quadratic" => QuadraticInterpolationMethod,
+    "quadraticspline" => QuadraticSplineMethod,
+    "cubicspline" => CubicSplineMethod,
+    "akima" => AkimaInterpolationMethod,
+    "pchip" => PCHIPInterpolationMethod,
 )
 
 """
@@ -33,12 +105,9 @@ const INTERPOLATORS = OrderedDict(
         type::String
         label::String
         method::String
-        interpolator::Interpolator
+        interpolator::InterpolationMethod
         input::String
         targets::Vector{String}
-        extrapolation_left::ExtrapolationType.T
-        extrapolation_right::ExtrapolationType.T
-        dir::Union{Symbol, Nothing} = nothing
         partition::Union{String, Nothing} = nothing
         suffix::String = "hat"
     end
@@ -49,12 +118,9 @@ struct InterpCard <: StandardCard
     type::String
     label::String
     method::String
-    interpolator::Interpolator
+    interpolator::InterpolationMethod
     input::String
     targets::Vector{String}
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
-    dir::Union{Symbol, Nothing}
     partition::Union{String, Nothing}
     suffix::String
 end
@@ -66,11 +132,9 @@ function get_metadata(ic::InterpCard)
         "type" => ic.type,
         "label" => ic.label,
         "method" => ic.method,
+        "method_options" => get_options(ic.interpolator),
         "input" => ic.input,
         "targets" => ic.targets,
-        "extrapolation_left" => lowercase(string(Symbol(ic.extrapolation_left))),
-        "extrapolation_right" => lowercase(string(Symbol(ic.extrapolation_right))),
-        "dir" => isnothing(ic.dir) ? nothing : string(ic.dir),
         "partition" => ic.partition,
         "suffix" => ic.suffix,
     )
@@ -81,13 +145,10 @@ function InterpCard(c::AbstractDict)
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
     method::String = c["method"]
-    interpolator::Interpolator = INTERPOLATORS[method]
+    method_options::StringDict = extract_options(c, method, "method")
+    interpolator::InterpolationMethod = INTERPOLATION_METHODS[method](method_options)
     input::String = c["input"]
     targets::Vector{String} = c["targets"]
-    extrapolation_left::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_left", "none")]
-    extrapolation_right::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_right", "none")]
-    dir_key::Union{String, Nothing} = get(c, "dir", nothing)
-    dir::Union{Symbol, Nothing} = isnothing(dir_key) ? nothing : DIRECTION_OPTIONS[dir_key]
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
     return InterpCard(
@@ -97,9 +158,6 @@ function InterpCard(c::AbstractDict)
         interpolator,
         input,
         targets,
-        extrapolation_left,
-        extrapolation_right,
-        dir,
         partition,
         suffix
     )
@@ -116,23 +174,18 @@ partition_var(ic::InterpCard) = ic.partition
 output_vars(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
 function _train(ic::InterpCard, t, _)
-    (; interpolator, extrapolation_left, extrapolation_right, dir, targets, input, partition) = ic
+    (; interpolator, targets, input, partition) = ic
     return map(targets) do target
-        itp = interpolator
         y, x = t[target], t[input]
-        return if itp.has_dir
-            itp.method(y, x; extrapolation_left, extrapolation_right, dir)
-        else
-            itp.method(y, x; extrapolation_left, extrapolation_right)
-        end
+        return interpolator(y, x)
     end
 end
 
 function (ic::InterpCard)(itps, t, id)
     (; targets, input, suffix) = ic
     x = t[input]
-    pred_table = SimpleTable()
 
+    pred_table = SimpleTable()
     for (itp, target) in zip(itps, targets)
         pred_name = join_names(target, suffix)
         ŷ = similar(x, float(eltype(x)))
@@ -145,30 +198,22 @@ end
 ## UI representation
 
 function CardWidget(config::CardConfig{InterpCard}, c::AbstractDict)
-    methods = collect(keys(INTERPOLATORS))
+    methods = collect(keys(INTERPOLATION_METHODS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
-    fields = [
-        Widget("input", c),
-        Widget("targets", c),
-        Widget("method", c; options = methods, value = "linear"),
-        Widget(
-            "extrapolation_left", c, value = "linear",
-            options = extrapolation_options
-        ),
-        Widget(
-            "extrapolation_right", c, value = "linear",
-            options = extrapolation_options
-        ),
-        Widget(
-            "dir", c, value = "left",
-            options = direction_options,
-            visible = Dict("method" => ["constant"])
-        ),
-        Widget("partition", c, required = false),
-        Widget("suffix", c, value = "hat"),
-    ]
+    fields = vcat(
+        [
+            Widget("input", c),
+            Widget("targets", c),
+            Widget("method", c; options = methods),
+        ],
+        method_dependent_widgets(c, config.methods, "method"),
+        [
+            Widget("partition", c, required = false),
+            Widget("suffix", c, value = "hat"),
+        ]
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

@@ -1,23 +1,26 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
-function maybe_parse(dir, x)
-    x isa AbstractString || return x
+function parse_without_widgets(dir, x)
     file = string(x, ".toml")
     c = parsefile(joinpath(dir, file))
     delete!(c, "widgets")
     return c
 end
 
-function get_streamliner_model(parser::Parser, c::AbstractDict)
-    model_options = extract_options(c, "model_options", MODEL_OPTIONS_REGEX)
-    model = maybe_parse(MODEL_DIR[], c["model"])
+function get_streamliner_model(parser::Parser, c::AbstractDict, model_name::AbstractString)
+    model_options = extract_options(c, model_name, "model")
+    model = get(c, "model_metadata") do
+        return parse_without_widgets(MODEL_DIR[], model_name)
+    end
     return Model(parser, model, model_options)
 end
 
-function get_streamliner_training(parser::Parser, c::AbstractDict)
-    training_options = extract_options(c, "training_options", TRAINING_OPTIONS_REGEX)
-    training = maybe_parse(TRAINING_DIR[], c["training"])
+function get_streamliner_training(parser::Parser, c::AbstractDict, training_name::AbstractString)
+    training_options = extract_options(c, training_name, "training")
+    training = get(c, "training_metadata") do
+        return parse_without_widgets(TRAINING_DIR[], training_name)
+    end
     return Training(parser, training, training_options)
 end
 
@@ -25,7 +28,9 @@ end
     struct StreamlinerCard <: Card
         type::String
         label::String
+        model_name::String
         model::Model
+        training_name::String
         training::Training
         order_by::Vector{String}
         inputs::Vector{String}
@@ -39,7 +44,9 @@ Run a Streamliner model, predicting `targets` from `inputs`.
 struct StreamlinerCard <: StreamingCard
     type::String
     label::String
+    model_name::String
     model::Model
+    training_name::String
     training::Training
     order_by::Vector{String}
     inputs::Vector{String}
@@ -54,8 +61,10 @@ function get_metadata(sc::StreamlinerCard)
     return StringDict(
         "type" => sc.type,
         "label" => sc.label,
-        "model" => StreamlinerCore.get_metadata(sc.model),
-        "training" => StreamlinerCore.get_metadata(sc.training),
+        "model" => sc.model_name,
+        "model_metadata" => StreamlinerCore.get_metadata(sc.model),
+        "training" => sc.training_name,
+        "training_metadata" => StreamlinerCore.get_metadata(sc.training),
         "order_by" => sc.order_by,
         "inputs" => sc.inputs,
         "targets" => sc.targets,
@@ -75,8 +84,10 @@ function StreamlinerCard(c::AbstractDict)
 
     parser = PARSER[]
 
-    model = get_streamliner_model(parser, c)
-    training = get_streamliner_training(parser, c)
+    model_name::String = c["model"]
+    model = get_streamliner_model(parser, c, model_name)
+    training_name::String = c["training"]
+    training = get_streamliner_training(parser, c, training_name)
 
     partition = get(c, "partition", nothing)
     suffix = get(c, "suffix", "hat")
@@ -84,7 +95,9 @@ function StreamlinerCard(c::AbstractDict)
     return StreamlinerCard(
         type,
         label,
+        model_name,
         model,
+        training_name,
         training,
         order_by,
         inputs,

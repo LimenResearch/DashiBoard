@@ -91,7 +91,7 @@ function ClusterCard(c::AbstractDict)
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
     method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
+    method_options::StringDict = extract_options(c, method, "method")
     clusterer::ClusteringMethod = CLUSTERING_METHODS[method](method_options)
     inputs::Vector{String} = c["inputs"]
     weights::Union{String, Nothing} = get(c, "weights", nothing)

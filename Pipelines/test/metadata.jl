@@ -163,12 +163,16 @@ end
 
         metadata = Pipelines.get_metadata(card)
         fields = [
-            "type", "order_by", "inputs", "targets", "partition", "suffix",
+            "type", "order_by", "inputs", "targets",
+            "partition", "suffix",
+            "model", "training",
         ]
         for k in fields
             @test metadata[k] == config[k]
         end
         @test metadata["label"] == "Streamliner"
+        @test metadata["model_metadata"] == StreamlinerCore.get_metadata(card.model)
+        @test metadata["training_metadata"] == StreamlinerCore.get_metadata(card.training)
         card2 = Pipelines.Card(metadata)
     end
     @test metadata == Pipelines.get_metadata(card2)

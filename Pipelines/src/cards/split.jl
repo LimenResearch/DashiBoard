@@ -82,7 +82,7 @@ function SplitCard(c::AbstractDict)
     has_order = !isempty(order_by)
     by::Vector{String} = get(c, "by", String[])
     method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
+    method_options::StringDict = extract_options(c, method, "method")
     splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
     output::String = c["output"]
     return SplitCard(type, label, method, splitter, order_by, by, output)

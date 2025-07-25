@@ -120,7 +120,7 @@ function GaussianEncodingCard(c::AbstractDict)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING_METHODS), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
-    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
+    method_options::StringDict = extract_options(c, method, "method")
     temporal_preprocessor = TEMPORAL_PREPROCESSING_METHODS[method](method_options)
 
     n_components::Int = c["n_components"]

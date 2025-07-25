@@ -80,15 +80,14 @@ function method_dependent_widgets(settings::AbstractDict, methods::AbstractDict,
     return wdgs
 end
 
-function extract_options(c::AbstractDict, m::AbstractString, methods::AbstractDict, key::AbstractString)
+function extract_options(c::AbstractDict, m::AbstractString, key::AbstractString)
     option_key = string(key, "_", "options")
+    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
     return get(c, option_key) do
         d = StringDict()
-        for wdg in methods[m]["widgets"]
-            wdg_key = wdg["key"]
-            k = join([option_key, m, wdg_key], ".")
-            v = get(c, k, nothing)
-            isnothing(v) || (d[wdg_key] = v)
+        for (k, v) in pairs(c)
+            m = match(r, k)
+            isnothing(m) || (d[m[:name]] = v)
         end
         return d
     end

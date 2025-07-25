@@ -31,6 +31,7 @@ function get_metadata(wc::WildCard)
         "inputs" => wc.inputs,
         "weights" => wc.weights,
         "partition" => wc.partition,
+        "targets" => wc.targets,
         "outputs" => wc.outputs
     )
 end
@@ -44,12 +45,14 @@ function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     inputs::Vector{String} = c["inputs"]
     targets::Vector{String} = config.needs_targets ? c["targets"] : String[]
 
-    outputs::Vector{String} = if config.needs_targets
-        suffix::String = c["suffix"]
-        join_names(targets, suffix)
-    else
-        output::String = c["output"]
-        [output]
+    outputs::Vector{String} = get(c, "outputs") do
+        if config.needs_targets
+            suffix::String = c["suffix"]
+            join_names(targets, suffix)
+        else
+            output::String = c["output"]
+            [output]
+        end
     end
 
     weights = get(c, "weights", nothing)

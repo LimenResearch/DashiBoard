@@ -4,7 +4,7 @@
     config = d["percentile"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "by", "output", "percentile"]
+    for k in ["type", "method", "order_by", "by", "output", "method_options"]
         @test metadata[k] == config[k]
     end
     @test metadata["label"] == "Split"
@@ -14,7 +14,7 @@
     config = d["tiles"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "by", "output", "tiles"]
+    for k in ["type", "method", "order_by", "by", "output", "method_options"]
         @test metadata[k] == config[k]
     end
     @test metadata["label"] == "Split"
@@ -139,20 +139,39 @@ end
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
     fields = [
-        "type", "method", "input", "n_modes", "max",
-        "lambda", "suffix",
+        "type", "method", "input",
+        "n_components", "lambda", "suffix",
     ]
     for k in fields
         @test metadata[k] == config[k]
     end
     @test metadata["label"] == "Gaussian Encoding"
     card2 = Pipelines.Card(metadata)
-    @test card.processed_input == card2.processed_input
+    @test card.temporal_preprocessor == card2.temporal_preprocessor
 end
 
 @testset "metadata streamliner" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
-    # TODO
+
+    config = d["basic"]
+
+    model_dir = joinpath(@__DIR__, "static", "model")
+    training_dir = joinpath(@__DIR__, "static", "training")
+
+    @with Pipelines.MODEL_DIR => model_dir Pipelines.TRAINING_DIR => training_dir begin
+        card = Pipelines.Card(config)
+
+        metadata = Pipelines.get_metadata(card)
+        fields = [
+            "type", "order_by", "inputs", "targets", "partition", "suffix",
+        ]
+        for k in fields
+            @test metadata[k] == config[k]
+        end
+        @test metadata["label"] == "Streamliner"
+        card2 = Pipelines.Card(metadata)
+    end
+    @test metadata == Pipelines.get_metadata(card2)
 end
 
 @testset "metadata wild" begin
@@ -173,7 +192,17 @@ end
     config = Dict("type" => "trivial", "inputs" => ["a", "b"], "output" => "c")
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    fields =
-        @test
-    # TODO
+    fields = ["type", "inputs"]
+    for k in fields
+        @test metadata[k] == config[k]
+    end
+    @test metadata["label"] == "Trivial"
+    @test isempty(metadata["order_by"])
+    @test isnothing(metadata["weights"])
+    @test isnothing(metadata["partition"])
+    @test isempty(metadata["targets"])
+
+    card2 = Pipelines.Card(metadata)
+    @test card2 isa WildCard{_train, _evaluate}
+    @test card.outputs == card2.outputs
 end

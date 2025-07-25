@@ -606,13 +606,13 @@ mktempdir() do dir
         part_node = Node(part_card)
         Pipelines.train_evaljoin!(repo, part_node, "selection" => "partition")
 
-        model_directory = joinpath(@__DIR__, "static", "model")
-        training_directory = joinpath(@__DIR__, "static", "training")
+        model_dir = joinpath(@__DIR__, "static", "model")
+        training_dir = joinpath(@__DIR__, "static", "training")
 
         card = @with(
             Pipelines.PARSER => Pipelines.default_parser(),
-            Pipelines.MODEL_DIR => model_directory,
-            Pipelines.TRAINING_DIR => training_directory,
+            Pipelines.MODEL_DIR => model_dir,
+            Pipelines.TRAINING_DIR => training_dir,
             Pipelines.Card(d["basic"]),
         )
         @test !Pipelines.invertible(card)
@@ -642,8 +642,8 @@ mktempdir() do dir
 
         card = @with(
             Pipelines.PARSER => Pipelines.default_parser(),
-            Pipelines.MODEL_DIR => model_directory,
-            Pipelines.TRAINING_DIR => training_directory,
+            Pipelines.MODEL_DIR => model_dir,
+            Pipelines.TRAINING_DIR => training_dir,
             Pipelines.Card(d["classifier"]),
         )
         @test !Pipelines.invertible(card)

@@ -38,8 +38,6 @@ See [`default_parser`](@ref) for more advanced uses.
     devices::StringDict = StringDict()
 end
 
-const PARSER = ScopedValue{Parser}()
-
 Base.copy(p::Parser) = Parser(ntuple(n -> copy(getfield(p, n)), fieldcount(Parser))...)
 
 function combine!(p::Parser, q::Parser)

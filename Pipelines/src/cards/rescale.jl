@@ -81,6 +81,7 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 
 """
     struct RescaleCard <: Card
+        type::String
         label::String
         by::Vector{String}
         inputs::Vector{String}
@@ -102,7 +103,9 @@ The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
 struct RescaleCard <: SQLCard
+    type::String
     label::String
+    method::String
     rescaler::Rescaler
     by::Vector{String}
     inputs::Vector{String}
@@ -114,8 +117,24 @@ end
 
 const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("config", "rescale"))
 
+function get_metadata(rc::RescaleCard)
+    return StringDict(
+        "type" => rc.type,
+        "label" => rc.label,
+        "method" => rc.method,
+        "by" => rc.by,
+        "inputs" => rc.inputs,
+        "targets" => rc.targets,
+        "partition" => rc.partition,
+        "suffix" => rc.suffix,
+        "target_suffix" => rc.target_suffix,
+    )
+end
+
 function RescaleCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
     by::Vector{String} = get(c, "by", String[])
@@ -125,7 +144,9 @@ function RescaleCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "rescaled")
     target_suffix = get(c, "target_suffix", nothing)
     return RescaleCard(
+        type,
         label,
+        method,
         rescaler,
         by,
         inputs,
@@ -196,7 +217,6 @@ function evaluate(
         schema = nothing,
         invert::Bool = false
     )
-
     (; by, targets, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 
@@ -231,18 +251,18 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{RescaleCard}, ::AbstractDict)
+function CardWidget(config::CardConfig{RescaleCard}, c::AbstractDict)
     methods = collect(keys(RESCALERS))
     need_group = String[k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 
     fields = [
-        Widget("method"; options = methods),
-        Widget("by", visible = Dict("method" => need_group), required = false),
-        Widget("inputs"),
-        Widget("targets", required = false),
-        Widget("partition", required = false),
-        Widget("suffix", value = "rescaled"),
-        Widget(config, "target_suffix", value = "", required = false),
+        Widget("method", c; options = methods),
+        Widget("by", c, visible = Dict("method" => need_group), required = false),
+        Widget("inputs", c),
+        Widget("targets", c, required = false),
+        Widget("partition", c, required = false),
+        Widget("suffix", c, value = "rescaled"),
+        Widget("target_suffix", c, value = "", required = false),
     ]
 
     return CardWidget(config.key, config.label, fields, OutputSpec("inputs", "suffix"))

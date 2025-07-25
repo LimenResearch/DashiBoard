@@ -117,7 +117,7 @@ function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node}, vars::Abstrac
     println(io, "  subgraph cards {")
     println(io, "    node [shape = \"box\" style = \"filled\"];")
     for (i, node) in enumerate(nodes)
-        label = card_label(get_card(node))
+        label = get_label(get_card(node))
         fillcolor = get_update(node) ? "white" : "transparent"
         println(io, "    \"$(i)\" [label = \"$(label)\" fillcolor = \"$(fillcolor)\"];")
     end

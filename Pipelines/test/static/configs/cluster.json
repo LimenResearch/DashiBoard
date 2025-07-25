@@ -1,9 +1,9 @@
 {
   "kmeans": {
     "type": "cluster",
-    "method": "kmeans",
     "inputs": ["TEMP", "PRES"],
     "output": "cluster",
+    "method": "kmeans",
     "method_options": {
       "classes": 3,
       "iterations": 100,
@@ -13,9 +13,9 @@
   },
   "dbscan": {
     "type": "cluster",
-    "method": "dbscan",
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
+    "method": "dbscan",
     "method_options": {
       "radius": 0.02
     }

@@ -17,8 +17,8 @@
   "partition": {
     "type": "split",
     "method": "percentile",
+    "method_options": { "percentile": 0.9 },
     "order_by": ["No"],
-    "percentile": 0.9,
     "output": "partition"
   }
 }

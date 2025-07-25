@@ -13,7 +13,7 @@ export Card,
     StreamlinerCard,
     WildCard
 
-export register_card, CardConfig
+export get_metadata, register_card, CardConfig
 
 public train!, evaljoin, train_evaljoin!
 

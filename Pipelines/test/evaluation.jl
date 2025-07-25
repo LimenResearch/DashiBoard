@@ -3,7 +3,7 @@
     function _evaluate(wc, model, t, id)
         return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end
-    config = CardConfig{WildCard{_train, _evaluate}}(
+    card_config = CardConfig{WildCard{_train, _evaluate}}(
         key = "trivial",
         label = "Trivial",
         needs_targets = false,
@@ -11,8 +11,8 @@
         allows_partition = false,
         allows_weights = false
     )
-    @test card_type(config) === WildCard{_train, _evaluate}
-    Pipelines.register_card(config)
+    @test card_type(card_config) === WildCard{_train, _evaluate}
+    Pipelines.register_card(card_config)
 
     function trivialcard(inputs::AbstractVector, output::AbstractString)
         c = Dict("type" => "trivial", "inputs" => inputs, "output" => output)
@@ -21,6 +21,7 @@
 
     function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
         return WildCard{_train, _evaluate}(
+            type = "trivial",
             label = "Trivial",
             order_by = String[],
             inputs = inputs,

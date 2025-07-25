@@ -9,18 +9,18 @@
   "ppca": {
     "type": "dimensionality_reduction",
     "method": "ppca",
+    "method_options": { "tol": 1e-5, "iterations": 100 },
     "partition": "partition",
     "inputs": ["DEWP", "TEMP", "PRES"],
-    "n_components": 2,
-    "method_options": { "tol": 1e-5, "iterations": 100 }
+    "n_components": 2
   },
   "factoranalysis": {
     "type": "dimensionality_reduction",
     "method": "factoranalysis",
+    "method_options": { "tol": 1e-5, "iterations": 100 },
     "partition": "partition",
     "inputs": ["DEWP", "TEMP", "PRES"],
-    "n_components": 2,
-    "method_options": { "tol": 1e-5, "iterations": 100 }
+    "n_components": 2
   },
   "mds": {
     "type": "dimensionality_reduction",
@@ -32,8 +32,8 @@
   "partition": {
     "type": "split",
     "method": "percentile",
+    "method_options": { "percentile": 0.6 },
     "order_by": ["No"],
-    "percentile": 0.6,
     "output": "partition"
   }
 }

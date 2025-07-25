@@ -138,6 +138,8 @@ const DEFAULT_PARSER = let
 
 end
 
+const PARSER = ScopedValue{Parser}(DEFAULT_PARSER)
+
 """
     default_parser(; plugins::AbstractVector{Parser}=Parser[])
 

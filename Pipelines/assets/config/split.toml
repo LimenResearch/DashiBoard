@@ -5,10 +5,7 @@ needs_order = true
 allows_weights = false
 allows_partition = false
 
-widget_configs = {}
-
-[[methods.tiles.widgets]]
-key = "tiles"
+[widget_configs.tiles]
 widget = "select"
 label = "Tiles"
 placeholder = "Select tiles..."
@@ -16,9 +13,17 @@ multiple = true
 type = "number"
 options = [1, 2]
 
-[[methods.percentile.widgets]]
-key = "percentile"
+[widget_configs.percentile]
 widget = "input"
 label = "Percentile"
 placeholder = "Select percentile..."
 type = "number"
+min = 0
+max = 1
+step = 0.01
+
+[[methods.tiles.widgets]]
+key = "tiles"
+
+[[methods.percentile.widgets]]
+key = "percentile"

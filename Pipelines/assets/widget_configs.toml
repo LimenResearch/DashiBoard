@@ -31,6 +31,8 @@ widget = "input"
 label = "Number of components"
 placeholder = "Select number of components..."
 type = "number"
+min = 1
+step = 1
 
 [input]
 widget = "select"

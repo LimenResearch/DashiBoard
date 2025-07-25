@@ -137,18 +137,18 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{GLMCard}, ::AbstractDict)
+function CardWidget(config::CardConfig{GLMCard}, c::AbstractDict)
     noise_models = collect(keys(NOISE_MODELS))
     link_functions = collect(keys(LINK_TYPES))
 
     fields = [
-        Widget("inputs"),
-        Widget("target"),
-        Widget("weights", required = false),
-        Widget(config, "distribution", options = noise_models, required = false),
-        Widget(config, "link", options = link_functions, required = false),
-        Widget("partition", required = false),
-        Widget("suffix", value = "hat"),
+        Widget("inputs", c),
+        Widget("target", c),
+        Widget("weights", c, required = false),
+        Widget("distribution", c, options = noise_models, required = false),
+        Widget("link", c, options = link_functions, required = false),
+        Widget("partition", c, required = false),
+        Widget("suffix", c, value = "hat"),
     ]
 
     return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))

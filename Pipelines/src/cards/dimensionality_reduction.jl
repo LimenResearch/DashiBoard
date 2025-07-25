@@ -140,21 +140,18 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{DimensionalityReductionCard}, ::AbstractDict)
+function CardWidget(config::CardConfig{DimensionalityReductionCard}, c::AbstractDict)
     methods = collect(keys(PROJECTION_METHODS))
 
     fields = Widget[
-        Widget("method", options = methods),
-        Widget("inputs"),
-        Widget(config, "n_components"),
-        Widget("partition", required = false),
-        Widget("output", value = "component"),
+        Widget("method", c, options = methods),
+        Widget("inputs", c),
+        Widget("n_components", c),
+        Widget("partition", c, required = false),
+        Widget("output", c, value = "component"),
     ]
 
-    for (idx, m) in enumerate(methods)
-        wdgs = config.methods[m]["widgets"]
-        append!(fields, generate_widget.(wdgs, "method", m, idx))
-    end
+    append!(fields, method_dependent_widgets(c, config.methods, "method"))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output", nothing, "n_components"))
 end

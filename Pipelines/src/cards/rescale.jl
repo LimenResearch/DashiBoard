@@ -251,18 +251,18 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{RescaleCard}, ::AbstractDict)
+function CardWidget(config::CardConfig{RescaleCard}, c::AbstractDict)
     methods = collect(keys(RESCALERS))
     need_group = String[k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 
     fields = [
-        Widget("method"; options = methods),
-        Widget("by", visible = Dict("method" => need_group), required = false),
-        Widget("inputs"),
-        Widget("targets", required = false),
-        Widget("partition", required = false),
-        Widget("suffix", value = "rescaled"),
-        Widget(config, "target_suffix", value = "", required = false),
+        Widget("method", c; options = methods),
+        Widget("by", c, visible = Dict("method" => need_group), required = false),
+        Widget("inputs", c),
+        Widget("targets", c, required = false),
+        Widget("partition", c, required = false),
+        Widget("suffix", c, value = "rescaled"),
+        Widget("target_suffix", c, value = "", required = false),
     ]
 
     return CardWidget(config.key, config.label, fields, OutputSpec("inputs", "suffix"))

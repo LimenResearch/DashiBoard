@@ -203,21 +203,21 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{GaussianEncodingCard}, options::AbstractDict)
+function CardWidget(config::CardConfig{GaussianEncodingCard}, c::AbstractDict)
     methods = collect(keys(TEMPORAL_PREPROCESSING_METHODS))
 
-    n_modes_options = get(options, "n_components", StringDict("min" => 1, "step" => 1))
-    max_options = get(options, "max", StringDict("min" => 0))
-    lambda_options = get(options, "lambda", StringDict("min" => 0))
-
-    fields = [
-        Widget("method"; options = methods),
-        Widget("input"),
-        Widget(config, "n_components", n_modes_options),
-        Widget(config, "max", max_options),
-        Widget(config, "lambda", lambda_options),
-        Widget("suffix", value = "gaussian"),
-    ]
+    fields = vcat(
+        [
+            Widget("method", c; options = methods),
+            Widget("input", c),
+            Widget("n_components", c),
+        ],
+        method_dependent_widgets(c, config.methods, "method"),
+        [
+            Widget("lambda", c),
+            Widget("suffix", c, value = "gaussian"),
+        ]
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("input", "suffix", "n_components"))
 end

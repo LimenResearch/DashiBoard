@@ -135,21 +135,18 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{ClusterCard}, ::AbstractDict)
+function CardWidget(config::CardConfig{ClusterCard}, c::AbstractDict)
     methods = collect(keys(CLUSTERING_METHODS))
 
     fields = Widget[
-        Widget("method", options = methods),
-        Widget("inputs"),
-        Widget("weights", visible = Dict("method" => ["kmeans"]), required = false),
-        Widget("partition", required = false),
-        Widget("output"),
+        Widget("method", c, options = methods),
+        Widget("inputs", c),
+        Widget("weights", c, visible = Dict("method" => ["kmeans"]), required = false),
+        Widget("partition", c, required = false),
+        Widget("output", c),
     ]
 
-    for (idx, m) in enumerate(methods)
-        wdgs = config.methods[m]["widgets"]
-        append!(fields, generate_widget.(wdgs, "method", m, idx))
-    end
+    append!(fields, method_dependent_widgets(c, config.methods, "method"))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

@@ -144,33 +144,30 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{InterpCard}, ::AbstractDict)
+function CardWidget(config::CardConfig{InterpCard}, c::AbstractDict)
     methods = collect(keys(INTERPOLATORS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
 
     fields = [
-        Widget("input"),
-        Widget("targets"),
-        Widget("method"; options = methods, value = "linear"),
+        Widget("input", c),
+        Widget("targets", c),
+        Widget("method", c; options = methods, value = "linear"),
         Widget(
-            config,
-            "extrapolation_left", value = "linear",
+            "extrapolation_left", c, value = "linear",
             options = extrapolation_options
         ),
         Widget(
-            config,
-            "extrapolation_right", value = "linear",
+            "extrapolation_right", c, value = "linear",
             options = extrapolation_options
         ),
         Widget(
-            config,
-            "dir", value = "left",
+            "dir", c, value = "left",
             options = direction_options,
             visible = Dict("method" => ["constant"])
         ),
-        Widget("partition", required = false),
-        Widget("suffix", value = "hat"),
+        Widget("partition", c, required = false),
+        Widget("suffix", c, value = "hat"),
     ]
 
     return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))

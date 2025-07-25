@@ -86,15 +86,15 @@ _train(wc::WildCard{train}, t, id; weights = nothing) where {train} = train(wc, 
 
 ## UI representation
 
-function CardWidget(config::CardConfig{WildCard{train, evaluate}}, ::AbstractDict) where {train, evaluate}
+function CardWidget(config::CardConfig{WildCard{train, evaluate}}, c::AbstractDict) where {train, evaluate}
     conditional_fields = Tuple{Widget, Bool}[
-        (Widget("order_by"), config.needs_order),
-        (Widget("inputs"), true),
-        (Widget("targets"), config.needs_targets),
-        (Widget("weights"), config.allows_weights),
-        (Widget("partition"), config.allows_partition),
-        (Widget("output"), !config.needs_targets),
-        (Widget("suffix"), config.needs_targets),
+        (Widget("order_by", c), config.needs_order),
+        (Widget("inputs", c), true),
+        (Widget("targets", c), config.needs_targets),
+        (Widget("weights", c), config.allows_weights),
+        (Widget("partition", c), config.allows_partition),
+        (Widget("output", c), !config.needs_targets),
+        (Widget("suffix", c), config.needs_targets),
     ]
 
     fields = map(first, filter(last, conditional_fields))

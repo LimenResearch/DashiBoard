@@ -130,26 +130,17 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{SplitCard}, options::AbstractDict)
+function CardWidget(config::CardConfig{SplitCard}, c::AbstractDict)
     methods = collect(keys(SPLITTING_METHODS))
-    complete_options = merge(
-        options,
-        StringDict(
-            "percentile" => StringDict("min" => 0, "max" => 1, "step" => 0.01)
-        )
-    )
 
     fields = [
-        Widget("method"; options = methods),
-        Widget("order_by"),
-        Widget("by", required = false),
-        Widget("output", value = "partition"),
+        Widget("method", c; options = methods),
+        Widget("order_by", c),
+        Widget("by", c, required = false),
+        Widget("output", c, value = "partition"),
     ]
 
-    for (idx, m) in enumerate(methods)
-        wdgs = merge_configs(config.methods[m]["widgets"], complete_options)
-        append!(fields, generate_widget.(wdgs, "method", m, idx))
-    end
+    append!(fields, method_dependent_widgets(c, config.methods, "method"))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

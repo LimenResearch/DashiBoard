@@ -189,36 +189,33 @@ end
 
 ## UI representation
 
-function list_tomls(dir)
-    fls = Iterators.map(splitext, readdir(dir))
-    return [f for (f, ext) in fls if ext == ".toml"]
+function read_wdgs(dir)
+    d = OrderedDict{String, StringDict}()
+    for fn in readdir(dir)
+        k, ext = splitext(fn)
+        ext == ".toml" || continue
+        content = parsefile(joinpath(dir, fn))
+        d[k] = StringDict("widgets" => get(content, "widgets", []))
+    end
+    return d
 end
 
-function CardWidget(config::CardConfig{StreamlinerCard}, ::AbstractDict)
-    model_tomls = list_tomls(MODEL_DIR[])
-    training_tomls = list_tomls(TRAINING_DIR[])
+function CardWidget(config::CardConfig{StreamlinerCard}, c::AbstractDict)
+    model_wdgs = read_wdgs(MODEL_DIR[])
+    training_wdgs = read_wdgs(TRAINING_DIR[])
 
     fields = Widget[
-        Widget(config, "model", options = model_tomls),
-        Widget(config, "training", options = training_tomls),
-        Widget("order_by"),
-        Widget("inputs"),
-        Widget("targets"),
-        Widget("partition"),
-        Widget("suffix", value = "hat"),
+        Widget("model", c, options = collect(keys(model_wdgs))),
+        Widget("training", c, options = collect(keys(training_wdgs))),
+        Widget("order_by", c),
+        Widget("inputs", c),
+        Widget("targets", c),
+        Widget("partition", c),
+        Widget("suffix", c, value = "hat"),
     ]
 
-    for (idx, m) in enumerate(model_tomls)
-        model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
-        wdgs = get(model_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, "model", m, idx))
-    end
-
-    for (idx, t) in enumerate(training_tomls)
-        training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
-        wdgs = get(training_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, "training", t, idx))
-    end
+    append!(fields, method_dependent_widgets(c, model_wdgs, "model"))
+    append!(fields, method_dependent_widgets(c, training_wdgs, "training"))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

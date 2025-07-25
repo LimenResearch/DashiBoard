@@ -236,18 +236,17 @@ card_type(::CardConfig{T}) where {T <: Card} = T
 
 const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 
-Widget(config::CardConfig, key::AbstractString; options...) =
-    Widget(config.widget_configs[key]; key, options...)
-
-Widget(config::CardConfig, key::AbstractString, c::AbstractDict; options...) =
-    Widget(merge(config.widget_configs[key], c); key, options...)
-
 ## Generate widgets
 
 function card_widgets(options::AbstractDict = StringDict())
     widgets = CardWidget[]
     for (k, config) in pairs(CARD_CONFIGS)
-        specific_options = get(options, k, StringDict())
+        specific_options = mergewith(
+            merge,
+            WIDGET_CONFIGS[],
+            config.widget_configs,
+            get(options, k, StringDict())
+        )
         push!(widgets, CardWidget(config, specific_options))
     end
     return widgets

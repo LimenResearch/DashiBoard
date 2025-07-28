@@ -1,41 +1,56 @@
-function _pca(X, n)
-    return fit(PCA, X; maxoutdim = n)
+abstract type ProjectionMethod end
+
+struct PCAMethod <: ProjectionMethod end
+
+PCAMethod(::AbstractDict) = PCAMethod()
+
+(::PCAMethod)(X, n) = fit(PCA, X; maxoutdim = n)
+
+struct PPCAMethod <: ProjectionMethod
+    iterations::Int
+    tol::Float64
 end
 
-function _ppca(X, n; iterations = 1000, tol = 1.0e-6)
-    return fit(PPCA, X; maxoutdim = n, maxiter = iterations, tol)
+function PPCAMethod(c::AbstractDict)
+    iterations::Int = get(c, "iterations", 1000)
+    tol::Float64 = get(c, "tol", 1.0e-6)
+    return PPCAMethod(iterations, tol)
 end
 
-function _factoranalysis(X, n; iterations = 1000, tol = 1.0e-6)
-    return fit(FactorAnalysis, X; maxoutdim = n, maxiter = iterations, tol)
+(m::PPCAMethod)(X, n) = fit(PPCA, X; maxoutdim = n, maxiter = m.iterations, m.tol)
+
+struct FactorAnalysisMethod <: ProjectionMethod
+    iterations::Int
+    tol::Float64
 end
 
-function _mds(X, n)
-    return fit(MDS, X; maxoutdim = n, distances = false)
+function FactorAnalysisMethod(c::AbstractDict)
+    iterations::Int = get(c, "iterations", 1000)
+    tol::Float64 = get(c, "tol", 1.0e-6)
+    return FactorAnalysisMethod(iterations, tol)
 end
 
-const PROJECTION_FUNCTIONS = OrderedDict{String, Function}(
-    "pca" => _pca,
-    "ppca" => _ppca,
-    "factoranalysis" => _factoranalysis,
-    "mds" => _mds,
+(m::FactorAnalysisMethod)(X, n) = fit(FactorAnalysis, X; maxoutdim = n, maxiter = m.iterations, m.tol)
+
+struct MDSMethod <: ProjectionMethod end
+
+MDSMethod(::AbstractDict) = MDSMethod()
+
+(mds::MDSMethod)(X, n) = fit(MDS, X; maxoutdim = n, distances = false)
+
+const PROJECTION_METHODS = OrderedDict{String, DataType}(
+    "pca" => PCAMethod,
+    "ppca" => PPCAMethod,
+    "factoranalysis" => FactorAnalysisMethod,
+    "mds" => MDSMethod,
 )
-
-struct Projector
-    method::Function
-    options::Dict{Symbol, Any}
-end
-
-function Projector(method_name::AbstractString, d::AbstractDict)
-    method = PROJECTION_FUNCTIONS[method_name]
-    options = make(SymbolDict, d)
-    return Projector(method, options)
-end
 
 """
     struct DimensionalityReductionCard <: Card
+        type::String
         label::String
-        projector::Projector
+        method::String
+        projector::ProjectionMethod
         inputs::Vector{String}
         partition::Union{String, Nothing}
         n_components::Int
@@ -46,8 +61,10 @@ Project `inputs` based on `projector`.
 Save resulting column as `output`.
 """
 struct DimensionalityReductionCard <: StandardCard
+    type::String
     label::String
-    projector::Projector
+    method::String
+    projector::ProjectionMethod
     inputs::Vector{String}
     partition::Union{String, Nothing}
     n_components::Int
@@ -58,17 +75,34 @@ const DIMENSIONALITY_REDUCTION_CARD_CONFIG = CardConfig{DimensionalityReductionC
     parse_toml_config("config", "dimensionality_reduction")
 )
 
+function get_metadata(drc::DimensionalityReductionCard)
+    return StringDict(
+        "type" => drc.type,
+        "label" => drc.label,
+        "method" => drc.method,
+        "method_options" => get_options(drc.projector),
+        "inputs" => drc.inputs,
+        "partition" => drc.partition,
+        "n_components" => drc.n_components,
+        "output" => drc.output,
+    )
+end
+
 function DimensionalityReductionCard(c::AbstractDict)
-    label::String = card_label(c)
-    method_name::String = c["method"]
-    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
-    projector::Projector = Projector(method_name, method_options)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
+    method::String = c["method"]
+    method_options::StringDict = extract_options(c, "method", method)
+    projector::ProjectionMethod = PROJECTION_METHODS[method](method_options)
     inputs::Vector{String} = c["inputs"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     n_components::Int = c["n_components"]
     output::String = get(c, "output", "component")
     return DimensionalityReductionCard(
+        type,
         label,
+        method,
         projector,
         inputs,
         partition,
@@ -89,7 +123,7 @@ output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_
 
 function _train(drc::DimensionalityReductionCard, t, _)
     X = stack(Fix1(getindex, t), drc.inputs, dims = 1)
-    return drc.projector.method(X, drc.n_components; drc.projector.options...)
+    return drc.projector(X, drc.n_components)
 end
 
 function (drc::DimensionalityReductionCard)(model, t, id)
@@ -106,21 +140,21 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{DimensionalityReductionCard}, ::AbstractDict)
-    methods = collect(keys(PROJECTION_FUNCTIONS))
+function CardWidget(config::CardConfig{DimensionalityReductionCard}, c::AbstractDict)
+    methods = collect(keys(PROJECTION_METHODS))
 
-    fields = Widget[
-        Widget("method", options = methods),
-        Widget("inputs"),
-        Widget(config, "n_components"),
-        Widget("partition", required = false),
-        Widget("output", value = "component"),
-    ]
-
-    for (idx, m) in enumerate(methods)
-        wdgs = config.methods[m]["widgets"]
-        append!(fields, generate_widget.(wdgs, "method", m, idx))
-    end
+    fields = vcat(
+        [
+            Widget("inputs", c),
+            Widget("method", c, options = methods),
+            Widget("n_components", c),
+        ],
+        method_dependent_widgets(c, "method", config.methods),
+        [
+            Widget("partition", c, required = false),
+            Widget("output", c, value = "component"),
+        ]
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output", nothing, "n_components"))
 end

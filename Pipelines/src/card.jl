@@ -73,6 +73,8 @@ function output_vars end
 function inverse_input_vars end
 function inverse_output_vars end
 
+## Accessor functions
+
 """
     get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
 
@@ -103,6 +105,12 @@ Return the list of outputs for a given card.
 function get_outputs(c::Card; invert::Bool = false)::Vector{String}
     return invert ? inverse_output_vars(c) : output_vars(c)
 end
+
+function get_metadata end
+
+get_label(c::Card) = c.label
+
+## Training and evaluation
 
 """
     invertible(c::Card)::Bool
@@ -228,18 +236,17 @@ card_type(::CardConfig{T}) where {T <: Card} = T
 
 const CARD_CONFIGS = OrderedDict{String, CardConfig}()
 
-Widget(config::CardConfig, key::AbstractString; options...) =
-    Widget(config.widget_configs[key]; key, options...)
-
-Widget(config::CardConfig, key::AbstractString, c::AbstractDict; options...) =
-    Widget(merge(config.widget_configs[key], c); key, options...)
-
 ## Generate widgets
 
 function card_widgets(options::AbstractDict = StringDict())
     widgets = CardWidget[]
     for (k, config) in pairs(CARD_CONFIGS)
-        specific_options = get(options, k, StringDict())
+        specific_options = mergewith(
+            merge,
+            WIDGET_CONFIGS[],
+            config.widget_configs,
+            get(options, k, StringDict())
+        )
         push!(widgets, CardWidget(config, specific_options))
     end
     return widgets
@@ -257,13 +264,6 @@ function register_card(config::CardConfig)
     return
 end
 
-## Labeling tools
+## Helpers
 
-card_label(c::Card) = c.label
-
-function card_label(c::AbstractDict)
-    return get(c, "label") do
-        type::String = c["type"]
-        return CARD_CONFIGS[type].label
-    end
-end
+card_label(c::AbstractDict, config::CardConfig) = get(c, "label", config.label)

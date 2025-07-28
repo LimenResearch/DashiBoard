@@ -9,13 +9,44 @@ allows_partition = true
 widget = "select"
 label = "Extrapolation (left)"
 placeholder = "Select extrapolation function..."
+value = "linear"
+options = ["none", "constant", "linear", "extension", "periodic", "reflective"]
 
 [widget_configs.extrapolation_right]
 widget = "select"
 label = "Extrapolation (right)"
 placeholder = "Select extrapolation function..."
+value = "linear"
+options = ["none", "constant", "linear", "extension", "periodic", "reflective"]
 
 [widget_configs.dir]
 widget = "select"
 label = "Extrapolation direction"
 placeholder = "Select extrapolation direction..."
+options = ["left", "right"]
+value = "left"
+
+[methods.constant]
+widgets = [
+    { key = "dir" },
+    { key = "extrapolation_left", value = "constant" },
+    { key = "extrapolation_right", value = "constant" },
+]
+
+[methods.linear]
+widgets = [{ key = "extrapolation_left" }, { key = "extrapolation_right" }]
+
+[methods.quadratic]
+widgets = [{ key = "extrapolation_left" }, { key = "extrapolation_right" }]
+
+[methods.quadraticspline]
+widgets = [{ key = "extrapolation_left" }, { key = "extrapolation_right" }]
+
+[methods.cubicspline]
+widgets = [{ key = "extrapolation_left" }, { key = "extrapolation_right" }]
+
+[methods.akima]
+widgets = [{ key = "extrapolation_left" }, { key = "extrapolation_right" }]
+
+[methods.pchip]
+widgets = [{ key = "extrapolation_left" }, { key = "extrapolation_right" }]

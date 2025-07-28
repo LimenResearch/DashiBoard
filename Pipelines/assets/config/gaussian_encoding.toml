@@ -5,20 +5,35 @@ needs_order = false
 allows_weights = false
 allows_partition = false
 
-[widget_configs.n_modes]
-widget = "input"
-label = "Number of modes"
-placeholder = "Select number of modes..."
-type = "number"
-
 [widget_configs.max]
 widget = "input"
 label = "Maximum value"
 placeholder = "Select maximum value of column..."
 type = "number"
+min = 0
 
 [widget_configs.lambda]
 widget = "input"
 label = "Scaling coefficient"
 placeholder = "Rescale Gaussian curves horizontally by a given factor..."
 type = "number"
+
+[[methods.identity.widgets]]
+key = "max"
+value = 1
+
+[[methods.dayofyear.widgets]]
+key = "max"
+value = 366
+
+[[methods.hourofday.widgets]]
+key = "max"
+value = 24
+
+[[methods.minuteofday.widgets]]
+key = "max"
+value = 1440
+
+[[methods.minuteofhour.widgets]]
+key = "max"
+value = 60

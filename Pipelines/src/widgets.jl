@@ -59,20 +59,38 @@ function Widget(
     )
 end
 
-Widget(key::AbstractString; options...) = Widget(WIDGET_CONFIGS[][key]; key, options...)
-Widget(key::AbstractString, c::AbstractDict; options...) =
-    Widget(merge(WIDGET_CONFIGS[][key], c); key, options...)
+Widget(key::AbstractString, c::AbstractDict; options...) = Widget(c[key]; key, options...)
 
-function generate_widget(
-        conf::AbstractDict,
-        type::AbstractString,
-        name::AbstractString,
-        idx::Integer
-    )
+function method_dependent_widgets(settings::AbstractDict, key::AbstractString, methods::AbstractDict)
+    option_key = string(key, "_", "options")
+    wdgs = Widget[]
+    for (m, config) in pairs(methods)
+        for wdg in config["widgets"]
+            wdg_key = wdg["key"]
+            c = merge(get(settings, wdg_key, StringDict()), wdg)
+            c["key"] = join([option_key, m, wdg_key], ".")
+            c["visible"] = Dict(key => [m])
+            push!(wdgs, Widget(c))
+        end
+    end
+    if !allunique(w -> w.key, wdgs)
+        # TODO: better error message, or maybe disallow dots in keys
+        throw(ArgumentError("Ambiguous widget configuration"))
+    end
+    return wdgs
+end
 
-    key = string(type, "_", "options", ".", idx, ".", conf["key"])
-    visible = Dict(type => [name])
-    return Widget(conf; key, visible)
+function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
+    option_key = string(key, "_", "options")
+    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
+    return get(c, option_key) do
+        d = StringDict()
+        for (k, v) in pairs(c)
+            m = match(r, k)
+            isnothing(m) || (d[m[:name]] = v)
+        end
+        return d
+    end
 end
 
 struct OutputSpec

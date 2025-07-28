@@ -1,34 +1,56 @@
-function _kmeans(X; classes, iterations = 100, tol = 1.0e-6, seed = nothing, weights, options...)
-    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights, options...)
+abstract type ClusteringMethod end
+
+struct KMeansMethod <: ClusteringMethod
+    classes::Int
+    iterations::Int
+    tol::Float64
+    seed::Union{Int, Nothing}
 end
 
-function _dbscan(X; radius, weights, options...)
+function KMeansMethod(c::AbstractDict)
+    classes::Int = c["classes"]
+    iterations::Int = get(c, "iterations", 100)
+    tol::Float64 = get(c, "tol", 1.0e-6)
+    seed::Union{Int, Nothing} = get(c, "seed", nothing)
+    return KMeansMethod(classes, iterations, tol, seed)
+end
+
+function (m::KMeansMethod)(X; weights)
+    (; classes, iterations, tol, seed) = m
+    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights)
+end
+
+struct DBSCANMethod <: ClusteringMethod
+    radius::Float64
+    min_neighbors::Int
+    min_cluster_size::Int
+end
+
+function DBSCANMethod(c::AbstractDict)
+    radius::Float64 = c["radius"]
+    min_neighbors::Int = get(c, "min_neighbors", 1)
+    min_cluster_size::Int = get(c, "min_cluster_size", 1)
+    return DBSCANMethod(radius, min_neighbors, min_cluster_size)
+end
+
+function (m::DBSCANMethod)(X; weights)
+    (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
-    return dbscan(X, radius; options...)
+    return dbscan(X, radius; min_neighbors, min_cluster_size)
 end
 
-const CLUSTERING_FUNCTIONS = OrderedDict{String, Function}(
-    "kmeans" => _kmeans,
-    "dbscan" => _dbscan,
+const CLUSTERING_METHODS = OrderedDict{String, DataType}(
+    "kmeans" => KMeansMethod,
+    "dbscan" => DBSCANMethod,
 )
-
-struct Clusterer
-    method::Function
-    options::Dict{Symbol, Any}
-end
-
-function Clusterer(method_name::AbstractString, d::AbstractDict)
-    method = CLUSTERING_FUNCTIONS[method_name]
-    options = make(SymbolDict, d)
-    # TODO: add preprocess for, e.g., metrics
-    return Clusterer(method, options)
-end
 
 # TODO: support custom metrics
 """
     struct ClusterCard <: Card
+        type::String
         label::String
-        clusterer::Clusterer
+        method::String
+        clusterer::ClusteringMethod
         inputs::Vector{String}
         weights::Union{String, Nothing}
         partition::Union{String, Nothing}
@@ -39,8 +61,10 @@ Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
+    type::String
     label::String
-    clusterer::Clusterer
+    method::String
+    clusterer::ClusteringMethod
     inputs::Vector{String}
     weights::Union{String, Nothing}
     partition::Union{String, Nothing}
@@ -49,22 +73,39 @@ end
 
 const CLUSTER_CARD_CONFIG = CardConfig{ClusterCard}(parse_toml_config("config", "cluster"))
 
+function get_metadata(cc::ClusterCard)
+    return StringDict(
+        "type" => cc.type,
+        "label" => cc.label,
+        "method" => cc.method,
+        "method_options" => get_options(cc.clusterer),
+        "inputs" => cc.inputs,
+        "weights" => cc.weights,
+        "partition" => cc.partition,
+        "output" => cc.output,
+    )
+end
+
 function ClusterCard(c::AbstractDict)
-    label::String = card_label(c)
-    method_name::String = c["method"]
-    method_options::StringDict = extract_options(c, "method_options", METHOD_OPTIONS_REGEX)
-    clusterer::Clusterer = Clusterer(method_name, method_options)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
+    method::String = c["method"]
+    method_options::StringDict = extract_options(c, "method", method)
+    clusterer::ClusteringMethod = CLUSTERING_METHODS[method](method_options)
     inputs::Vector{String} = c["inputs"]
     weights::Union{String, Nothing} = get(c, "weights", nothing)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
+        type,
         label,
+        method,
         clusterer,
         inputs,
         weights,
         partition,
-        output
+        output,
     )
 end
 
@@ -80,7 +121,7 @@ output_vars(cc::ClusterCard) = [cc.output]
 
 function _train(cc::ClusterCard, t, id; weights = nothing)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
-    res = cc.clusterer.method(X; weights, cc.clusterer.options...)
+    res = cc.clusterer(X; weights)
     label = assignments(res)
     return (; label, id) # return `label`s and relative `id`s for the evaluation
 end
@@ -94,21 +135,22 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{ClusterCard}, ::AbstractDict)
-    methods = collect(keys(CLUSTERING_FUNCTIONS))
+function CardWidget(config::CardConfig{ClusterCard}, c::AbstractDict)
+    methods = collect(keys(CLUSTERING_METHODS))
+    support_weights = ["kmeans"]
 
-    fields = Widget[
-        Widget("method", options = methods),
-        Widget("inputs"),
-        Widget("weights", visible = Dict("method" => ["kmeans"]), required = false),
-        Widget("partition", required = false),
-        Widget("output"),
-    ]
-
-    for (idx, m) in enumerate(methods)
-        wdgs = config.methods[m]["widgets"]
-        append!(fields, generate_widget.(wdgs, "method", m, idx))
-    end
+    fields = vcat(
+        [
+            Widget("inputs", c),
+            Widget("method", c, options = methods),
+        ],
+        method_dependent_widgets(c, "method", config.methods),
+        [
+            Widget("weights", c, visible = "method" => support_weights, required = false),
+            Widget("partition", c, required = false),
+            Widget("output", c),
+        ]
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

@@ -7,12 +7,11 @@
     "targets": ["TEMP"],
     "suffix": "rescaled"
   },
-  "zscore_flipped": {
+  "zscore2": {
     "type": "rescale",
     "method": "zscore",
     "inputs": ["TEMP"],
     "targets": ["PRES"],
-    "inverse_columns": { "TEMP": "PRES" },
     "suffix": "rescaled",
     "target_suffix": "hat"
   },

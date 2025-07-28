@@ -5,11 +5,7 @@ needs_order = false
 allows_weights = false
 allows_partition = true
 
-[widget_configs.n_components]
-widget = "input"
-label = "Number of components"
-placeholder = "Select number of components..."
-type = "number"
+widget_configs = {}
 
 [methods.pca]
 

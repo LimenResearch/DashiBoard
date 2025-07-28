@@ -1,24 +1,36 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
-function parse_config(
-        ::Type{T},
-        parser::Parser,
-        dir::AbstractString,
-        name::AbstractString,
-        options::AbstractDict
-    ) where {T}
-
-    file = string(name, ".toml")
+function parse_without_widgets(dir, x)
+    file = string(x, ".toml")
     c = parsefile(joinpath(dir, file))
     delete!(c, "widgets")
-    return T(parser, c, options)
+    return c
+end
+
+function get_streamliner_model(parser::Parser, c::AbstractDict, model_name::AbstractString)
+    model_options = extract_options(c, "model", model_name)
+    model = get(c, "model_metadata") do
+        return parse_without_widgets(MODEL_DIR[], model_name)
+    end
+    return Model(parser, model, model_options)
+end
+
+function get_streamliner_training(parser::Parser, c::AbstractDict, training_name::AbstractString)
+    training_options = extract_options(c, "training", training_name)
+    training = get(c, "training_metadata") do
+        return parse_without_widgets(TRAINING_DIR[], training_name)
+    end
+    return Training(parser, training, training_options)
 end
 
 """
     struct StreamlinerCard <: Card
+        type::String
         label::String
+        model_name::String
         model::Model
+        training_name::String
         training::Training
         order_by::Vector{String}
         inputs::Vector{String}
@@ -30,8 +42,11 @@ end
 Run a Streamliner model, predicting `targets` from `inputs`.
 """
 struct StreamlinerCard <: StreamingCard
+    type::String
     label::String
+    model_name::String
     model::Model
+    training_name::String
     training::Training
     order_by::Vector{String}
     inputs::Vector{String}
@@ -42,8 +57,26 @@ end
 
 const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("config", "streamliner"))
 
+function get_metadata(sc::StreamlinerCard)
+    return StringDict(
+        "type" => sc.type,
+        "label" => sc.label,
+        "model" => sc.model_name,
+        "model_metadata" => StreamlinerCore.get_metadata(sc.model),
+        "training" => sc.training_name,
+        "training_metadata" => StreamlinerCore.get_metadata(sc.training),
+        "order_by" => sc.order_by,
+        "inputs" => sc.inputs,
+        "targets" => sc.targets,
+        "partition" => sc.partition,
+        "suffix" => sc.suffix,
+    )
+end
+
 function StreamlinerCard(c::AbstractDict)
-    label::String = card_label(c)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
 
     order_by::Vector{String} = get(c, "order_by", String[])
     inputs::Vector{String} = get(c, "inputs", String[])
@@ -51,18 +84,20 @@ function StreamlinerCard(c::AbstractDict)
 
     parser = PARSER[]
 
-    model_options = extract_options(c, "model_options", MODEL_OPTIONS_REGEX)
-    model = parse_config(Model, parser, MODEL_DIR[], c["model"], model_options)
-
-    training_options = extract_options(c, "training_options", TRAINING_OPTIONS_REGEX)
-    training = parse_config(Training, parser, TRAINING_DIR[], c["training"], training_options)
+    model_name::String = c["model"]
+    model = get_streamliner_model(parser, c, model_name)
+    training_name::String = c["training"]
+    training = get_streamliner_training(parser, c, training_name)
 
     partition = get(c, "partition", nothing)
     suffix = get(c, "suffix", "hat")
 
     return StreamlinerCard(
+        type,
         label,
+        model_name,
         model,
+        training_name,
         training,
         order_by,
         inputs,
@@ -167,37 +202,38 @@ end
 
 ## UI representation
 
-function list_tomls(dir)
-    fls = Iterators.map(splitext, readdir(dir))
-    return [f for (f, ext) in fls if ext == ".toml"]
+function read_wdgs(dir)
+    d = OrderedDict{String, StringDict}()
+    for fn in readdir(dir)
+        k, ext = splitext(fn)
+        ext == ".toml" || continue
+        content = parsefile(joinpath(dir, fn))
+        d[k] = StringDict("widgets" => get(content, "widgets", []))
+    end
+    return d
 end
 
-function CardWidget(config::CardConfig{StreamlinerCard}, ::AbstractDict)
+function CardWidget(config::CardConfig{StreamlinerCard}, c::AbstractDict)
+    model_wdgs = read_wdgs(MODEL_DIR[])
+    training_wdgs = read_wdgs(TRAINING_DIR[])
 
-    model_tomls = list_tomls(MODEL_DIR[])
-    training_tomls = list_tomls(TRAINING_DIR[])
-
-    fields = Widget[
-        Widget(config, "model", options = model_tomls),
-        Widget(config, "training", options = training_tomls),
-        Widget("order_by"),
-        Widget("inputs"),
-        Widget("targets"),
-        Widget("partition"),
-        Widget("suffix", value = "hat"),
-    ]
-
-    for (idx, m) in enumerate(model_tomls)
-        model_config = parsefile(joinpath(MODEL_DIR[], m * ".toml"))
-        wdgs = get(model_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, "model", m, idx))
-    end
-
-    for (idx, t) in enumerate(training_tomls)
-        training_config = parsefile(joinpath(TRAINING_DIR[], t * ".toml"))
-        wdgs = get(training_config, "widgets", AbstractDict[])
-        append!(fields, generate_widget.(wdgs, "training", t, idx))
-    end
+    fields = vcat(
+        [
+            Widget("order_by", c),
+            Widget("inputs", c),
+            Widget("targets", c),
+            Widget("partition", c),
+            Widget("suffix", c, value = "hat"),
+        ],
+        [
+            Widget("model", c, options = collect(keys(model_wdgs))),
+        ],
+        method_dependent_widgets(c, "model", model_wdgs),
+        [
+            Widget("training", c, options = collect(keys(training_wdgs))),
+        ],
+        method_dependent_widgets(c, "training", training_wdgs)
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

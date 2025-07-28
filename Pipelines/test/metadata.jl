@@ -38,7 +38,7 @@ end
     card2 = Pipelines.Card(metadata)
     @test card.rescaler == card2.rescaler
 
-    config = d["zscore_flipped"]
+    config = d["zscore2"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
     for k in ["type", "method", "inputs", "targets", "suffix", "target_suffix"]

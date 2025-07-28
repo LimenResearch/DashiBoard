@@ -79,6 +79,7 @@ const RESCALERS = OrderedDict{String, Rescaler}(
     "logistic" => Rescaler(Pair[], logistic_transform, logistic_invtransform)
 )
 
+# TODO: also inv-rescale `target_sigma` for probabilistic models
 """
     struct RescaleCard <: Card
         type::String

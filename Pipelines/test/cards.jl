@@ -81,7 +81,7 @@ mktempdir() do dir
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
-        card = Pipelines.Card(d["zscore_flipped"])
+        card = Pipelines.Card(d["zscore2"])
         node = Node(card)
         Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")

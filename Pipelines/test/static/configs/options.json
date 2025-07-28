@@ -1,0 +1,7 @@
+{
+  "method_options.kmeans.n_classes": 7,
+  "method_options.dbscan.radius": 1.2,
+  "method_options.dbscan.min_neighbors": 5,
+  "method_options.dbscan.min_cluster_size": 12,
+  "training_options.batched.batchsize": 32
+}

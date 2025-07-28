@@ -93,7 +93,7 @@ function DimensionalityReductionCard(c::AbstractDict)
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
     method::String = c["method"]
-    method_options::StringDict = extract_options(c, method, "method")
+    method_options::StringDict = extract_options(c, "method", method)
     projector::ProjectionMethod = PROJECTION_METHODS[method](method_options)
     inputs::Vector{String} = c["inputs"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)
@@ -151,7 +151,7 @@ function CardWidget(config::CardConfig{DimensionalityReductionCard}, c::Abstract
         Widget("output", c, value = "component"),
     ]
 
-    append!(fields, method_dependent_widgets(c, config.methods, "method"))
+    append!(fields, method_dependent_widgets(c, "method", config.methods))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output", nothing, "n_components"))
 end

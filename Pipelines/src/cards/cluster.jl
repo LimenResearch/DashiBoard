@@ -91,7 +91,7 @@ function ClusterCard(c::AbstractDict)
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
     method::String = c["method"]
-    method_options::StringDict = extract_options(c, method, "method")
+    method_options::StringDict = extract_options(c, "method", method)
     clusterer::ClusteringMethod = CLUSTERING_METHODS[method](method_options)
     inputs::Vector{String} = c["inputs"]
     weights::Union{String, Nothing} = get(c, "weights", nothing)
@@ -146,7 +146,7 @@ function CardWidget(config::CardConfig{ClusterCard}, c::AbstractDict)
         Widget("output", c),
     ]
 
-    append!(fields, method_dependent_widgets(c, config.methods, "method"))
+    append!(fields, method_dependent_widgets(c, "method", config.methods))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

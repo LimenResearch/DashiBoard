@@ -120,7 +120,7 @@ function GaussianEncodingCard(c::AbstractDict)
         valid_methods = join(keys(TEMPORAL_PREPROCESSING_METHODS), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
-    method_options::StringDict = extract_options(c, method, "method")
+    method_options::StringDict = extract_options(c, "method", method)
     temporal_preprocessor = TEMPORAL_PREPROCESSING_METHODS[method](method_options)
 
     n_components::Int = c["n_components"]
@@ -212,7 +212,7 @@ function CardWidget(config::CardConfig{GaussianEncodingCard}, c::AbstractDict)
             Widget("input", c),
             Widget("n_components", c),
         ],
-        method_dependent_widgets(c, config.methods, "method"),
+        method_dependent_widgets(c, "method", config.methods),
         [
             Widget("lambda", c),
             Widget("suffix", c, value = "gaussian"),

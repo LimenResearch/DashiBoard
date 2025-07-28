@@ -9,7 +9,7 @@ function parse_without_widgets(dir, x)
 end
 
 function get_streamliner_model(parser::Parser, c::AbstractDict, model_name::AbstractString)
-    model_options = extract_options(c, model_name, "model")
+    model_options = extract_options(c, "model", model_name)
     model = get(c, "model_metadata") do
         return parse_without_widgets(MODEL_DIR[], model_name)
     end
@@ -17,7 +17,7 @@ function get_streamliner_model(parser::Parser, c::AbstractDict, model_name::Abst
 end
 
 function get_streamliner_training(parser::Parser, c::AbstractDict, training_name::AbstractString)
-    training_options = extract_options(c, training_name, "training")
+    training_options = extract_options(c, "training", training_name)
     training = get(c, "training_metadata") do
         return parse_without_widgets(TRAINING_DIR[], training_name)
     end
@@ -227,8 +227,8 @@ function CardWidget(config::CardConfig{StreamlinerCard}, c::AbstractDict)
         Widget("suffix", c, value = "hat"),
     ]
 
-    append!(fields, method_dependent_widgets(c, model_wdgs, "model"))
-    append!(fields, method_dependent_widgets(c, training_wdgs, "training"))
+    append!(fields, method_dependent_widgets(c, "model", model_wdgs))
+    append!(fields, method_dependent_widgets(c, "training", training_wdgs))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

@@ -61,7 +61,7 @@ end
 
 Widget(key::AbstractString, c::AbstractDict; options...) = Widget(c[key]; key, options...)
 
-function method_dependent_widgets(settings::AbstractDict, methods::AbstractDict, key::AbstractString)
+function method_dependent_widgets(settings::AbstractDict, key::AbstractString, methods::AbstractDict)
     option_key = string(key, "_", "options")
     wdgs = Widget[]
     for (m, config) in pairs(methods)
@@ -80,7 +80,7 @@ function method_dependent_widgets(settings::AbstractDict, methods::AbstractDict,
     return wdgs
 end
 
-function extract_options(c::AbstractDict, m::AbstractString, key::AbstractString)
+function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
     option_key = string(key, "_", "options")
     r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
     return get(c, option_key) do

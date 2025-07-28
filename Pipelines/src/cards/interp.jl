@@ -145,7 +145,7 @@ function InterpCard(c::AbstractDict)
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
     method::String = c["method"]
-    method_options::StringDict = extract_options(c, method, "method")
+    method_options::StringDict = extract_options(c, "method", method)
     interpolator::InterpolationMethod = INTERPOLATION_METHODS[method](method_options)
     input::String = c["input"]
     targets::Vector{String} = c["targets"]
@@ -208,7 +208,7 @@ function CardWidget(config::CardConfig{InterpCard}, c::AbstractDict)
             Widget("targets", c),
             Widget("method", c; options = methods),
         ],
-        method_dependent_widgets(c, config.methods, "method"),
+        method_dependent_widgets(c, "method", config.methods),
         [
             Widget("partition", c, required = false),
             Widget("suffix", c, value = "hat"),

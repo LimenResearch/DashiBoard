@@ -82,7 +82,7 @@ function SplitCard(c::AbstractDict)
     has_order = !isempty(order_by)
     by::Vector{String} = get(c, "by", String[])
     method::String = c["method"]
-    method_options::StringDict = extract_options(c, method, "method")
+    method_options::StringDict = extract_options(c, "method", method)
     splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
     output::String = c["output"]
     return SplitCard(type, label, method, splitter, order_by, by, output)
@@ -140,7 +140,7 @@ function CardWidget(config::CardConfig{SplitCard}, c::AbstractDict)
         Widget("output", c, value = "partition"),
     ]
 
-    append!(fields, method_dependent_widgets(c, config.methods, "method"))
+    append!(fields, method_dependent_widgets(c, "method", config.methods))
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

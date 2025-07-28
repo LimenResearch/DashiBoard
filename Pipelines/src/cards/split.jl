@@ -8,7 +8,7 @@ struct PercentileMethod <: SplittingMethod
     percentile::Float64
 end
 
-get_sql(s::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ s.percentile, 1, 2)
+get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)
 
 function PercentileMethod(c::AbstractDict, has_order::Bool)
     has_order || order_error()
@@ -18,14 +18,24 @@ end
 
 struct TilesMethod <: SplittingMethod
     tiles::Vector{Int}
+    repeat::Int
+    tail::Int
 end
 
-get_sql(s::TilesMethod) = Fun.list_extract(Fun.list_value(s.tiles...), Agg.ntile(length(s.tiles)))
+function get_sql(m::TilesMethod)
+    n = length(m.tiles)
+    N = m.repeat * n + m.tail
+    vals = Fun.list_value(m.tiles...)
+    # work around inconsistency in `%` operator and 1-based indexing in DuckDB
+    return Fun.list_extract(vals, Fun."%"(Agg.ntile(N) .- 1, n) .+ 1)
+end
 
 function TilesMethod(c::AbstractDict, has_order::Bool)
     has_order || order_error()
     tiles::Vector{Int} = c["tiles"]
-    return TilesMethod(tiles)
+    repeat::Int = get(c, "repeat", 1)
+    tail::Int = get(c, "tail", 0)
+    return TilesMethod(tiles, repeat, tail)
 end
 
 const SPLITTING_METHODS = OrderedDict{String, DataType}(

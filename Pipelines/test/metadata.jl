@@ -4,9 +4,10 @@
     config = d["percentile"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "by", "output", "method_options"]
+    for k in ["type", "method", "order_by", "by", "output"]
         @test metadata[k] == config[k]
     end
+    @test metadata["method_options"] == Dict("percentile" => 0.9)
     @test metadata["label"] == "Split"
     card2 = Pipelines.Card(metadata)
     @test card.splitter == card2.splitter
@@ -14,9 +15,29 @@
     config = d["tiles"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "by", "output", "method_options"]
+    for k in ["type", "method", "order_by", "by", "output"]
         @test metadata[k] == config[k]
     end
+    @test metadata["method_options"] == Dict(
+        "tiles" => [1, 1, 2, 1, 1, 2],
+        "repeat" => 1,
+        "tail" => 0
+    )
+    @test metadata["label"] == "Split"
+    card2 = Pipelines.Card(metadata)
+    @test card.splitter == card2.splitter
+
+    config = d["tiles2"]
+    card = Pipelines.Card(config)
+    metadata = Pipelines.get_metadata(card)
+    for k in ["type", "method", "order_by", "by", "output"]
+        @test metadata[k] == config[k]
+    end
+    @test metadata["method_options"] == Dict(
+        "tiles" => [1, 1, 2],
+        "repeat" => 2,
+        "tail" => 1
+    )
     @test metadata["label"] == "Split"
     card2 = Pipelines.Card(metadata)
     @test card.splitter == card2.splitter

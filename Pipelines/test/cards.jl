@@ -26,6 +26,32 @@ mktempdir() do dir
         ]
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
+
+        # test repeating strategy
+        card = Pipelines.Card(d["tiles2"])
+        str, _ = DuckDBUtils.render_params(
+            DuckDBUtils.get_catalog(repo),
+            FunSQL.Partition() |> FunSQL.Select(card.output => Pipelines.get_sql(card.splitter))
+        )
+        @test str == "SELECT list_extract(list_value(1, 1, 2), \
+        ((((ntile(7) OVER ()) - 1) % 3) + 1)) AS \"_tiled_partition\""
+        node = Node(card)
+
+        Pipelines.train_evaljoin!(repo, node, "selection" => "split")
+        v1 = DBInterface.execute(DataFrame, repo, "FROM split")._tiled_partition
+
+        card = Pipelines.Card(d["tiles3"])
+        str, _ = DuckDBUtils.render_params(
+            DuckDBUtils.get_catalog(repo),
+            FunSQL.Partition() |> FunSQL.Select(card.output => Pipelines.get_sql(card.splitter))
+        )
+        @test str == "SELECT list_extract(list_value(1, 1, 2, 1, 1, 2, 1), \
+        ((((ntile(7) OVER ()) - 1) % 7) + 1)) AS \"_tiled_partition\""
+        node = Node(card)
+        Pipelines.train_evaljoin!(repo, node, "selection" => "split")
+        v2 = DBInterface.execute(DataFrame, repo, "FROM split")._tiled_partition
+        @test v1 == v2
+
         # TODO: test by group as well
 
         card = Pipelines.Card(d["percentile"])

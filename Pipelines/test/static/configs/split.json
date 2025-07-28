@@ -15,6 +15,22 @@
     "method_options": { "tiles": [1, 1, 2, 1, 1, 2] },
     "output": "_tiled_partition"
   },
+  "tiles2": {
+    "type": "split",
+    "order_by": ["No"],
+    "by": ["cbwd"],
+    "method": "tiles",
+    "method_options": { "tiles": [1, 1, 2], "repeat": 2, "tail": 1 },
+    "output": "_tiled_partition"
+  },
+  "tiles3": {
+    "type": "split",
+    "order_by": ["No"],
+    "by": ["cbwd"],
+    "method": "tiles",
+    "method_options": { "tiles": [1, 1, 2, 1, 1, 2, 1] },
+    "output": "_tiled_partition"
+  },
   "unsorted": {
     "type": "split",
     "order_by": [],

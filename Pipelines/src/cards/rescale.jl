@@ -142,7 +142,7 @@ function RescaleCard(c::AbstractDict)
     targets::Vector{String} = get(c, "targets", String[])
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "rescaled")
-    target_suffix = get(c, "target_suffix", nothing)
+    target_suffix::Union{String, Nothing} = get(c, "target_suffix", nothing)
     return RescaleCard(
         type,
         label,

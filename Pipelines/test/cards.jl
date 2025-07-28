@@ -31,7 +31,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["tiles2"])
         str, _ = DuckDBUtils.render_params(
             DuckDBUtils.get_catalog(repo),
-            FunSQL.Partition() |> FunSQL.Select(card.output => Pipelines.get_sql(card.splitter))
+            Partition() |> Select(card.output => Pipelines.get_sql(card.splitter))
         )
         @test str == "SELECT list_extract(list_value(1, 1, 2), \
         ((((ntile(7) OVER ()) - 1) % 3) + 1)) AS \"_tiled_partition\""
@@ -43,7 +43,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["tiles3"])
         str, _ = DuckDBUtils.render_params(
             DuckDBUtils.get_catalog(repo),
-            FunSQL.Partition() |> FunSQL.Select(card.output => Pipelines.get_sql(card.splitter))
+            Partition() |> Select(card.output => Pipelines.get_sql(card.splitter))
         )
         @test str == "SELECT list_extract(list_value(1, 1, 2, 1, 1, 2, 1), \
         ((((ntile(7) OVER ()) - 1) % 7) + 1)) AS \"_tiled_partition\""

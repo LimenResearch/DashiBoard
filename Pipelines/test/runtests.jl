@@ -3,7 +3,7 @@ using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
 using DBInterface, DataFrames, Graphs, JSON, Downloads
 using Clustering, GLM, DataInterpolations, Distributions, Dates, Statistics
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
-using FunSQL: Get
+using FunSQL: Get, Select, Partition
 using Base.ScopedValues: @with
 using Test
 

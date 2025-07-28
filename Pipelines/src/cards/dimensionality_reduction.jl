@@ -143,15 +143,18 @@ end
 function CardWidget(config::CardConfig{DimensionalityReductionCard}, c::AbstractDict)
     methods = collect(keys(PROJECTION_METHODS))
 
-    fields = Widget[
-        Widget("method", c, options = methods),
-        Widget("inputs", c),
-        Widget("n_components", c),
-        Widget("partition", c, required = false),
-        Widget("output", c, value = "component"),
-    ]
-
-    append!(fields, method_dependent_widgets(c, "method", config.methods))
+    fields = vcat(
+        [
+            Widget("inputs", c),
+            Widget("method", c, options = methods),
+            Widget("n_components", c),
+        ],
+        method_dependent_widgets(c, "method", config.methods),
+        [
+            Widget("partition", c, required = false),
+            Widget("output", c, value = "component"),
+        ]
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output", nothing, "n_components"))
 end

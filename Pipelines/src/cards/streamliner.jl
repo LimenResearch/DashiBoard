@@ -217,18 +217,23 @@ function CardWidget(config::CardConfig{StreamlinerCard}, c::AbstractDict)
     model_wdgs = read_wdgs(MODEL_DIR[])
     training_wdgs = read_wdgs(TRAINING_DIR[])
 
-    fields = Widget[
-        Widget("model", c, options = collect(keys(model_wdgs))),
-        Widget("training", c, options = collect(keys(training_wdgs))),
-        Widget("order_by", c),
-        Widget("inputs", c),
-        Widget("targets", c),
-        Widget("partition", c),
-        Widget("suffix", c, value = "hat"),
-    ]
-
-    append!(fields, method_dependent_widgets(c, "model", model_wdgs))
-    append!(fields, method_dependent_widgets(c, "training", training_wdgs))
+    fields = vcat(
+        [
+            Widget("order_by", c),
+            Widget("inputs", c),
+            Widget("targets", c),
+            Widget("partition", c),
+            Widget("suffix", c, value = "hat"),
+        ],
+        [
+            Widget("model", c, options = collect(keys(model_wdgs))),
+        ],
+        method_dependent_widgets(c, "model", model_wdgs),
+        [
+            Widget("training", c, options = collect(keys(training_wdgs))),
+        ],
+        method_dependent_widgets(c, "training", training_wdgs)
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
 end

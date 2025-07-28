@@ -208,8 +208,8 @@ function CardWidget(config::CardConfig{GaussianEncodingCard}, c::AbstractDict)
 
     fields = vcat(
         [
-            Widget("method", c; options = methods),
             Widget("input", c),
+            Widget("method", c; options = methods),
             Widget("n_components", c),
         ],
         method_dependent_widgets(c, "method", config.methods),

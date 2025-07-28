@@ -137,16 +137,20 @@ end
 
 function CardWidget(config::CardConfig{ClusterCard}, c::AbstractDict)
     methods = collect(keys(CLUSTERING_METHODS))
+    support_weights = ["kmeans"]
 
-    fields = Widget[
-        Widget("method", c, options = methods),
-        Widget("inputs", c),
-        Widget("weights", c, visible = Dict("method" => ["kmeans"]), required = false),
-        Widget("partition", c, required = false),
-        Widget("output", c),
-    ]
-
-    append!(fields, method_dependent_widgets(c, "method", config.methods))
+    fields = vcat(
+        [
+            Widget("inputs", c),
+            Widget("method", c, options = methods),
+        ],
+        method_dependent_widgets(c, "method", config.methods),
+        [
+            Widget("weights", c, visible = "method" => support_weights, required = false),
+            Widget("partition", c, required = false),
+            Widget("output", c),
+        ]
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

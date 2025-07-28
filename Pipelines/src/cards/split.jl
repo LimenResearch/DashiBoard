@@ -133,14 +133,17 @@ end
 function CardWidget(config::CardConfig{SplitCard}, c::AbstractDict)
     methods = collect(keys(SPLITTING_METHODS))
 
-    fields = [
-        Widget("method", c; options = methods),
-        Widget("order_by", c),
-        Widget("by", c, required = false),
-        Widget("output", c, value = "partition"),
-    ]
-
-    append!(fields, method_dependent_widgets(c, "method", config.methods))
+    fields = vcat(
+        [
+            Widget("method", c; options = methods),
+        ],
+        method_dependent_widgets(c, "method", config.methods),
+        [
+            Widget("order_by", c),
+            Widget("by", c, required = false),
+            Widget("output", c, value = "partition"),
+        ]
+    )
 
     return CardWidget(config.key, config.label, fields, OutputSpec("output"))
 end

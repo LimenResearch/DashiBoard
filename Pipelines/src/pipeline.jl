@@ -106,7 +106,7 @@ end
 function Pipeline(node_iter; train::Bool = true)
     nodes::Vector{Node} = train ? collect(Node, node_iter) : map(notrain, node_iter)
     foreach(check_inverted_no_train, nodes)
-    g, source_vars, output_vars = digraph_metadata(nodes)
+    (; g, source_vars, output_vars) = EnrichedDiGraph(nodes)
     hs = compute_height(g, get_update.(nodes))
     precomputed_nodes = findall(==(-1), hs)
     return Pipeline(

@@ -20,18 +20,23 @@ end
 
 ##
 
-function digraph(nodes::AbstractVector{Node})
-    g, _... = digraph_metadata(nodes)
-    return g
+struct EnrichedDiGraph
+    g::DiGraph{Int}
+    source_indices::Vector{Vector{Int}}
+    source_vars::Vector{String}
+    output_vars::Vector{String}
 end
 
-function digraph_metadata(nodes::AbstractVector{Node})
+digraph(nodes::AbstractVector{Node}) = EnrichedDiGraph(nodes).g
+
+function EnrichedDiGraph(nodes::AbstractVector{Node})
     Base.require_one_based_indexing(nodes)
     inputs, source_vars, output_vars = Int[], OrderedSet{String}(), String[]
     # preprocess outbound edges
     output_counts = flatten_and_count!(get_outputs, output_vars, nodes)
     # generate variable to index dictionary and validate result
     d = output_dict(output_vars)
+    # also store
     # preprocess inbound edges
     input_counts = flatten_and_count!(inputs, nodes) do node
         vars = get_inputs(node)
@@ -40,8 +45,15 @@ function digraph_metadata(nodes::AbstractVector{Node})
         union!(source_vars, view(vars, is_source))
         return view(idxs, .!is_source)
     end
-    # return graph and variable names
-    return digraph(inputs, input_counts, output_counts), collect(String, source_vars), output_vars
+    # return enriched graph
+    g = digraph(inputs, input_counts, output_counts)
+
+    return EnrichedDiGraph(
+        g,
+        Vector{Int}[],
+        collect(String, source_vars),
+        output_vars
+    )
 end
 
 function digraph(

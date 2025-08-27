@@ -55,7 +55,7 @@
 
     @test_throws "wind" Pipelines.train_evaljoin!(repo, nodes, "tbl1")
 
-    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    (; source_vars, output_vars) = Pipelines.EnrichedDiGraph(nodes)
     @test source_vars == ["temp", "wind"]
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
@@ -104,7 +104,7 @@
         Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
 
-    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    (; g, source_vars, output_vars) = Pipelines.EnrichedDiGraph(nodes)
     @test source_vars == ["a", "b"]
     @test nv(g) == 11
     # The graph nodes are

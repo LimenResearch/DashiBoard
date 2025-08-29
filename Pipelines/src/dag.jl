@@ -1,64 +1,71 @@
 repeated_keys(cs) = Iterators.flatmap(splat(Iterators.repeated), pairs(cs))
 lazy_pairs(cs, xs) = Iterators.map(=>, repeated_keys(cs), xs)
 
+function dict_append!(d::AbstractDict, vars::AbstractVector)
+    return Int[get!(d, v, length(d) + 1) for v in vars]
+end
+
 function output_dict(output_vars)
-    d = Dict{String, Int}(Iterators.map(reverse, enumerate(output_vars)))
+    d = OrderedDict{String, Int}(Iterators.map(reverse, enumerate(output_vars)))
     repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(d, var, i))
     isempty(repeated) || throw(ArgumentError("Columns $(repeated) would be overwritten"))
     return d
 end
 
-function flatten_and_count!(f::F, vals::AbstractVector, v::AbstractVector) where {F}
-    counts = fill(0, length(v))
+function flatten_and_count(f::F, ::Type{T}, v::AbstractVector) where {F, T}
+    vals::Vector{T} = T[]
+    counts::Vector{Int} = fill(0, length(v))
     for (i, x) in pairs(v)
         l = length(vals)
         append!(vals, f(x))
         counts[i] = length(vals) - l
     end
-    return counts::Vector{Int}
+    return vals, counts
 end
 
 ##
 
-function digraph(nodes::AbstractVector{Node})
-    g, _... = digraph_metadata(nodes)
-    return g
+struct EnrichedDiGraph{I <: Integer}
+    g::DiGraph{I}
+    source_vars::Vector{String}
+    output_vars::Vector{String}
 end
 
-function digraph_metadata(nodes::AbstractVector{Node})
+digraph(nodes::AbstractVector{Node}) = EnrichedDiGraph(nodes).g
+
+function EnrichedDiGraph(nodes::AbstractVector{Node})
     Base.require_one_based_indexing(nodes)
-    inputs, source_vars, output_vars = Int[], OrderedSet{String}(), String[]
     # preprocess outbound edges
-    output_counts = flatten_and_count!(get_outputs, output_vars, nodes)
+    output_vars, output_counts = flatten_and_count(get_outputs, String, nodes)
     # generate variable to index dictionary and validate result
+    n_outputs = length(output_vars)
     d = output_dict(output_vars)
     # preprocess inbound edges
-    input_counts = flatten_and_count!(inputs, nodes) do node
+    inputs, input_counts = flatten_and_count(Int, nodes) do node
         vars = get_inputs(node)
-        idxs = get.((d,), vars, 0)
-        is_source = idxs .== 0
-        union!(source_vars, view(vars, is_source))
-        return view(idxs, .!is_source)
+        return dict_append!(d, vars)
     end
-    # return graph and variable names
-    return digraph(inputs, input_counts, output_counts), collect(String, source_vars), output_vars
+    source_vars = collect(String, Iterators.map(first, Iterators.drop(d, n_outputs)))
+    # return enriched graph
+    g = digraph(inputs, input_counts, output_counts, length(d))
+    return EnrichedDiGraph(g, source_vars, output_vars)
 end
 
 function digraph(
         inputs::AbstractVector{<:Integer},
         input_counts::AbstractVector{<:Integer},
-        output_counts::AbstractVector{<:Integer}
+        output_counts::AbstractVector{<:Integer},
+        n_vars::Integer
     )
 
     # compute number of nodes, input and output variables
     n_inputs, n_outputs, N = sum(input_counts), sum(output_counts), length(output_counts)
-
     # counting sort
-    counts = fill(0, n_outputs + 1)
+    counts = fill(0, n_vars + 1)
     for input in inputs
         counts[input + 1] += 1
     end
-    for i in 1:n_outputs
+    for i in 1:n_vars
         counts[i + 1] += counts[i]
     end
 
@@ -108,7 +115,9 @@ end
 ##
 
 # TODO: make look customizable (esp., match font with AlgebraOfGraphics)
-function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node}, vars::AbstractVector{<:AbstractString})
+function graphviz(io::IO, eg::EnrichedDiGraph, nodes::AbstractVector{Node})
+    (; g, source_vars, output_vars) = eg
+
     N = length(nodes)
 
     println(io, "digraph G{")
@@ -125,7 +134,7 @@ function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node}, vars::Abstrac
 
     println(io, "  subgraph vars {")
     println(io, "    node [shape = \"none\"];")
-    for (j, var) in enumerate(vars)
+    for (j, var) in enumerate(Iterators.flatten([output_vars, source_vars]))
         println(io, "    \"$(N + j)\" [label = \"$(var)\"];")
     end
     println(io, "  }")

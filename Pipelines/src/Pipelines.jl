@@ -34,7 +34,7 @@ using RelocatableFolders: @path
 using JLD2: jldopen
 using StructUtils: make
 
-using OrderedCollections: OrderedDict, OrderedSet
+using OrderedCollections: OrderedDict
 using Tables: Tables
 using DBInterface: DBInterface
 
@@ -157,8 +157,9 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 include("cards/wild.jl")
 
-include("pipeline.jl")
+include("node.jl")
 include("dag.jl")
+include("pipeline.jl")
 
 function __init__()
     register_card(SPLIT_CARD_CONFIG)

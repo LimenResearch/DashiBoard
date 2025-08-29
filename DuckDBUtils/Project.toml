@@ -6,7 +6,7 @@ authors = [
     "Dario Sarra",
     "Pietro Vertechi",
 ]
-version = "1.0.0-DEV"
+version = "1.0.0"
 
 [deps]
 ConcurrentUtilities = "f0e56b4a-5159-44fe-b623-3e5288b988bb"

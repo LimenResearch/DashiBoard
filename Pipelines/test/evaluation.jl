@@ -39,7 +39,7 @@
         Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
     ]
 
-    g = Pipelines.digraph(nodes)
+    g = Pipelines.digraph(nodes)[1:8]
     order = Pipelines.topological_sort(g)
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
@@ -55,7 +55,7 @@
 
     @test_throws "wind" Pipelines.train_evaljoin!(repo, nodes, "tbl1")
 
-    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    (; source_vars, output_vars) = Pipelines.EnrichedDiGraph(nodes)
     @test source_vars == ["temp", "wind"]
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
@@ -68,9 +68,9 @@
     for (n1, n2) in zip(nodes, p.nodes)
         @test n1.state === n2.state
     end
-    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
-    @test p.source_vars == ["temp", "wind"]
-    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+    @test collect(edges(p.enriched_digraph.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.enriched_digraph.source_vars == ["temp", "wind"]
+    @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     nodes = [
         Pipelines.Node(trivialcard(["temp"], "pred humid"), update = false),
@@ -81,9 +81,9 @@
 
     # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
     p = Pipelines.train_evaljoin!(repo, nodes, "tbl3")
-    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
-    @test p.source_vars == ["temp", "wind"]
-    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+    @test collect(edges(p.enriched_digraph.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.enriched_digraph.source_vars == ["temp", "wind"]
+    @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     # original table must supply precomputed variabels
     @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4")
@@ -104,12 +104,14 @@
         Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
 
-    g, source_vars, output_vars = Pipelines.digraph_metadata(nodes)
+    enriched_digraph = Pipelines.EnrichedDiGraph(nodes)
+    (; g, source_vars, output_vars) = enriched_digraph
     @test source_vars == ["a", "b"]
-    @test nv(g) == 11
+    @test nv(g) == 13
     # The graph nodes are
     # 1 => n1, 2 => n2, 3 => n3, 4 => n4,
-    # 5 => "f", 6 => "c", 7 => "d", 8 => "e", 9 => "g", 10 => "h", 11 => "i".
+    # 5 => "f", 6 => "c", 7 => "d", 8 => "e", 9 => "g", 10 => "h", 11 => "i",
+    # 12 => "a", 13 => "b".
     es = collect(edges(g))
     @test sort(es) == [
         Edge(1, 5),
@@ -123,9 +125,12 @@
         Edge(6, 1),
         Edge(8, 1),
         Edge(8, 4),
+        Edge(12, 1),
+        Edge(12, 2),
+        Edge(13, 3),
     ]
 
-    s = sprint(Pipelines.graphviz, g, nodes, output_vars)
+    s = sprint(Pipelines.graphviz, enriched_digraph, nodes)
     @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 
     p = Pipelines.Pipeline(nodes)

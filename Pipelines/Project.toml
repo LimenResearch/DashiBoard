@@ -1,7 +1,7 @@
 name = "Pipelines"
 uuid = "12f58945-0960-453a-85e3-e4614e9748b9"
 authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
-version = "1.0.0-DEV"
+version = "1.0.0"
 
 [deps]
 Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"

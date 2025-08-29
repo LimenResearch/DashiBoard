@@ -68,9 +68,9 @@
     for (n1, n2) in zip(nodes, p.nodes)
         @test n1.state === n2.state
     end
-    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
-    @test p.source_vars == ["temp", "wind"]
-    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+    @test collect(edges(p.enriched_digraph.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.enriched_digraph.source_vars == ["temp", "wind"]
+    @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     nodes = [
         Pipelines.Node(trivialcard(["temp"], "pred humid"), update = false),
@@ -81,9 +81,9 @@
 
     # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
     p = Pipelines.train_evaljoin!(repo, nodes, "tbl3")
-    @test collect(edges(p.g)) == collect(edges(Pipelines.digraph(nodes)))
-    @test p.source_vars == ["temp", "wind"]
-    @test p.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+    @test collect(edges(p.enriched_digraph.g)) == collect(edges(Pipelines.digraph(nodes)))
+    @test p.enriched_digraph.source_vars == ["temp", "wind"]
+    @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     # original table must supply precomputed variabels
     @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4")
@@ -104,8 +104,8 @@
         Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
 
-    eg = Pipelines.EnrichedDiGraph(nodes)
-    (; g, source_vars, output_vars) = eg
+    enriched_digraph = Pipelines.EnrichedDiGraph(nodes)
+    (; g, source_vars, output_vars) = enriched_digraph
     @test source_vars == ["a", "b"]
     @test nv(g) == 13
     # The graph nodes are
@@ -130,7 +130,7 @@
         Edge(13, 3),
     ]
 
-    s = sprint(Pipelines.graphviz, eg, nodes)
+    s = sprint(Pipelines.graphviz, enriched_digraph, nodes)
     @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 
     p = Pipelines.Pipeline(nodes)

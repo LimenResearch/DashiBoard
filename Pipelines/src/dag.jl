@@ -25,8 +25,8 @@ end
 
 ##
 
-struct EnrichedDiGraph
-    g::DiGraph{Int}
+struct EnrichedDiGraph{I <: Integer}
+    g::DiGraph{I}
     source_vars::Vector{String}
     output_vars::Vector{String}
 end

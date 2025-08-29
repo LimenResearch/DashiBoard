@@ -123,7 +123,9 @@ no_update_vars(p::Pipeline) = Iterators.flatmap(Fix1(get_outputs, p), p.precompu
 
 get_outputs(p::Pipeline, i::Integer) = p.output_vars[outneighbors(p.g, i) .- length(p.nodes)]
 
-graphviz(io::IO, p::Pipeline) = graphviz(io, p.g, p.nodes, p.output_vars)
+EnrichedDiGraph(p::Pipeline) = EnrichedDiGraph(p.g, p.source_vars, p.output_vars)
+
+graphviz(io::IO, p::Pipeline) = graphviz(io, EnrichedDiGraph(p), p.nodes)
 
 function foreach_layer(
         f::F,

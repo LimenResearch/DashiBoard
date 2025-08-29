@@ -115,7 +115,9 @@ end
 ##
 
 # TODO: make look customizable (esp., match font with AlgebraOfGraphics)
-function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node}, vars::AbstractVector{<:AbstractString})
+function graphviz(io::IO, eg::EnrichedDiGraph, nodes::AbstractVector{Node})
+    (; g, source_vars, output_vars) = eg
+
     N = length(nodes)
 
     println(io, "digraph G{")
@@ -132,7 +134,7 @@ function graphviz(io::IO, g::DiGraph, nodes::AbstractVector{Node}, vars::Abstrac
 
     println(io, "  subgraph vars {")
     println(io, "    node [shape = \"none\"];")
-    for (j, var) in enumerate(vars)
+    for (j, var) in enumerate(Iterators.flatten([output_vars, source_vars]))
         println(io, "    \"$(N + j)\" [label = \"$(var)\"];")
     end
     println(io, "  }")

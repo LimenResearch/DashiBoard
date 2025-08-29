@@ -104,7 +104,8 @@
         Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
 
-    (; g, source_vars, output_vars) = Pipelines.EnrichedDiGraph(nodes)
+    eg = Pipelines.EnrichedDiGraph(nodes)
+    (; g, source_vars, output_vars) = eg
     @test source_vars == ["a", "b"]
     @test nv(g) == 13
     # The graph nodes are
@@ -129,12 +130,12 @@
         Edge(13, 3),
     ]
 
-    s = sprint(Pipelines.graphviz, g, nodes, output_vars)
-    # @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
+    s = sprint(Pipelines.graphviz, eg, nodes)
+    @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 
     p = Pipelines.Pipeline(nodes)
     s = sprint(Pipelines.graphviz, p)
-    # @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
+    @test s == read(joinpath(@__DIR__, "static", "outputs", "graph.dot"), String)
 end
 
 mktempdir() do dir

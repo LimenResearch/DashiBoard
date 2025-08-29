@@ -6,7 +6,7 @@ authors = [
     "Dario Sarra",
     "Pietro Vertechi",
 ]
-version = "1.0.0-DEV"
+version = "1.0.0"
 
 [deps]
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"

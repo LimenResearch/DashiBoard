@@ -59,7 +59,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "card-widgets.json"), String)
         resp = HTTP.post(url * "get-card-widgets", body = body)
-        configs = JSON.parse(IOBuffer(resp.body))
+        configs = JSON.parse(resp.body)
         @test configs isa AbstractVector
         @test length(configs) == 9
         @test resp.headers == [
@@ -75,7 +75,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load-files", body = body)
-        summaries = JSON.parse(IOBuffer(resp.body))
+        summaries = JSON.parse(resp.body)
         @test summaries[end]["name"] == "_name"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
@@ -85,7 +85,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
         resp = HTTP.post(url * "evaluate-pipeline", body = body)
-        summaries = JSON.parse(IOBuffer(resp.body))["summaries"]
+        summaries = JSON.parse(resp.body)["summaries"]
         @test summaries[end]["name"] == "_tiled_partition"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
@@ -95,7 +95,7 @@ mktempdir() do data_dir
 
         body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
         resp = HTTP.post(url * "fetch-data", body = body)
-        tbl = JSON.parse(IOBuffer(resp.body))
+        tbl = JSON.parse(resp.body)
         df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
         @test tbl["length"] == nrow(df)
         @test [row["No"] for row in tbl["values"]] == df.No[11:60]

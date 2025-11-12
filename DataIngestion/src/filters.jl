@@ -89,19 +89,30 @@ const FILTER_TYPES = Dict(
 )
 
 """
-    select(repository::Repository, filters::AbstractVector; schema = nothing)
+    select(
+        repository::Repository,
+        filters::AbstractVector,
+        (src, tgt)::Pair = "$(TABLE_NAMES.source)" => "$(TABLE_NAMES.selection)";
+        schema = nothing
+    )
 
-Create a table with name `TABLE_NAMES.selection` within the database `repository.db`,
+Create a table with name `tgt` (defaults to "$(TABLE_NAMES.selection)")
+within the schema `schema` (defaults to main schema) inside `repository.db`,
 where `repository` is a [`Repository`](@ref).
-The table `TABLE_NAMES.selection` is filled with rows from the table
-`TABLE_NAMES.source` that are kept by the filters in `filters`.
+The table `tgt` is filled with rows from the table `src` (defaults to "$(TABLE_NAMES.source)")
+that are kept by the filters in `filters`.
 
 Each filter should be an instance of [`Filter`](@ref).
 """
-function select(repository::Repository, filters::AbstractVector; schema = nothing)
+function select(
+        repository::Repository,
+        filters::AbstractVector,
+        (src, tgt)::Pair = TABLE_NAMES.source => TABLE_NAMES.selection;
+        schema = nothing
+    )
     cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
     params = mapfoldl(get_params, merge!, cs, init = StringDict())
     pred = Fun.and(Iterators.map(get_pred, cs)...)
-    node = From(TABLE_NAMES.source) |> Where(pred)
-    return replace_table(repository, node, params, TABLE_NAMES.selection; schema)
+    node = From(src) |> Where(pred)
+    return replace_table(repository, node, params, tgt; schema)
 end

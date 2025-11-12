@@ -55,25 +55,27 @@ The file paths are interpreted as relative to `DataIngestion.DATA_DIR[]`.
 parse_paths(d::AbstractDict)::Vector{String} = _joinpath.(DATA_DIR[], d["files"])
 
 # TODO: document this method and pass options via `c`
-function load_files(repository::Repository, c::AbstractDict; kwargs...)
-    return load_files(repository, parse_paths(c); kwargs...)
+function load_files(repository::Repository, c::AbstractDict, table = TABLE_NAMES.source; kwargs...)
+    return load_files(repository, parse_paths(c), table; kwargs...)
 end
 
-function load_files(repository::Repository, base_dir::AbstractString, c::AbstractDict; kwargs...)
-    return @with DATA_DIR => base_dir load_files(repository, c; kwargs...)
+function load_files(repository::Repository, base_dir::AbstractString, c::AbstractDict, table = TABLE_NAMES.source; kwargs...)
+    return @with DATA_DIR => base_dir load_files(repository, c, table; kwargs...)
 end
 
 """
     load_files(
         repository::Repository,
-        files::AbstractVector{<:AbstractString};
+        files::AbstractVector{<:AbstractString},
+        table = "$(TABLE_NAMES.source)";
         format::AbstractString,
         schema = nothing,
         union_by_name = true, kwargs...)
     )
 
-Load `files` into a table called `TABLE_NAMES.source` inside `repository.db`
-within the schema `schema` (defaults to main schema).
+Load `files` into a table called `table` (defaults to "$(TABLE_NAMES.source)")
+within the schema `schema` (defaults to main schema) inside `repository.db`,
+where `repository` is a [`Repository`](@ref).
 
 The format is inferred or can be passed explicitly.
 
@@ -85,7 +87,8 @@ for the given format.
 """
 function load_files(
         repository::Repository,
-        files::AbstractVector{<:AbstractString};
+        files::AbstractVector{<:AbstractString},
+        table::AbstractString = TABLE_NAMES.source;
         format::AbstractString = to_format(first(files)),
         schema = nothing,
         union_by_name = true,
@@ -100,5 +103,5 @@ function load_files(
     SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
     """
 
-    return replace_table(repository, sql, files, TABLE_NAMES.source; schema)
+    return replace_table(repository, sql, files, table; schema)
 end

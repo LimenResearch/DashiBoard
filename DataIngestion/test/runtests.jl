@@ -27,6 +27,12 @@ using Test
         DBInterface.execute(Returns(nothing), repo, "COPY (FROM source2) TO '$path2.json'")
         DBInterface.execute(Returns(nothing), repo, "COPY (FROM source2) TO '$path2.parquet'")
 
+        DataIngestion.load_files(repo, ["$path1.csv"], "custom_table"; schema = "csv")
+        df′ = DBInterface.execute(DataFrame, repo, "FROM csv.custom_table")
+        @test df′.x == [1, 2, 3]
+        @test df′.y == ["a", "b", "c"]
+        @test df′._name == ["test1", "test1", "test1"]
+
         DataIngestion.load_files(repo, ["$path1.csv"]; schema = "csv")
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.source")
         @test df′.x == [1, 2, 3]
@@ -76,6 +82,7 @@ end
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
+        DataIngestion.load_files(repo, data_dir, spec, "custom_table")
         DataIngestion.load_files(repo, data_dir, spec; schema)
     end
 
@@ -96,7 +103,13 @@ end
 
     filters = [f1, f2, f3]
 
+    DataIngestion.select(repo, filters, "custom_table" => "custom_selection")
     DataIngestion.select(repo, filters; schema)
+
+    df = DBInterface.execute(DataFrame, repo, "FROM custom_selection")
+    @test issetequal(df.cbwd, ["NW", "SE"])
+    @test issetequal(df.hour, 1:3)
+    @test issetequal(df.day, 1:15)
 
     df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")
     @test issetequal(df.cbwd, ["NW", "SE"])

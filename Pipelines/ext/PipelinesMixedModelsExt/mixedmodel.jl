@@ -1,59 +1,5 @@
-to_term(x::String) = Term(Symbol(x))
-to_term(x::Number) = ConstantTerm(x)
-to_term(x::AbstractVector) = mapfoldl(to_term, *, x)
-
-to_inputs(x::AbstractVector) = mapfoldl(to_term, +, x)
-to_target(x::AbstractString) = to_term(x)
-
-const NOISE_MODELS = OrderedDict(
-    "normal" => Normal(),
-    "binomial" => Binomial(),
-    "gamma" => Gamma(),
-    "inversegaussian" => InverseGaussian(),
-    "poisson" => Poisson(),
-)
-
-const LINK_TYPES = OrderedDict(
-    "cauchit" => CauchitLink,
-    "cloglog" => CloglogLink,
-    "identity" => IdentityLink,
-    "inverse" => InverseLink,
-    "inversesquare" => InverseSquareLink,
-    "logit" => LogitLink,
-    "log" => LogLink,
-    "negativebinomial" => NegativeBinomialLink,
-    "probit" => ProbitLink,
-    "sqrt" => SqrtLink,
-)
-
-abstract type AbstractGLMCard <: StandardCard end
-
-function model_type end
-function has_population end
-
-function get_metadata(gc::AbstractGLMCard)
-    metadata = StringDict(
-        "type" => gc.type,
-        "label" => gc.label,
-        "inputs" => gc.inputs,
-        "target" => gc.target,
-        "weights" => gc.weights,
-        "distribution" => gc.distribution_name,
-        "link" => gc.link_name,
-        "partition" => gc.partition,
-        "suffix" => gc.suffix,
-    )
-    if has_population(gc)
-        metadata["population"] = gc.population
-        metadata["population_inputs"] = gc.population_inputs
-    end
-    return metadata
-end
-
-## GLMCard example
-
 """
-    struct GLMCard <: Card
+    struct MixedModelCard <: Card
       type::String
       label::String
       distribution_name::String
@@ -68,9 +14,9 @@ end
       suffix::String
     end
 
-Run a Generalized Linear Model (GLM) based on `formula`.
+Run a Generalized Linear Mixed Model (GLMM) based on `formula`.
 """
-struct GLMCard <: AbstractGLMCard
+struct MixedModelCard <: StandardCard
     type::String
     label::String
     distribution_name::String
@@ -85,10 +31,21 @@ struct GLMCard <: AbstractGLMCard
     suffix::String
 end
 
-model_type(::GLMCard) = GeneralizedLinearModel
-has_population(::GLMCard) = false
-
 const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
+
+function get_metadata(gc::GLMCard)
+    return StringDict(
+        "type" => gc.type,
+        "label" => gc.label,
+        "inputs" => gc.inputs,
+        "target" => gc.target,
+        "weights" => gc.weights,
+        "distribution" => gc.distribution_name,
+        "link" => gc.link_name,
+        "partition" => gc.partition,
+        "suffix" => gc.suffix,
+    )
+end
 
 function GLMCard(c::AbstractDict)
     type::String = c["type"]
@@ -128,26 +85,25 @@ end
 ## StandardCard interface
 
 isterm(x::AbstractTerm) = x isa Term
-_target(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
-_output(gc::AbstractGLMCard) = join_names(_target(gc), gc.suffix)
+_target(gc::GLMCard) = termnames(gc.formula.lhs)
+_output(gc::GLMCard) = join_names(_target(gc), gc.suffix)
 
-sorting_vars(::AbstractGLMCard) = String[]
-grouping_vars(::AbstractGLMCard) = String[]
-input_vars(gc::AbstractGLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
-target_vars(gc::AbstractGLMCard) = [_target(gc)]
-weight_var(gc::AbstractGLMCard) = gc.weights
+sorting_vars(::GLMCard) = String[]
+grouping_vars(::GLMCard) = String[]
+input_vars(gc::GLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
+target_vars(gc::GLMCard) = [_target(gc)]
+weight_var(gc::GLMCard) = gc.weights
 partition_var(gc) = gc.partition
-output_vars(gc::AbstractGLMCard) = [_output(gc)]
+output_vars(gc::GLMCard) = [_output(gc)]
 
-function _train(gc::AbstractGLMCard, t, ::Any; weights = nothing)
+function _train(gc::GLMCard, t, ::Any; weights = nothing)
     (; formula, distribution, link) = gc
     wts = @something weights similar(t[_target(gc)], 0)
     # TODO save slim version of model with no data
-    ModelType = model_type(gc)
-    return fit(ModelType, formula, t, distribution, link, wts = wts)
+    return fit(GeneralizedLinearModel, formula, t, distribution, link, wts = wts)
 end
 
-(gc::AbstractGLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
+(gc::GLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
 
 ## UI representation
 

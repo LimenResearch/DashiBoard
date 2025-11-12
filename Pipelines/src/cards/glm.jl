@@ -121,7 +121,7 @@ grouping_vars(::GLMCard) = String[]
 input_vars(gc::GLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
 target_vars(gc::GLMCard) = [_target(gc)]
 weight_var(gc::GLMCard) = gc.weights
-partition_var(gc) = gc.partition
+partition_var(gc::GLMCard) = gc.partition
 output_vars(gc::GLMCard) = [_output(gc)]
 
 function _train(gc::GLMCard, t, ::Any; weights = nothing)

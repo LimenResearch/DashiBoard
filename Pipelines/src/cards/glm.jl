@@ -156,13 +156,23 @@ const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
 ## MixedModelCard
 
-sorting_vars(::AbstractGLMCard) = String[]
-grouping_vars(::AbstractGLMCard) = String[]
-input_vars(gc::AbstractGLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
-target_vars(gc::AbstractGLMCard) = [_target(gc)]
-weight_var(gc::AbstractGLMCard) = gc.weights
-partition_var(gc) = gc.partition
-output_vars(gc::AbstractGLMCard) = [_output(gc)]
+"""
+    struct MixedModelCard <: AbstractGLMCard
+        type::String
+        label::String
+        distribution_name::String
+        distribution::Distribution
+        link_name::Union{String, Nothing}
+        link::Link
+        inputs::Vector{Any}
+        population::String
+        population_inputs::Vector{Any} # TODO: rename to random effects?
+        target::String
+        formula::FormulaTerm
+        weights::Union{String, Nothing}
+        partition::Union{String, Nothing}
+        suffix::String
+    end
 
 Run a Mixed Model based on `formula`.
 To use this card, you must load the MixedModels.jl package first.

@@ -1,9 +1,7 @@
-to_term(x::String) = Term(Symbol(x))
-to_term(x::Number) = ConstantTerm(x)
-to_term(x::AbstractVector) = mapfoldl(to_term, *, x)
+_term(x::Union{String, Number}) = term(x)
+_term(x::AbstractVector) = mapfoldl(term, *, x)
 
-to_inputs(x::AbstractVector) = mapfoldl(to_term, +, x)
-to_target(x::AbstractString) = to_term(x)
+composite_term(x::AbstractVector) = mapfoldl(_term, +, x)
 
 const NOISE_MODELS = OrderedDict(
     "normal" => Normal(),
@@ -50,7 +48,50 @@ function get_metadata(gc::AbstractGLMCard)
     return metadata
 end
 
-## GLMCard example
+function glm_options(c::AbstractDict)
+    type::String = c["type"]
+    config = CARD_CONFIGS[type]
+    label::String = card_label(c, config)
+    distribution_name::String = get(c, "distribution", "normal")
+    link_name::Union{String, Nothing} = get(c, "link", nothing)
+    weights::Union{String, Nothing} = get(c, "weights", nothing)
+    distribution::Distribution = NOISE_MODELS[distribution_name]
+    link::Link = if isnothing(link_name)
+        canonicallink(distribution)
+    else
+        LINK_TYPES[link_name]()
+    end
+    partition::Union{String, Nothing} = get(c, "partition", nothing)
+    suffix::String = get(c, "suffix", "hat")
+
+    return (; type, label, distribution_name, distribution, link_name, link, weights, partition, suffix)
+end
+
+## StandardCard interface
+
+isterm(x::AbstractTerm) = x isa Term
+_target(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
+_output(gc::AbstractGLMCard) = join_names(_target(gc), gc.suffix)
+
+sorting_vars(::AbstractGLMCard) = String[]
+grouping_vars(::AbstractGLMCard) = String[]
+input_vars(gc::AbstractGLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
+target_vars(gc::AbstractGLMCard) = [_target(gc)]
+weight_var(gc::AbstractGLMCard) = gc.weights
+partition_var(gc::AbstractGLMCard) = gc.partition
+output_vars(gc::AbstractGLMCard) = [_output(gc)]
+
+function _train(gc::AbstractGLMCard, t, ::Any; weights = nothing)
+    (; formula, distribution, link) = gc
+    wts = @something weights similar(t[_target(gc)], 0)
+    # TODO save slim version of model with no data
+    ModelType = model_type(gc)
+    return fit(ModelType, formula, t, distribution, link, wts = wts)
+end
+
+(gc::AbstractGLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
+
+## GLMCard
 
 """
     struct GLMCard <: Card
@@ -88,48 +129,32 @@ end
 model_type(::GLMCard) = GeneralizedLinearModel
 has_population(::GLMCard) = false
 
-const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
-
 function GLMCard(c::AbstractDict)
-    type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
-    distribution_name::String = get(c, "distribution", "normal")
-    link_name::Union{String, Nothing} = get(c, "link", nothing)
+    options = glm_options(c)
     inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
-    weights::Union{String, Nothing} = get(c, "weights", nothing)
-    distribution::Distribution = NOISE_MODELS[distribution_name]
-    link::Link = if isnothing(link_name)
-        canonicallink(distribution)
-    else
-        LINK_TYPES[link_name]()
-    end
-    formula::FormulaTerm = to_target(target) ~ to_inputs(inputs)
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    suffix::String = get(c, "suffix", "hat")
-
+    rhs = composite_term(inputs)
+    lhs = term(target)
+    formula::FormulaTerm = lhs ~ rhs
     return GLMCard(
-        type,
-        label,
-        distribution_name,
-        distribution,
-        link_name,
-        link,
+        options.type,
+        options.label,
+        options.distribution_name,
+        options.distribution,
+        options.link_name,
+        options.link,
         inputs,
         target,
         formula,
-        weights,
-        partition,
-        suffix
+        options.weights,
+        options.partition,
+        options.suffix
     )
 end
 
-## StandardCard interface
+const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
-isterm(x::AbstractTerm) = x isa Term
-_target(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
-_output(gc::AbstractGLMCard) = join_names(_target(gc), gc.suffix)
+## MixedModelCard
 
 sorting_vars(::AbstractGLMCard) = String[]
 grouping_vars(::AbstractGLMCard) = String[]
@@ -139,15 +164,53 @@ weight_var(gc::AbstractGLMCard) = gc.weights
 partition_var(gc) = gc.partition
 output_vars(gc::AbstractGLMCard) = [_output(gc)]
 
-function _train(gc::AbstractGLMCard, t, ::Any; weights = nothing)
-    (; formula, distribution, link) = gc
-    wts = @something weights similar(t[_target(gc)], 0)
-    # TODO save slim version of model with no data
-    ModelType = model_type(gc)
-    return fit(ModelType, formula, t, distribution, link, wts = wts)
+Run a Mixed Model based on `formula`.
+"""
+struct MixedModelCard <: AbstractGLMCard
+    type::String
+    label::String
+    distribution_name::String
+    distribution::Distribution
+    link_name::Union{String, Nothing}
+    link::Link
+    inputs::Vector{Any}
+    population::String
+    population_inputs::Vector{Any}
+    target::String
+    formula::FormulaTerm
+    weights::Union{String, Nothing}
+    partition::Union{String, Nothing}
+    suffix::String
 end
 
-(gc::AbstractGLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
+has_population(::MixedModelCard) = true
+
+function MixedModelCard(c::AbstractDict)
+    options = glm_options(c)
+    inputs::Vector{Any} = c["inputs"]
+    population::String = c["population"]
+    population_inputs::Vector{Any} = c["population_inputs"]
+    target::String = c["target"]
+    lhs = term(target)
+    rhs = composite_term(inputs) + composite_term(population_inputs) | term(population)
+    formula::FormulaTerm = lhs ~ rhs
+    return GLMCard(
+        options.type,
+        options.label,
+        options.distribution_name,
+        options.distribution,
+        options.link_name,
+        options.link,
+        inputs,
+        target,
+        population,
+        population_inputs,
+        formula,
+        options.weights,
+        options.partition,
+        options.suffix
+    )
+end
 
 ## UI representation
 

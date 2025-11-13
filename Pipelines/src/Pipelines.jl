@@ -73,7 +73,7 @@ using FunSQL: render,
 using Graphs: SimpleDiGraphFromIterator, DiGraph, Edge,
     inneighbors, outneighbors, nv, topological_sort
 
-using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm, AbstractTerm
+using StatsModels: term, terms, termnames, Term, FormulaTerm, AbstractTerm
 
 using StatsAPI: fit, predict, RegressionModel
 

@@ -1,8 +1,8 @@
 module PipelinesMixedModelsExt
 
-using Pipelines: Pipelines, CardState, StreamlinerCard
-using DuckDBUtils: Repository
+using Pipelines: MixedModelCard, Pipelines
+using MixedModels: GeneralizedLinearMixedModel
 
-include("streamliner.jl")
+Pipelines.model_type(::MixedModelCard) = GeneralizedLinearMixedModel
 
 end

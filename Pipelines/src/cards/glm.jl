@@ -1,7 +1,7 @@
-_term(x::Union{String, Number}) = term(x)
-_term(x::AbstractVector) = mapfoldl(term, *, x)
+product_term(x::Union{String, Number}) = term(x)
+product_term(x::AbstractVector) = mapfoldl(term, *, x)
 
-composite_term(x::AbstractVector) = mapfoldl(_term, +, x)
+composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
 
 const NOISE_MODELS = OrderedDict(
     "normal" => Normal(),
@@ -165,6 +165,7 @@ partition_var(gc) = gc.partition
 output_vars(gc::AbstractGLMCard) = [_output(gc)]
 
 Run a Mixed Model based on `formula`.
+To use this card, you must load the MixedModels.jl package first.
 """
 struct MixedModelCard <: AbstractGLMCard
     type::String
@@ -175,7 +176,7 @@ struct MixedModelCard <: AbstractGLMCard
     link::Link
     inputs::Vector{Any}
     population::String
-    population_inputs::Vector{Any}
+    population_inputs::Vector{Any} # TODO: rename to random effects?
     target::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
@@ -194,7 +195,7 @@ function MixedModelCard(c::AbstractDict)
     lhs = term(target)
     rhs = composite_term(inputs) + composite_term(population_inputs) | term(population)
     formula::FormulaTerm = lhs ~ rhs
-    return GLMCard(
+    return MixedModelCard(
         options.type,
         options.label,
         options.distribution_name,
@@ -212,6 +213,8 @@ function MixedModelCard(c::AbstractDict)
     )
 end
 
+const MIXED_MODEL_CARD_CONFIG = CardConfig{MixedModelCard}(parse_toml_config("config", "mixed_model"))
+
 ## UI representation
 
 function CardWidget(config::CardConfig{GLMCard}, c::AbstractDict)
@@ -220,6 +223,25 @@ function CardWidget(config::CardConfig{GLMCard}, c::AbstractDict)
 
     fields = [
         Widget("inputs", c),
+        Widget("target", c),
+        Widget("weights", c, required = false),
+        Widget("distribution", c, options = noise_models, required = false),
+        Widget("link", c, options = link_functions, required = false),
+        Widget("partition", c, required = false),
+        Widget("suffix", c, value = "hat"),
+    ]
+
+    return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))
+end
+
+function CardWidget(config::CardConfig{MixedModelCard}, c::AbstractDict)
+    noise_models = collect(keys(NOISE_MODELS))
+    link_functions = collect(keys(LINK_TYPES))
+
+    fields = [
+        Widget("inputs", c),
+        Widget("population", c),
+        Widget("population_inputs", c),
         Widget("target", c),
         Widget("weights", c, required = false),
         Widget("distribution", c, options = noise_models, required = false),

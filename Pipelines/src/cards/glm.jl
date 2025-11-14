@@ -67,6 +67,19 @@ function glm_options(c::AbstractDict)
     return (; type, label, distribution_name, distribution, link_name, link, weights, partition, suffix)
 end
 
+is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
+
+function train_glm(gc::AbstractGLMCard, t, LinearModelType, GeneralizedLinearModelType; weights)
+    (; formula, distribution, link) = gc
+    wts = @something weights similar(t[_target(gc)], 0)
+    # TODO save slim version of model with no data
+    return if is_linear_model(distribution, link)
+        fit(LinearModelType, formula, t, wts = wts)
+    else
+        fit(GeneralizedLinearModelType, formula, t, distribution, link, wts = wts)
+    end
+end
+
 ## StandardCard interface
 
 isterm(x::AbstractTerm) = x isa Term
@@ -80,16 +93,6 @@ target_vars(gc::AbstractGLMCard) = [_target(gc)]
 weight_var(gc::AbstractGLMCard) = gc.weights
 partition_var(gc::AbstractGLMCard) = gc.partition
 output_vars(gc::AbstractGLMCard) = [_output(gc)]
-
-function _train(gc::AbstractGLMCard, t, ::Any; weights = nothing)
-    (; formula, distribution, link) = gc
-    wts = @something weights similar(t[_target(gc)], 0)
-    # TODO save slim version of model with no data
-    ModelType = model_type(gc)
-    return fit(ModelType, formula, t, distribution, link, wts = wts)
-end
-
-(gc::AbstractGLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
 
 ## GLMCard
 
@@ -126,7 +129,6 @@ struct GLMCard <: AbstractGLMCard
     suffix::String
 end
 
-model_type(::GLMCard) = GeneralizedLinearModel
 has_population(::GLMCard) = false
 
 function GLMCard(c::AbstractDict)
@@ -152,6 +154,10 @@ function GLMCard(c::AbstractDict)
     )
 end
 
+_train(gc::GLMCard, t, ::Any; weights = nothing) = train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
+
+(gc::GLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
+
 const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
 ## MixedModelCard
@@ -164,9 +170,9 @@ const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
         distribution::Distribution
         link_name::Union{String, Nothing}
         link::Link
-        inputs::Vector{Any}
-        population::String
-        population_inputs::Vector{Any} # TODO: rename to random effects?
+        fixed_effect_terms::Vector{Any}
+        random_effect_terms::Vector{Any}
+        grouping_factor::String
         target::String
         formula::FormulaTerm
         weights::Union{String, Nothing}
@@ -184,9 +190,9 @@ struct MixedModelCard <: AbstractGLMCard
     distribution::Distribution
     link_name::Union{String, Nothing}
     link::Link
-    inputs::Vector{Any}
-    population::String
-    population_inputs::Vector{Any} # TODO: rename to random effects?
+    fixed_effect_terms::Vector{Any}
+    random_effect_terms::Vector{Any}
+    grouping_factor::String
     target::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
@@ -198,12 +204,12 @@ has_population(::MixedModelCard) = true
 
 function MixedModelCard(c::AbstractDict)
     options = glm_options(c)
-    inputs::Vector{Any} = c["inputs"]
-    population::String = c["population"]
-    population_inputs::Vector{Any} = c["population_inputs"]
+    fixed_effect_terms::Vector{Any} = c["fixed_effect_terms"]
+    random_effect_terms::Vector{Any} = c["random_effect_terms"]
+    grouping_factor::String = c["grouping_factor"]
     target::String = c["target"]
     lhs = term(target)
-    rhs = composite_term(inputs) + composite_term(population_inputs) | term(population)
+    rhs = composite_term(fixed_effect_terms) + composite_term(random_effect_terms) | term(grouping_factor)
     formula::FormulaTerm = lhs ~ rhs
     return MixedModelCard(
         options.type,
@@ -212,15 +218,24 @@ function MixedModelCard(c::AbstractDict)
         options.distribution,
         options.link_name,
         options.link,
-        inputs,
+        fixed_effect_terms,
+        random_effect_terms,
+        grouping_factor,
         target,
-        population,
-        population_inputs,
         formula,
         options.weights,
         options.partition,
         options.suffix
     )
+end
+
+function (gc::MixedModelCard)(model, t, id)
+    M = modelmatrix(model)
+    col = first(eachcol(M))
+    # this column is required, see https://github.com/JuliaStats/MixedModels.jl/issues/626
+    t[_target(gc)] = zero(col)
+    # TODO: understand what to do with new values of grouping variable
+    return SimpleTable(_output(gc) => predict(model, t)), id
 end
 
 const MIXED_MODEL_CARD_CONFIG = CardConfig{MixedModelCard}(parse_toml_config("config", "mixed_model"))

@@ -76,7 +76,7 @@ using Graphs: SimpleDiGraphFromIterator, DiGraph, Edge,
 
 using StatsModels: term, terms, termnames, Term, FormulaTerm, AbstractTerm
 
-using StatsAPI: fit, predict, RegressionModel
+using StatsAPI: fit, predict, modelmatrix, RegressionModel
 
 using Distributions: Distribution,
     Normal,
@@ -85,7 +85,9 @@ using Distributions: Distribution,
     InverseGaussian,
     Poisson
 
-using GLM: GeneralizedLinearModel,
+using GLM:
+    LinearModel,
+    GeneralizedLinearModel,
     RegressionModel,
     canonicallink,
     Link,

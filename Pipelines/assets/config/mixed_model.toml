@@ -5,17 +5,24 @@ needs_order = false
 allows_weights = true
 allows_partition = true
 
-[widget_configs.population]
-widget = "select"
-label = "Population variable"
-placeholder = "Select population variable..."
-options = { "-v" = "names" }
-
 # TODO: here and in GLM inputs, we should find a way to
 # specify that some variables are grouped together (use `+`?)
-[widget_configs.population_inputs]
+[widget_configs.fixed_effect_terms]
+widget = "select"
+label = "Fixed effect terms"
+placeholder = "Select fixed effect terms..."
+multiple = true
+options = { "-v" = "names" }
+
+[widget_configs.random_effect_terms]
 widget = "select"
 label = "Random effect terms"
 placeholder = "Select random effect terms..."
 multiple = true
+options = { "-v" = "names" }
+
+[widget_configs.grouping_factor]
+widget = "select"
+label = "Grouping factor"
+placeholder = "Select grouping factor..."
 options = { "-v" = "names" }

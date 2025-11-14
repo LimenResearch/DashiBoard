@@ -234,7 +234,7 @@ function (gc::MixedModelCard)(model, t, id)
     col = first(eachcol(M))
     # this column is required, see https://github.com/JuliaStats/MixedModels.jl/issues/626
     t[_target(gc)] = zero(col)
-    # TODO: understand what to do with new values of grouping variable
+    # TODO: understand what to do with new values of grouping variable (in particular, `predict` vs `simulate`)
     return SimpleTable(_output(gc) => predict(model, t)), id
 end
 

@@ -26,14 +26,12 @@ const LINK_TYPES = OrderedDict(
 
 abstract type AbstractGLMCard <: StandardCard end
 
-function model_type end
-function has_population end
+function has_grouping_factor end
 
 function get_metadata(gc::AbstractGLMCard)
     metadata = StringDict(
         "type" => gc.type,
         "label" => gc.label,
-        "inputs" => gc.inputs,
         "target" => gc.target,
         "weights" => gc.weights,
         "distribution" => gc.distribution_name,
@@ -41,9 +39,12 @@ function get_metadata(gc::AbstractGLMCard)
         "partition" => gc.partition,
         "suffix" => gc.suffix,
     )
-    if has_population(gc)
-        metadata["population"] = gc.population
-        metadata["population_inputs"] = gc.population_inputs
+    if has_grouping_factor(gc)
+        metadata["fixed_effect_terms"] = gc.fixed_effect_terms
+        metadata["random_effect_terms"] = gc.random_effect_terms
+        metadata["grouping_factor"] = gc.grouping_factor
+    else
+        metadata["inputs"] = gc.inputs
     end
     return metadata
 end
@@ -129,7 +130,7 @@ struct GLMCard <: AbstractGLMCard
     suffix::String
 end
 
-has_population(::GLMCard) = false
+has_grouping_factor(::GLMCard) = false
 
 function GLMCard(c::AbstractDict)
     options = glm_options(c)
@@ -200,7 +201,7 @@ struct MixedModelCard <: AbstractGLMCard
     suffix::String
 end
 
-has_population(::MixedModelCard) = true
+has_grouping_factor(::MixedModelCard) = true
 
 function MixedModelCard(c::AbstractDict)
     options = glm_options(c)

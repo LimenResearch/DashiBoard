@@ -8,6 +8,7 @@ export Card,
     ClusterCard,
     DimensionalityReductionCard,
     GLMCard,
+    MixedModelCard,
     InterpCard,
     GaussianEncodingCard,
     StreamlinerCard,
@@ -73,9 +74,9 @@ using FunSQL: render,
 using Graphs: SimpleDiGraphFromIterator, DiGraph, Edge,
     inneighbors, outneighbors, nv, topological_sort
 
-using StatsModels: terms, termnames, Term, ConstantTerm, FormulaTerm, AbstractTerm
+using StatsModels: term, terms, termnames, Term, FormulaTerm, AbstractTerm
 
-using StatsAPI: fit, predict, RegressionModel
+using StatsAPI: fit, predict, modelmatrix, RegressionModel
 
 using Distributions: Distribution,
     Normal,
@@ -84,7 +85,9 @@ using Distributions: Distribution,
     InverseGaussian,
     Poisson
 
-using GLM: GeneralizedLinearModel,
+using GLM:
+    LinearModel,
+    GeneralizedLinearModel,
     RegressionModel,
     canonicallink,
     Link,

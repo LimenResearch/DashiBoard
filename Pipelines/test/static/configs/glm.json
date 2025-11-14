@@ -20,5 +20,12 @@
     "method_options": { "percentile": 0.9 },
     "order_by": ["No"],
     "output": "partition"
+  },
+  "isMixed": {
+    "type": "mixed_model",
+    "fixed_effect_terms": [1, "year"],
+    "random_effect_terms": [1],
+    "grouping_factor": "cbwd",
+    "target": "TEMP"
   }
 }

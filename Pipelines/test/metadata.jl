@@ -126,6 +126,24 @@ end
     end
     @test metadata["label"] == "GLM"
     @test metadata["suffix"] == "hat"
+    @test isnothing(metadata["weights"])
+    card2 = Pipelines.Card(metadata)
+    @test card.link == card2.link
+    @test card.distribution == card2.distribution
+    @test card.formula == card2.formula
+
+    config = d["isMixed"]
+    card = Pipelines.Card(config)
+    metadata = Pipelines.get_metadata(card)
+    for k in ["type", "fixed_effect_terms", "random_effect_terms", "grouping_factor", "target"]
+        @test metadata[k] == config[k]
+    end
+    @test metadata["distribution"] == "normal"
+    @test metadata["label"] == "Mixed Model"
+    @test metadata["suffix"] == "hat"
+    @test isnothing(metadata["link"])
+    @test isnothing(metadata["weights"])
+    @test isnothing(metadata["partition"])
     card2 = Pipelines.Card(metadata)
     @test card.link == card2.link
     @test card.distribution == card2.distribution

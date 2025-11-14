@@ -38,6 +38,7 @@ Current implementations:
 - [`ClusterCard`](@ref),
 - [`DimensionalityReductionCard`](@ref),
 - [`GLMCard`](@ref),
+- [`MixedModelCard`](@ref),
 - [`InterpCard`](@ref),
 - [`GaussianEncodingCard`](@ref),
 - [`StreamlinerCard`](@ref),

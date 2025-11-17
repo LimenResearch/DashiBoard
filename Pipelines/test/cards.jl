@@ -415,7 +415,7 @@ mktempdir() do dir
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
         ]
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
-        m = glm(@formula(TEMP ~ 1 + cbwd * year + No), train_df, Normal(), IdentityLink())
+        m = lm(@formula(TEMP ~ 1 + cbwd * year + No), train_df)
         @test predict(m, df) == df.TEMP_hat
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
@@ -432,6 +432,19 @@ mktempdir() do dir
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
         m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(), wts = train_df.TEMP)
         @test predict(m, df) == df.PRES_hat
+
+        card = Pipelines.Card(d["isMixed"])
+
+        node = Node(card)
+        Pipelines.train_evaljoin!(repo, node, "partition" => "mixed_model")
+        df = DBInterface.execute(DataFrame, repo, "FROM mixed_model")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
+        ]
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
+        m = lmm(@formula(TEMP ~ 1 + year + 1 | cbwd), train_df)
+        @test predict(m, df) == df.TEMP_hat
     end
 
     @testset "interp" begin

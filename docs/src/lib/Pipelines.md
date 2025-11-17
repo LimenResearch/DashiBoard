@@ -46,6 +46,7 @@ Pipelines.RescaleCard
 Pipelines.ClusterCard
 Pipelines.DimensionalityReductionCard
 Pipelines.GLMCard
+Pipelines.MixedModelCard
 Pipelines.InterpCard
 Pipelines.GaussianEncodingCard
 Pipelines.StreamlinerCard

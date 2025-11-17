@@ -3,6 +3,27 @@ product_term(x::AbstractVector) = mapfoldl(term, *, x)
 
 composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
 
+function compute_formula(c::AbstractDict)
+    inputs = c["inputs"]
+    target::String = c["target"]
+    lhs = term(target)
+    rhs = composite_term(inputs)
+    formula::FormulaTerm = lhs ~ rhs
+    return inputs, target, formula
+end
+
+function compute_mixed_formula(c::AbstractDict)
+    fixed_effect_terms::Vector{Any} = c["fixed_effect_terms"]
+    random_effect_terms::Vector{Any} = c["random_effect_terms"]
+    grouping_factor::String = c["grouping_factor"]
+    inputs = MixedInputs(fixed_effect_terms, random_effect_terms, grouping_factor)
+    target::String = c["target"]
+    lhs = term(target)
+    rhs = composite_term(fixed_effect_terms) + composite_term(random_effect_terms) | term(grouping_factor)
+    formula::FormulaTerm = lhs ~ rhs
+    return inputs, target, formula
+end
+
 const NOISE_MODELS = OrderedDict(
     "normal" => Normal(),
     "binomial" => Binomial(),
@@ -28,7 +49,13 @@ abstract type AbstractGLMCard <: StandardCard end
 
 function has_grouping_factor end
 
-function get_metadata(gc::AbstractGLMCard)
+struct MixedInputs
+    fixed_effect_terms::Vector{Any}
+    random_effect_terms::Vector{Any}
+    grouping_factor::String
+end
+
+function get_metadata(gc::C) where {C <: AbstractGLMCard}
     metadata = StringDict(
         "type" => gc.type,
         "label" => gc.label,
@@ -39,17 +66,18 @@ function get_metadata(gc::AbstractGLMCard)
         "partition" => gc.partition,
         "suffix" => gc.suffix,
     )
-    if has_grouping_factor(gc)
-        metadata["fixed_effect_terms"] = gc.fixed_effect_terms
-        metadata["random_effect_terms"] = gc.random_effect_terms
-        metadata["grouping_factor"] = gc.grouping_factor
+    if has_grouping_factor(C)
+        mi = gc.inputs
+        metadata["fixed_effect_terms"] = mi.fixed_effect_terms
+        metadata["random_effect_terms"] = mi.random_effect_terms
+        metadata["grouping_factor"] = mi.grouping_factor
     else
         metadata["inputs"] = gc.inputs
     end
     return metadata
 end
 
-function glm_options(c::AbstractDict)
+function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMCard}
     type::String = c["type"]
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
@@ -65,7 +93,12 @@ function glm_options(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
-    return (; type, label, distribution_name, distribution, link_name, link, weights, partition, suffix)
+    inputs, target, formula = has_grouping_factor(C) ? compute_mixed_formula(c) : compute_formula(c)
+
+    return C(
+        type, label, distribution_name, distribution, link_name, link,
+        inputs, target, formula, weights, partition, suffix
+    )
 end
 
 is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
@@ -130,30 +163,9 @@ struct GLMCard <: AbstractGLMCard
     suffix::String
 end
 
-has_grouping_factor(::GLMCard) = false
+has_grouping_factor(::Type{GLMCard}) = false
 
-function GLMCard(c::AbstractDict)
-    options = glm_options(c)
-    inputs::Vector{Any} = c["inputs"]
-    target::String = c["target"]
-    rhs = composite_term(inputs)
-    lhs = term(target)
-    formula::FormulaTerm = lhs ~ rhs
-    return GLMCard(
-        options.type,
-        options.label,
-        options.distribution_name,
-        options.distribution,
-        options.link_name,
-        options.link,
-        inputs,
-        target,
-        formula,
-        options.weights,
-        options.partition,
-        options.suffix
-    )
-end
+GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
 
 _train(gc::GLMCard, t, ::Any; weights = nothing) = train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
 
@@ -171,9 +183,7 @@ const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
         distribution::Distribution
         link_name::Union{String, Nothing}
         link::Link
-        fixed_effect_terms::Vector{Any}
-        random_effect_terms::Vector{Any}
-        grouping_factor::String
+        inputs::MixedInputs
         target::String
         formula::FormulaTerm
         weights::Union{String, Nothing}
@@ -191,9 +201,7 @@ struct MixedModelCard <: AbstractGLMCard
     distribution::Distribution
     link_name::Union{String, Nothing}
     link::Link
-    fixed_effect_terms::Vector{Any}
-    random_effect_terms::Vector{Any}
-    grouping_factor::String
+    inputs::MixedInputs
     target::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
@@ -201,34 +209,9 @@ struct MixedModelCard <: AbstractGLMCard
     suffix::String
 end
 
-has_grouping_factor(::MixedModelCard) = true
+has_grouping_factor(::Type{MixedModelCard}) = true
 
-function MixedModelCard(c::AbstractDict)
-    options = glm_options(c)
-    fixed_effect_terms::Vector{Any} = c["fixed_effect_terms"]
-    random_effect_terms::Vector{Any} = c["random_effect_terms"]
-    grouping_factor::String = c["grouping_factor"]
-    target::String = c["target"]
-    lhs = term(target)
-    rhs = composite_term(fixed_effect_terms) + composite_term(random_effect_terms) | term(grouping_factor)
-    formula::FormulaTerm = lhs ~ rhs
-    return MixedModelCard(
-        options.type,
-        options.label,
-        options.distribution_name,
-        options.distribution,
-        options.link_name,
-        options.link,
-        fixed_effect_terms,
-        random_effect_terms,
-        grouping_factor,
-        target,
-        formula,
-        options.weights,
-        options.partition,
-        options.suffix
-    )
-end
+MixedModelCard(c::AbstractDict) = construct_glm_card(MixedModelCard, c)
 
 function (gc::MixedModelCard)(model, t, id)
     M = modelmatrix(model)
@@ -243,12 +226,21 @@ const MIXED_MODEL_CARD_CONFIG = CardConfig{MixedModelCard}(parse_toml_config("co
 
 ## UI representation
 
-function CardWidget(config::CardConfig{GLMCard}, c::AbstractDict)
+function CardWidget(config::CardConfig{C}, c::AbstractDict) where {C <: AbstractGLMCard}
     noise_models = collect(keys(NOISE_MODELS))
     link_functions = collect(keys(LINK_TYPES))
 
-    fields = [
-        Widget("inputs", c),
+    formula_fields = if has_grouping_factor(C)
+        [
+            Widget("fixed_effect_terms", c),
+            Widget("random_effect_terms", c),
+            Widget("grouping_factor", c),
+        ]
+    else
+        [Widget("inputs", c)]
+    end
+
+    additional_fields = [
         Widget("target", c),
         Widget("weights", c, required = false),
         Widget("distribution", c, options = noise_models, required = false),
@@ -257,24 +249,7 @@ function CardWidget(config::CardConfig{GLMCard}, c::AbstractDict)
         Widget("suffix", c, value = "hat"),
     ]
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))
-end
-
-function CardWidget(config::CardConfig{MixedModelCard}, c::AbstractDict)
-    noise_models = collect(keys(NOISE_MODELS))
-    link_functions = collect(keys(LINK_TYPES))
-
-    fields = [
-        Widget("inputs", c),
-        Widget("population", c),
-        Widget("population_inputs", c),
-        Widget("target", c),
-        Widget("weights", c, required = false),
-        Widget("distribution", c, options = noise_models, required = false),
-        Widget("link", c, options = link_functions, required = false),
-        Widget("partition", c, required = false),
-        Widget("suffix", c, value = "hat"),
-    ]
+    fields = vcat(formula_fields, additional_fields)
 
     return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))
 end

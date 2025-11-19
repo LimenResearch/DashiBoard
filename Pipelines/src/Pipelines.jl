@@ -143,6 +143,7 @@ end
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
+include("dict_helpers.jl")
 
 include("funnels/onehot.jl")
 include("funnels/basic.jl")

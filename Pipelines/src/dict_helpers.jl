@@ -13,28 +13,28 @@ end
 
 function apply_helper(h::AbstractDictHelper, d::AbstractDict, params::AbstractDict)
     d1 = Dict{String, Any}()
-    for (k, v) in pairs(d)
-        d1[k] = if isinstance(v, h)
+    for (k, x) in pairs(d)
+        d1[k] = if isinstance(x, h)
             splice(h) && throw(ArgumentError("Can only splice inside a list"))
-            h(v, params)
+            h(x, params)
         else
-            _apply_helper(h, v, params)
+            _apply_helper(h, x, params)
         end
     end
     return d1
 end
 
-function apply_helper(h::AbstractDictHelper, vec::AbstractVector, params::AbstractDict)
-    vec1 = Any[]
-    for v in vec
-        if isinstance(v, h)
-            val = h(v, params)
-            splice(h) ? append!(vec1, val) : push!(vec1, val)
+function apply_helper(h::AbstractDictHelper, v::AbstractVector, params::AbstractDict)
+    v1 = Any[]
+    for x in v
+        if isinstance(x, h)
+            val = h(x, params)
+            splice(h) ? append!(v1, val) : push!(v1, val)
         else
-            push!(vec1, _apply_helper(h, v, params))
+            push!(v1, _apply_helper(h, x, params))
         end
     end
-    return vec1
+    return v1
 end
 
 apply_helpers(hs, d::AbstractDict, ps) = foldl((dn, h) -> apply_helper(h, dn, ps), hs, init = d)

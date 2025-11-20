@@ -10,3 +10,18 @@
     c = Pipelines.new_name("a", ["a_1", "a_2"], ["a_3"])
     @test c == "a_4"
 end
+
+@testset "dict_helpers" begin
+    hs = (Pipelines.VariableHelper(), Pipelines.SpliceHelper(), Pipelines.NumberedHelper())
+    params = Dict("num" => 12.3, "list" => [1, 2, 3], "str" => "abc")
+    d = Dict(
+        "a" => [Dict("-v" => "num"), 12, Dict("-c" => "varname", "-n" => 5)],
+        "b" => Dict("c" => Dict("-v" => "str")),
+        "c" => [Dict("-s" => "list"), 4, 5, 6]
+    )
+    d1 = Pipelines.apply_helpers(hs, d, params)
+    @test issetequal(keys(d1), ["a", "b", "c"])
+    @test d1["a"] == [12.3, 12, "varname_1", "varname_2", "varname_3", "varname_4", "varname_5"]
+    @test d1["b"] == Dict("c" => "abc")
+    @test d1["c"] == [1, 2, 3, 4, 5, 6]
+end

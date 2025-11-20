@@ -51,14 +51,22 @@ abstract type SQLCard <: Card end
 abstract type StreamingCard <: Card end
 
 """
-    Card(d::AbstractDict)
+    Card(d::AbstractDict, params::AbstractDict = StringDict())
 
-Generate a [`Card`](@ref) based on a configuration dictionary.
+Generate a [`Card`](@ref) based on a configuration dictionary `d`.
+
+If `d` is a parameteric configuration, the parameters can be passed
+as a second dictionary `params`.
+
+!!! note
+    Parameteric configurations are experimental, the API is not yet
+    fully stabilized and documented.
 """
-function Card(d::AbstractDict)
-    type::String = d["type"]
+function Card(d::AbstractDict, params::AbstractDict = StringDict())
+    d1 = apply_helpers(DEFAULT_DICT_HELPERS[], d, params; max_rec = DEFAULT_MAX_REC[])
+    type::String = d1["type"]
     config = CARD_CONFIGS[type]
-    return config(d)
+    return config(d1)
 end
 
 # TODO: document

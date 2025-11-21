@@ -10,21 +10,21 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "autoprefixer": "^10.4.21",
+    "autoprefixer": "^10.4.22",
     "postcss": "^8.5.6",
     "solid-devtools": "^0.33.0",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^3.4.18",
     "vite": "^6.4.1",
-    "vite-plugin-solid": "^2.11.7"
+    "vite-plugin-solid": "^2.11.10"
   },
   "dependencies": {
-    "@ag-grid-community/core": "^32.3.5",
-    "@ag-grid-community/infinite-row-model": "^32.3.5",
-    "@ag-grid-community/styles": "^32.3.5",
-    "@solid-primitives/event-listener": "^2.4.1",
+    "@ag-grid-community/core": "^32.3.9",
+    "@ag-grid-community/infinite-row-model": "^32.3.9",
+    "@ag-grid-community/styles": "^32.3.9",
+    "@solid-primitives/event-listener": "^2.4.3",
     "@thisbeyond/solid-select": "^0.15.0",
-    "@viz-js/viz": "^3.14.0",
+    "@viz-js/viz": "^3.21.0",
     "lodash": "^4.17.21",
-    "solid-js": "^1.9.7"
+    "solid-js": "^1.9.10"
   }
 }

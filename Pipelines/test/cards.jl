@@ -604,6 +604,16 @@ mktempdir() do dir
         @test Pipelines.get_inputs(card) == ["month"]
 
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+        card = Pipelines.Card(d["dayofweek"])
+        node = Node(card)
+        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded")
+        gauss_train_test(node)
+        result = DBInterface.execute(DataFrame, repo, "FROM encoded")
+        gauss_evaluate_test(result, node, origin; processing = x -> dayofweek(x) % 7) # SQL starts from Sunday = 0
+        @test Pipelines.get_outputs(card) == ["date_gaussian_1", "date_gaussian_2", "date_gaussian_3"]
+        @test Pipelines.get_inputs(card) == ["date"]
+
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["dayofyear"])
         node = Node(card)
         Pipelines.train_evaljoin!(repo, node, "origin" => "encoded")

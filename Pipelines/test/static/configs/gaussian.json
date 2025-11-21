@@ -8,6 +8,15 @@
     "method": "identity",
     "method_options": { "max": 12 }
   },
+  "dayofweek": {
+    "type": "gaussian_encoding",
+    "input": "date",
+    "n_components": 3,
+    "lambda": 0.5,
+    "suffix": "gaussian",
+    "method": "dayofweek",
+    "method_options": { "max": 7 }
+  },
   "dayofyear": {
     "type": "gaussian_encoding",
     "input": "date",

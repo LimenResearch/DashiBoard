@@ -24,7 +24,7 @@ end
         "c" => [Dict("-s" => "list"), 4, 5, 6]
     )
     ps = Dict("num" => 12.3, "list" => [1, 2, 3], "str" => "abc")
-    d1 = Pipelines.apply_helpers(hs, d, ps)
+    d1 = Pipelines.apply_helpers(hs, d, ps; max_rec = 0)
     @test issetequal(keys(d1), ["a", "b", "c"])
     @test d1["a"] == [12.3, 12, "varname_1", "varname_2", "varname_3", "varname_4", "varname_5"]
     @test d1["b"] == Dict("c" => "abc")
@@ -32,12 +32,12 @@ end
 
     d = Dict("a" => Dict("-v" => "var"))
     ps = Dict("var" => Dict("-v" => "var"))
-    d1 = Pipelines.apply_helpers(hs, d, ps)
+    d1 = Pipelines.apply_helpers(hs, d, ps; max_rec = 0)
     @test d1 == d
 
     d = Dict("a" => Dict("-v" => "var1"))
     ps = Dict("var1" => Dict("-v" => "var2"), "var2" => 10)
-    d1 = Pipelines.apply_helpers(hs, d, ps)
+    d1 = Pipelines.apply_helpers(hs, d, ps; max_rec = 0)
     @test d1 == Dict("a" => Dict("-v" => "var2"))
 
     d = Dict("a" => Dict("-v" => "var1"))

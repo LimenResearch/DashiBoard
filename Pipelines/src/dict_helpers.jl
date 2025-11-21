@@ -54,7 +54,7 @@ function _apply_helpers(hs, d::AbstractDict, params::AbstractDict, height::Integ
     return d1
 end
 
-function apply_helpers(hs, d::AbstractDict, params::AbstractDict; max_rec = 0)
+function apply_helpers(hs, d::AbstractDict, params::AbstractDict; max_rec)
     return _apply_helpers_within(hs, d, params, max_rec)
 end
 
@@ -82,10 +82,16 @@ end
     keys::Vector{String} = ["-j"]
 end
 
+function combination_map(::Type{T}, f, args...) where {T}
+    # `reverse` tuples twice to iterate on last argument first
+    iter = Iterators.product(reverse(args)...)
+    f_iter = Iterators.map(f ∘ reverse, iter)
+    return vec(collect(T, f_iter))
+end
+
 function _join(xs, delim)
-    iter = Iterators.product(map(Broadcast.broadcastable, xs)...)
-    f = Fix2(join, delim)
-    return collect(String, Iterators.map(f, iter))
+    args = map(Broadcast.broadcastable, xs)
+    return combination_map(String, Fix2(join, delim), args...)
 end
 
 (::JoinHelper)((xs,), _) = SplicedValues(_join(xs, "_"))
@@ -97,3 +103,8 @@ const DEFAULT_DICT_HELPERS = ScopedValue{Vector{AbstractDictHelper}}(
 )
 
 const DEFAULT_MAX_REC = ScopedValue{Int}(0)
+
+function apply_helpers(d::AbstractDict, params::AbstractDict)
+    hs, max_rec = DEFAULT_DICT_HELPERS[], DEFAULT_MAX_REC[]
+    return apply_helpers(hs, d, params; max_rec)
+end

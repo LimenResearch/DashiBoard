@@ -62,10 +62,13 @@ function Card(d::AbstractDict)
 end
 
 """
-    Card(d::AbstractDict, params::AbstractDict)
+    Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
 
 Generate a [`Card`](@ref) based on a _parametric_ configuration dictionary `d`
 and parameter dictionary `params`.
+The value `recursive` denotes how many times to process replaced variables.
+Use `recursive = 0` to avoid recursion altogether and a large number to allow
+arbitrary recursion.
 
 !!! warning
     Parametric configurations are experimental, the API is not yet
@@ -103,7 +106,7 @@ nclasses = 3
 additional_input_vars = ["precipitation", "irradiance"]
 ```
 
-Final card configuration `Pipelines.apply_helpers(d, params)`:
+Final card configuration `Pipelines.apply_helpers(d, params; recursive)`:
 
 ```toml
 method = "kmeans"
@@ -123,7 +126,9 @@ inputs = [
 ]
 ```
 """
-Card(d::AbstractDict, params::AbstractDict) = Card(apply_helpers(d, params))
+function Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
+    return Card(apply_helpers(d, params; recursive))
+end
 
 # TODO: document
 

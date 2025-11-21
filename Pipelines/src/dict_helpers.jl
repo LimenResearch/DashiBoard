@@ -34,7 +34,7 @@ function _apply_helpers_within(hs, d::AbstractDict, params::AbstractDict, height
     d1 = StringDict()
     for (k, x) in pairs(d)
         val = _apply_helpers(hs, x, params, height)
-        isspliced(val) ? throw(ArgumentError("Can only splice inside a list")) : (d1[k] = val)
+        d1[k] = isspliced(val) ? val.vals : val
     end
     return d1
 end
@@ -54,8 +54,8 @@ function _apply_helpers(hs, d::AbstractDict, params::AbstractDict, height::Integ
     return d1
 end
 
-function apply_helpers(hs, d::AbstractDict, params::AbstractDict; max_rec)
-    return _apply_helpers_within(hs, d, params, max_rec)
+function apply_helpers(hs, d::AbstractDict, params::AbstractDict; recursive::Integer)
+    return _apply_helpers_within(hs, d, params, recursive)
 end
 
 ## Instances
@@ -102,9 +102,6 @@ const DEFAULT_DICT_HELPERS = ScopedValue{Vector{AbstractDictHelper}}(
     [VariableHelper(), SpliceHelper(), RangeHelper(), JoinHelper()]
 )
 
-const DEFAULT_MAX_REC = ScopedValue{Int}(0)
-
-function apply_helpers(d::AbstractDict, params::AbstractDict)
-    hs, max_rec = DEFAULT_DICT_HELPERS[], DEFAULT_MAX_REC[]
-    return apply_helpers(hs, d, params; max_rec)
+function apply_helpers(d::AbstractDict, params::AbstractDict; recursive::Integer)
+    return apply_helpers(DEFAULT_DICT_HELPERS[], d, params; recursive)
 end

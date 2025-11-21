@@ -2,9 +2,11 @@
 
 abstract type AbstractDictHelper end
 
-function _keys end
+function extract_args(d::AbstractDict, ks::AbstractVector)
+    return length(ks) == length(d) && ks ⊆ keys(d) ? Any[d[k] for k in ks] : nothing
+end
 
-isinstance(v, h::AbstractDictHelper) = v isa AbstractDict && issetequal(keys(v), _keys(h))
+extract_args(h::AbstractDictHelper, d::AbstractDict) = extract_args(d, h.keys)
 
 struct SplicedValues
     vals::Vector{Any}
@@ -44,10 +46,10 @@ function _apply_helpers(hs, d::AbstractDict, params::AbstractDict, height::Integ
     # in which case rerun `_apply_helpers` on the result
     # up to `max_rec` times
     for h in hs
-        if isinstance(d1, h)
-            res, height = h(d1, params), height - 1
-            return height >= 0 ? _apply_helpers(hs, res, params, height) : res
-        end
+        args = extract_args(h, d1)
+        isnothing(args) && continue
+        res, height = h(args, params), height - 1
+        return height >= 0 ? _apply_helpers(hs, res, params, height) : res
     end
     return d1
 end
@@ -58,27 +60,27 @@ end
 
 ## Instances
 
-struct VariableHelper <: AbstractDictHelper end
+@kwdef struct VariableHelper <: AbstractDictHelper
+    keys::Vector{String} = ["-v"]
+end
 
-_keys(::VariableHelper) = Set(["-v"])
+(::VariableHelper)((k,), params) = params[k]
 
-(::VariableHelper)(v, params) = params[v["-v"]]
+@kwdef struct SpliceHelper <: AbstractDictHelper
+    keys::Vector{String} = ["-s"]
+end
 
-struct SpliceHelper <: AbstractDictHelper end
+(::SpliceHelper)((k,), params) = SplicedValues(params[k])
 
-_keys(::SpliceHelper) = Set(["-s"])
+@kwdef struct RangeHelper <: AbstractDictHelper
+    keys::Vector{String} = ["-r"]
+end
 
-(::SpliceHelper)(v, params) = SplicedValues(params[v["-s"]])
+(::RangeHelper)((n,), _) = range(1, n)
 
-struct RangeHelper <: AbstractDictHelper end
-
-_keys(::RangeHelper) = Set(["-r"])
-
-(::RangeHelper)(v, _) = range(1, v["-r"])
-
-struct JoinHelper <: AbstractDictHelper end
-
-_keys(::JoinHelper) = Set(["-j"])
+@kwdef struct JoinHelper <: AbstractDictHelper
+    keys::Vector{String} = ["-j"]
+end
 
 function _join(xs, delim)
     iter = Iterators.product(map(Broadcast.broadcastable, xs)...)
@@ -86,7 +88,7 @@ function _join(xs, delim)
     return collect(String, Iterators.map(f, iter))
 end
 
-(::JoinHelper)(v, _) = SplicedValues(_join(v["-j"], "_"))
+(::JoinHelper)((xs,), _) = SplicedValues(_join(xs, "_"))
 
 ## Defaults
 

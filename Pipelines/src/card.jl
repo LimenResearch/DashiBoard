@@ -33,15 +33,15 @@ Abstract supertype to encompass all possible cards.
 
 Current implementations:
 
-- [`SplitCard`](@ref),
-- [`RescaleCard`](@ref),
-- [`ClusterCard`](@ref),
-- [`DimensionalityReductionCard`](@ref),
-- [`GLMCard`](@ref),
-- [`MixedModelCard`](@ref),
-- [`InterpCard`](@ref),
-- [`GaussianEncodingCard`](@ref),
-- [`StreamlinerCard`](@ref),
+- [`SplitCard`](@ref) (`type = "split"`),
+- [`RescaleCard`](@ref) (`type = "rescale"`),
+- [`ClusterCard`](@ref) (`type = "cluster"`),
+- [`DimensionalityReductionCard`](@ref) (`type = "dimensionality_reduction"`),
+- [`GLMCard`](@ref) (`type = "glm"`),
+- [`MixedModelCard`](@ref) (`type = "mixed_model"`),
+- [`InterpCard`](@ref) (`type = "interp"`),
+- [`GaussianEncodingCard`](@ref) (`type = "gaussian_encoding"`),
+- [`StreamlinerCard`](@ref) (`type = "streamliner"`),
 - [`WildCard`](@ref).
 """
 abstract type Card end
@@ -54,6 +54,49 @@ abstract type StreamingCard <: Card end
     Card(d::AbstractDict)
 
 Generate a [`Card`](@ref) based on a configuration dictionary `d`.
+
+## Examples
+
+Dictionaries are given in TOML format for clarity.
+
+Card configuration `d`:
+
+```toml
+type = "cluster"
+method = "kmeans"
+method_options = {classes = 3}
+inputs = [
+    "wind_10m",
+    "wind_20m",
+    "temperature_10m",
+    "temperature_20m",
+    "precipitation",
+    "irradiance",
+    "humidity"
+]
+```
+
+Resulting card:
+
+```julia-repl
+julia> card = Card(d);
+
+julia> typeof(card)
+ClusterCard
+
+julia> card.clusterer
+Pipelines.KMeansMethod(3, 100, 1.0e-6, nothing)
+
+julia> card.inputs
+7-element Vector{String}:
+ "wind_10m"
+ "wind_20m"
+ "temperature_10m"
+ "temperature_20m"
+ "precipitation"
+ "irradiance"
+ "humidity"
+```
 """
 function Card(d::AbstractDict)
     type::String = d["type"]

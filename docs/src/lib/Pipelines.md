@@ -10,6 +10,8 @@ Pipelines is a library designed to generate and evaluate data analysis pipelines
 
 ```@docs
 Pipelines.Card
+Pipelines.Card(::AbstractDict)
+Pipelines.Card(::AbstractDict, ::AbstractDict)
 Pipelines.train
 Pipelines.evaluate
 Pipelines.get_inputs

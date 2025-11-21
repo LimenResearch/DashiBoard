@@ -6,6 +6,12 @@ end
 IdentityMethod(c::AbstractDict) = IdentityMethod(Float64(get(c, "max", 1)))
 (::IdentityMethod)(x::SQLNode) = x
 
+struct DayOfWeekMethod <: TemporalProcessingMethod
+    max::Float64
+end
+DayOfWeekMethod(c::AbstractDict) = DayOfWeekMethod(Float64(get(c, "max", 7)))
+(::DayOfWeekMethod)(x::SQLNode) = Fun.dayofweek(x)
+
 struct DayOfYearMethod <: TemporalProcessingMethod
     max::Float64
 end
@@ -30,19 +36,13 @@ end
 MinuteOfHourMethod(c::AbstractDict) = MinuteOfHourMethod(Float64(get(c, "max", 60)))
 (::MinuteOfHourMethod)(x::SQLNode) = @. minute(x)
 
-struct DayOfWeekMethod <: TemporalProcessingMethod
-    max::Float64
-end
-DayOfWeekMethod(c::AbstractDict) = DayOfWeekMethod(Float64(get(c, "max", 7)))
-(::DayOfWeekMethod)(x::SQLNode) = Fun.dayofweek(x)
-
 const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "identity" => IdentityMethod,
+    "dayofweek" => DayOfWeekMethod,
     "dayofyear" => DayOfYearMethod,
     "hourofday" => HourOfDayMethod,
     "minuteofday" => MinuteOfDayMethod,
     "minuteofhour" => MinuteOfHourMethod,
-    "dayofweek" => DayOfWeekMethod,
 )
 
 """
@@ -70,6 +70,7 @@ Notes:
 Methods:
 - Defined in the `TEMPORAL_PREPROCESSING_METHODS` dictionary:
   - `"identity"`: No transformation.
+  - `"dayofweek"`: Applies the SQL `dayofweek` function.
   - `"dayofyear"`: Applies the SQL `dayofyear` function.
   - `"hourofday"`: Applies the SQL `hour` function.
   - `"minuteofhour"`: Computes the minute within the hour.

@@ -49,4 +49,9 @@ end
     ps = Dict("var1" => [Dict("-v" => "var2"), 11], "var2" => 10)
     d1 = Pipelines.apply_helpers(hs, d, ps, recursive = 1)
     @test d1 == Dict("a" => [10, 11, 12])
+
+    d = Dict("a" => Dict("-s" => "var"))
+    ps = Dict("var" => [1, 2, 3])
+    d1 = Pipelines.apply_helpers(hs, d, ps, recursive = 0)
+    @test d1 == Dict("a" => [1, 2, 3])
 end

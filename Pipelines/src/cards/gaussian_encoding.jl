@@ -33,7 +33,7 @@ MinuteOfHourMethod(c::AbstractDict) = MinuteOfHourMethod(Float64(get(c, "max", 6
 struct DayOfWeekMethod <: TemporalProcessingMethod
     max::Float64
 end
-DayOfWeekMethod(c::AbstractDict) = DayOfWeekMethod(Float64(get(c, "max", 6)))
+DayOfWeekMethod(c::AbstractDict) = DayOfWeekMethod(Float64(get(c, "max", 7)))
 (::DayOfWeekMethod)(x::SQLNode) = Fun.dayofweek(x)
 
 const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(

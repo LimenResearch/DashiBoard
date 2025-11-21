@@ -12,10 +12,15 @@
 end
 
 @testset "dict_helpers" begin
-    hs = [Pipelines.VariableHelper(), Pipelines.SpliceHelper(), Pipelines.NumberedHelper()]
+    hs = [
+        Pipelines.VariableHelper(),
+        Pipelines.SpliceHelper(),
+        Pipelines.RangeHelper(),
+        Pipelines.JoinHelper(),
+    ]
     ps = Dict("num" => 12.3, "list" => [1, 2, 3], "str" => "abc")
     d = Dict(
-        "a" => [Dict("-v" => "num"), 12, Dict("-c" => "varname", "-n" => 5)],
+        "a" => [Dict("-v" => "num"), 12, Dict("-j" => ["varname", Dict("-r" => 5)])],
         "b" => Dict("c" => Dict("-v" => "str")),
         "c" => [Dict("-s" => "list"), 4, 5, 6]
     )

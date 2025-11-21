@@ -70,16 +70,28 @@ _keys(::SpliceHelper) = Set(["-s"])
 
 (::SpliceHelper)(v, params) = SplicedValues(params[v["-s"]])
 
-struct NumberedHelper <: AbstractDictHelper end
+struct RangeHelper <: AbstractDictHelper end
 
-_keys(::NumberedHelper) = Set(["-c", "-n"])
+_keys(::RangeHelper) = Set(["-r"])
 
-(::NumberedHelper)(v, _) = SplicedValues(string.(v["-c"], "_", 1:v["-n"]))
+(::RangeHelper)(v, _) = range(1, v["-r"])
+
+struct JoinHelper <: AbstractDictHelper end
+
+_keys(::JoinHelper) = Set(["-j"])
+
+function _join(xs, delim)
+    iter = Iterators.product(map(Broadcast.broadcastable, xs)...)
+    f = Fix2(join, delim)
+    return collect(String, Iterators.map(f, iter))
+end
+
+(::JoinHelper)(v, _) = SplicedValues(_join(v["-j"], "_"))
 
 ## Defaults
 
 const DEFAULT_DICT_HELPERS = ScopedValue{Vector{AbstractDictHelper}}(
-    [VariableHelper(), SpliceHelper(), NumberedHelper()]
+    [VariableHelper(), SpliceHelper(), RangeHelper(), JoinHelper()]
 )
 
 const DEFAULT_MAX_REC = ScopedValue{Int}(0)

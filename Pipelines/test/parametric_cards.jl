@@ -2,7 +2,7 @@
     params = Dict("nc" => 3, "vars" => ["a", "b"])
     d = Dict(
         "type" => "cluster",
-        "inputs" => [Dict("-s" => "vars"), Dict("-c" => "pca", "-n" => 3), "TEMP"],
+        "inputs" => [Dict("-s" => "vars"), Dict("-j" => ["pca", Dict("-r" => 3)]), "TEMP"],
         "output" => "cluster",
         "method" => "kmeans",
         "method_options" => Dict(

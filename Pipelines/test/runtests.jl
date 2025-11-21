@@ -4,6 +4,7 @@ using DBInterface, DataFrames, Graphs, JSON, Downloads
 using Clustering, GLM, MixedModels, DataInterpolations, Distributions, Dates, Statistics
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 using FunSQL: Get, Select, Partition
+using TOML: TOML
 using Base.ScopedValues: @with
 using Test
 

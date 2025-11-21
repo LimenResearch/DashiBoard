@@ -36,11 +36,6 @@
         """
     )
 
-    d1 = Pipelines.apply_helpers(
-        Pipelines.DEFAULT_DICT_HELPERS[], d, ps;
-        max_rec = Pipelines.DEFAULT_MAX_REC[]
-    )
-
     card = Pipelines.Card(d, ps)
 
     @test card.clusterer.classes == 3

@@ -24,6 +24,8 @@ public report, visualize, get_card, get_state, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
+public apply_helpers
+
 using Base: Fix1, Fix2
 using Base.ScopedValues: ScopedValue
 
@@ -143,6 +145,7 @@ end
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
+include("dict_helpers.jl")
 
 include("funnels/onehot.jl")
 include("funnels/basic.jl")

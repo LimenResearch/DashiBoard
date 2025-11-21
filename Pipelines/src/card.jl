@@ -53,13 +53,77 @@ abstract type StreamingCard <: Card end
 """
     Card(d::AbstractDict)
 
-Generate a [`Card`](@ref) based on a configuration dictionary.
+Generate a [`Card`](@ref) based on a configuration dictionary `d`.
 """
 function Card(d::AbstractDict)
     type::String = d["type"]
     config = CARD_CONFIGS[type]
     return config(d)
 end
+
+"""
+    Card(d::AbstractDict, params::AbstractDict)
+
+Generate a [`Card`](@ref) based on a _parametric_ configuration dictionary `d`
+and parameter dictionary `params`.
+
+!!! warning
+    Parametric configurations are experimental, the API is not yet
+    fully stabilized and documented.
+
+## Current implementation
+
+- Variable substitution based on key `-v`
+- Splicing variable substitution based on key `-s`
+- Range substitution based on key `-r`
+- Splicing joining with underscore based on key `-j`
+
+## Examples
+
+Dictionaries are given in TOML format for clarity.
+
+Initial card configuration `d`:
+
+```toml
+type = "cluster"
+method = "kmeans"
+method_options = {classes = {"-v" = "nclasses"}}
+inputs = [
+    {"-j" = ["component", {"-r" = 3}]},
+    {"-j" = [["wind", "temperature"], ["10m", "20m"]]},
+    {"-s" = "additional_input_vars"},
+    "humidity"
+]
+```
+
+Parameter dictionary `params`:
+
+```toml
+nclasses = 3
+additional_input_vars = ["precipitation", "irradiance"]
+```
+
+Final card configuration `Pipelines.apply_helpers(d, params)`:
+
+```toml
+method = "kmeans"
+classes = 3
+type = "cluster"
+inputs = [
+    "component_1",
+    "component_2",
+    "component_3",
+    "wind_10m",
+    "wind_20m",
+    "temperature_10m",
+    "temperature_20m",
+    "precipitation",
+    "irradiance",
+    "humidity"
+]
+```
+"""
+Card(d::AbstractDict, params::AbstractDict) = Card(apply_helpers(d, params))
 
 # TODO: document
 

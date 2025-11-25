@@ -49,7 +49,6 @@ end
 function instantiate(c::ConvSpec, input::Shape, output::Shape)
     ch_in = input.features
     ch_out = infer_features(output, c)
-    ch_out = @something c.features output.features
     layer = c.layer(c.kernel, ch_in => ch_out, c.sigma; c.pad, c.stride, c.dilation)
     return layer, get_outputshape(layer, input)
 end

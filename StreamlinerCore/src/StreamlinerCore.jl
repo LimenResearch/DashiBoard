@@ -70,6 +70,7 @@ include("layers/formatter.jl")
 include("layers/affine.jl")
 include("layers/byslice.jl")
 include("layers/pooling.jl")
+include("layers/selector.jl")
 
 include("training/schedules.jl")
 include("training/stoppers.jl")

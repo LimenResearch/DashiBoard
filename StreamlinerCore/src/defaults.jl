@@ -19,7 +19,7 @@ const DEFAULT_PARSER = let
         "maxpool" => maxpool,
         "meanpool" => meanpool,
         "upsample" => upsample,
-        # TODO: add `selector` layers
+        "selector" => selector,
     )
 
     sigmas = StringDict(

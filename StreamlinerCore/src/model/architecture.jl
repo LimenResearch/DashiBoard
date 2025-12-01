@@ -17,6 +17,7 @@ function architecture(::Type{T}, architecture_metadata::AbstractDict) where {T}
     modules = map(fieldnames(T)) do k
         configs = get_configs(architecture_metadata, string(k))
         if isempty(configs)
+            # TODO: allow empty chain!
             msg = """
             Empty chain of layers is not supported.
             Please provide at least one layer for component '$k'.

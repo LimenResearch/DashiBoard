@@ -39,10 +39,10 @@ end
 function (s::Selector)(x::AbstractArray)
     shape..., _, _ = axes(x)
     I = map(to_range, shape, s.window)
-    return x[I...]
+    return x[I..., :, :]
 end
 
-requires_shape(::Selector{N}) where {N} = SpatialFormat{N}()
+requires_format(::Selector{N}) where {N} = SpatialFormat{N}()
 
 function instantiate(s::Selector, input::Shape, ::Shape)
     shape = @. length(to_range(input.shape, s.window))

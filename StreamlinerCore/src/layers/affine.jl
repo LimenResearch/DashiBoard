@@ -7,7 +7,7 @@ struct DenseSpec{L, S}
     sigma::S
 end
 
-requires_shape(::DenseSpec) = Shape(FlatFormat())
+requires_format(::DenseSpec) = FlatFormat()
 
 function instantiate(d::DenseSpec, input::Shape, output::Shape)
     f_in = input.features
@@ -18,7 +18,7 @@ end
 
 # Conv structure
 
-struct ConvSpec{L, S, N, N′}
+struct ConvSpec{N, N′, L, S}
     layer::L
     features::Maybe{Int}
     sigma::S
@@ -42,9 +42,7 @@ function ConvSpec(layer, kernel, features, sigma; pad = 0, stride = 1, dilation 
     return ConvSpec(layer, features, sigma, kernel, pad′, stride′, dilation′)
 end
 
-function requires_shape(::ConvSpec{<:Any, <:Any, N}) where {N}
-    return Shape(SpatialFormat{N}())
-end
+requires_format(::ConvSpec{N}) where {N} = SpatialFormat{N}()
 
 function instantiate(c::ConvSpec, input::Shape, output::Shape)
     ch_in = input.features

@@ -1,3 +1,5 @@
+## Format
+
 abstract type AbstractFormat{N} end
 
 abstract type ClassicalFormat{N} <: AbstractFormat{N} end
@@ -19,6 +21,12 @@ end
 
 struct FlatFormat <: ClassicalFormat{0} end
 
+ClassicalFormat{N}() where {N} = N === 0 ? FlatFormat() : SpatialFormat{N}()
+
+function requires_format end
+
+## Shape
+
 struct Shape{N, T <: AbstractFormat{N}}
     format::T
     shape::Maybe{Dims{N}}
@@ -35,15 +43,10 @@ struct Shape{N, T <: AbstractFormat{N}}
     end
 end
 
-function Shape{N}() where {N}
-    format = N === 0 ? FlatFormat() : SpatialFormat{N}()
-    return Shape(format)
-end
-
 Shape(format::AbstractFormat) = Shape(format, nothing, nothing)
 
 function Shape(shape::NTuple{N, Integer}, features::Integer) where {N}
-    (; format) = Shape{N}()
+    format = ClassicalFormat{N}()
     return Shape(format, shape, features)
 end
 
@@ -66,3 +69,5 @@ function infer_features(sh::Shape, sp)
         throw(ArgumentError("Could not infer output features."))
     end
 end
+
+requires_shape(x) = Shape(requires_format(x))

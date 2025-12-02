@@ -1,3 +1,22 @@
+@testset "empty" begin
+    input = Shape((3, 3), 2)
+    output = Shape((4, 4), 5)
+    @test_throws ArgumentError StreamlinerCore.chain([], input, output)
+
+    input = Shape((3, 3), 2)
+    output = Shape((4, 4), 2)
+    m, sh = StreamlinerCore.chain([], input, output)
+    @test sh == output
+    @test length(m) == 1
+    @test m[1] isa StreamlinerCore.Upsample
+
+    input = Shape((3, 3), 2)
+    output = Shape(StreamlinerCore.SpatialFormat{2}())
+    m, sh = StreamlinerCore.chain([], input, output)
+    @test sh == input
+    @test length(m) == 0
+end
+
 @testset "basic" begin
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "scheduled.toml"))

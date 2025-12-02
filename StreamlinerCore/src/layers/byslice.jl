@@ -8,7 +8,7 @@ end
 
 (b::BySlice)(x) = b.layer(x; b.dims)
 
-requires_shape(::BySlice{N}) where {N} = Shape{N}()
+requires_format(::BySlice{N}) where {N} = ClassicalFormat{N}()
 
 instantiate(b::BySlice, input::Shape, ::Shape) = b, input
 

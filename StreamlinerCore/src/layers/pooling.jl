@@ -1,6 +1,6 @@
 # Pooling structure
 
-struct PoolSpec{L, N, N′}
+struct PoolSpec{N, N′, L}
     layer::L
     window::NTuple{N, Int}
     pad::NTuple{N′, Int}
@@ -20,7 +20,7 @@ function PoolSpec(layer, window; pad = 0, stride = window)
     return PoolSpec(layer, window, pad′, stride′)
 end
 
-requires_shape(::PoolSpec{<:Any, N}) where {N} = Shape{N}()
+requires_format(::PoolSpec{N}) where {N} = ClassicalFormat{N}()
 
 function instantiate(p::PoolSpec, input::Shape, ::Shape)
     layer = p.layer(p.window; p.pad, p.stride)
@@ -29,7 +29,7 @@ end
 
 # Upsampling structure
 
-struct Upsample{L, N}
+struct Upsample{N, L}
     layer::L
     size::NTuple{N, Int}
     align_corners::Bool
@@ -37,7 +37,7 @@ end
 
 (u::Upsample)(x) = u.layer(x; u.size, u.align_corners)
 
-requires_shape(::Upsample{<:Any, N}) where {N} = Shape{N}()
+requires_format(::Upsample{N}) where {N} = ClassicalFormat{N}()
 
 function instantiate(u::Upsample, input::Shape, ::Shape)
     return u, Shape(input.format, u.size, input.features)

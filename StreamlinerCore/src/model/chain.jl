@@ -25,10 +25,17 @@ function concat_layers(ls::AbstractVector, input::Shape, output::Shape)
             sh = push_layer!(layers, formatter, sh, output)
         end
 
+        if !isnothing(output.features) && output.features != sh.features
+            msg = """
+            Mismatching number of output features: found $(sh.features), expected $(output.features).
+            """
+            throw(ArgumentError(msg))
+        end
+
         # output resampling
         if !isnothing(output.shape)
-            if !(sh.format isa ClassicalFormat)
-                throw(ArgumentError("Only classical format is allowed as chain output"))
+            if !(sh.format isa ClassicalFormat) && output.shape != sh.shape
+                throw(ArgumentError("Automatic shape adjustment is only supported for classical format"))
             end
             window = map(div, sh.shape, output.shape)
             if any(>(1), window)

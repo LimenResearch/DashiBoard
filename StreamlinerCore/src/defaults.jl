@@ -19,6 +19,7 @@ const DEFAULT_PARSER = let
         "maxpool" => maxpool,
         "meanpool" => meanpool,
         "upsample" => upsample,
+        "selector" => selector,
     )
 
     sigmas = StringDict(
@@ -71,6 +72,9 @@ const DEFAULT_PARSER = let
         "focal_loss" => BinaryFocalLoss,
         "siamese_contrastive_loss" => SiameseContrastiveLoss,
         "vae_loss" => VAELoss,
+        # These Flux losses do not yet support `agg`
+        # "dice_coeff_loss"
+        # "tversky_loss"
     )
 
     regularizations = StringDict(

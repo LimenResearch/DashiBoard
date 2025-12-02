@@ -72,9 +72,9 @@ const DEFAULT_PARSER = let
         "focal_loss" => BinaryFocalLoss,
         "siamese_contrastive_loss" => SiameseContrastiveLoss,
         "vae_loss" => VAELoss,
-        # These losses do not yet support `agg` TODO PR to Flux to amend this
-        # "dice_coeff_loss"        => Metric(Losses.dice_coeff_loss),
-        # "tversky_loss"           => Metric(Losses.tversky_loss),
+        # These Flux losses do not yet support `agg`
+        # "dice_coeff_loss"
+        # "tversky_loss"
     )
 
     regularizations = StringDict(

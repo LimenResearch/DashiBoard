@@ -23,4 +23,4 @@
     @test y == x[10:12, (end - 10):end, 1:3, :, :]
 end
 
-# TODO: individuall test affine, byslice, and pooling layers
+# TODO: individually test affine, byslice, and pooling layers

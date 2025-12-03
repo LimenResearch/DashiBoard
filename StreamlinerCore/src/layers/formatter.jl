@@ -14,7 +14,7 @@ end
 
 function reformat(::SpatialFormat{N}, ::FlatFormat, input::Shape, output::Shape) where {N}
     features = input.features * prod(input.shape)
-    return flatten, Shape(features)
+    return flatten, Shape((), features)
 end
 
 function reformat(::FlatFormat, ::SpatialFormat{N}, input::Shape, output::Shape) where {N}

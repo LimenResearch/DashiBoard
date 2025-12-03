@@ -120,8 +120,8 @@ end
     output_shape = Shape(StreamlinerCore.SpatialFormat{3}())
     m, sh = StreamlinerCore.instantiate(l, input_shape, output_shape)
     @test m === l
+    @test sh == Shape((3, 11, 3), 3)
     x = rand(15, 20, 17, 3, 2)
     y = m(x)
     @test y == x[10:12, (end - 10):end, 1:3, :, :]
-    @test sh == Shape((3, 11, 3), 3)
 end

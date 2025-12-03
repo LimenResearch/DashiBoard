@@ -101,5 +101,3 @@ SquaredHingeLoss(; params...) = Metric(Losses.squared_hinge_loss, values(params)
 FocalLoss(; params...) = Metric(Losses.focal_loss, values(params))
 BinaryFocalLoss(; params...) = Metric(Losses.binary_focal_loss, values(params))
 SiameseContrastiveLoss(; params...) = Metric(Losses.siamese_contrastive_loss, values(params))
-
-# TODO: PR to Flux to support `agg` for `dice_coeff_loss` and `tversky_loss`

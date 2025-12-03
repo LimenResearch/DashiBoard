@@ -7,13 +7,8 @@ abstract type ClassicalFormat{N} <: AbstractFormat{N} end
 struct SpatialFormat{N} <: ClassicalFormat{N}
     function SpatialFormat{N}() where {N}
         if N ≤ 0
-            throw(
-                ArgumentError(
-                    """
-                    `N` must be at least `1` in a `SpatialFormat`.
-                    """
-                )
-            )
+            msg = "`N` must be at least `1` in a `SpatialFormat`."
+            throw(ArgumentError(msg))
         end
         return new{N}()
     end
@@ -49,8 +44,6 @@ function Shape(shape::NTuple{N, Integer}, features::Integer) where {N}
     format = ClassicalFormat{N}()
     return Shape(format, shape, features)
 end
-
-Shape(features::Integer) = Shape((), features)
 
 Shape(template::Template) = Shape(front(template.size), last(template.size))
 

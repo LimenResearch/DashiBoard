@@ -13,7 +13,7 @@ function instantiate(d::DenseSpec, input::Shape, output::Shape)
     f_in = input.features
     f_out = infer_features(output, d)
     layer = isnothing(d.sigma) ? d.layer(f_in => f_out) : d.layer(f_in => f_out, d.sigma)
-    return layer, Shape(f_out)
+    return layer, Shape((), f_out)
 end
 
 # Conv structure

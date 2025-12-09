@@ -6,7 +6,7 @@ export get_templates, get_metadata, get_nsamples
 export stream, finetune, train, loadmodel, validate, evaluate, summarize
 
 public instantiate, requires_shape, requires_format
-public Parser, PARSER
+public Parser, PARSER, MODEL_CONTEXT
 public has_weights, output_path, stats_path, stats_tensor, metricname
 public Shape, AbstractFormat, FlatFormat, SpatialFormat
 

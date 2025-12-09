@@ -17,6 +17,7 @@ function reformat(::SpatialFormat{N}, ::FlatFormat, input::Shape, output::Shape)
     return flatten, Shape((), features)
 end
 
+# TODO: attempt to match output shape
 function reformat(::FlatFormat, ::SpatialFormat{N}, input::Shape, output::Shape) where {N}
     factors = factor(Vector, input.features)
     shape = ntuple(n -> get(factors, n, 1), N)

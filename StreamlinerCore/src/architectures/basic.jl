@@ -1,4 +1,4 @@
-# Basic neural network
+# Basic Neural Network
 
 @kwdef struct Basic{M}
     model::M

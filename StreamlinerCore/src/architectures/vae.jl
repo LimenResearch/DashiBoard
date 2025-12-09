@@ -19,25 +19,6 @@ function (v::VAE)(x)
     return merge(x, (; prediction, μ, logvar))
 end
 
-@kwdef struct VAELoss{A, B <: Real}
-    agg::A = mean
-    beta::B = 1
-end
-
-# TODO this loss is extremely basic. It should be improved, e.g., regularization
-function (v::VAELoss)(r)
-    (; agg, beta) = v
-    (; input, prediction, μ, logvar) = r
-    N = ndims(μ)
-    β::eltype(input) = beta # convert to matching float type
-    rec = Flux.mse(prediction, input; agg)
-    gkld = @. (exp(logvar) + μ^2 - 1 - logvar) / 2
-    kld = agg(sum(gkld, dims = 1:(N - 1)))
-    return rec + β * kld
-end
-
-metricname(::VAELoss) = :vae_loss
-
 # constructor
 
 struct VAESpec
@@ -64,3 +45,24 @@ function instantiate(v::VAESpec, templates)
 end
 
 vae(components::AbstractDict) = architecture(VAESpec, components)
+
+# loss
+
+@kwdef struct VAELoss{A, B <: Real}
+    agg::A = mean
+    beta::B = 1
+end
+
+# TODO this loss is extremely basic. It should be improved, e.g., regularization
+function (v::VAELoss)(r)
+    (; agg, beta) = v
+    (; input, prediction, μ, logvar) = r
+    N = ndims(μ)
+    β::eltype(input) = beta # convert to matching float type
+    rec = Flux.mse(prediction, input; agg)
+    gkld = @. (exp(logvar) + μ^2 - 1 - logvar) / 2
+    kld = agg(sum(gkld, dims = 1:(N - 1)))
+    return rec + β * kld
+end
+
+metricname(::VAELoss) = :vae_loss

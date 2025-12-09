@@ -17,9 +17,7 @@ function architecture(::Type{T}, architecture_metadata::AbstractDict) where {T}
     modules = map(fieldnames(T)) do k
         configs = get(architecture_metadata, string(k), nothing)
         if isnothing(configs)
-            msg = """
-            Please provide layers for component '$k'.
-            """
+            msg = "Please provide layers for component '$k'."
             throw(ArgumentError(msg))
         end
         return map(parse_layer, configs)

@@ -105,11 +105,11 @@ end
     @test size(prediction) == size(target)
     @test isfinite(loss(r))
 
-    @test length(m.embedding) == 3
-    @test all(l -> l isa Conv, m.embedding.layers)
-    @test length(m.projection) == 4
-    @test all(l -> l isa ConvTranspose, m.projection.layers[1:2])
-    @test m.projection.layers[4] == StreamlinerCore.Upsample(NNlib.upsample_linear, (28, 28), false)
+    @test length(modules(m).embedding) == 3
+    @test all(l -> l isa Conv, modules(m).embedding.layers)
+    @test length(modules(m).projection) == 4
+    @test all(l -> l isa ConvTranspose, modules(m).projection.layers[1:2])
+    @test modules(m).projection.layers[4] == StreamlinerCore.Upsample(NNlib.upsample_linear, (28, 28), false)
 
     @test_throws ArgumentError StreamlinerCore.architecture(StreamlinerCore.VAESpec, Dict{Symbol, Any}())
 end

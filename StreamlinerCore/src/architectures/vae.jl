@@ -1,30 +1,20 @@
 ## Variational Auto Encoder
 
-@kwdef struct VAE{E, M, L, P}
-    embedding::E
-    model_μ::M
-    model_logvar::L
-    projection::P
-end
-
-@layer VAE
-
-function (v::VAE)(x)
-    y = v.embedding(x.input)
-    μ, logvar = v.model_μ(y), v.model_logvar(y)
-    σ = @. exp(logvar / 2)
-    ϵ = randn_like(σ)
-    z = @. ϵ * σ + μ
-    prediction = v.projection(z)
-    return merge(x, (; prediction, μ, logvar))
-end
-
-# constructor
-
 struct VAESpec
     embedding::Vector{Any}
     model::Vector{Any}
     projection::Vector{Any}
+end
+
+function vae_forward(modules, x)
+    (; embedding, model_μ, model_logvar, projection) = modules
+    y = embedding(x.input)
+    μ, logvar = model_μ(y), model_logvar(y)
+    σ = @. exp(logvar / 2)
+    ϵ = randn_like(σ)
+    z = @. ϵ * σ + μ
+    prediction = projection(z)
+    return merge(x, (; prediction, μ, logvar))
 end
 
 function instantiate(v::VAESpec, templates)
@@ -41,7 +31,9 @@ function instantiate(v::VAESpec, templates)
 
     projection, _ = chain(v.projection, sh, output)
 
-    return VAE(; embedding, model_μ, model_logvar, projection)
+    modules = (; embedding, model_μ, model_logvar, projection)
+
+    return Architecture(vae_forward, modules)
 end
 
 vae(components::AbstractDict) = architecture(VAESpec, components)

@@ -1,3 +1,15 @@
+# TODO: figure out correct printing
+struct Architecture{F, M}
+    forward::F
+    modules::M
+end
+
+@layer Architecture trainable = (modules,)
+
+(a::Architecture)(x) = a.forward(a.modules, x)
+
+modules(a::Architecture) = a.modules
+
 # architecture helpers
 
 function parse_architecture(metadata::AbstractDict)

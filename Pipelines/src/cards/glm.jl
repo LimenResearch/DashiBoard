@@ -103,14 +103,15 @@ end
 
 is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
 
+_fit(args...; weights) = isnothing(weights) ? fit(args...) : fit(args...; wts = weights)
+
 function train_glm(gc::AbstractGLMCard, t, LinearModelType, GeneralizedLinearModelType; weights)
     (; formula, distribution, link) = gc
-    wts = @something weights similar(t[_target(gc)], 0)
     # TODO save slim version of model with no data
     return if is_linear_model(distribution, link)
-        fit(LinearModelType, formula, t, wts = wts)
+        _fit(LinearModelType, formula, t; weights)
     else
-        fit(GeneralizedLinearModelType, formula, t, distribution, link, wts = wts)
+        _fit(GeneralizedLinearModelType, formula, t, distribution, link; weights)
     end
 end
 

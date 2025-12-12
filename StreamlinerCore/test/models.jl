@@ -37,6 +37,11 @@ end
     @test size(prediction) == size(target)
     @test isfinite(loss(r))
 
+    s = sprint(show, MIME"text/plain"(), m)
+    @test startswith(s, "Basic architecture with the following modules:\nmodel =>")
+
+    @test m.name == :Basic
+
     @test length(modules(m).model) == 5
     @test modules(m).model[1] isa Conv && modules(m).model[2] isa Conv
     @test modules(m).model[3] isa MaxPool
@@ -104,6 +109,11 @@ end
     prediction = r.prediction
     @test size(prediction) == size(target)
     @test isfinite(loss(r))
+
+    s = sprint(show, MIME"text/plain"(), m)
+    @test startswith(s, "VAE architecture with the following modules:\nembedding =>")
+
+    @test m.name == :VAE
 
     @test length(modules(m).embedding) == 3
     @test all(l -> l isa Conv, modules(m).embedding.layers)

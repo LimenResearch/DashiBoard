@@ -33,7 +33,7 @@ function instantiate(v::VAESpec, templates)
 
     modules = (; embedding, model_μ, model_logvar, projection)
 
-    return Architecture(vae_forward, modules)
+    return Architecture(:VAE, vae_forward, modules)
 end
 
 vae(components::AbstractDict) = architecture(VAESpec, components)

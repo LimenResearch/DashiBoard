@@ -15,7 +15,7 @@ function instantiate(b::BasicSpec, templates)
     output = Shape(templates.target)
     model, _ = chain(b.model, input, output)
     modules = (; model)
-    return Architecture(basic_forward, modules)
+    return Architecture(:Basic, basic_forward, modules)
 end
 
 basic(components::AbstractDict) = architecture(BasicSpec, components)

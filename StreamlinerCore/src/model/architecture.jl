@@ -1,3 +1,25 @@
+struct Architecture{F, M}
+    name::Symbol
+    forward::F
+    modules::M
+end
+
+@layer :ignore Architecture trainable = (modules,)
+
+(a::Architecture)(x) = a.forward(a.modules, x)
+
+modules(a::Architecture) = a.modules
+
+function Base.show(io::IO, ::MIME"text/plain", a::Architecture)
+    print(io, "$(a.name) architecture with the following modules:")
+    for (k, v) in pairs(modules(a))
+        print(io, "\n")
+        print(io, k, " => ")
+        show(io, MIME"text/plain"(), v)
+    end
+    return
+end
+
 # architecture helpers
 
 function parse_architecture(metadata::AbstractDict)

@@ -1,5 +1,5 @@
 using StreamlinerCore
-using StreamlinerCore: formatter, Shape
+using StreamlinerCore: modules, formatter, Shape
 using Flux
 using Flux: onehotbatch
 using MLUtils

@@ -1,27 +1,21 @@
 # Basic Neural Network
 
-@kwdef struct Basic{M}
-    model::M
-end
-
-@layer Basic
-
-function (b::Basic)(x)
-    prediction = b.model(x.input)
-    return merge(x, (; prediction))
-end
-
-# constructor
-
 struct BasicSpec
     model::Vector{Any}
+end
+
+function basic_forward(modules, x)
+    (; model) = modules
+    prediction = model(x.input)
+    return merge(x, (; prediction))
 end
 
 function instantiate(b::BasicSpec, templates)
     input = Shape(templates.input)
     output = Shape(templates.target)
     model, _ = chain(b.model, input, output)
-    return Basic(; model)
+    modules = (; model)
+    return Architecture(:Basic, basic_forward, modules)
 end
 
 basic(components::AbstractDict) = architecture(BasicSpec, components)

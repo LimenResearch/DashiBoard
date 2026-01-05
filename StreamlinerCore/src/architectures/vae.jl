@@ -6,6 +6,8 @@ struct VAESpec
     projection::Vector{Any}
 end
 
+vae(components::AbstractDict) = VAESpec(parse_modules(components, (:embedding, :model, :projection))...)
+
 function vae_forward(modules, x)
     (; embedding, model_μ, model_logvar, projection) = modules
     y = embedding(x.input)
@@ -35,8 +37,6 @@ function instantiate(v::VAESpec, templates)
 
     return Architecture(:VAE, vae_forward, modules)
 end
-
-vae(components::AbstractDict) = architecture(VAESpec, components)
 
 # loss
 

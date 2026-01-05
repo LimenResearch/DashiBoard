@@ -44,14 +44,16 @@ end
 
 # Convert `Flux` losses to `StreamlinerCore` metrics
 
-struct Metric{L, names, types}
-    loss::L
+struct Metric{M, names, types}
+    metric::M
     params::NamedTuple{names, types}
 end
 
-(m::Metric)(r) = m.loss(r.prediction, r.target; m.params...)
+Metric(metric; params...) = Metric(metric, values(params))
 
-metricname(m::Metric) = nameof(m.loss)
+(m::Metric)(r) = m.metric(r.prediction, r.target; m.params...)
+
+metricname(m::Metric) = nameof(m.metric)
 
 # Parsing
 
@@ -83,21 +85,21 @@ end
 
 # Loss functions
 
-Accuracy(; params...) = Metric(accuracy, values(params))
+Accuracy(; params...) = Metric(accuracy; params...)
 
-MAE(; params...) = Metric(Losses.mae, values(params))
-MSE(; params...) = Metric(Losses.mse, values(params))
-MSLE(; params...) = Metric(Losses.msle, values(params))
-HuberLoss(; params...) = Metric(Losses.huber_loss, values(params))
-LabelSmoothing(; params...) = Metric(Losses.label_smoothing, values(params))
-CrossEntropy(; params...) = Metric(Losses.crossentropy, values(params))
-LogitCrossEntropy(; params...) = Metric(Losses.logitcrossentropy, values(params))
-BinaryCrossEntropy(; params...) = Metric(Losses.binarycrossentropy, values(params))
-LogitBinaryCrossEntropy(; params...) = Metric(Losses.logitbinarycrossentropy, values(params))
-KLDivergence(; params...) = Metric(Losses.kldivergence, values(params))
-PoissonLoss(; params...) = Metric(Losses.poisson_loss, values(params))
-HingeLoss(; params...) = Metric(Losses.hinge_loss, values(params))
-SquaredHingeLoss(; params...) = Metric(Losses.squared_hinge_loss, values(params))
-FocalLoss(; params...) = Metric(Losses.focal_loss, values(params))
-BinaryFocalLoss(; params...) = Metric(Losses.binary_focal_loss, values(params))
-SiameseContrastiveLoss(; params...) = Metric(Losses.siamese_contrastive_loss, values(params))
+MAE(; params...) = Metric(Losses.mae; params...)
+MSE(; params...) = Metric(Losses.mse; params...)
+MSLE(; params...) = Metric(Losses.msle; params...)
+HuberLoss(; params...) = Metric(Losses.huber_loss; params...)
+LabelSmoothing(; params...) = Metric(Losses.label_smoothing; params...)
+CrossEntropy(; params...) = Metric(Losses.crossentropy; params...)
+LogitCrossEntropy(; params...) = Metric(Losses.logitcrossentropy; params...)
+BinaryCrossEntropy(; params...) = Metric(Losses.binarycrossentropy; params...)
+LogitBinaryCrossEntropy(; params...) = Metric(Losses.logitbinarycrossentropy; params...)
+KLDivergence(; params...) = Metric(Losses.kldivergence; params...)
+PoissonLoss(; params...) = Metric(Losses.poisson_loss; params...)
+HingeLoss(; params...) = Metric(Losses.hinge_loss; params...)
+SquaredHingeLoss(; params...) = Metric(Losses.squared_hinge_loss; params...)
+FocalLoss(; params...) = Metric(Losses.focal_loss; params...)
+BinaryFocalLoss(; params...) = Metric(Losses.binary_focal_loss; params...)
+SiameseContrastiveLoss(; params...) = Metric(Losses.siamese_contrastive_loss; params...)

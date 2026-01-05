@@ -52,7 +52,7 @@ end
     @test model.regularizations[1] == StreamlinerCore.Regularization(StreamlinerCore.l1, 0.01f0)
     @test model.regularizations[2] == StreamlinerCore.Regularization(StreamlinerCore.l2, 0.1f0)
 
-    @test_throws ArgumentError StreamlinerCore.architecture(StreamlinerCore.BasicSpec, Dict{Symbol, Any}())
+    @test_throws ArgumentError StreamlinerCore.basic(Dict{Symbol, Any}())
 end
 
 @testset "basic template" begin
@@ -121,7 +121,7 @@ end
     @test all(l -> l isa ConvTranspose, modules(m).projection.layers[1:2])
     @test modules(m).projection.layers[4] == StreamlinerCore.Upsample(NNlib.upsample_linear, (28, 28), false)
 
-    @test_throws ArgumentError StreamlinerCore.architecture(StreamlinerCore.VAESpec, Dict{Symbol, Any}())
+    @test_throws ArgumentError StreamlinerCore.vae(Dict{Symbol, Any}())
 end
 
 @testset "predictor" begin

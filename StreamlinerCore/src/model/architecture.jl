@@ -33,19 +33,16 @@ function parse_layer(layer_metadata::AbstractDict)
     return PARSER[].layers[name](; params...)
 end
 
-# constructor helpers
-
-function architecture(::Type{T}, architecture_metadata::AbstractDict) where {T}
-    modules = map(fieldnames(T)) do k
-        configs = get(architecture_metadata, string(k), nothing)
-        if isnothing(configs)
-            msg = "Please provide layers for component '$k'."
-            throw(ArgumentError(msg))
-        end
-        return map(parse_layer, configs)
+function parse_module(components::AbstractDict, k)
+    configs = get(components, string(k), nothing)
+    if isnothing(configs)
+        msg = "Please provide layers for component '$k'."
+        throw(ArgumentError(msg))
     end
-    return T(modules...)
+    return map(parse_layer, configs)
 end
+
+parse_modules(components::AbstractDict, ks) = map(Fix1(parse_module, components), ks)
 
 # additional context
 

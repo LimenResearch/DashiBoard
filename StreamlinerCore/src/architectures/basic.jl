@@ -4,6 +4,8 @@ struct BasicSpec
     model::Vector{Any}
 end
 
+basic(components::AbstractDict) = BasicSpec(parse_modules(components, (:model,))...)
+
 function basic_forward(modules, x)
     (; model) = modules
     prediction = model(x.input)
@@ -17,5 +19,3 @@ function instantiate(b::BasicSpec, templates)
     modules = (; model)
     return Architecture(:Basic, basic_forward, modules)
 end
-
-basic(components::AbstractDict) = architecture(BasicSpec, components)

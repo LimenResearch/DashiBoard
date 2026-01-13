@@ -103,7 +103,7 @@ end
 
 is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
 
-_fit(args...; weights) = isnothing(weights) ? fit(args...) : fit(args...; wts = weights)
+_fit(args...; weights) = isnothing(weights) ? fit(args...) : fit(args...; weights)
 
 function train_glm(gc::AbstractGLMCard, t, LinearModelType, GeneralizedLinearModelType; weights)
     (; formula, distribution, link) = gc
@@ -168,7 +168,10 @@ has_grouping_factor(::Type{GLMCard}) = false
 
 GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
 
-_train(gc::GLMCard, t, ::Any; weights = nothing) = train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
+function _train(gc::GLMCard, t, ::Any)
+    weights = get_weights(gc, t, fweights)
+    return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
+end
 
 (gc::GLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
 

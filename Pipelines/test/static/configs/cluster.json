@@ -1,7 +1,8 @@
 {
   "kmeans": {
     "type": "cluster",
-    "inputs": ["TEMP", "PRES"],
+    "inputs": ["TEMP", "PRES", "Iws"],
+    "weights": "Iws",
     "output": "cluster",
     "method": "kmeans",
     "method_options": {

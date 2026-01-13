@@ -236,7 +236,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["kmeans"])
 
         @test !Pipelines.invertible(card)
-        @test Pipelines.get_inputs(card) == ["TEMP", "PRES"]
+        @test Pipelines.get_inputs(card) == ["TEMP", "PRES", "Iws"]
         @test Pipelines.get_outputs(card) == ["cluster"]
 
         node = Node(card)
@@ -249,7 +249,8 @@ mktempdir() do dir
 
         train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
         rng = StreamlinerCore.get_rng(1234)
-        R = kmeans([train_df.TEMP train_df.PRES]', 3; maxiter = 100, tol = 1.0e-6, rng)
+        weights = train_df.Iws
+        R = kmeans([train_df.TEMP train_df.PRES train_df.Iws]', 3; maxiter = 100, tol = 1.0e-6, rng, weights)
         @test assignments(R) == df.cluster
 
         card = Pipelines.Card(d["dbscan"])
@@ -430,7 +431,7 @@ mktempdir() do dir
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
         ]
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
-        weights = fweights(train_df.TEMP)
+        weights = fweights(train_df.Iws)
         m = glm(@formula(PRES ~ 1 + cbwd * year + No), train_df, Gamma(); weights)
         @test predict(m, df) == df.PRES_hat
 
@@ -445,6 +446,20 @@ mktempdir() do dir
         ]
         train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
         m = lmm(@formula(TEMP ~ 1 + year + 1 | cbwd), train_df)
+        @test predict(m, df) == df.TEMP_hat
+
+        card = Pipelines.Card(d["isMixedHasWeights"])
+
+        node = Node(card)
+        Pipelines.train_evaljoin!(repo, node, "partition" => "mixed_model")
+        df = DBInterface.execute(DataFrame, repo, "FROM mixed_model")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
+        ]
+        train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
+        weights = train_df.Iws
+        m = lmm(@formula(TEMP ~ 1 + year + 1 | cbwd), train_df; weights)
         @test predict(m, df) == df.TEMP_hat
     end
 

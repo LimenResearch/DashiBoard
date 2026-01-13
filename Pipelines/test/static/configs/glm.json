@@ -10,7 +10,7 @@
   "hasWeights": {
     "type": "glm",
     "inputs": [1, ["cbwd", "year"], "No"],
-    "weights": "TEMP",
+    "weights": "Iws",
     "target": "PRES",
     "distribution": "gamma"
   },
@@ -26,6 +26,14 @@
     "fixed_effect_terms": [1, "year"],
     "random_effect_terms": [1],
     "grouping_factor": "cbwd",
+    "target": "TEMP"
+  },
+  "isMixedHasWeights": {
+    "type": "mixed_model",
+    "fixed_effect_terms": [1, "year"],
+    "random_effect_terms": [1],
+    "grouping_factor": "cbwd",
+    "weights": "Iws",
     "target": "TEMP"
   }
 }

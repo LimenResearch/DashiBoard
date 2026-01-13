@@ -2,6 +2,13 @@
 # - `_train(c, tbl, id; weights) -> model`
 # - `(c)(model, tbl, id) -> new_tbl, new_id`
 
+# Helper function
+
+function get_weights(c::StandardCard, t::SimpleTable, f = identity)
+    var = weight_var(c)
+    return isnothing(var) ? nothing : f(t[var])
+end
+
 # Implementation of Card methods
 
 function train(
@@ -20,12 +27,7 @@ function train(
 
     t = DBInterface.execute(fromtable, repository, q; schema)
     id = pop!(t, id_var)
-    model = if isnothing(wt_var)
-        _train(c, t, id)
-    else
-        wts = pop!(t, wt_var)
-        _train(c, t, id, weights = wts)
-    end
+    model = _train(c, t, id)
     return CardState(content = jldserialize(model))
 end
 

@@ -1,5 +1,5 @@
 @testset "evaluation order" begin
-    _train(wc, t, id; weights = nothing) = nothing
+    _train(wc, t, id) = nothing
     function _evaluate(wc, model, t, id)
         return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end

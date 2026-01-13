@@ -80,7 +80,7 @@ weight_var(wc::WildCard) = wc.weights
 partition_var(wc::WildCard) = wc.partition
 output_vars(wc::WildCard) = wc.outputs
 
-_train(wc::WildCard{train}, t, id; weights = nothing) where {train} = train(wc, t, id; weights)
+_train(wc::WildCard{train}, t, id) where {train} = train(wc, t, id)
 
 (wc::WildCard{<:Any, evaluate})(model, t, id) where {evaluate} = evaluate(wc, model, t, id)
 

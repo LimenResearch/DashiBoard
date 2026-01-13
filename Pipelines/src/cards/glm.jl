@@ -168,9 +168,9 @@ has_grouping_factor(::Type{GLMCard}) = false
 
 GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
 
-function _train(gc::GLMCard, t, ::Any; weights = nothing)
-    wts = isnothing(weights) ? nothing : fweights(weights)
-    return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights = wts)
+function _train(gc::GLMCard, t, ::Any)
+    weights = get_weights(gc, t, fweights)
+    return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
 end
 
 (gc::GLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id

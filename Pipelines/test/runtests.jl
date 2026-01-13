@@ -1,6 +1,7 @@
 using Pipelines: Node, invert, get_card, get_state
 using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
 using DBInterface, DataFrames, Graphs, JSON, Downloads
+using StatsBase: fweights
 using Clustering, GLM, MixedModels, DataInterpolations, Distributions, Dates, Statistics
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 using FunSQL: Get, Select, Partition

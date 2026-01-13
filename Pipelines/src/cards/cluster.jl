@@ -119,8 +119,9 @@ weight_var(cc::ClusterCard) = cc.weights
 partition_var(cc::ClusterCard) = cc.partition
 output_vars(cc::ClusterCard) = [cc.output]
 
-function _train(cc::ClusterCard, t, id; weights = nothing)
+function _train(cc::ClusterCard, t, id)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
+    weights = get_weights(cc, t)
     res = cc.clusterer(X; weights)
     label = assignments(res)
     return (; label, id) # return `label`s and relative `id`s for the evaluation

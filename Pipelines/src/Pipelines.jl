@@ -80,6 +80,8 @@ using StatsModels: term, terms, termnames, Term, FormulaTerm, AbstractTerm
 
 using StatsAPI: fit, predict, modelmatrix, RegressionModel
 
+using StatsBase: fweights
+
 using Distributions: Distribution,
     Normal,
     Binomial,

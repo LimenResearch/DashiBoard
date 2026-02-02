@@ -8,6 +8,7 @@ function test_optim(dir)
 
     outputdir = joinpath(dir, "output")
     result = train(outputdir, model, train_regression_data, training)
+    @test result.iterations == 6
 
     @info "Completed MNIST training of convolutional network using Optim.jl"
     @show result.stats

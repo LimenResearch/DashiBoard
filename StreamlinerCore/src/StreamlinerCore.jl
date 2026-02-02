@@ -27,6 +27,7 @@ using ParameterSchedulers: ParameterSchedulers as PS
 using ProgressLogging: @withprogress, @logprogress
 using ChainRulesCore: AbstractZero, NoTangent, unthunk, ChainRulesCore
 
+using NLSolversBase: only_fg!
 using Optim: AbstractOptimizer, BFGS, LBFGS, Optim
 using Optimisers: trainables,
     adjust!,

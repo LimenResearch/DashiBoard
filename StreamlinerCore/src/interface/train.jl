@@ -117,15 +117,22 @@ function unbatched_train!(
     ev = Evaluator(re, train_data, model.loss, model.regularizations)
     vars = Ref{Any}(nothing)
 
-    optimizer = training.optimizer
+    iteration = Ref(0)
     N = Ref(init_N)
     best = Ref(init_N => init_stats)
 
-    function enriched_callback(trace)
-        epoch = trace.iteration
+    function enriched_callback(state)
+        epoch = iteration[]
+        iteration[] += 1
+        # exclude 0-th iteration from iteration count (params are random initialization)
         epoch == 0 && return false
         N[] = epoch + init_N
-        θ = trace.metadata["x"]
+        θ, obj = state.x, state.f_x
+        # we ensure that the method we used to save loss and model output
+        # is consistent with what Optim does
+        if vars[].objective ≠ obj
+            throw(ErrorException("Unexpected objective value"))
+        end
         train_stats = compute_metric((vars[].loss, model.metrics...), vars[].output)
         current = N[] => train_stats
         stop, best[] = finalize_callback(
@@ -149,13 +156,14 @@ function unbatched_train!(
         end
     end
 
+    optimizer = training.optimizer
     options = Optim.Options(;
         training.iterations, callback = enriched_callback,
         extended_trace = true, training.options...
     )
 
     # Here, we are saving the weights to the buffer
-    Optim.optimize(Optim.only_fg!(fg!), θ₀, optimizer, options)
+    Optim.optimize(only_fg!(fg!), θ₀, optimizer, options)
 
     return best[], N[]
 end

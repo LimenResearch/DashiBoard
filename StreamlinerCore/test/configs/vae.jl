@@ -10,6 +10,7 @@ function test_vae(dir)
 
     outputdir = joinpath(dir, "output")
     result = train(outputdir, model, train_autoencoder_data, training)
+    @test result.iterations == 5
 
     @info "Completed MNIST training of convolutional network using Variational Auto Encoder"
     @show result.stats

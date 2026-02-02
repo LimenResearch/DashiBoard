@@ -27,9 +27,9 @@ Pipelines = { path = "../Pipelines" }
 StreamlinerCore = { path = "../StreamlinerCore" }
 
 [compat]
-AlgebraOfGraphics = "0.9.3, 0.10"
+AlgebraOfGraphics = "0.9.3, 0.10, 0.11, 0.12"
 ArgParse = "1.2.0"
-CairoMakie = "0.13.1"
+CairoMakie = "0.13.1, 0.14, 0.15"
 ConcurrentUtilities = "2"
 DBInterface = "2.6.1"
 DataFrames = "1.7.0"

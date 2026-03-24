@@ -11,7 +11,7 @@ end
 Construct a `Repository` object that holds a `DuckDB.DB` as well as a pool of
 connections.
 
-Use `DBInterface.(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
+Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
 to run a function on the result of a query `sql` on an available connection in the pool.
 """
 Repository(db::DuckDB.DB) = Repository(db, DuckDBPool())

@@ -200,6 +200,8 @@ mktempdir() do dir
         end
         @test get_state(node).content == state.content
         @test get_state(node).metadata == state.metadata
+        @test node.train
+        @test node.update
 
         node2 = Pipelines.unlink(node)
         @test node.card == node2.card
@@ -208,5 +210,20 @@ mktempdir() do dir
         @test node.invert == node2.invert
         @test node.state[] == node2.state[]
         @test node.state !== node2.state
+
+        node3 = Pipelines.Node(
+            Dict(
+                "card" => d["zscore"],
+                "train" => false
+            )
+        )
+        @test get_card(node3) isa Pipelines.RescaleCard
+        for k in fieldnames(Pipelines.RescaleCard)
+            @test getfield(get_card(node3), k) == getfield(card, k)
+        end
+        @test !node3.train
+        @test node3.update
+        @test isnothing(get_state(node3).content)
+        @test isempty(get_state(node3).metadata)
     end
 end

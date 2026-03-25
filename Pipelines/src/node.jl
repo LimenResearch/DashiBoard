@@ -20,23 +20,32 @@ end
     Node(
         card::Card,
         state = CardState();
-        update::Bool = true
+        update::Bool = true,
+        train::Bool = true
     )
 
 Generate a `Node` object from a [`Card`](@ref).
 """
-function Node(card::Card, state::CardState = CardState(); update::Bool = true)
-    train, invert = true, false
-    return Node(card, update, train, invert, StateRef(state))
+function Node(
+        card::Card, state::CardState = CardState();
+        update::Bool = true, train::Bool = true
+    )
+    return Node(card, update, train, false, StateRef(state))
 end
 
 function Node(c::AbstractDict; update::Bool = true)
     card = Card(c["card"])
-    state = CardState(
-        content = c["state"]["content"],
-        metadata = c["state"]["metadata"]
-    )
-    return Node(card, state; update)
+    train::Bool = get(c, "train", true)
+    state_config = get(c, "state", nothing)
+    state = if isnothing(state_config)
+        CardState()
+    else
+        CardState(
+            content = c["state"]["content"],
+            metadata = c["state"]["metadata"]
+        )
+    end
+    return Node(card, state; update, train)
 end
 
 get_card(node::Node) = node.card

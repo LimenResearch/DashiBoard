@@ -152,7 +152,7 @@ end
 
     @test filters[2] isa DataIngestion.ListFilter
     @test filters[2].colname == "cbwd"
-    @test filters[2].list == ["NW", "SW"]
+    @test filters[2].list == ["NW", "SE"]
 end
 
 @testset "summary" begin

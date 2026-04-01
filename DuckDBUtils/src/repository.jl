@@ -1,24 +1,44 @@
-const DuckDBPool = Pool{Nothing, DuckDB.Connection}
+struct Connections
+    pool::Pool{Nothing, DuckDB.Connection}
+    Connections(limit::Integer = 4096) = new(Pool{Nothing, DuckDB.Connection}(Int(limit)))
+end
+
+function Base.show(io::IO, connections::Connections)
+    print(io, "Connections(limit = ", Pools.limit(connections.pool), ")")
+    return
+end
+
+function acquire_connection(connections::Connections, db::DuckDB.DB)
+    return acquire(() -> DBInterface.connect(db), connections.pool, isvalid = isopen)
+end
+
+function release_connection(connections::Connections, con::DuckDB.Connection)
+    return release(connections.pool, con)
+end
+
+drain_connections!(connections::Connections) = drain!(connections.pool)
 
 struct Repository
     db::DuckDB.DB
-    pool::DuckDBPool
+    connections::Connections
 end
 
 """
-    Repository(db::DuckDB.DB)
+    Repository(db::DuckDB.DB; limit::Integer = 4096)
 
 Construct a `Repository` object that holds a `DuckDB.DB` as well as a pool of
 connections.
 
+The keyword argument `limit` denotes the maximum number of simultaneous connections to the database.
+
 Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
 to run a function on the result of a query `sql` on an available connection in the pool.
 """
-Repository(db::DuckDB.DB) = Repository(db, DuckDBPool())
+Repository(db::DuckDB.DB; limit::Integer = 4096) = Repository(db, Connections(limit))
 
-Repository(path::AbstractString) = Repository(DuckDB.DB(path))
+Repository(path::AbstractString; limit::Integer = 4096) = Repository(DuckDB.DB(path); limit)
 
-Repository() = Repository(DuckDB.DB())
+Repository(; limit::Integer = 4096) = Repository(DuckDB.DB(); limit)
 
 """
     acquire_connection(repository::Repository)
@@ -31,16 +51,23 @@ See also [`release_connection`](@ref).
     command `release_connection(repository, con)` (after the connection has been used).
 """
 function acquire_connection(repository::Repository)
-    (; db, pool) = repository
-    return acquire(() -> DBInterface.connect(db), pool, isvalid = isopen)
+    (; db, connections) = repository
+    return acquire_connection(connections, db)
 end
 
 """
     release_connection(repository::Repository, con)
 
-Release connection `con` to the pool `repository.pool`
+Release connection `con` to the pool `repository.connections`.
 """
-release_connection(repository::Repository, con) = release(repository.pool, con)
+release_connection(repository::Repository, con) = release_connection(repository.connections, con)
+
+"""
+    drain_connections!(repository::Repository)
+
+Make existing connections from the pool `repository.connections` no longer reusable.
+"""
+drain_connections!(repository::Repository) = drain_connections!(repository.connections)
 
 """
     with_connection(f, repository::Repository, [N])

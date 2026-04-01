@@ -2,7 +2,9 @@ module DuckDBUtils
 
 export Batches
 
-export Repository, acquire_connection, release_connection, with_connection, with_table
+export Repository, with_table
+
+export acquire_connection, release_connection, drain_connections!, with_connection
 
 export get_catalog
 
@@ -29,7 +31,7 @@ using DuckDB: DuckDB,
     close
 
 using DBInterface: DBInterface
-using ConcurrentUtilities: Pool, acquire, release
+using ConcurrentUtilities: Pool, acquire, release, drain!, Pools
 using Tables: Tables
 using OrderedCollections: OrderedDict
 

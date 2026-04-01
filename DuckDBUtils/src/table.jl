@@ -32,7 +32,7 @@ function regularize_args(
 
     catalog = get_catalog(repository; schema)
     query, ps = render_params(catalog, node, params)
-    return regularize_args(repository, query, ps, name; schema)
+    return regularize_args(repository, query, ps, name; schema = nothing)
 end
 
 function regularize_args(
@@ -54,7 +54,26 @@ function regularize_args(
         schema = nothing
     )
 
+    isnothing(schema) || @warn "Schema will be ignored when `query` is a SQL string"
     return repository, query, params, name
+end
+
+# TODO: consider this split
+function _replace_table(
+        repository::Repository, query::AbstractString, params::Params, name::AbstractString;
+        schema = nothing, virtual::Bool = false
+    )
+
+    sql = string(
+        "CREATE OR REPLACE",
+        " ",
+        virtual ? "VIEW" : "TABLE",
+        " ",
+        in_schema(name, schema),
+        " AS\n",
+        query
+    )
+    return DBInterface.execute(Returns(nothing), repository, sql, params)
 end
 
 """
@@ -78,17 +97,7 @@ function replace_table(args...; schema = nothing, virtual::Bool = false)
 
     repository, query, params, name = regularize_args(args...; schema)
 
-    sql = string(
-        "CREATE OR REPLACE",
-        " ",
-        virtual ? "VIEW" : "TABLE",
-        " ",
-        in_schema(name, schema),
-        " AS\n",
-        query
-    )
-
-    return DBInterface.execute(Returns(nothing), repository, sql, params)
+    return replace_table(repository, query, params, name; schema, virtual)
 end
 
 to_nrow(x) = only(x).Count
@@ -108,7 +117,6 @@ optional parameters `params` in schema `schema` in `repository.db`.
 """
 function export_table end
 
-# TODO: test table export
 function export_table(args...; schema = nothing, options...)
     repository, query, params, path = regularize_args(args...; schema)
     option_strs = [string(k, " ", v) for (k, v) in pairs(options)]
@@ -169,7 +177,7 @@ function load_table(repository::Repository, table, name::AbstractString; schema 
     tempname = string(uuid4())
     # Temporarily register table in order to load it
     with_connection(con -> register_table(con, table, tempname), repository)
-    replace_table(repository, string("FROM \"", tempname, "\";"), name; schema)
+    _replace_table(repository, string("FROM \"", tempname, "\";"), NamedTuple(), name; schema)
     return with_connection(con -> unregister_table(con, tempname), repository)
 end
 

@@ -82,8 +82,8 @@ end
         with_table(r, x; schema = "schm") do name
             DuckDBUtils.export_table(r, From(name), path1; schema = "schm")
             DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2)
-            @show read(path1, String) == "x,y\n1,a\n2,b\n3,c\n"
-            @show read(path2, String) == "x,y\n1,a\n2,b\n3,c\n"
+            read(path1, String) == "x,y\n1,a\n2,b\n3,c\n"
+            read(path2, String) == "x,y\n1,a\n2,b\n3,c\n"
             @test_warn "Schema will be ignored" DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2; schema = "schm")
         end
     end

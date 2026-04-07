@@ -87,33 +87,42 @@ function with_connection(f, repository::Repository, N = Val{1}())
 end
 
 """
-    get_catalog(repository::Repository; schema = nothing)
+    get_catalog(repository::Repository; schema::Union{AbstractString, Nothing} = nothing)
 
 Extract the catalog of available tables from a `Repository` `repository`.
 """
-function get_catalog(repository::Repository; schema = nothing)
+function get_catalog(repository::Repository; schema::Union{AbstractString, Nothing} = nothing)
     return with_connection(repository) do con
         reflect(con; dialect = :duckdb, schema)
     end
 end
 
-function DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, params = (;))
+function DBInterface.execute(
+        f::Base.Callable, repository::Repository,
+        sql::AbstractString, params = NamedTuple()
+    )
     return with_connection(repository) do con
         DBInterface.execute(f, con, sql, params)
     end
 end
 
 """
-    render_params(catalog::SQLCatalog, node::SQLNode, params = (;))
+    render_params(catalog::SQLCatalog, node::SQLNode, params = NamedTuple())
 
 Return query string and parameter list from query expressed as `node`.
 """
-function render_params(catalog::SQLCatalog, node::SQLNode, params = (;))
+function render_params(catalog::SQLCatalog, node::SQLNode, params = NamedTuple())
     sql = render(catalog, node)
     return String(sql), pack(sql, params)
 end
 
-function DBInterface.execute(f::Base.Callable, repository::Repository, node::SQLNode, params = (;); schema = nothing)
+function DBInterface.execute(
+        f::Base.Callable,
+        repository::Repository,
+        node::SQLNode,
+        params = NamedTuple();
+        schema::Union{AbstractString, Nothing} = nothing
+    )
     catalog = get_catalog(repository; schema)
     q, ps = render_params(catalog, node, params)
     return DBInterface.execute(f, repository, q, ps)

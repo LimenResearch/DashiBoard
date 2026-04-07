@@ -18,6 +18,7 @@ public load_table, delete_table, replace_table, export_table
 
 public render_params, in_schema
 
+using Base: front
 using UUIDs: uuid4
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, LIT
 using DuckDB: DuckDB,

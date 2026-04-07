@@ -1,9 +1,3 @@
-const UnnamedParams = Union{Tuple, AbstractVector}
-const NamedParams = Union{NamedTuple, AbstractDict}
-const Params = Union{NamedParams, UnnamedParams}
-
-in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
-
 """
     in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})
 
@@ -18,39 +12,35 @@ julia> print(in_schema("tbl", "schm"))
 "schm"."tbl"
 ```
 """
+function in_schema end
+
+in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
+
 function in_schema(name::AbstractString, schema::AbstractString)
     return string("\"", schema, "\".\"", name, "\"")
 end
 
 function regularize(
-        repository::Repository, query::AbstractString, params::Params;
-        schema::Union{AbstractString, Nothing} = nothing,
-        warn::Bool = true
-    )
-
-    warn && !isnothing(schema) && @warn "Schema will be ignored when `query` is a SQL string"
-    return repository, query, params
-end
-
-function regularize(
         repository::Repository,
-        node::SQLNode,
-        params::NamedParams;
+        node::Union{AbstractString, SQLNode},
+        params::Params = NamedTuple();
         schema::Union{AbstractString, Nothing} = nothing,
         warn::Bool = true
     )
 
-    catalog = get_catalog(repository; schema)
-    query, ps = render_params(catalog, node, params)
+    query, ps = if node isa AbstractString
+        if warn && !isnothing(schema)
+            @warn "Schema will be ignored when `query` is a SQL string"
+        end
+        node, params
+    else
+        if !isa(params, NamedParams)
+            throw(ArgumentError("Named parameters are required when `node::SQLNode`"))
+        end
+        catalog = get_catalog(repository; schema)
+        render_params(catalog, node, params)
+    end
     return repository, query, ps
-end
-
-function regularize(
-        repository::Repository, query::Union{AbstractString, SQLNode};
-        schema::Union{AbstractString, Nothing} = nothing,
-        warn::Bool = true
-    )
-    return regularize(repository, query, NamedTuple(); schema, warn)
 end
 
 """

@@ -67,6 +67,12 @@ end
     @test tbl4.a == [2]
     @test tbl4.b == ["b"]
 
+    @test_throws ArgumentError DuckDBUtils.replace_table(r, From("tbl"), [], "tbl2"; schema = "schm")
+    DuckDBUtils.replace_table(r, From("tbl"), "tbl2"; schema = "schm")
+    tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl2;")
+    @test tbl.a == x.a
+    @test tbl.b == x.b
+
     DuckDBUtils.delete_table(r, "tbl"; schema = "schm")
     @test_throws DuckDB.QueryException DBInterface.execute(Tables.columntable, r, "FROM schm.tbl;")
 end

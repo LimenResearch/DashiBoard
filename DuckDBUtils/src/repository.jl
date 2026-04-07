@@ -1,3 +1,7 @@
+const UnnamedParams = Union{Tuple, AbstractVector}
+const NamedParams = Union{NamedTuple, AbstractDict}
+const Params = Union{NamedParams, UnnamedParams}
+
 struct Connections
     pool::Pool{Nothing, DuckDB.Connection}
     Connections(limit::Integer = 4096) = new(Pool{Nothing, DuckDB.Connection}(Int(limit)))
@@ -107,11 +111,11 @@ function DBInterface.execute(
 end
 
 """
-    render_params(catalog::SQLCatalog, node::SQLNode, params = NamedTuple())
+    render_params(catalog::SQLCatalog, node::SQLNode, params::Union{NamedTuple, AbstractDict} = NamedTuple())
 
 Return query string and parameter list from query expressed as `node`.
 """
-function render_params(catalog::SQLCatalog, node::SQLNode, params = NamedTuple())
+function render_params(catalog::SQLCatalog, node::SQLNode, params::NamedParams = NamedTuple())
     sql = render(catalog, node)
     return String(sql), pack(sql, params)
 end

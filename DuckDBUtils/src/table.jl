@@ -45,6 +45,8 @@ end
 
 to_nrow(x) = only(x).Count
 
+create_table_summary(x) = (; Count = to_nrow(x))
+
 """
     replace_table(
         repository::Repository,
@@ -76,8 +78,7 @@ function replace_table(args...; schema::Union{AbstractString, Nothing} = nothing
         " AS\n",
         query
     )
-    nrows = DBInterface.execute(to_nrow, repository, sql, params)
-    return (; Count = nrows)
+    return DBInterface.execute(create_table_summary, repository, sql, params)
 end
 
 """
@@ -93,8 +94,6 @@ end
 Export to `path` (with options `options`) the result of a given `query` with
 optional parameters `params` in schema `schema` in `repository.db`.
 """
-function export_table end
-
 function export_table(args...; schema::Union{AbstractString, Nothing} = nothing, options...)
     path::AbstractString = last(args)
     repository, query, params = regularize(front(args)...; schema, warn = true)
@@ -111,8 +110,7 @@ function export_table(args...; schema::Union{AbstractString, Nothing} = nothing,
         print(io, ";")
     end
 
-    nrows = DBInterface.execute(to_nrow, repository, sql, params)
-    return (; Count = nrows)
+    return DBInterface.execute(create_table_summary, repository, sql, params)
 end
 
 """

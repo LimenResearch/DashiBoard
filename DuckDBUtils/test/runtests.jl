@@ -38,6 +38,26 @@ end
     release_connection(r, con4)
 end
 
+@testset "utils" begin
+    r = Repository()
+    n = DBInterface.execute(
+        DuckDBUtils.to_nrow,
+        r,
+        """
+        CREATE TABLE t1 AS (SELECT 1 AS x, 2 AS j);
+        """
+    )
+    @test n == 1
+
+    res = DBInterface.execute(
+        DuckDBUtils.create_table_summary,
+        r,
+        """
+        CREATE TABLE t2 AS (SELECT 1 AS x, 2 AS j);
+        """
+    )
+    @test res == (; Count = 1)
+end
 
 @testset "load and delete tables" begin
     r = Repository()

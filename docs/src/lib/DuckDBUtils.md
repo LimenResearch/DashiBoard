@@ -11,6 +11,7 @@ Repository
 get_catalog
 acquire_connection
 release_connection
+drain_connections!
 with_connection
 render_params
 to_sql
@@ -24,6 +25,7 @@ replace_table
 export_table
 delete_table
 with_table
+with_view
 colnames
 ```
 

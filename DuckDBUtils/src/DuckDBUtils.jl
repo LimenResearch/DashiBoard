@@ -2,7 +2,9 @@ module DuckDBUtils
 
 export Batches
 
-export Repository, acquire_connection, release_connection, with_connection, with_table
+export Repository
+
+export acquire_connection, release_connection, drain_connections!, with_connection
 
 export get_catalog
 
@@ -12,10 +14,11 @@ public Appender, append, end_row, close
 
 public colnames, to_sql, to_nrow
 
-public load_table, delete_table, replace_table, export_table
+public load_table, delete_table, replace_table, export_table, with_table, with_view
 
 public render_params, in_schema
 
+using Base: front
 using UUIDs: uuid4
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, LIT
 using DuckDB: DuckDB,
@@ -29,7 +32,7 @@ using DuckDB: DuckDB,
     close
 
 using DBInterface: DBInterface
-using ConcurrentUtilities: Pool, acquire, release
+using ConcurrentUtilities: Pool, acquire, release, drain!, Pools
 using Tables: Tables
 using OrderedCollections: OrderedDict
 

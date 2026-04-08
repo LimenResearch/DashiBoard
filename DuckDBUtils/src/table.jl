@@ -1,9 +1,3 @@
-const UnnamedParams = Union{Tuple, AbstractVector}
-const NamedParams = Union{NamedTuple, AbstractDict}
-const Params = Union{NamedParams, UnnamedParams}
-
-in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
-
 """
     in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})
 
@@ -18,44 +12,40 @@ julia> print(in_schema("tbl", "schm"))
 "schm"."tbl"
 ```
 """
+function in_schema end
+
+in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
+
 function in_schema(name::AbstractString, schema::AbstractString)
     return string("\"", schema, "\".\"", name, "\"")
 end
 
-function regularize_args(
+function regularize(
         repository::Repository,
-        node::SQLNode,
-        params::NamedParams,
-        name::AbstractString;
-        schema = nothing
+        node::Union{AbstractString, SQLNode},
+        params::Params = NamedTuple();
+        schema::Union{AbstractString, Nothing} = nothing,
+        warn::Bool = true
     )
 
-    catalog = get_catalog(repository; schema)
-    query, ps = render_params(catalog, node, params)
-    return regularize_args(repository, query, ps, name; schema)
+    query, ps = if node isa AbstractString
+        if warn && !isnothing(schema)
+            @warn "Schema will be ignored when `query` is a SQL string"
+        end
+        node, params
+    else
+        if !isa(params, NamedParams)
+            throw(ArgumentError("Named parameters are required when `node::SQLNode`"))
+        end
+        catalog = get_catalog(repository; schema)
+        render_params(catalog, node, params)
+    end
+    return repository, query, ps
 end
 
-function regularize_args(
-        repository::Repository,
-        query::Union{AbstractString, SQLNode},
-        name::AbstractString;
-        schema = nothing
-    )
+to_nrow(x) = only(x).Count
 
-    params = NamedTuple()
-    return regularize_args(repository, query, params, name; schema)
-end
-
-function regularize_args(
-        repository::Repository,
-        query::AbstractString,
-        params::Params,
-        name::AbstractString;
-        schema = nothing
-    )
-
-    return repository, query, params, name
-end
+create_table_summary(x) = (; Count = to_nrow(x))
 
 """
     replace_table(
@@ -63,7 +53,7 @@ end
         query::Union{AbstractString, SQLNode}
         [params,]
         name::AbstractString;
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false
     )
 
@@ -71,13 +61,14 @@ Replace table `name` in schema `schema` in `repository.db` with the result of a 
 `query` with optional parameters `params`.
 
 Use `virtual = true` to replace a view instead of a table.
+
+!!! note
+    If `query` is an `AbstractString`, the `schema` does not apply to the `query`, only to the `name`.
+    If `query` is a `SQLNode`, the `schema` appplies both to the `query` and the `name`.
 """
-function replace_table end
-
-function replace_table(args...; schema = nothing, virtual::Bool = false)
-
-    repository, query, params, name = regularize_args(args...; schema)
-
+function replace_table(args...; schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false)
+    name::AbstractString = last(args)
+    repository, query, params = regularize(front(args)...; schema, warn = false)
     sql = string(
         "CREATE OR REPLACE",
         " ",
@@ -87,11 +78,8 @@ function replace_table(args...; schema = nothing, virtual::Bool = false)
         " AS\n",
         query
     )
-
-    return DBInterface.execute(Returns(nothing), repository, sql, params)
+    return DBInterface.execute(create_table_summary, repository, sql, params)
 end
-
-to_nrow(x) = only(x).Count
 
 """
     export_table(
@@ -99,18 +87,17 @@ to_nrow(x) = only(x).Count
         query::Union{AbstractString, SQLNode}
         [params,]
         path::AbstractString;
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         options...
     )
 
 Export to `path` (with options `options`) the result of a given `query` with
 optional parameters `params` in schema `schema` in `repository.db`.
 """
-function export_table end
+function export_table(args...; schema::Union{AbstractString, Nothing} = nothing, options...)
+    path::AbstractString = last(args)
+    repository, query, params = regularize(front(args)...; schema, warn = true)
 
-# TODO: test table export
-function export_table(args...; schema = nothing, options...)
-    repository, query, params, path = regularize_args(args...; schema)
     option_strs = [string(k, " ", v) for (k, v) in pairs(options)]
 
     sql = sprint() do io
@@ -123,14 +110,14 @@ function export_table(args...; schema = nothing, options...)
         print(io, ";")
     end
 
-    return DBInterface.execute(to_nrow, repository, sql, params)
+    return DBInterface.execute(create_table_summary, repository, sql, params)
 end
 
 """
     delete_table(
         repository::Repository,
         name::AbstractString;
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false
     )
 
@@ -141,7 +128,7 @@ Use `virtual = true` to delete a view instead of a table.
 function delete_table(
         repository::Repository,
         name::AbstractString;
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false
     )
 
@@ -156,30 +143,51 @@ function delete_table(
 end
 
 """
+    with_view(f, repository::Repository, table)
+
+Register a table under a random unique name `name`, apply `f(name)`, and then
+unregister the table.
+
+!!! note
+    Currently passing a non-default `schema` is not supported in `with_view`.
+"""
+function with_view(f, repository::Repository, table)
+    name = string(uuid4())
+    # Temporarily register table
+    with_connection(con -> register_table(con, table, name), repository)
+    return try
+        f(name)
+    finally
+        with_connection(con -> unregister_table(con, name), repository)
+    end
+end
+
+"""
     load_table(
         repository::Repository,
         table,
         name::AbstractString;
-        schema = nothing
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
 Load a Julia table `table` as `name` in schema `schema` in `repository.db`.
 """
-function load_table(repository::Repository, table, name::AbstractString; schema = nothing)
-    tempname = string(uuid4())
-    # Temporarily register table in order to load it
-    with_connection(con -> register_table(con, table, tempname), repository)
-    replace_table(repository, string("FROM \"", tempname, "\";"), name; schema)
-    return with_connection(con -> unregister_table(con, tempname), repository)
+function load_table(
+        repository::Repository, table, name::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+    return with_view(repository, table) do tempname
+        replace_table(repository, string("FROM \"", tempname, "\";"), name; schema)
+    end
 end
 
 """
-    with_table(f, repository::Repository, table; schema = nothing)
+    with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
 
-Register a table under a random unique name `name`, apply `f(name)`, and then
-unregister the table.
+Load a table under a random unique name `name`, apply `f(name)`, and then
+delete the table.
 """
-function with_table(f, repository::Repository, table; schema = nothing)
+function with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
     name = string(uuid4())
     load_table(repository, table, name; schema)
     return try
@@ -190,11 +198,14 @@ function with_table(f, repository::Repository, table; schema = nothing)
 end
 
 """
-    colnames(repository::Repository, table::AbstractString; schema = nothing)
+    colnames(repository::Repository, table::AbstractString; schema::Union{AbstractString, Nothing} = nothing)
 
 Return list of columns for a given table.
 """
-function colnames(repository::Repository, table::AbstractString; schema = nothing)
+function colnames(
+        repository::Repository, table::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
     catalog = get_catalog(repository; schema)
     return String[string(k) for (k, _) in catalog[table]]
 end

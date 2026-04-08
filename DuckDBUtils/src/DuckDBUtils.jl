@@ -2,7 +2,7 @@ module DuckDBUtils
 
 export Batches
 
-export Repository, with_table
+export Repository
 
 export acquire_connection, release_connection, drain_connections!, with_connection
 
@@ -14,7 +14,7 @@ public Appender, append, end_row, close
 
 public colnames, to_sql, to_nrow
 
-public load_table, delete_table, replace_table, export_table
+public load_table, delete_table, replace_table, export_table, with_table, with_view
 
 public render_params, in_schema
 

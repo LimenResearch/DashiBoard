@@ -44,7 +44,8 @@ end
     DBInterface.execute(Returns(nothing), r, "CREATE SCHEMA IF NOT EXISTS \"schm\";")
 
     x = (a = 1:3, b = ["a", "b", "c"])
-    DuckDBUtils.load_table(r, x, "tbl"; schema = "schm")
+    res = DuckDBUtils.load_table(r, x, "tbl"; schema = "schm")
+    @test res == (; Count = 3)
     @test DuckDBUtils.colnames(r, "tbl"; schema = "schm") == ["a", "b"]
 
     tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl;")
@@ -68,7 +69,8 @@ end
     @test tbl4.b == ["b"]
 
     @test_throws ArgumentError DuckDBUtils.replace_table(r, From("tbl"), [], "tbl2"; schema = "schm")
-    DuckDBUtils.replace_table(r, From("tbl"), "tbl2"; schema = "schm")
+    res = DuckDBUtils.replace_table(r, From("tbl"), "tbl2"; schema = "schm")
+    @test res == (; Count = 3)
     tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl2;")
     @test tbl.a == x.a
     @test tbl.b == x.b
@@ -85,9 +87,11 @@ end
         path1 = joinpath(dir, "table1.csv")
         path2 = joinpath(dir, "table2.csv")
         x = (x = 1:3, y = ["a", "b", "c"])
-        with_table(r, x; schema = "schm") do name
-            DuckDBUtils.export_table(r, From(name), path1; schema = "schm")
-            DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2)
+        DuckDBUtils.with_table(r, x; schema = "schm") do name
+            res1 = DuckDBUtils.export_table(r, From(name), path1; schema = "schm")
+            res2 = DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2)
+            @test res1 == (; Count = 3)
+            @test res2 == (; Count = 3)
             read(path1, String) == "x,y\n1,a\n2,b\n3,c\n"
             read(path2, String) == "x,y\n1,a\n2,b\n3,c\n"
             @test_warn "Schema will be ignored" DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2; schema = "schm")

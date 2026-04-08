@@ -43,6 +43,8 @@ function regularize(
     return repository, query, ps
 end
 
+to_nrow(x) = only(x).Count
+
 """
     replace_table(
         repository::Repository,
@@ -74,10 +76,9 @@ function replace_table(args...; schema::Union{AbstractString, Nothing} = nothing
         " AS\n",
         query
     )
-    return DBInterface.execute(Returns(nothing), repository, sql, params)
+    nrows = DBInterface.execute(to_nrow, repository, sql, params)
+    return (; Count = nrows)
 end
-
-to_nrow(x) = only(x).Count
 
 """
     export_table(
@@ -110,7 +111,8 @@ function export_table(args...; schema::Union{AbstractString, Nothing} = nothing,
         print(io, ";")
     end
 
-    return DBInterface.execute(to_nrow, repository, sql, params)
+    nrows = DBInterface.execute(to_nrow, repository, sql, params)
+    return (; Count = nrows)
 end
 
 """
@@ -143,6 +145,26 @@ function delete_table(
 end
 
 """
+    with_view(f, repository::Repository, table)
+
+Register a table under a random unique name `name`, apply `f(name)`, and then
+unregister the table.
+
+!!! note
+    Currently passing a non-default `schema` is not supported in `with_view`.
+"""
+function with_view(f, repository::Repository, table)
+    name = string(uuid4())
+    # Temporarily register table
+    with_connection(con -> register_table(con, table, name), repository)
+    return try
+        f(name)
+    finally
+        with_connection(con -> unregister_table(con, name), repository)
+    end
+end
+
+"""
     load_table(
         repository::Repository,
         table,
@@ -156,22 +178,16 @@ function load_table(
         repository::Repository, table, name::AbstractString;
         schema::Union{AbstractString, Nothing} = nothing
     )
-    tempname = string(uuid4())
-    # Temporarily register table in order to load it
-    with_connection(con -> register_table(con, table, tempname), repository)
-    try
+    return with_view(repository, table) do tempname
         replace_table(repository, string("FROM \"", tempname, "\";"), name; schema)
-    finally
-        with_connection(con -> unregister_table(con, tempname), repository)
     end
-    return
 end
 
 """
     with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
 
-Register a table under a random unique name `name`, apply `f(name)`, and then
-unregister the table.
+Load a table under a random unique name `name`, apply `f(name)`, and then
+delete the table.
 """
 function with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
     name = string(uuid4())

@@ -25,6 +25,7 @@ replace_table
 export_table
 delete_table
 with_table
+with_view
 colnames
 ```
 

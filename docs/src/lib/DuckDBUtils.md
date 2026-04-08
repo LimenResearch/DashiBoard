@@ -11,7 +11,7 @@ Repository
 get_catalog
 acquire_connection
 release_connection
-drain_conections!
+drain_connections!
 with_connection
 render_params
 to_sql

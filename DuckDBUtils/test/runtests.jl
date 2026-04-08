@@ -1,5 +1,6 @@
 using DuckDB, DuckDBUtils, DBInterface, Tables
 using FunSQL: From, Where, Get, Var
+using OrderedCollections: OrderedDict
 using Test
 
 @testset "show" begin
@@ -119,4 +120,33 @@ end
     end
 end
 
-# TODO: test Batches
+@testset "batches" begin
+    r = Repository()
+    nrows = 1000
+    batchsize = 32
+    tbl = (x = rand(Int, nrows), y = rand(nrows))
+    DuckDBUtils.load_table(r, tbl, "tbl")
+    with_connection(r) do con
+        result = DBInterface.execute(con, "FROM tbl", DuckDB.StreamResult)
+        batches = Batches(result, batchsize, nrows)
+        ps = Iterators.partition(1:nrows, batchsize)
+        N = length(ps)
+        @test length(batches) == N
+        @test size(batches) == (N,)
+        l = Any[]
+        for (batch, idxs) in zip(batches, ps)
+            @test batch[:x] == tbl.x[idxs]
+            @test batch[:y] == tbl.y[idxs]
+            push!(l, batch)
+        end
+        @test length(l) == N
+        @test eltype(batches) == OrderedDict{Symbol, Vector}
+        s = sprint(show, batches)
+        T = typeof(Tables.partitions(result))
+        expected = """
+        Batches{$(T), (:x, :y), Tuple{Union{Missing, Int64}, Union{Missing, Float64}}}(batchsize = 32, nrows = 1000)
+        """
+        @test s == chomp(expected)
+        DBInterface.close!(result)
+    end
+end

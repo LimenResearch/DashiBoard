@@ -69,7 +69,14 @@ function Batches(tbl, batchsize::Integer, nrows::Integer)
     return Batches(chunks, schema, batchsize, nrows)
 end
 
-function Base.eltype(::Type{Batches{T}}) where {T}
+function Base.show(io::IO, batches::T) where {T <: Batches}
+    print(io, T, "(")
+    print(io, "batchsize = ", batches.batchsize, ", ")
+    print(io, "nrows = ", batches.nrows, ")")
+    return
+end
+
+function Base.eltype(::Type{<:Batches})
     return OrderedDict{Symbol, Vector}
 end
 

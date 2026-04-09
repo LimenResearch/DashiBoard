@@ -275,7 +275,7 @@ end
 Overload this method (replacing `Card` with a specific card type)
 to implement a default report for a given card type.
 """
-report(::Repository, ::Card, ::CardState) = nothing
+report(::Repository, ::Card, ::CardState) = StringDict()
 
 """
     visualize(repository::Repository, nodes::AbstractVector)

@@ -23,7 +23,6 @@ function first_not_in!(s::AbstractSet{<:Integer}, n::Integer; limit::Integer = 4
     return idxs
 end
 
-# TODO: consider adding `drain_numbers!` to interface
 function acquire_numbers(d::MultiDict, k::AbstractString, n::Integer = 1)
     return @lock d.lock begin
         taken = get!(() -> Set{Int}(), d.dict, k)

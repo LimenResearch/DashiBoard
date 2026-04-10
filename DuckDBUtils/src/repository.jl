@@ -193,13 +193,6 @@ function DuckDB.unregister_table(r::Repository, name::AbstractString)
 end
 
 """
-    to_sql(x)
-
-Convert a julia value `x` to its SQL representation.
-"""
-to_sql(x) = render(LIT(x))
-
-"""
     with_table_names(
         f, r::Repository, n::Integer;
         schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false

@@ -1,4 +1,9 @@
-const DEFAULT_SCHEMA = "main"
+"""
+    to_sql(x)
+
+Convert a julia value `x` to its SQL representation.
+"""
+to_sql(x) = render(LIT(x))
 
 """
     in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})

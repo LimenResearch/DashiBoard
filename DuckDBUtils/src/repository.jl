@@ -7,18 +7,27 @@ const DEFAULT_SCHEMA = "main"
 struct MultiDict
     dict::Dict{String, Set{Int}}
     lock::ReentrantLock
+    limit::Int
 end
 
-MultiDict() = MultiDict(Dict{String, Set{Int}}(), ReentrantLock())
+MultiDict(limit::Integer = 4096) = MultiDict(Dict{String, Set{Int}}(), ReentrantLock(), Int(limit))
 
+# Find first `n` positive integers not in `s`.
+# Append them to `s` and return them.
+# Throw if this would cause `length(s)` to exceed `limit`
+function first_not_in!(s::AbstractSet{<:Integer}, n::Integer; limit::Integer = 4096)
+    L = n + length(s)
+    L > limit && throw(ArgumentError("Too many values were requested"))
+    idxs::Vector{Int} = first(setdiff(1:L, s), n)
+    union!(s, idxs)
+    return idxs
+end
+
+# TODO: consider adding `drain_numbers!` to interface
 function acquire_numbers(d::MultiDict, k::AbstractString, n::Integer = 1)
     return @lock d.lock begin
         taken = get!(() -> Set{Int}(), d.dict, k)
-        iter = Iterators.filter(!in(taken), Iterators.countfrom(1))
-        ns = collect(Int, Iterators.take(iter, n))
-        all(>(0), ns) || throw(OverflowError("Too many numbers were requested"))
-        union!(taken, ns)
-        ns
+        first_not_in!(taken, n)
     end
 end
 
@@ -58,25 +67,26 @@ struct Repository
 end
 
 """
-    Repository(db::DuckDB.DB; limit::Integer = 4096)
+    Repository(db::DuckDB.DB = DuckDB.DB(); limit::Integer = 4096, table_limit::Integer = 4096, view_limit::Integer = 4096)
 
 Construct a `Repository` object that holds a `DuckDB.DB` as well as a pool of
 connections.
 
 The keyword argument `limit` denotes the maximum number of simultaneous connections to the database.
 
+A repository reserves tables of the form `_table_{number}` (with number in `1..table_limit`)
+and views of the form `_view_{number}` (with number in `1..view_limit`) as temporary helpers for computations.
+
 Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
 to run a function on the result of a query `sql` on an available connection in the pool.
-
-!!! note
-    A repository also reserves tables of the form `_table_{number}` and views of the form `_view_{number}`
-    as temporary helpers for computations.
 """
-Repository(db::DuckDB.DB; limit::Integer = 4096) = Repository(db, Connections(limit), MultiDict(), MultiDict())
+function Repository(db::DuckDB.DB = DuckDB.DB(); limit::Integer = 4096, table_limit::Integer = 4096, view_limit::Integer = 4096)
+    return Repository(db, Connections(limit), MultiDict(table_limit), MultiDict(view_limit))
+end
 
-Repository(path::AbstractString; limit::Integer = 4096) = Repository(DuckDB.DB(path); limit)
-
-Repository(; limit::Integer = 4096) = Repository(DuckDB.DB(); limit)
+function Repository(path::AbstractString; limit::Integer = 4096, table_limit::Integer = 4096, view_limit::Integer = 4096)
+    return Repository(DuckDB.DB(path); limit, table_limit, view_limit)
+end
 
 function Base.show(io::IO, repository::Repository)
     print(io, "Repository(")

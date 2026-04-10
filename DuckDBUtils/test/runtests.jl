@@ -39,6 +39,19 @@ end
     release_connection(r, con4)
 end
 
+@testset "multidict" begin
+    s = Set([1, 3, 4, 7])
+    idxs = DuckDBUtils.first_not_in!(s, 5)
+    @test idxs == [2, 5, 6, 8, 9]
+    @test issetequal(s, 1:9)
+    s = Set([1, 3, 4, 7])
+    idxs = DuckDBUtils.first_not_in!(s, 2)
+    @test idxs == [2, 5]
+    @test issetequal(s, [1, 2, 3, 4, 5, 7])
+    s = Set([1, 3, 4, 7])
+    @test_throws ArgumentError DuckDBUtils.first_not_in!(s, 4095)
+end
+
 @testset "utils" begin
     r = Repository()
     n = DBInterface.execute(

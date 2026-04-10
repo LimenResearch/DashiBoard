@@ -13,6 +13,8 @@ acquire_connection
 release_connection
 drain_connections!
 with_connection
+with_table_name
+with_table_names
 render_params
 to_sql
 ```

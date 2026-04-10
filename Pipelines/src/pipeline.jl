@@ -76,18 +76,20 @@ function evaljoin_many(
     )
     n = length(nodes)
     outputs = get_outputs.(nodes)
-    tmp_names = join_names.(string(uuid4()), 1:n)
     id_vars = new_name.("id", outputs)
 
-    try
-        Threads.@threads for i in 1:n
-            evaluate(repository, nodes[i], source => tmp_names[i], id_vars[i]; schema)
-        end
-        q = join_on_row_number(source, tmp_names, id_vars, outputs)
-        replace_table(repository, q, destination; schema)
-    finally
-        for tmp in tmp_names
-            delete_table(repository, tmp; schema)
+    with_table_names(repository, n; schema) do tmp_names
+        try
+            # TODO: improve scheduling
+            Threads.@threads for i in 1:n
+                evaluate(repository, nodes[i], source => tmp_names[i], id_vars[i]; schema)
+            end
+            q = join_on_row_number(source, tmp_names, id_vars, outputs)
+            replace_table(repository, q, destination; schema)
+        finally
+            for tmp in tmp_names
+                delete_table(repository, tmp; schema)
+            end
         end
     end
     return

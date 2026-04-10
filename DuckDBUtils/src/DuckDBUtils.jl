@@ -16,10 +16,11 @@ public colnames, to_sql, to_nrow
 
 public load_table, delete_table, replace_table, export_table, with_table, with_view
 
+public with_table_name, with_table_names
+
 public render_params, in_schema
 
-using Base: front
-using UUIDs: uuid4
+using Base: front, Fix1, Fix2
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, LIT
 using DuckDB: DuckDB,
     register_table,

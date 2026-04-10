@@ -1,3 +1,5 @@
+const DEFAULT_SCHEMA = "main"
+
 """
     in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})
 
@@ -145,20 +147,21 @@ end
 """
     with_view(f, repository::Repository, table)
 
-Register a table under a random unique name `name`, apply `f(name)`, and then
-unregister the table.
+Register `table` under an automatically generated name `name`, apply `f(name)`,
+and then unregister the table.
 
 !!! note
     Currently passing a non-default `schema` is not supported in `with_view`.
 """
 function with_view(f, repository::Repository, table)
-    name = string(uuid4())
-    # Temporarily register table
-    with_connection(con -> register_table(con, table, name), repository)
-    return try
-        f(name)
-    finally
-        with_connection(con -> unregister_table(con, name), repository)
+    return with_table_name(repository, virtual = true) do name
+        # Temporarily register table
+        register_table(repository, table, name)
+        try
+            f(name)
+        finally
+            unregister_table(repository, name)
+        end
     end
 end
 
@@ -184,16 +187,17 @@ end
 """
     with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
 
-Load a table under a random unique name `name`, apply `f(name)`, and then
-delete the table.
+Load `table` under an automatically generated name `name`, apply `f(name)`,
+and then delete the table.
 """
 function with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
-    name = string(uuid4())
-    load_table(repository, table, name; schema)
-    return try
-        f(name)
-    finally
-        delete_table(repository, name; schema)
+    return with_table_name(repository; schema) do name
+        load_table(repository, table, name; schema)
+        try
+            f(name)
+        finally
+            delete_table(repository, name; schema)
+        end
     end
 end
 

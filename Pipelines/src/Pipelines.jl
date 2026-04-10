@@ -29,8 +29,6 @@ public apply_helpers
 using Base: Fix1, Fix2
 using Base.ScopedValues: ScopedValue
 
-using UUIDs: uuid4
-
 using TOML: parsefile
 using RelocatableFolders: @path
 
@@ -52,6 +50,7 @@ using DuckDBUtils: DuckDBUtils,
     load_table,
     replace_table,
     delete_table,
+    with_table_names,
     colnames,
     to_nrow
 

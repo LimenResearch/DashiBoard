@@ -26,7 +26,6 @@ StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
 StructUtils = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
-UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [weakdeps]
 AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
@@ -63,5 +62,4 @@ StatsModels = "0.7.4"
 StructUtils = "2.0.3"
 TOML = "1.0.3"
 Tables = "1.12.0"
-UUIDs = "1.11.0"
 julia = "1.11"

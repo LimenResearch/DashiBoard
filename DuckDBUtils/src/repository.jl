@@ -2,9 +2,44 @@ const UnnamedParams = Union{Tuple, AbstractVector}
 const NamedParams = Union{NamedTuple, AbstractDict}
 const Params = Union{NamedParams, UnnamedParams}
 
+const DEFAULT_SCHEMA = "main"
+
+struct MultiDict
+    dict::Dict{String, Set{Int}}
+    lock::ReentrantLock
+end
+
+MultiDict() = MultiDict(Dict{String, Set{Int}}(), ReentrantLock())
+
+function acquire_numbers(d::MultiDict, k::AbstractString, n::Integer = 1)
+    return @lock d.lock begin
+        taken = get!(() -> Set{Int}(), d.dict, k)
+        iter = Iterators.filter(!in(taken), Iterators.countfrom(1))
+        ns = collect(Int, Iterators.take(iter, n))
+        all(>(0), ns) || throw(OverflowError("Too many numbers were requested"))
+        union!(taken, ns)
+        ns
+    end
+end
+
+function release_numbers(d::MultiDict, k::AbstractString, is::AbstractVector)
+    @lock d.lock begin
+        taken = d.dict[k]
+        setdiff!(taken, is)
+    end
+    return
+end
+
 struct Connections
     pool::Pool{Nothing, DuckDB.Connection}
-    Connections(limit::Integer = 4096) = new(Pool{Nothing, DuckDB.Connection}(Int(limit)))
+    tables::MultiDict
+    views::MultiDict
+    function Connections(limit::Integer = 4096)
+        pool = Pool{Nothing, DuckDB.Connection}(Int(limit))
+        tables = MultiDict()
+        views = MultiDict()
+        return new(pool, tables, views)
+    end
 end
 
 function Base.show(io::IO, connections::Connections)
@@ -37,6 +72,10 @@ The keyword argument `limit` denotes the maximum number of simultaneous connecti
 
 Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
 to run a function on the result of a query `sql` on an available connection in the pool.
+
+!!! note
+    A repository also reserves tables of the form `_table_{number}` and views of the form `_view_{number}`
+    as temporary helpers for computations.
 """
 Repository(db::DuckDB.DB; limit::Integer = 4096) = Repository(db, Connections(limit))
 
@@ -132,9 +171,66 @@ function DBInterface.execute(
     return DBInterface.execute(f, repository, q, ps)
 end
 
+function DuckDB.register_table(r::Repository, tbl, name::AbstractString)
+    return with_connection(con -> register_table(con, tbl, name), r)
+end
+
+function DuckDB.unregister_table(r::Repository, name::AbstractString)
+    return with_connection(con -> unregister_table(con, name), r)
+end
+
 """
     to_sql(x)
 
 Convert a julia value `x` to its SQL representation.
 """
 to_sql(x) = render(LIT(x))
+
+"""
+    with_table_names(
+        f, r::Repository, n::Integer;
+        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+    )
+
+Reserve `n` table names within `schema`, call `f` using as argument the list of names,
+then unreserve the table names.
+
+Use `virtual = true` to reserve names for SQL views rather than tables.
+
+See also [`with_table_name`](@ref).
+"""
+function with_table_names(
+        f, r::Repository, n::Integer;
+        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+    )
+    prefix = virtual ? "view" : "table"
+    d = virtual ? r.connections.views : r.connections.tables
+    key = something(schema, DEFAULT_SCHEMA)
+    is = acquire_numbers(d, key, n)
+    return try
+        names = string.("_", prefix, "_", is)
+        f(names)
+    finally
+        release_numbers(d, key, is)
+    end
+end
+
+"""
+    with_table_name(
+        f, r::Repository;
+        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+    )
+
+Reserve a table name within `schema`, call `f` using as that name as argument,
+then unreserve the table name.
+
+Use `virtual = true` to reserve a name for a SQL view rather than a table.
+
+See also [`with_table_names`](@ref).
+"""
+function with_table_name(
+        f, r::Repository;
+        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+    )
+    return with_table_names(f ∘ only, r, 1; schema, virtual)
+end

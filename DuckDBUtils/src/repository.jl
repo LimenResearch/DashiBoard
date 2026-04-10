@@ -32,14 +32,7 @@ end
 
 struct Connections
     pool::Pool{Nothing, DuckDB.Connection}
-    tables::MultiDict
-    views::MultiDict
-    function Connections(limit::Integer = 4096)
-        pool = Pool{Nothing, DuckDB.Connection}(Int(limit))
-        tables = MultiDict()
-        views = MultiDict()
-        return new(pool, tables, views)
-    end
+    Connections(limit::Integer = 4096) = new(Pool{Nothing, DuckDB.Connection}(Int(limit)))
 end
 
 function Base.show(io::IO, connections::Connections)
@@ -60,6 +53,8 @@ drain_connections!(connections::Connections) = drain!(connections.pool)
 struct Repository
     db::DuckDB.DB
     connections::Connections
+    private_tables::MultiDict
+    private_views::MultiDict
 end
 
 """
@@ -77,11 +72,20 @@ to run a function on the result of a query `sql` on an available connection in t
     A repository also reserves tables of the form `_table_{number}` and views of the form `_view_{number}`
     as temporary helpers for computations.
 """
-Repository(db::DuckDB.DB; limit::Integer = 4096) = Repository(db, Connections(limit))
+Repository(db::DuckDB.DB; limit::Integer = 4096) = Repository(db, Connections(limit), MultiDict(), MultiDict())
 
 Repository(path::AbstractString; limit::Integer = 4096) = Repository(DuckDB.DB(path); limit)
 
 Repository(; limit::Integer = 4096) = Repository(DuckDB.DB(); limit)
+
+function Base.show(io::IO, repository::Repository)
+    print(io, "Repository(")
+    show(io, repository.db)
+    print(io, ", ")
+    show(io, repository.connections)
+    print(io, ")")
+    return
+end
 
 """
     acquire_connection(repository::Repository)
@@ -204,7 +208,7 @@ function with_table_names(
         schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
     )
     prefix = virtual ? "view" : "table"
-    d = virtual ? r.connections.views : r.connections.tables
+    d = virtual ? r.private_views : r.private_tables
     key = something(schema, DEFAULT_SCHEMA)
     is = acquire_numbers(d, key, n)
     return try

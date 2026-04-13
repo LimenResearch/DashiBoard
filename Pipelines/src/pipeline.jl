@@ -36,7 +36,8 @@ function foreach_layer(
         p::Pipeline,
         table::AbstractString,
         keep_vars::Union{AbstractVector, Nothing};
-        schema = nothing
+        schema = nothing,
+        options...
     ) where {F}
 
     keep_vars = @something keep_vars colnames(repository, table; schema)
@@ -51,7 +52,7 @@ function foreach_layer(
     replace_table(repository, q, table; schema)
 
     for idxs in layers
-        f(repository, nodes[idxs], table => table; schema)
+        f(repository, nodes[idxs], table => table; schema, options...)
     end
 
     return p
@@ -60,19 +61,21 @@ end
 ## Parallel computations
 
 function train_many!(
-        repository::Repository, nodes::Union{Tuple, AbstractVector},
-        table::AbstractString; schema = nothing
+        repository::Repository, nodes::Union{Tuple, AbstractVector}, table::AbstractString;
+        schema = nothing, train_callback = Returns(nothing), ntasks::Integer = Threads.threadpoolsize()
     )
     n = length(nodes)
-    Threads.@threads for i in 1:n
-        train!(repository, nodes[i], table; schema)
+    Threads.foreach(to_channel(1:n); ntasks) do i
+        node = nodes[i]
+        train!(repository, node, table; schema)
+        train_callback(node)
     end
     return
 end
 
 function evaljoin_many(
-        repository::Repository, nodes::Union{Tuple, AbstractVector},
-        (source, destination)::Pair; schema = nothing
+        repository::Repository, nodes::Union{Tuple, AbstractVector}, (source, destination)::Pair;
+        schema = nothing, eval_callback = Returns(nothing), ntasks::Integer = Threads.threadpoolsize()
     )
     n = length(nodes)
     outputs = get_outputs.(nodes)
@@ -80,9 +83,10 @@ function evaljoin_many(
 
     with_table_names(repository, n; schema) do tmp_names
         try
-            # TODO: improve scheduling
-            Threads.@threads for i in 1:n
-                evaluate(repository, nodes[i], source => tmp_names[i], id_vars[i]; schema)
+            Threads.foreach(to_channel(1:n); ntasks) do i
+                node, tmp_name, id_var = nodes[i], tmp_names[i], id_vars[i]
+                evaluate(repository, node, source => tmp_name, id_var; schema)
+                eval_callback(node, tmp_name)
             end
             q = join_on_row_number(source, tmp_names, id_vars, outputs)
             replace_table(repository, q, destination; schema)
@@ -96,11 +100,12 @@ function evaljoin_many(
 end
 
 function train_evaljoin_many!(
-        repository::Repository, nodes::Union{Tuple, AbstractVector},
-        (source, destination)::Pair; schema = nothing
+        repository::Repository, nodes::Union{Tuple, AbstractVector}, (source, destination)::Pair;
+        schema = nothing, train_callback = Returns(nothing), eval_callback = Returns(nothing),
+        ntasks::Integer = Threads.threadpoolsize()
     )
-    train_many!(repository, nodes, source; schema)
-    evaljoin_many(repository, nodes, source => destination; schema)
+    train_many!(repository, nodes, source; schema, train_callback, ntasks)
+    evaljoin_many(repository, nodes, source => destination; schema, eval_callback, ntasks)
     return
 end
 
@@ -167,51 +172,52 @@ Return pipeline graph and metadata.
 function train_evaljoin! end
 
 function evaljoin(
-        repository::Repository, node::Node,
-        table_names::Pair; schema = nothing
+        repository::Repository, node::Node, table_names::Pair;
+        schema = nothing, options...
     )
-    evaljoin_many(repository, (node,), table_names; schema)
+    evaljoin_many(repository, (node,), table_names; schema, options...)
     return
 end
 
 function evaljoin(
         repository::Repository, nodes::AbstractVector{Node},
         table::AbstractString, keep_vars::Union{AbstractVector, Nothing} = nothing;
-        schema = nothing
+        schema = nothing, options...
     )
     p = Pipeline(nodes, train = false)
-    return evaljoin(repository, p, table, keep_vars; schema)
+    return evaljoin(repository, p, table, keep_vars; schema, options...)
 end
 
 function evaljoin(
         repository::Repository, p::Pipeline,
         table::AbstractString, keep_vars::Union{AbstractVector, Nothing} = nothing;
-        schema = nothing
+        schema = nothing, options...
     )
-    return foreach_layer(evaljoin_many, repository, p, table, keep_vars; schema)
+    # TODO: here and in `train_evaljoin!` consider different scheduling
+    return foreach_layer(evaljoin_many, repository, p, table, keep_vars; schema, options...)
 end
 
 function train_evaljoin!(
-        repository::Repository, node::Node,
-        table_names::Pair; schema = nothing
+        repository::Repository, node::Node, table_names::Pair;
+        schema = nothing, options...
     )
-    train_evaljoin_many!(repository, (node,), table_names; schema)
+    train_evaljoin_many!(repository, (node,), table_names; schema, options...)
     return
 end
 
 function train_evaljoin!(
         repository::Repository, nodes::AbstractVector{Node},
         table::AbstractString, keep_vars::Union{AbstractVector, Nothing} = nothing;
-        schema = nothing
+        schema = nothing, options...
     )
     p = Pipeline(nodes, train = true)
-    return train_evaljoin!(repository, p, table, keep_vars; schema)
+    return train_evaljoin!(repository, p, table, keep_vars; schema, options...)
 end
 
 function train_evaljoin!(
         repository::Repository, p::Pipeline,
         table::AbstractString, keep_vars::Union{AbstractString, Nothing} = nothing;
-        schema = nothing
+        schema = nothing, options...
     )
-    return foreach_layer(train_evaljoin_many!, repository, p, table, keep_vars; schema)
+    return foreach_layer(train_evaljoin_many!, repository, p, table, keep_vars; schema, options...)
 end

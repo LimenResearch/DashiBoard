@@ -24,3 +24,13 @@ end
 _predict(m::RegressionModel, X::AbstractMatrix) = predict(m, X)
 
 _predict(m::MDS, X::AbstractMatrix) = stack(Fix1(vec ∘ predict, m), eachcol(X))
+
+# Multithreading utils
+
+putmany!(ch::Channel, iter) = foreach(Fix1(put!, ch), iter)
+
+function to_channel(iter)
+    n = length(iter)
+    T = eltype(iter)
+    return Channel{T}(ch -> putmany!(ch, iter), n, spawn = true)
+end

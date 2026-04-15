@@ -30,7 +30,7 @@ graphviz(io::IO, p::Pipeline) = graphviz(io, p.enriched_digraph, p.nodes)
 
 function foreach_layer(
         f::F, repository::Repository, p::Pipeline, table::AbstractString;
-        schema = nothing, options...
+        schema::Union{AbstractString, Nothing} = nothing, options...
     ) where {F}
 
     (; nodes, layers) = p
@@ -45,39 +45,50 @@ end
 ## Parallel computations
 
 function train_many!(
-        repository::Repository, nodes::Union{Tuple, AbstractVector}, table::AbstractString;
-        schema = nothing, train_callback = Returns(nothing), ntasks::Integer = Threads.threadpoolsize()
+        repository::Repository, nodes::Union{Tuple, AbstractVector}, tbl::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing,
+        train_callback = Returns(nothing),
+        ntasks::Integer = Threads.threadpoolsize()
     )
     n = length(nodes)
     Threads.foreach(to_channel(1:n); ntasks) do i
         node = nodes[i]
-        train!(repository, node, table; schema)
+        train!(repository, node, tbl; schema)
         train_callback(node)
     end
     return
 end
 
+function _evaljoin(
+        repository::Repository, node::Node, (src, dst)::Pair,
+        tmp_name::AbstractString, lock::Union{AbstractLock, Nothing} = nothing;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+    output = get_outputs(node)
+    id_var = new_name("id", output)
+    evaluate(repository, notrain(node), src => tmp_name, id_var; schema)
+    q = join_on_row_number(src, tmp_name, id_var, output)
+    if isnothing(lock)
+        replace_table(repository, q, dst; schema)
+    else
+        @lock lock replace_table(repository, q, dst; schema)
+    end
+    return id_var, output
+end
+
 function evaljoin_many(
         repository::Repository, nodes::Union{Tuple, AbstractVector}, tbl::AbstractString;
-        schema = nothing, eval_callback = Returns(nothing),
+        schema::Union{AbstractString, Nothing} = nothing, eval_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
     )
     n = length(nodes)
-    outputs = get_outputs.(nodes)
-    id_vars = new_name.("id", outputs)
-    l = ReentrantLock()
+    lock = ReentrantLock()
 
     with_table_names(repository, n; schema) do tmp_names
         Threads.foreach(to_channel(1:n); ntasks) do i
-            node, tmp_name, id_var, output = nodes[i], tmp_names[i], id_vars[i], outputs[i]
-            try
-                evaluate(repository, node, tbl => tmp_name, id_var; schema)
-                q = join_on_row_number(tbl, tmp_name, id_var, output)
-                @lock l replace_table(repository, q, tbl; schema)
-                eval_callback(node)
-            finally
-                @lock l delete_table(repository, tmp_name)
-            end
+            node, tmp_name = nodes[i], tmp_names[i]
+            _, output = _evaljoin(repository, node, tbl => tbl, tmp_name, lock; schema)
+            eval_callback(node, output)
         end
     end
 
@@ -86,7 +97,8 @@ end
 
 function train_evaljoin_many!(
         repository::Repository, nodes::Union{Tuple, AbstractVector}, tbl::AbstractString;
-        schema = nothing, train_callback = Returns(nothing), eval_callback = Returns(nothing),
+        schema::Union{AbstractString, Nothing} = nothing,
+        train_callback = Returns(nothing), eval_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
     )
     train_many!(repository, nodes, tbl; schema, train_callback, ntasks)
@@ -101,7 +113,7 @@ end
         repository::Repository,
         nodes::AbstractVector,
         table::AbstractString;
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         eval_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
     )
@@ -118,10 +130,9 @@ the transformations in `nodes`, _without training the nodes_.
 The resulting outputs of the pipeline are joined with the original columns.
 
 If only a `node` is provided, then one should pass both source and destination tables.
+If a list of nodes is provided, return pipeline graph and metadata.
 
 See also [`train!`](@ref), [`train_evaljoin!`](@ref).
-
-Return pipeline graph and metadata.
 """
 function evaljoin end
 
@@ -130,7 +141,7 @@ function evaljoin end
         repository::Repository,
         nodes::AbstractVector,
         table::AbstractString;
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         train_callback = Returns(nothing),
         eval_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
@@ -148,29 +159,25 @@ the transformations in `nodes`, _after having trained the nodes_.
 The resulting outputs of the pipeline are joined with the original columns.
 
 If only a `node` is provided, then one should pass both source and destination tables.
+If a list of nodes is provided, return pipeline graph and metadata.
 
 See also [`train!`](@ref), [`evaljoin`](@ref).
-
-Return pipeline graph and metadata.
 """
 function train_evaljoin! end
 
 function evaljoin(
-        repository::Repository, node::Node, (src, dst)::Pair; schema = nothing
+        repository::Repository, node::Node, (src, dst)::Pair;
+        schema::Union{AbstractString, Nothing} = nothing
     )
     with_table_name(repository; schema) do tmp_name
-        output = get_outputs(node)
-        id_var = new_name("id", output)
-        evaluate(repository, notrain(node), src => tmp_name, id_var; schema)
-        q = join_on_row_number(src, tmp_name, id_var, output)
-        replace_table(repository, q, dst; schema)
+        _evaljoin(repository, node, src => dst, tmp_name; schema)
     end
     return
 end
 
 function evaljoin(
         repository::Repository, nodes::AbstractVector{Node}, table::AbstractString;
-        schema = nothing, options...
+        schema::Union{AbstractString, Nothing} = nothing, options...
     )
     p = Pipeline(nodes, train = false)
     return evaljoin(repository, p, table; schema, options...)
@@ -178,7 +185,7 @@ end
 
 function evaljoin(
         repository::Repository, p::Pipeline, table::AbstractString;
-        schema = nothing, options...
+        schema::Union{AbstractString, Nothing} = nothing, options...
     )
     # TODO: here and in `train_evaljoin!` consider different scheduling
     return foreach_layer(evaljoin_many, repository, p, table; schema, options...)
@@ -194,7 +201,7 @@ end
 
 function train_evaljoin!(
         repository::Repository, nodes::AbstractVector{Node}, table::AbstractString;
-        schema = nothing, options...
+        schema::Union{AbstractString, Nothing} = nothing, options...
     )
     p = Pipeline(nodes, train = true)
     return train_evaljoin!(repository, p, table; schema, options...)
@@ -202,7 +209,7 @@ end
 
 function train_evaljoin!(
         repository::Repository, p::Pipeline, table::AbstractString;
-        schema = nothing, options...
+        schema::Union{AbstractString, Nothing} = nothing, options...
     )
     return foreach_layer(train_evaljoin_many!, repository, p, table; schema, options...)
 end

@@ -26,7 +26,7 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 public apply_helpers
 
-using Base: Fix1, Fix2
+using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
 
 using TOML: parsefile

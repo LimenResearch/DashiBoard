@@ -18,20 +18,54 @@ function new_name(c::AbstractString, cols...)
     return first(Iterators.dropwhile(in(used_names), candidates))
 end
 
-function join_on_row_number(
-        from::SQLNode, t::AbstractString,
-        id_var::AbstractString, sel::AbstractVector
+function get_colspecs(
+        repository::Repository, t::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
     )
-    return from |>
-        Partition() |>
-        LeftJoin(t => From(t), on = Agg.row_number() .== Get(id_var, over = Get(t))) |>
-        Define(args = sel .=> Get.(sel, over = Get(t))) |>
-        Order(Agg.row_number())
+
+    return DBInterface.execute(repository, "DESCRIBE $(in_schema(t, schema));") do res
+        d = Dict{String, String}()
+        for row in Tables.rows(res)
+            (; column_name, column_type) = row
+            d[column_name] = string("\"", column_name, "\" ", column_type)
+        end
+        return d
+    end
 end
 
 function join_on_row_number(
-        orig::AbstractString, t::AbstractString,
-        id_var::AbstractString, sel::AbstractVector
+        repository::Repository,
+        orig::AbstractString, t::AbstractString, id_var::AbstractString, sel::AbstractVector;
+        schema::Union{AbstractString, Nothing} = nothing
     )
-    return join_on_row_number(From(orig), t, id_var, sel)
+
+    isempty(sel) && return
+
+    specs = get_colspecs(repository, t; schema)
+    exists = colnames(repository, orig; schema)
+    alter = [
+        "ALTER TABLE $(in_schema(orig, schema)) ADD COLUMN $(specs[k]);"
+            for k in setdiff(sel, exists)
+    ]
+
+    with_table_names(repository, 2, cleanup = false) do (original, extra)
+        ALTERATIONS = join(alter, "\n")
+        COLUMNS = join(string.("\"", sel, "\""), ", ")
+        UPDATES = join(string.("\"", sel, "\"", " = ", "\"", extra, "\".\"", sel, "\""), ", ")
+        DuckDBUtils.query(
+            Returns(nothing),
+            repository,
+            # TODO: use `row_number` instead!
+            """
+            BEGIN TRANSACTION;
+            $(ALTERATIONS);
+            UPDATE $(in_schema(orig, schema)) AS "$(original)"
+                SET $(UPDATES)
+                FROM $(in_schema(t, schema)) AS "$(extra)"
+                WHERE "$(extra)"."$(id_var)" = "$(original)"."rowid" + 1;
+            COMMIT;
+            """
+        )
+    end
+    return
 end

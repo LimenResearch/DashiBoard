@@ -184,6 +184,15 @@ function DBInterface.execute(
     return DBInterface.execute(f, repository, q, ps)
 end
 
+function DuckDB.query(f, r::Repository, sql::AbstractString)
+    res = with_connection(con -> query(con, sql), r)
+    return try
+        f(res)
+    finally
+        DBInterface.close!(res)
+    end
+end
+
 function DuckDB.register_table(r::Repository, tbl, name::AbstractString)
     return with_connection(con -> register_table(con, tbl, name), r)
 end

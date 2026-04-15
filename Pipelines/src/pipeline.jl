@@ -67,11 +67,10 @@ function _evaljoin(
     output = get_outputs(node)
     id_var = new_name("id", output)
     evaluate(repository, notrain(node), src => tmp_name, id_var; schema)
-    q = join_on_row_number(src, tmp_name, id_var, output)
     if isnothing(lock)
-        replace_table(repository, q, dst; schema)
+        join_on_row_number(repository, dst, tmp_name, id_var, output; schema)
     else
-        @lock lock replace_table(repository, q, dst; schema)
+        @lock lock join_on_row_number(repository, dst, tmp_name, id_var, output; schema)
     end
     return id_var, output
 end
@@ -169,6 +168,8 @@ function evaljoin(
         repository::Repository, node::Node, (src, dst)::Pair;
         schema::Union{AbstractString, Nothing} = nothing
     )
+    # TODO: we might wish to make this step customizable
+    replace_table(repository, From(src), dst; schema)
     with_table_name(repository; schema) do tmp_name
         _evaljoin(repository, node, src => dst, tmp_name; schema)
     end

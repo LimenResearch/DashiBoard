@@ -159,13 +159,13 @@ and then unregister the table.
     Currently passing a non-default `schema` is not supported in `with_view`.
 """
 function with_view(f, repository::Repository, table)
-    return with_table_name(repository, virtual = true) do name
+    return with_table_name(repository, virtual = true, cleanup = false) do tmp_name
         # Temporarily register table
-        register_table(repository, table, name)
+        register_table(repository, table, tmp_name)
         try
-            f(name)
+            f(tmp_name)
         finally
-            unregister_table(repository, name)
+            unregister_table(repository, tmp_name)
         end
     end
 end
@@ -196,13 +196,9 @@ Load `table` under an automatically generated name `name`, apply `f(name)`,
 and then delete the table.
 """
 function with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
-    return with_table_name(repository; schema) do name
-        load_table(repository, table, name; schema)
-        try
-            f(name)
-        finally
-            delete_table(repository, name; schema)
-        end
+    return with_table_name(repository; schema) do tmp_name
+        load_table(repository, table, tmp_name; schema)
+        f(tmp_name) # `with_table_name` cleans up automatically
     end
 end
 

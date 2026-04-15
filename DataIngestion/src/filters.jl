@@ -93,7 +93,7 @@ const FILTER_TYPES = Dict(
         repository::Repository,
         filters::AbstractVector,
         (src, tgt)::Pair = "$(TABLE_NAMES.source)" => "$(TABLE_NAMES.selection)";
-        schema = nothing
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
 Create a table with name `tgt` (defaults to "$(TABLE_NAMES.selection)")

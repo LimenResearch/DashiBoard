@@ -26,7 +26,7 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 public apply_helpers
 
-using Base: Fix1, Fix2
+using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
 
 using TOML: parsefile
@@ -50,6 +50,7 @@ using DuckDBUtils: DuckDBUtils,
     load_table,
     replace_table,
     delete_table,
+    with_table_name,
     with_table_names,
     colnames,
     to_nrow

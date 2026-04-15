@@ -195,7 +195,9 @@ end
 """
     with_table_names(
         f, r::Repository, n::Integer;
-        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+        schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
+        cleanup::Bool = true
     )
 
 Reserve `n` table names within `schema`, call `f` using as argument the list of names,
@@ -203,28 +205,35 @@ then unreserve the table names.
 
 Use `virtual = true` to reserve names for SQL views rather than tables.
 
+The tables are automatically deleted if `cleanup = true` (default).
+
 See also [`with_table_name`](@ref).
 """
 function with_table_names(
         f, r::Repository, n::Integer;
-        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+        schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
+        cleanup::Bool = true
     )
     prefix = virtual ? "view" : "table"
     d = virtual ? r.private_views : r.private_tables
     key = something(schema, DEFAULT_SCHEMA)
     is = acquire_numbers(d, key, n)
+    names = string.("_", prefix, "_", is)
     return try
-        names = string.("_", prefix, "_", is)
         f(names)
     finally
         release_numbers(d, key, is)
+        cleanup && foreach(name -> delete_table(r, name; virtual), names)
     end
 end
 
 """
     with_table_name(
         f, r::Repository;
-        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+        schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
+        cleanup::Bool = true
     )
 
 Reserve a table name within `schema`, call `f` using as that name as argument,
@@ -232,11 +241,15 @@ then unreserve the table name.
 
 Use `virtual = true` to reserve a name for a SQL view rather than a table.
 
+The tables are automatically deleted if `cleanup = true` (default).
+
 See also [`with_table_names`](@ref).
 """
 function with_table_name(
         f, r::Repository;
-        schema::Union{AbstractString, Nothing} = nothing, virtual::Bool = false
+        schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
+        cleanup::Bool = true
     )
-    return with_table_names(f ∘ only, r, 1; schema, virtual)
+    return with_table_names(f ∘ only, r, 1; schema, virtual, cleanup)
 end

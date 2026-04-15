@@ -69,7 +69,7 @@ end
         files::AbstractVector{<:AbstractString},
         table = "$(TABLE_NAMES.source)";
         format::AbstractString,
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         union_by_name = true, kwargs...)
     )
 
@@ -90,7 +90,7 @@ function load_files(
         files::AbstractVector{<:AbstractString},
         table::AbstractString = TABLE_NAMES.source;
         format::AbstractString = to_format(first(files)),
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         union_by_name = true,
         kwargs...
     )

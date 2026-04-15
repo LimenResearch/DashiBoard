@@ -18,16 +18,14 @@ function new_name(c::AbstractString, cols...)
     return first(Iterators.dropwhile(in(used_names), candidates))
 end
 
-function join_on_row_number(tbl, id_var, sel)
+function join_on_row_number(from::SQLNode, tbl, id_var, sel)
     cond = Agg.row_number() .== Get(id_var, over = Get(tbl))
-    return LeftJoin(tbl => From(tbl), on = cond) |>
+    return from |>
+        Partition() |>
+        LeftJoin(tbl => From(tbl), on = cond) |>
         Define(args = sel .=> Get.(sel, over = Get(tbl)))
 end
 
-# note: with empty partition, DuckDB preserves order
-function join_on_row_number(tbl, tbls, id_vars, sels)
-    init = From(tbl) |> Partition()
-    q = mapfoldl(splat(join_on_row_number), |>, zip(tbls, id_vars, sels); init)
-    # Preserve initial order in final output
-    return q |> Order(Agg.row_number())
+function join_on_row_number(orig::AbstractString, tbl, id_var, sel)
+    return join_on_row_number(From(orig), tbl, id_var, sel)
 end

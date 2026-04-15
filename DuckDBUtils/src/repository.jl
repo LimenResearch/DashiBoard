@@ -213,11 +213,12 @@ function with_table_names(
     d = virtual ? r.private_views : r.private_tables
     key = something(schema, DEFAULT_SCHEMA)
     is = acquire_numbers(d, key, n)
+    names = string.("_", prefix, "_", is)
     return try
-        names = string.("_", prefix, "_", is)
         f(names)
     finally
         release_numbers(d, key, is)
+        foreach(name -> delete_table(r, name; virtual), names)
     end
 end
 

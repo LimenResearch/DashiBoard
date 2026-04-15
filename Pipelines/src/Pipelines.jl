@@ -50,6 +50,7 @@ using DuckDBUtils: DuckDBUtils,
     load_table,
     replace_table,
     delete_table,
+    with_table_name,
     with_table_names,
     colnames,
     to_nrow

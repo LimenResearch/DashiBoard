@@ -18,14 +18,20 @@ function new_name(c::AbstractString, cols...)
     return first(Iterators.dropwhile(in(used_names), candidates))
 end
 
-function join_on_row_number(from::SQLNode, tbl, id_var, sel)
-    cond = Agg.row_number() .== Get(id_var, over = Get(tbl))
+function join_on_row_number(
+        from::SQLNode, t::AbstractString,
+        id_var::AbstractString, sel::AbstractVector
+    )
     return from |>
         Partition() |>
-        LeftJoin(tbl => From(tbl), on = cond) |>
-        Define(args = sel .=> Get.(sel, over = Get(tbl)))
+        LeftJoin(t => From(t), on = Agg.row_number() .== Get(id_var, over = Get(t))) |>
+        Define(args = sel .=> Get.(sel, over = Get(t))) |>
+        Order(Agg.row_number())
 end
 
-function join_on_row_number(orig::AbstractString, tbl, id_var, sel)
-    return join_on_row_number(From(orig), tbl, id_var, sel)
+function join_on_row_number(
+        orig::AbstractString, t::AbstractString,
+        id_var::AbstractString, sel::AbstractVector
+    )
+    return join_on_row_number(From(orig), t, id_var, sel)
 end

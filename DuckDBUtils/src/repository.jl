@@ -184,6 +184,8 @@ function DBInterface.execute(
     return DBInterface.execute(f, repository, q, ps)
 end
 
+# TODO: test
+# TODO: support rollback
 function DuckDB.query(f, r::Repository, sql::AbstractString)
     res = with_connection(con -> query(con, sql), r)
     return try

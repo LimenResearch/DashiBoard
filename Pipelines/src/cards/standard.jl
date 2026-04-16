@@ -12,22 +12,19 @@ end
 # Implementation of Card methods
 
 function train(
-        repository::Repository, c::StandardCard, source::AbstractString;
+        repository::Repository, c::StandardCard,
+        source::AbstractString, id_var::AbstractString;
         schema = nothing
     )
 
-    id_var = new_name("id", get_inputs(c), get_outputs(c))
     wt_var = weight_var(c)
     q = From(source) |>
-        Partition() |>
-        Define(id_var => Agg.row_number()) |>
         filter_partition(partition_var(c)) |>
         sort_columns(sorting_vars(c)) |>
         select_columns([id_var], input_vars(c), target_vars(c), grouping_vars(c), to_stringlist(wt_var))
 
     t = DBInterface.execute(fromtable, repository, q; schema)
-    id = pop!(t, id_var)
-    model = _train(c, t, id)
+    model = _train(c, t, id_var)
     return CardState(content = jldserialize(model))
 end
 
@@ -41,17 +38,12 @@ function evaluate(
     )
 
     q = From(source) |>
-        Partition() |>
-        Define(id_var => Agg.row_number()) |>
         sort_columns(sorting_vars(c)) |>
         select_columns([id_var], input_vars(c), grouping_vars(c))
     t = DBInterface.execute(fromtable, repository, q; schema)
-    id = pop!(t, id_var)
 
     model = jlddeserialize(state.content)
-    pred_table, new_id = c(model, t, id)
-    pred_table[id_var] = new_id
-
+    pred_table = c(model, t, id_var)
     load_table(repository, pred_table, destination; schema)
     return
 end

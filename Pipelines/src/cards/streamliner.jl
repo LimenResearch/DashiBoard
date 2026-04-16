@@ -120,7 +120,8 @@ output_vars(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
 function train(
         repository::Repository,
         sc::StreamlinerCard,
-        source::AbstractString;
+        source::AbstractString,
+        id_var::AbstractString;
         schema = nothing
     )
 
@@ -128,6 +129,7 @@ function train(
         table = source,
         repository,
         schema,
+        id_var,
         sc.order_by,
         sc.inputs,
         sc.targets,
@@ -178,6 +180,7 @@ function evaluate(
             table = source,
             repository,
             schema,
+            id_var,
             sc.order_by,
             sc.inputs,
             sc.targets,

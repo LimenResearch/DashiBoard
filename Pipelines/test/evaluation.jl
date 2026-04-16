@@ -1,7 +1,12 @@
 @testset "evaluation order" begin
-    _train(wc, t, id) = nothing
-    function _evaluate(wc, model, t, id)
-        return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
+    _train(wc, t, id_var) = nothing
+    function _evaluate(wc, model, t, id_var)
+        id = t[id_var]
+        res = Pipelines.SimpleTable(id_var => id)
+        for k in wc.outputs
+            res[k] = zeros(length(id))
+        end
+        return res
     end
     card_config = CardConfig{WildCard{_train, _evaluate}}(
         key = "trivial",
@@ -44,16 +49,16 @@
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
     repo = Repository()
-    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(temp DOUBLE)")
-    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl2(temp DOUBLE, wind DOUBLE)")
+    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl1(no BIGINT, temp DOUBLE)")
+    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl2(no BIGINT, temp DOUBLE, wind DOUBLE)")
     DBInterface.execute(
         Returns(nothing), repo, """
-        CREATE TABLE tbl3("temp" DOUBLE, "wind" DOUBLE, "pred humid" DOUBLE)
+        CREATE TABLE tbl3("no" BIGINT, "temp" DOUBLE, "wind" DOUBLE, "pred humid" DOUBLE)
         """
     )
-    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl4(temp DOUBLE, wind DOUBLE)")
+    DBInterface.execute(Returns(nothing), repo, "CREATE TABLE tbl4(no BIGINT, temp DOUBLE, wind DOUBLE)")
 
-    @test_throws "wind" Pipelines.train_evaljoin!(repo, nodes, "tbl1")
+    @test_throws "wind" Pipelines.train_evaljoin!(repo, nodes, "tbl1", "no")
 
     (; source_vars, output_vars) = Pipelines.EnrichedDiGraph(nodes)
     @test source_vars == ["temp", "wind"]
@@ -63,7 +68,7 @@
     @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]))
 
     # Test returned value of `Pipelines.train_evaljoin!`
-    p = Pipelines.train_evaljoin!(repo, nodes, "tbl2")
+    p = Pipelines.train_evaljoin!(repo, nodes, "tbl2", "no")
     @test p.nodes == nodes
     for (n1, n2) in zip(nodes, p.nodes)
         @test n1.state === n2.state
@@ -80,13 +85,13 @@
     ]
 
     # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
-    p = Pipelines.train_evaljoin!(repo, nodes, "tbl3")
+    p = Pipelines.train_evaljoin!(repo, nodes, "tbl3", "no")
     @test collect(edges(p.enriched_digraph.g)) == collect(edges(Pipelines.digraph(nodes)))
     @test p.enriched_digraph.source_vars == ["temp", "wind"]
     @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     # original table must supply precomputed variabels
-    @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4")
+    @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4", "no")
 
     g = Pipelines.digraph(nodes)
     hs = Pipelines.compute_height(g, nodes)
@@ -153,7 +158,7 @@ mktempdir() do dir
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cards.json"))
         cards = Pipelines.Card.(d)
         nodes = Node.(cards)
-        Pipelines.train_evaljoin!(repo, nodes, "selection")
+        Pipelines.train_evaljoin!(repo, nodes, "selection", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -166,7 +171,7 @@ mktempdir() do dir
         @test count(==(1), df._percentile_partition) == 39441
         @test count(==(2), df._percentile_partition) == 4383
 
-        Pipelines.evaljoin(repo, nodes, "source")
+        Pipelines.evaljoin(repo, nodes, "source", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM source")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -184,7 +189,7 @@ mktempdir() do dir
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
 
         _node = Node(Pipelines.Card(d["zscore"]))
-        Pipelines.train!(repo, _node, "selection")
+        Pipelines.train!(repo, _node, "selection", "No")
         card, state = get_card(_node), get_state(_node)
 
         node = Pipelines.Node(

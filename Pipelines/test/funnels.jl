@@ -13,12 +13,13 @@
         )
         DataIngestion.load_files(repo, data_dir, spec["data"]; schema)
     end
-    Pipelines.train_evaljoin!(repo, node, "source" => "split"; schema)
+    Pipelines.train_evaljoin!(repo, node, "source" => "split", "No"; schema)
 
     data = Pipelines.DBData{2}(
         repository = repo,
         schema = schema,
         table = "split",
+        id_var = "No",
         order_by = ["No"],
         inputs = ["TEMP", "PRES"],
         targets = ["Iws"],
@@ -99,6 +100,7 @@
         repository = repo,
         schema = schema,
         table = "split",
+        id_var = "No",
         order_by = ["No"],
         inputs = ["TEMP", "PRES"],
         targets = ["cbwd"],

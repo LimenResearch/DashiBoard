@@ -76,18 +76,23 @@ end
     train!(
         repository::Repository,
         node::Node,
-        table::AbstractString;
+        table::AbstractString,
+        id_var::AbstractString;
         schema = nothing
     )
 
-Train `node` on table `table` in `repository`.
+Train `node` on table `table` in `repository` with primary key `id_var`.
 The field `state` of `node` is modified.
 
 See also [`evaljoin`](@ref), [`train_evaljoin!`](@ref).
 """
-function train!(repository::Repository, node::Node, table::AbstractString; schema = nothing)
+function train!(
+        repository::Repository, node::Node,
+        table::AbstractString, id_var::AbstractString;
+        schema = nothing
+    )
     check_inverted_no_train(node)
-    get_train(node) && set_state!(node, train(repository, get_card(node), table; schema))
+    get_train(node) && set_state!(node, train(repository, get_card(node), table, id_var; schema))
     return
 end
 

@@ -2,6 +2,7 @@
     repository::Repository
     schema::Union{String, Nothing}
     table::String
+    id_var::String # TODO: determine if this belong here?
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -76,14 +77,13 @@ end
 
 function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
-    (; repository, schema, order_by, partition) = data
+    (; repository, schema, id_var, order_by, partition) = data
 
     if isnothing(batchsize)
         throw(ArgumentError("Unbatched streaming is not supported."))
     end
 
     nrows = StreamlinerCore.get_nsamples(data, i)
-    id_var = new_name("id", order_by, data.inputs, data.targets, to_stringlist(partition))
 
     return with_connection(repository) do con
         catalog = get_catalog(repository; schema)

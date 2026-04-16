@@ -108,7 +108,7 @@ weight_var(::SplitCard) = nothing
 partition_var(::SplitCard) = nothing
 output_vars(sc::SplitCard) = String[sc.output]
 
-function train(::Repository, ::SplitCard, ::AbstractString; schema = nothing)
+function train(::Repository, ::SplitCard, ::AbstractString, ::AbstractString; schema = nothing)
     return CardState()
 end
 
@@ -120,19 +120,10 @@ function evaluate(
         id_var::AbstractString;
         schema = nothing
     )
-    order_by = Get.(sc.order_by)
-    by = Get.(sc.by)
-    selection = vcat(
-        [id_var => Agg.row_number()],
-        sc.order_by .=> order_by,
-        sc.by .=> by,
-    )
 
     query = From(source) |>
-        Partition() |>
-        Select(args = selection) |>
-        Partition(; order_by, by) |>
-        Select(Get(id_var), sc.output => get_sql(sc.splitter))
+        Partition(; order_by = Get.(sc.order_by), by = Get.(sc.by)) |>
+        Select(id_var => Get(id_var), sc.output => get_sql(sc.splitter))
 
     replace_table(repository, query, destination; schema)
     return

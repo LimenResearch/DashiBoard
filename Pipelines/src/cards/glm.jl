@@ -168,12 +168,12 @@ has_grouping_factor(::Type{GLMCard}) = false
 
 GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
 
-function _train(gc::GLMCard, t, ::Any)
+function _train(gc::GLMCard, t, ::AbstractString)
     weights = get_weights(gc, t, fweights)
     return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
 end
 
-(gc::GLMCard)(model, t, id) = SimpleTable(_output(gc) => predict(model, t)), id
+(gc::GLMCard)(model, t, id_var::AbstractString) = SimpleTable(id_var => t[id_var], _output(gc) => predict(model, t))
 
 const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
@@ -217,13 +217,13 @@ has_grouping_factor(::Type{MixedModelCard}) = true
 
 MixedModelCard(c::AbstractDict) = construct_glm_card(MixedModelCard, c)
 
-function (gc::MixedModelCard)(model, t, id)
+function (gc::MixedModelCard)(model, t, id_var::AbstractString)
     M = modelmatrix(model)
     col = first(eachcol(M))
     # this column is required, see https://github.com/JuliaStats/MixedModels.jl/issues/626
     t[_target(gc)] = zero(col)
     # TODO: understand what to do with new values of grouping variable (in particular, `predict` vs `simulate`)
-    return SimpleTable(_output(gc) => predict(model, t)), id
+    return SimpleTable(id_var => t[id_var], _output(gc) => predict(model, t))
 end
 
 const MIXED_MODEL_CARD_CONFIG = CardConfig{MixedModelCard}(parse_toml_config("config", "mixed_model"))

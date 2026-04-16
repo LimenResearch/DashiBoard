@@ -197,7 +197,10 @@ function pair_wise_group_by(
     return DBInterface.execute(fromtable, repository, query; schema)
 end
 
-function train(repository::Repository, rc::RescaleCard, source::AbstractString; schema = nothing)
+function train(
+        repository::Repository, rc::RescaleCard,
+        source::AbstractString, ::AbstractString; schema = nothing
+    )
     (; by, rescaler) = rc
     (; stats) = rescaler
     tbl = if isempty(stats)
@@ -230,18 +233,15 @@ function evaluate(
     end
 
     stats_tbl = jlddeserialize(state.content)
+    selection = vcat([id_var => Get(id_var)], rescaled)
 
     if isempty(stats)
-        selection = vcat([id_var => Agg.row_number()], rescaled)
-        query = From(source) |> Partition() |> Select(args = selection)
+        query = From(source) |> Select(args = selection)
         replace_table(repository, query, destination; schema)
     else
         with_table(repository, stats_tbl; schema) do tbl_name
             eqs = (.==).(Get.(by), GetStats.(by))
-            selection = vcat([id_var => Get(id_var)], rescaled)
             query = From(source) |>
-                Partition() |>
-                Define(id_var => Agg.row_number()) |>
                 LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Select(args = selection)
             replace_table(repository, query, destination; schema)

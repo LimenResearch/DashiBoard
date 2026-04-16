@@ -25,7 +25,8 @@ Note that the columns of the output table must be exactly the union of
 ## Examples
 
 ```julia
-Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
+Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing # replace with actual trained model
+# Below, `model` will be the output of the `_train` function
 function (wc::WildCard{:trivial})(model, t, id_var)
     id = t[id_var]
     nrows = length(id)

@@ -120,7 +120,8 @@ output_vars(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
 function train(
         repository::Repository,
         sc::StreamlinerCard,
-        source::AbstractString;
+        source::AbstractString,
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 
@@ -128,6 +129,7 @@ function train(
         table = source,
         repository,
         schema,
+        id_var,
         sc.order_by,
         sc.inputs,
         sc.targets,
@@ -157,7 +159,7 @@ function evaluate(
         sc::StreamlinerCard,
         state::CardState,
         (source, destination)::Pair,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 
@@ -166,7 +168,7 @@ function evaluate(
     (; model, training, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)
 
-    mktempdir() do dir
+    return mktempdir() do dir
         path = StreamlinerCore.output_path(dir)
         write(path, state.content)
         uvals = jldopen(path) do file
@@ -178,6 +180,7 @@ function evaluate(
             table = source,
             repository,
             schema,
+            id_var,
             sc.order_by,
             sc.inputs,
             sc.targets,
@@ -187,7 +190,6 @@ function evaluate(
 
         StreamlinerCore.evaluate(dir, model, data, streaming; destination, suffix, id = id_var)
     end
-    return
 end
 
 function report(::Repository, sc::StreamlinerCard, state::CardState)

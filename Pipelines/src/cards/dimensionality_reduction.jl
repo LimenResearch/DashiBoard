@@ -121,21 +121,21 @@ weight_var(::DimensionalityReductionCard) = nothing
 partition_var(drc::DimensionalityReductionCard) = drc.partition
 output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
 
-function _train(drc::DimensionalityReductionCard, t, _)
+function _train(drc::DimensionalityReductionCard, t, ::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), drc.inputs, dims = 1)
     return drc.projector(X, drc.n_components)
 end
 
-function (drc::DimensionalityReductionCard)(model, t, id)
+function (drc::DimensionalityReductionCard)(model, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), drc.inputs, dims = 1)
     Y = _predict(model, X)
     M, N = size(Y)
 
-    pred_table = SimpleTable()
+    pred_table = SimpleTable(id_var => t[id_var])
     for (i, k) in enumerate(output_vars(drc))
         pred_table[k] = i ≤ M ? Y[i, :] : fill(missing, N)
     end
-    return pred_table, id
+    return pred_table
 end
 
 ## UI representation

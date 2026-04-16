@@ -25,8 +25,10 @@ function evaluate_pipeline(stream::HTTP.Stream)
     filters = Filter.(spec["filters"])
     cards = Card.(spec["cards"])
     nodes = Pipelines.Node.(cards)
-    DataIngestion.select(REPOSITORY[], filters)
-    p = Pipelines.train_evaljoin!(REPOSITORY[], nodes, "selection")
+
+    orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
+    DataIngestion.select(REPOSITORY[], filters, orig => "selection")
+    p = Pipelines.train_evaljoin!(REPOSITORY[], nodes, "selection", ID_VAR[])
 
     report = Pipelines.report(REPOSITORY[], nodes)
     vs = Pipelines.visualize(REPOSITORY[], nodes)

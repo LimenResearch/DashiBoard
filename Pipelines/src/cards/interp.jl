@@ -173,7 +173,7 @@ weight_var(::InterpCard) = nothing
 partition_var(ic::InterpCard) = ic.partition
 output_vars(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
-function _train(ic::InterpCard, t, _)
+function _train(ic::InterpCard, t, ::AbstractPrimaryKey)
     (; interpolator, targets, input, partition) = ic
     return map(targets) do target
         y, x = t[target], t[input]
@@ -181,18 +181,18 @@ function _train(ic::InterpCard, t, _)
     end
 end
 
-function (ic::InterpCard)(itps, t, id)
+function (ic::InterpCard)(itps, t, id_var::AbstractPrimaryKey)
     (; targets, input, suffix) = ic
     x = t[input]
 
-    pred_table = SimpleTable()
+    pred_table = SimpleTable(id_var => t[id_var])
     for (itp, target) in zip(itps, targets)
         pred_name = join_names(target, suffix)
         ŷ = similar(x, float(eltype(x)))
         pred_table[pred_name] = itp(ŷ, x)
     end
 
-    return pred_table, id
+    return pred_table
 end
 
 ## UI representation

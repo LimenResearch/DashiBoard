@@ -161,7 +161,7 @@ weight_var(::GaussianEncodingCard) = nothing
 partition_var(::GaussianEncodingCard) = nothing
 output_vars(gec::GaussianEncodingCard) = join_names.(gec.input, gec.suffix, 1:gec.n_components)
 
-function train(::Repository, gec::GaussianEncodingCard, source::AbstractString; schema = nothing)
+function train(::Repository, gec::GaussianEncodingCard, ::AbstractString, ::AbstractPrimaryKey; schema = nothing)
     μs = range(start = 0, step = 1 / gec.n_components, length = gec.n_components)
     σ = step(μs) * gec.lambda
     params = Dict("σ" => [σ], "d" => [gec.temporal_preprocessor.max])
@@ -184,7 +184,7 @@ function evaluate(
         gec::GaussianEncodingCard,
         state::CardState,
         (source, destination)::Pair,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 
@@ -195,18 +195,17 @@ function evaluate(
         v = gaussian_transform(Get.transformed, Get(join_names("μ", i)), Get.σ, Get.d)
         return k => v
     end
-    selection = vcat([id_var => Get(id_var)], converted)
+    selection = vcat([id_var => Get._id], converted)
 
     processed_input = gec.temporal_preprocessor(Get(gec.input))
     with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
-            Partition() |>
-            Select(id_var => Agg.row_number(), "transformed" => processed_input) |>
+            Select("_id" => Get(id_var), "transformed" => processed_input) |>
             Join(From(tbl_name), on = true) |>
             Select(args = selection)
         replace_table(repository, query, destination; schema)
     end
-    return
+    return map(first, converted)
 end
 
 ## UI representation

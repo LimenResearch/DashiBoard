@@ -4,7 +4,7 @@ public launch
 
 using Base: Fix1, Fix2
 
-using Base.ScopedValues: @with
+using Base.ScopedValues: @with, ScopedValue
 
 using HTTP: HTTP, startwrite
 
@@ -21,6 +21,8 @@ using FunSQL: SQLNode,
     Limit,
     Group,
     Select,
+    Define,
+    Partition,
     Agg,
     Order,
     Get,
@@ -39,6 +41,8 @@ const cache_directory() = @get_scratch!("cache")
 
 # TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
+
+const ID_VAR = ScopedValue("_id")
 
 include("settings.jl")
 include("handlers.jl")

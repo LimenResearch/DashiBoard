@@ -111,6 +111,14 @@ end
 
     DuckDBUtils.delete_table(r, "tbl"; schema = "schm")
     @test_throws DuckDB.QueryException DBInterface.execute(Tables.columntable, r, "FROM schm.tbl;")
+
+    DuckDBUtils.query(Returns(nothing), r, "CREATE SCHEMA schm2; CREATE TABLE schm2.tbl(i BIGINT);")
+    ns = DBInterface.execute(res -> map(row -> row.name, res), r, "SHOW TABLES FROM schm2")
+    @test ns == ["tbl"]
+    @test_throws DuckDB.QueryException DuckDBUtils.transaction(r, "CREATE TABLE schm2.tbl;")
+    DuckDBUtils.transaction(r, "CREATE TABLE schm2.tbl2(i BIGINT); CREATE TABLE schm2.tbl3(i BIGINT);")
+    ns = DBInterface.execute(res -> map(row -> row.name, res), r, "SHOW TABLES FROM schm2")
+    @test issetequal(ns, ["tbl", "tbl2", "tbl3"])
 end
 
 @testset "table export" begin

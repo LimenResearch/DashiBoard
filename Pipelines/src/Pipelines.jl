@@ -43,6 +43,7 @@ using DuckDBUtils: DuckDBUtils,
     Repository,
     Batches,
     StreamResult,
+    in_schema,
     render_params,
     get_catalog,
     with_connection,
@@ -64,7 +65,6 @@ using FunSQL: render,
     Fun,
     Get,
     Var,
-    Define,
     Select,
     Order,
     Where,
@@ -137,6 +137,10 @@ using Dates: hour, minute
 
 const StringDict = Dict{String, Any}
 const SymbolDict = Dict{Symbol, Any}
+
+# Alias to potentially support richer primary keys in the future
+const AbstractPrimaryKey = AbstractString
+const PrimaryKey = String
 
 function parse_toml_config(args...)::StringDict
     fs..., l = args

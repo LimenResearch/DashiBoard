@@ -18,7 +18,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["_tiled_partition"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "split")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "split", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -37,7 +37,7 @@ mktempdir() do dir
         ((((ntile(7) OVER ()) - 1) % 3) + 1)) AS \"_tiled_partition\""
         node = Node(card)
 
-        Pipelines.train_evaljoin!(repo, node, "selection" => "split")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "split", "No")
         v1 = DBInterface.execute(DataFrame, repo, "FROM split")._tiled_partition
 
         card = Pipelines.Card(d["tiles3"])
@@ -48,7 +48,7 @@ mktempdir() do dir
         @test str == "SELECT list_extract(list_value(1, 1, 2, 1, 1, 2, 1), \
         ((((ntile(7) OVER ()) - 1) % 7) + 1)) AS \"_tiled_partition\""
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "split")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "split", "No")
         v2 = DBInterface.execute(DataFrame, repo, "FROM split")._tiled_partition
         @test v1 == v2
 
@@ -57,7 +57,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["percentile"])
         node = Node(card)
         @test_throws ArgumentError invert(node)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "split")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "split", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -81,7 +81,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["TEMP_rescaled"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -100,16 +100,16 @@ mktempdir() do dir
             repo,
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT cbwd, TEMP_rescaled FROM rescaled;
+            SELECT No, cbwd, TEMP_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted")
+        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted", "No")
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
         card = Pipelines.Card(d["zscore2"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -127,17 +127,17 @@ mktempdir() do dir
             # Simulate that we have a `PRES_hat_rescaled` column to denormalize
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT TEMP_rescaled AS PRES_rescaled_hat FROM rescaled;
+            SELECT No, TEMP_rescaled AS PRES_rescaled_hat FROM rescaled;
             """
         )
 
-        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted")
+        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted", "No")
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.PRES_hat ≈ @. PRES_mean + df.TEMP_rescaled * PRES_std
 
         card = Pipelines.Card(d["maxabs"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -155,16 +155,16 @@ mktempdir() do dir
             repo,
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT year, month, cbwd, TEMP_rescaled FROM rescaled;
+            SELECT No, year, month, cbwd, TEMP_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted")
+        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted", "No")
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
         card = Pipelines.Card(d["minmax"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -178,16 +178,16 @@ mktempdir() do dir
             repo,
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT TEMP_rescaled FROM rescaled;
+            SELECT No, TEMP_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted")
+        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted", "No")
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.TEMP ≈ df.TEMP
 
         card = Pipelines.Card(d["log"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -200,16 +200,16 @@ mktempdir() do dir
             repo,
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT PRES_rescaled FROM rescaled;
+            SELECT No, PRES_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted")
+        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted", "No")
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.PRES ≈ df.PRES
 
         card = Pipelines.Card(d["logistic"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -222,10 +222,10 @@ mktempdir() do dir
             repo,
             """
             CREATE OR REPLACE TABLE tbl AS
-            SELECT hour_rescaled FROM rescaled;
+            SELECT No, hour_rescaled FROM rescaled;
             """
         )
-        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted")
+        Pipelines.evaljoin(repo, invert(node), "tbl" => "inverted", "No")
         df′ = DBInterface.execute(DataFrame, repo, "FROM inverted")
         @test df′.hour ≈ df.hour
     end
@@ -240,7 +240,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["cluster"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "clustering")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM clustering")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -260,7 +260,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["dbcluster"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "selection" => "clustering")
+        Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM clustering")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -287,7 +287,7 @@ mktempdir() do dir
         )
         part_card = Pipelines.Card(d["partition"])
         part_node = Node(part_card)
-        Pipelines.train_evaljoin!(repo, part_node, "small" => "partition")
+        Pipelines.train_evaljoin!(repo, part_node, "small" => "partition", "No")
 
         card = Pipelines.Card(d["pca"])
 
@@ -296,7 +296,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -318,7 +318,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -346,7 +346,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -374,7 +374,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM dimres")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -400,7 +400,7 @@ mktempdir() do dir
 
         part_card = Pipelines.Card(d["partition"])
         part_node = Node(part_card)
-        Pipelines.train_evaljoin!(repo, part_node, "selection" => "partition")
+        Pipelines.train_evaljoin!(repo, part_node, "selection" => "partition", "No")
 
         card = Pipelines.Card(d["hasPartition"])
         @test !Pipelines.invertible(card)
@@ -409,7 +409,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["TEMP_hat"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "glm")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "glm", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -424,7 +424,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["hasWeights"])
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "glm")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "glm", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM glm")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -438,7 +438,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["isMixed"])
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "mixed_model")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "mixed_model", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM mixed_model")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -451,7 +451,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["isMixedHasWeights"])
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "mixed_model")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "mixed_model", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM mixed_model")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
@@ -468,7 +468,7 @@ mktempdir() do dir
 
         part_card = Pipelines.Card(d["partition"])
         part_node = Node(part_card)
-        Pipelines.train_evaljoin!(repo, part_node, "selection" => "partition")
+        Pipelines.train_evaljoin!(repo, part_node, "selection" => "partition", "No")
 
         card = Pipelines.Card(d["constant"])
         @test !Pipelines.invertible(card)
@@ -477,7 +477,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["TEMP_hat", "PRES_hat"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "interp")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "interp", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
@@ -510,7 +510,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["TEMP_hat", "PRES_hat"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "interp")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "interp", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
         @test names(df) == [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
@@ -612,7 +612,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["identity"])
         node = Node(card)
         @test !Pipelines.invertible(node)
-        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded")
+        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
         gauss_train_test(node)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, node, origin; processing = identity)
@@ -622,7 +622,7 @@ mktempdir() do dir
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["dayofweek"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded")
+        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
         gauss_train_test(node)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, node, origin; processing = x -> dayofweek(x) % 7) # SQL starts from Sunday = 0
@@ -632,7 +632,7 @@ mktempdir() do dir
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["dayofyear"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded")
+        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
         gauss_train_test(node)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, node, origin; processing = dayofyear)
@@ -646,7 +646,7 @@ mktempdir() do dir
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["hour"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded")
+        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
         gauss_train_test(node)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, node, origin; processing = hour)
@@ -656,7 +656,7 @@ mktempdir() do dir
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
         card = Pipelines.Card(d["minute"])
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded")
+        Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
         gauss_train_test(node)
         result = DBInterface.execute(DataFrame, repo, "FROM encoded")
         gauss_evaluate_test(result, node, origin; processing = minute)
@@ -669,7 +669,7 @@ mktempdir() do dir
 
         part_card = Pipelines.Card(d["partition"])
         part_node = Node(part_card)
-        Pipelines.train_evaljoin!(repo, part_node, "selection" => "partition")
+        Pipelines.train_evaljoin!(repo, part_node, "selection" => "partition", "No")
 
         model_dir = joinpath(@__DIR__, "static", "model")
         training_dir = joinpath(@__DIR__, "static", "training")
@@ -685,7 +685,7 @@ mktempdir() do dir
         @test Pipelines.get_outputs(card) == ["Iws_hat"]
 
         node = Node(card)
-        Pipelines.train!(repo, node, "partition")
+        Pipelines.train!(repo, node, "partition", "No")
         state = get_state(node)
         res = state.metadata
         @test res["iteration"] == 4
@@ -695,7 +695,7 @@ mktempdir() do dir
         @test res["trained"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "prediction")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "prediction", "No")
         origin = DBInterface.execute(DataFrame, repo, "FROM partition")
         result = DBInterface.execute(DataFrame, repo, "FROM prediction")
         @test names(result) == [
@@ -714,7 +714,7 @@ mktempdir() do dir
         @test !Pipelines.invertible(card)
 
         node = Node(card)
-        Pipelines.train!(repo, node, "partition")
+        Pipelines.train!(repo, node, "partition", "No")
         state = get_state(node)
         res = state.metadata
         @test res["iteration"] == 4
@@ -724,7 +724,7 @@ mktempdir() do dir
         @test res["trained"]
 
         node = Node(card)
-        Pipelines.train_evaljoin!(repo, node, "partition" => "prediction")
+        Pipelines.train_evaljoin!(repo, node, "partition" => "prediction", "No")
         state = get_state(node)
         origin = DBInterface.execute(DataFrame, repo, "FROM partition")
         result = DBInterface.execute(DataFrame, repo, "FROM prediction")

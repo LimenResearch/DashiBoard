@@ -88,6 +88,13 @@ const FILTER_TYPES = Dict(
     "list" => ListFilter,
 )
 
+function selection_query(filters::AbstractVector)
+    cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
+    params = mapfoldl(get_params, merge!, cs, init = StringDict())
+    pred = Fun.and(Iterators.map(get_pred, cs)...)
+    return Where(pred), params
+end
+
 """
     select(
         repository::Repository,
@@ -101,6 +108,8 @@ within the schema `schema` (defaults to main schema) inside `repository.db`,
 where `repository` is a [`Repository`](@ref).
 The table `tgt` is filled with rows from the table `src` (defaults to "$(TABLE_NAMES.source)")
 that are kept by the filters in `filters`.
+`src` can be either a string, denoting the source table, or a `FunSQL.SQLNode`, in case the filtering
+is to be applied to data computed on the fly.
 
 Each filter should be an instance of [`Filter`](@ref).
 """
@@ -110,9 +119,7 @@ function select(
         (src, tgt)::Pair = TABLE_NAMES.source => TABLE_NAMES.selection;
         schema = nothing
     )
-    cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
-    params = mapfoldl(get_params, merge!, cs, init = StringDict())
-    pred = Fun.and(Iterators.map(get_pred, cs)...)
-    node = From(src) |> Where(pred)
-    return replace_table(repository, node, params, tgt; schema)
+    query, params = selection_query(filters)
+    node = isa(src, SQLNode) ? src : From(src)
+    return replace_table(repository, node |> query, params, tgt; schema)
 end

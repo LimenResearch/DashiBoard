@@ -62,8 +62,7 @@ function _evaljoin(
         schema::Union{AbstractString, Nothing} = nothing,
         lock::Union{AbstractLock, Nothing} = nothing
     )
-    output_names = get_outputs(node) # we might require `evaluate` to return this
-    evaluate(repository, notrain(node), src => tmp_name, id_var; schema)
+    output_names::Vector{String} = evaluate(repository, notrain(node), src => tmp_name, id_var; schema)
     if isnothing(lock)
         join_on_id_var(repository, dst, tmp_name, id_var, output_names; schema)
     else

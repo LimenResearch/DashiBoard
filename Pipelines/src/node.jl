@@ -98,10 +98,9 @@ end
 
 function evaluate(repository::Repository, node::Node, sd::Pair, id_var::AbstractPrimaryKey; schema = nothing)
     card, state = get_card(node), get_state(node)
-    if get_invert(node)
+    return if get_invert(node)
         evaluate(repository, card, state, sd, id_var; schema, invert = true)
     else
         evaluate(repository, card, state, sd, id_var; schema)
     end
-    return
 end

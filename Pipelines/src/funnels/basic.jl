@@ -123,14 +123,15 @@ function append_batch(appender::DuckDBUtils.Appender, id, vs)
     return
 end
 
-function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, destination, id)
+function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix::AbstractString, destination, id)
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
-    tbl = SimpleTable()
-    tbl[id] = Int64[]
-    for k in data.targets
-        T = column_type(k, data.uvals)
-        tbl[join_names(k, suffix)] = T[]
+    output_names = join_names.(data.targets, Ref(suffix))
+    output_types = column_type.(data.targets, Ref(data.uvals))
+
+    tbl = SimpleTable(id => Int64[])
+    for (output_name, output_type) in zip(output_names, output_types)
+        tbl[output_name] = output_type[]
     end
     load_table(data.repository, tbl, destination; data.schema)
 
@@ -140,5 +141,5 @@ function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix, de
         append_batch(appender, batch.id, decode_columns(v, data.targets, data.uvals))
     end
     DuckDBUtils.close(appender)
-    return
+    return output_names
 end

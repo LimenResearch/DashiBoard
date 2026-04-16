@@ -247,7 +247,7 @@ function evaluate(
             replace_table(repository, query, destination; schema)
         end
     end
-    return
+    return map(first, rescaled)
 end
 
 ## UI representation

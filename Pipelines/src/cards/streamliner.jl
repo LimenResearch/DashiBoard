@@ -168,7 +168,7 @@ function evaluate(
     (; model, training, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)
 
-    mktempdir() do dir
+    return mktempdir() do dir
         path = StreamlinerCore.output_path(dir)
         write(path, state.content)
         uvals = jldopen(path) do file
@@ -190,7 +190,6 @@ function evaluate(
 
         StreamlinerCore.evaluate(dir, model, data, streaming; destination, suffix, id = id_var)
     end
-    return
 end
 
 function report(::Repository, sc::StreamlinerCard, state::CardState)

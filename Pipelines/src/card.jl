@@ -255,6 +255,8 @@ The column `id` should be a primarye key of the `source` table.
 The new table `destination` will then also have an additional column `id`,
 to be joined with the column `id` of the original table.
 
+A valid implementation of `evaluate` must return the list of output variables added to `destination`.
+
 Here, `state` represents the result of `train(repository, card, source; schema)`.
 See also [`train`](@ref).
 """

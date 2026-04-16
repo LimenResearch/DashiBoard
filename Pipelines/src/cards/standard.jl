@@ -45,5 +45,6 @@ function evaluate(
     model = jlddeserialize(state.content)
     pred_table = c(model, t, id_var)
     load_table(repository, pred_table, destination; schema)
-    return
+    cols = String[string(k) for k in Tables.columnnames(Tables.columns(pred_table))]
+    return setdiff(cols, [id_var])
 end

@@ -126,7 +126,7 @@ function evaluate(
         Select(id_var => Get(id_var), sc.output => get_sql(sc.splitter))
 
     replace_table(repository, query, destination; schema)
-    return
+    return [sc.output]
 end
 
 ## UI representation

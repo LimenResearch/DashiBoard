@@ -3,6 +3,23 @@ using DashiBoard
 using Test
 using Downloads
 
+# Add trivial card
+Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
+function (wc::WildCard{:trivial})(model, t, id_var)
+    id = t[id_var]
+    nrows = length(id)
+    return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
+end
+card_config = CardConfig{WildCard{:trivial}}(
+    key = "trivial",
+    label = "Trivial",
+    needs_targets = false,
+    needs_order = false,
+    allows_partition = false,
+    allows_weights = false
+)
+Pipelines.register_card(card_config)
+
 mktempdir() do data_dir
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
@@ -31,21 +48,6 @@ mktempdir() do data_dir
     static_directory = joinpath(@__DIR__, "..", "..", "static")
     model_directory = joinpath(static_directory, "model")
     training_directory = joinpath(static_directory, "training")
-
-    # Add trivial card
-    _train(wc, t, id; weights = nothing) = nothing
-    function _evaluate(wc, model, t, id)
-        return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
-    end
-    config = CardConfig{WildCard{_train, _evaluate}}(
-        key = "trivial",
-        label = "Trivial",
-        needs_targets = false,
-        needs_order = false,
-        allows_partition = false,
-        allows_weights = false
-    )
-    Pipelines.register_card(config)
 
     server = DashiBoard.launch(
         data_dir;

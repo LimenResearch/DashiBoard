@@ -1,5 +1,5 @@
 """
-    struct WildCard{train, evaluate} <: Card
+    struct WildCard{T} <: Card
         type::String
         label::String
         order_by::Vector{String}
@@ -11,8 +11,38 @@
     end
 
 Custom `card` that uses arbitrary training and evaluations functions.
+
+Overload the following methods for your custom type or symbol `T`:
+1. `Pipelines._train(wc::WildCard{T}, tbl, id_var)`
+2. `(wc::WildCard{T})(model, tbl, id_var)` (return output table of `model` from input table `tbl` and primary key `id_var` -).
+
+`Pipelines._train(wc::WildCard{T}, tbl, id_var)` trains the card given input table `tbl` and primary key `id_var`  and return a trained `model`.
+`(wc::WildCard{T})(model, tbl, id_var)` returns the output table of `model` from input table `tbl` and primary key `id_var`.
+Note that the columns of the output table must be exactly the union of
+- the primary key `id_var` and
+- the variables in `wc.outputs`.
+
+## Examples
+
+```julia
+Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
+function (wc::WildCard{:trivial})(model, t, id_var)
+    id = t[id_var]
+    nrows = length(id)
+    return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
+end
+card_config = CardConfig{WildCard{:trivial}}(
+    key = "trivial",
+    label = "Trivial",
+    needs_targets = false,
+    needs_order = false,
+    allows_partition = false,
+    allows_weights = false
+)
+Pipelines.register_card(card_config)
+```
 """
-@kwdef struct WildCard{train, evaluate} <: StandardCard
+@kwdef struct WildCard{T} <: StandardCard
     type::String
     label::String
     order_by::Vector{String}
@@ -36,7 +66,7 @@ function get_metadata(wc::WildCard)
     )
 end
 
-function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
+function WildCard{T}(c::AbstractDict) where {T}
     type::String = c["type"]
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
@@ -58,7 +88,7 @@ function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     weights = get(c, "weights", nothing)
     partition = get(c, "partition", nothing)
 
-    return WildCard{train, evaluate}(
+    return WildCard{T}(
         type,
         label,
         order_by,
@@ -81,13 +111,9 @@ weight_var(wc::WildCard) = wc.weights
 partition_var(wc::WildCard) = wc.partition
 output_vars(wc::WildCard) = wc.outputs
 
-_train(wc::WildCard{train}, t, id_var::AbstractPrimaryKey) where {train} = train(wc, t, id_var)
-
-(wc::WildCard{<:Any, evaluate})(model, t, id_var::AbstractPrimaryKey) where {evaluate} = evaluate(wc, model, t, id_var)
-
 ## UI representation
 
-function CardWidget(config::CardConfig{WildCard{train, evaluate}}, c::AbstractDict) where {train, evaluate}
+function CardWidget(config::CardConfig{WildCard{T}}, c::AbstractDict) where {T}
     conditional_fields = Tuple{Widget, Bool}[
         (Widget("order_by", c), config.needs_order),
         (Widget("inputs", c), true),

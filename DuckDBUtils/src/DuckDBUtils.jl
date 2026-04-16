@@ -18,7 +18,7 @@ public load_table, delete_table, replace_table, export_table, with_table, with_v
 
 public with_table_name, with_table_names
 
-public render_params, in_schema, query
+public render_params, in_schema, query, transaction
 
 using Base: front, Fix1, Fix2
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, LIT

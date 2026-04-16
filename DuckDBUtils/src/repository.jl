@@ -184,15 +184,26 @@ function DBInterface.execute(
     return DBInterface.execute(f, repository, q, ps)
 end
 
-# TODO: test
-# TODO: support transactions and rollback
 function DuckDB.query(f, r::Repository, sql::AbstractString)
-    res = with_connection(con -> query(con, sql), r)
-    return try
-        f(res)
-    finally
-        DBInterface.close!(res)
+    return with_connection(r) do con
+        res = query(con, sql)
+        try
+            f(res)
+        finally
+            DBInterface.close!(res)
+        end
     end
+end
+
+function transaction(r::Repository, sql::AbstractString)
+    t = string("BEGIN TRANSACTION;\n", sql, "\nCOMMIT;")
+    try
+        query(Returns(nothing), r, t)
+    catch
+        query(Returns(nothing), r, "ROLLBACK;")
+        rethrow()
+    end
+    return
 end
 
 function DuckDB.register_table(r::Repository, tbl, name::AbstractString)

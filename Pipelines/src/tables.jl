@@ -46,17 +46,14 @@ function join_on_id_var(
         ALTERATIONS = join(alter, "\n")
         COLUMNS = join(string.("\"", sel, "\""), ", ")
         UPDATES = join(string.("\"", sel, "\"", " = ", "\"", extra, "\".\"", sel, "\""), ", ")
-        DuckDBUtils.query(
-            Returns(nothing),
+        DuckDBUtils.transaction(
             repository,
             """
-            BEGIN TRANSACTION;
-            $(ALTERATIONS);
+            $(ALTERATIONS)
             UPDATE $(in_schema(orig, schema)) AS "$(original)"
                 SET $(UPDATES)
                 FROM $(in_schema(t, schema)) AS "$(extra)"
                 WHERE "$(extra)"."$(id_var)" = "$(original)"."$(id_var)";
-            COMMIT;
             """
         )
     end

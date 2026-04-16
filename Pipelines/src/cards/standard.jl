@@ -13,7 +13,7 @@ end
 
 function train(
         repository::Repository, c::StandardCard,
-        source::AbstractString, id_var::AbstractString;
+        source::AbstractString, id_var::AbstractPrimaryKey;
         schema = nothing
     )
 
@@ -33,7 +33,7 @@ function evaluate(
         c::StandardCard,
         state::CardState,
         (source, destination)::Pair,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 

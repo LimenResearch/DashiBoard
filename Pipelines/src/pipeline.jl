@@ -21,16 +21,11 @@ function Pipeline(node_iter; train::Bool = true)
     )
 end
 
-function get_outputs(p::Pipeline, i::Integer)
-    (; g, output_vars) = p.enriched_digraph
-    return output_vars[outneighbors(g, i) .- length(p.nodes)]
-end
-
 graphviz(io::IO, p::Pipeline) = graphviz(io, p.enriched_digraph, p.nodes)
 
 function foreach_layer(
         f::F, repository::Repository, p::Pipeline,
-        tbl::AbstractString, id_var::AbstractString;
+        tbl::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     ) where {F}
 
@@ -47,7 +42,7 @@ end
 
 function train_many!(
         repository::Repository, nodes::Union{Tuple, AbstractVector},
-        tbl::AbstractString, id_var::AbstractString;
+        tbl::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing,
         train_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
@@ -63,30 +58,23 @@ end
 
 function _evaljoin(
         repository::Repository, node::Node, (src, dst)::Pair,
-        tmp_name::AbstractString, id_var::AbstractString,
-        lock::Union{AbstractLock, Nothing} = nothing;
-        schema::Union{AbstractString, Nothing} = nothing
+        tmp_name::AbstractString, id_var::AbstractPrimaryKey;
+        schema::Union{AbstractString, Nothing} = nothing,
+        lock::Union{AbstractLock, Nothing} = nothing
     )
-    input, output = get_inputs(node), get_outputs(node)
-    vars = colnames(repository, src; schema)
-    if !issubset(input, vars) || !in(id_var, vars)
-        @show id_var
-        @show input
-        @show vars
-        throw(ArgumentError("Column not found"))
-    end
+    output_names = get_outputs(node) # we might require `evaluate` to return this
     evaluate(repository, notrain(node), src => tmp_name, id_var; schema)
     if isnothing(lock)
-        join_on_id_var(repository, dst, tmp_name, id_var, output; schema)
+        join_on_id_var(repository, dst, tmp_name, id_var, output_names; schema)
     else
-        @lock lock join_on_id_var(repository, dst, tmp_name, id_var, output; schema)
+        @lock lock join_on_id_var(repository, dst, tmp_name, id_var, output_names; schema)
     end
-    return id_var, output
+    return output_names
 end
 
 function evaljoin_many(
         repository::Repository, nodes::Union{Tuple, AbstractVector},
-        tbl::AbstractString, id_var::AbstractString;
+        tbl::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing,
         eval_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
@@ -97,8 +85,8 @@ function evaljoin_many(
     with_table_names(repository, n; schema) do tmp_names
         Threads.foreach(to_channel(1:n); ntasks) do i
             node, tmp_name = nodes[i], tmp_names[i]
-            _, output = _evaljoin(repository, node, tbl => tbl, tmp_name, id_var, lock; schema)
-            eval_callback(node, output)
+            output_names = _evaljoin(repository, node, tbl => tbl, tmp_name, id_var; schema, lock)
+            eval_callback(node, output_names)
         end
     end
 
@@ -107,7 +95,7 @@ end
 
 function train_evaljoin_many!(
         repository::Repository, nodes::Union{Tuple, AbstractVector},
-        tbl::AbstractString, id_var::AbstractString;
+        tbl::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing,
         train_callback = Returns(nothing), eval_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
@@ -177,7 +165,7 @@ See also [`train!`](@ref), [`evaljoin`](@ref).
 function train_evaljoin! end
 
 function evaljoin(
-        repository::Repository, node::Node, (src, dst)::Pair, id_var::AbstractString;
+        repository::Repository, node::Node, (src, dst)::Pair, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing
     )
     # TODO: we might wish to make this step customizable
@@ -190,7 +178,7 @@ end
 
 function evaljoin(
         repository::Repository, nodes::AbstractVector{Node},
-        table::AbstractString, id_var::AbstractString;
+        table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     )
     p = Pipeline(nodes, train = false)
@@ -199,7 +187,7 @@ end
 
 function evaljoin(
         repository::Repository, p::Pipeline,
-        table::AbstractString, id_var::AbstractString;
+        table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     )
     # TODO: here and in `train_evaljoin!` consider different scheduling
@@ -208,7 +196,7 @@ end
 
 function train_evaljoin!(
         repository::Repository, node::Node,
-        (src, dst)::Pair, id_var::AbstractString;
+        (src, dst)::Pair, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing
     )
     train!(repository, node, src, id_var; schema)
@@ -218,7 +206,7 @@ end
 
 function train_evaljoin!(
         repository::Repository, nodes::AbstractVector{Node},
-        table::AbstractString, id_var::AbstractString;
+        table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     )
     p = Pipeline(nodes, train = true)
@@ -227,7 +215,7 @@ end
 
 function train_evaljoin!(
         repository::Repository, p::Pipeline,
-        table::AbstractString, id_var::AbstractString;
+        table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     )
     return foreach_layer(train_evaljoin_many!, repository, p, table, id_var; schema, options...)

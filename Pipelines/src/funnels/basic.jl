@@ -2,7 +2,7 @@
     repository::Repository
     schema::Union{String, Nothing}
     table::String
-    id_var::String # TODO: determine if this belong here?
+    id_var::PrimaryKey # TODO: determine if this belong here?
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -89,8 +89,6 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(order_by)
         stream_query = From(data.table) |>
-            Partition() |>
-            Define(id_var => Agg.row_number()) |>
             filter_partition(partition, i) |>
             Order(by = sorters)
 

@@ -168,12 +168,12 @@ has_grouping_factor(::Type{GLMCard}) = false
 
 GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
 
-function _train(gc::GLMCard, t, ::AbstractString)
+function _train(gc::GLMCard, t, ::AbstractPrimaryKey)
     weights = get_weights(gc, t, fweights)
     return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
 end
 
-(gc::GLMCard)(model, t, id_var::AbstractString) = SimpleTable(id_var => t[id_var], _output(gc) => predict(model, t))
+(gc::GLMCard)(model, t, id_var::AbstractPrimaryKey) = SimpleTable(id_var => t[id_var], _output(gc) => predict(model, t))
 
 const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
@@ -217,7 +217,7 @@ has_grouping_factor(::Type{MixedModelCard}) = true
 
 MixedModelCard(c::AbstractDict) = construct_glm_card(MixedModelCard, c)
 
-function (gc::MixedModelCard)(model, t, id_var::AbstractString)
+function (gc::MixedModelCard)(model, t, id_var::AbstractPrimaryKey)
     M = modelmatrix(model)
     col = first(eachcol(M))
     # this column is required, see https://github.com/JuliaStats/MixedModels.jl/issues/626

@@ -121,7 +121,7 @@ function train(
         repository::Repository,
         sc::StreamlinerCard,
         source::AbstractString,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 
@@ -159,7 +159,7 @@ function evaluate(
         sc::StreamlinerCard,
         state::CardState,
         (source, destination)::Pair,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 

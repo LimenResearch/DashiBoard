@@ -108,7 +108,7 @@ weight_var(::SplitCard) = nothing
 partition_var(::SplitCard) = nothing
 output_vars(sc::SplitCard) = String[sc.output]
 
-function train(::Repository, ::SplitCard, ::AbstractString, ::AbstractString; schema = nothing)
+function train(::Repository, ::SplitCard, ::AbstractString, ::AbstractPrimaryKey; schema = nothing)
     return CardState()
 end
 
@@ -117,7 +117,7 @@ function evaluate(
         sc::SplitCard,
         ::CardState,
         (source, destination)::Pair,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 

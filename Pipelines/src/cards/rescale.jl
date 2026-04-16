@@ -199,7 +199,7 @@ end
 
 function train(
         repository::Repository, rc::RescaleCard,
-        source::AbstractString, ::AbstractString; schema = nothing
+        source::AbstractString, ::AbstractPrimaryKey; schema = nothing
     )
     (; by, rescaler) = rc
     (; stats) = rescaler
@@ -217,7 +217,7 @@ function evaluate(
         rc::RescaleCard,
         state::CardState,
         (source, destination)::Pair,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing,
         invert::Bool = false
     )

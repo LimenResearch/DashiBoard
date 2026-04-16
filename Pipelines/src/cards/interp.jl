@@ -173,7 +173,7 @@ weight_var(::InterpCard) = nothing
 partition_var(ic::InterpCard) = ic.partition
 output_vars(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
 
-function _train(ic::InterpCard, t, ::AbstractString)
+function _train(ic::InterpCard, t, ::AbstractPrimaryKey)
     (; interpolator, targets, input, partition) = ic
     return map(targets) do target
         y, x = t[target], t[input]
@@ -181,7 +181,7 @@ function _train(ic::InterpCard, t, ::AbstractString)
     end
 end
 
-function (ic::InterpCard)(itps, t, id_var::AbstractString)
+function (ic::InterpCard)(itps, t, id_var::AbstractPrimaryKey)
     (; targets, input, suffix) = ic
     x = t[input]
 

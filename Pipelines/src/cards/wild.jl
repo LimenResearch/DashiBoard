@@ -80,9 +80,9 @@ weight_var(wc::WildCard) = wc.weights
 partition_var(wc::WildCard) = wc.partition
 output_vars(wc::WildCard) = wc.outputs
 
-_train(wc::WildCard{train}, t, id_var::AbstractString) where {train} = train(wc, t, id_var)
+_train(wc::WildCard{train}, t, id_var::AbstractPrimaryKey) where {train} = train(wc, t, id_var)
 
-(wc::WildCard{<:Any, evaluate})(model, t, id_var::AbstractString) where {evaluate} = evaluate(wc, model, t, id_var)
+(wc::WildCard{<:Any, evaluate})(model, t, id_var::AbstractPrimaryKey) where {evaluate} = evaluate(wc, model, t, id_var)
 
 ## UI representation
 

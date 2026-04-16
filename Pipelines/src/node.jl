@@ -77,7 +77,7 @@ end
         repository::Repository,
         node::Node,
         table::AbstractString,
-        id_var::AbstractString;
+        id_var::AbstractPrimaryKey;
         schema = nothing
     )
 
@@ -88,7 +88,7 @@ See also [`evaljoin`](@ref), [`train_evaljoin!`](@ref).
 """
 function train!(
         repository::Repository, node::Node,
-        table::AbstractString, id_var::AbstractString;
+        table::AbstractString, id_var::AbstractPrimaryKey;
         schema = nothing
     )
     check_inverted_no_train(node)
@@ -96,7 +96,7 @@ function train!(
     return
 end
 
-function evaluate(repository::Repository, node::Node, sd::Pair, id_var::AbstractString; schema = nothing)
+function evaluate(repository::Repository, node::Node, sd::Pair, id_var::AbstractPrimaryKey; schema = nothing)
     card, state = get_card(node), get_state(node)
     if get_invert(node)
         evaluate(repository, card, state, sd, id_var; schema, invert = true)

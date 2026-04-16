@@ -30,7 +30,7 @@ end
 function join_on_id_var(
         repository::Repository,
         orig::AbstractString, t::AbstractString,
-        id_var::AbstractString, sel::AbstractVector;
+        id_var::AbstractPrimaryKey, sel::AbstractVector;
         schema::Union{AbstractString, Nothing} = nothing
     )
 

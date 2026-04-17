@@ -1,6 +1,6 @@
 name = "DuckDBUtils"
 uuid = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
-version = "1.0.0"
+version = "2.0.0"
 authors = ["Limen Research", "Mattia G. Bergomi", "Dario Sarra", "Pietro Vertechi"]
 
 [deps]

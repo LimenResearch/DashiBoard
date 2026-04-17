@@ -3,7 +3,7 @@ using DuckDBUtils, DataIngestion, Pipelines, StreamlinerCore
 
 makedocs(
     sitename = "DashiBoard",
-    format = Documenter.HTML(inventory_version = v"1.0.0-DEV"),
+    format = Documenter.HTML(inventory_version = v"2.0.0"),
     modules = [DuckDBUtils, DataIngestion, Pipelines, StreamlinerCore],
     pages = [
         "Overview" => "index.md",

@@ -1,6 +1,6 @@
 name = "Pipelines"
 uuid = "12f58945-0960-453a-85e3-e4614e9748b9"
-version = "1.0.0"
+version = "2.0.0"
 authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
 
 [deps]

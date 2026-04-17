@@ -70,7 +70,7 @@ end
         table = "$(TABLE_NAMES.source)";
         format::AbstractString,
         schema::Union{AbstractString, Nothing} = nothing,
-        union_by_name = true, kwargs...)
+        union_by_name::Bool = true, kwargs...)
     )
 
 Load `files` into a table called `table` (defaults to "$(TABLE_NAMES.source)")
@@ -91,7 +91,7 @@ function load_files(
         table::AbstractString = TABLE_NAMES.source;
         format::AbstractString = to_format(first(files)),
         schema::Union{AbstractString, Nothing} = nothing,
-        union_by_name = true,
+        union_by_name::Bool = true,
         kwargs...
     )
 

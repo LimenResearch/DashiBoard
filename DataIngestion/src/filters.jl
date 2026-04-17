@@ -100,7 +100,8 @@ end
         repository::Repository,
         filters::AbstractVector,
         (src, tgt)::Pair = "$(TABLE_NAMES.source)" => "$(TABLE_NAMES.selection)";
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Union{AbstractString, Nothing} = nothing,
+        transform::Union{SQLNode, typeof(identity)} = identity
     )
 
 Create a table with name `tgt` (defaults to "$(TABLE_NAMES.selection)")
@@ -110,6 +111,8 @@ The table `tgt` is filled with rows from the table `src` (defaults to "$(TABLE_N
 that are kept by the filters in `filters`.
 `src` can be either a string, denoting the source table, or a `FunSQL.SQLNode`, in case the filtering
 is to be applied to data computed on the fly.
+Conversely, you can use `transform` to do further data processing before materializing the query,
+e.g., `transform = FunSQL.Select(FunSQL.Get.col1, FunSQL.Get.col2)`.
 
 Each filter should be an instance of [`Filter`](@ref).
 """
@@ -117,9 +120,10 @@ function select(
         repository::Repository,
         filters::AbstractVector,
         (src, tgt)::Pair = TABLE_NAMES.source => TABLE_NAMES.selection;
-        schema = nothing
+        schema::Union{AbstractString, Nothing} = nothing,
+        transform::Union{SQLNode, typeof(identity)} = identity
     )
     query, params = selection_query(filters)
     node = isa(src, SQLNode) ? src : From(src)
-    return replace_table(repository, node |> query, params, tgt; schema)
+    return replace_table(repository, node |> query |> transform, params, tgt; schema)
 end

@@ -1,6 +1,6 @@
 name = "StreamlinerCore"
 uuid = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
-version = "1.0.0"
+version = "2.0.0"
 authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
 
 [deps]

@@ -49,3 +49,31 @@ end
     d1 = Pipelines.apply_helpers(hs, d, ps, recursive = 0)
     @test d1 == Dict("a" => [1, 2, 3])
 end
+
+@testset "join_on_id_var" begin
+    r = Repository()
+    tbl1 = (x = 1:10, y = rand(10))
+    tbl2 = (x = 1:10, z = rand(10), w = rand(10))
+    DBInterface.execute(Returns(nothing), r, "CREATE SCHEMA schm;")
+    DuckDBUtils.load_table(r, tbl1, "tbl1"; schema = "schm")
+    DuckDBUtils.load_table(r, tbl2, "tbl2"; schema = "schm")
+    Pipelines.join_on_id_var(r, "tbl1", "tbl2", "x", ["z", "w"]; schema = "schm")
+    df = DBInterface.execute(DataFrame, r, From("tbl1") |> Order(Get.x); schema = "schm")
+    @test names(df) == ["x", "y", "z", "w"]
+    @test df.x == 1:10
+    @test df.y == tbl1.y
+    @test df.z == tbl2.z
+    @test df.w == tbl2.w
+end
+
+@testset "fromtable" begin
+    tbl1 = [(x = rand(), y = rand(), z = "a") for _ in 1:10]
+    tbl2 = DataFrame(tbl1)
+    d1 = Pipelines.fromtable(tbl1)
+    d2 = Pipelines.fromtable(tbl2)
+    @test d1 == d2
+    @test collect(keys(d1)) == ["x", "y", "z"]
+    @test d1["x"] == tbl2.x
+    @test d1["y"] == tbl2.y
+    @test d1["z"] == tbl2.z
+end

@@ -36,26 +36,29 @@ function join_on_id_var(
 
     isempty(sel) && return
 
+    original, extra = in_schema(orig, schema), in_schema(t, schema)
+
     specs = get_colspecs(repository, t; schema)
     alter = [
-        "ALTER TABLE $(in_schema(orig, schema)) ADD COLUMN IF NOT EXISTS $(specs[k]);"
+        "ALTER TABLE $(original) ADD COLUMN IF NOT EXISTS $(specs[k]);"
             for k in sel
     ]
 
-    with_table_names(repository, 2, cleanup = false) do (original, extra)
-        ALTERATIONS = join(alter, "\n")
-        COLUMNS = join(string.("\"", sel, "\""), ", ")
-        UPDATES = join(string.("\"", sel, "\"", " = ", "\"", extra, "\".\"", sel, "\""), ", ")
-        DuckDBUtils.transaction(
-            repository,
-            """
-            $(ALTERATIONS)
-            UPDATE $(in_schema(orig, schema)) AS "$(original)"
-                SET $(UPDATES)
-                FROM $(in_schema(t, schema)) AS "$(extra)"
-                WHERE "$(extra)"."$(id_var)" = "$(original)"."$(id_var)";
-            """
-        )
-    end
+    cols = string.("\"", sel, "\"")
+    ALTERATIONS = join(alter, "\n")
+    COLUMNS = join(cols, ", ")
+    UPDATES = join(string.(cols, " = ", extra, ".", cols), ", ")
+
+    DuckDBUtils.transaction(
+        repository,
+        """
+        $(ALTERATIONS)
+        UPDATE $(original)
+            SET $(UPDATES)
+            FROM $(extra)
+            WHERE $(extra).\"$(id_var)\" = $(original).\"$(id_var)\";
+        """
+    )
+
     return
 end

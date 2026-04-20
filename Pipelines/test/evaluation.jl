@@ -37,12 +37,24 @@
         )
     end
 
+    g = Pipelines.digraph(Pipelines.Node[])
+    @test nv(g) == 0
+    @test eltype(g) === Int
+
     nodes = [
         Pipelines.Node(trivialcard(["temp"], "pred humid"), update = true),
         Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
         Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), update = true),
         Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
     ]
+
+    enriched_digraph = Pipelines.EnrichedDiGraph(nodes)
+    @test eltype(enriched_digraph.g) === Int
+    @test nv(enriched_digraph.g) == 10
+    @test enriched_digraph.output_vars == [
+        "pred humid", "pred wind", "pred temp", "wind name",
+    ]
+    @test enriched_digraph.source_vars == ["temp", "wind"]
 
     g = Pipelines.digraph(nodes)[1:8]
     order = topological_sort(g)

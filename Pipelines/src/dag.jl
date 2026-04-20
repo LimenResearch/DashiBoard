@@ -22,26 +22,27 @@ end
 # We generate a graph whose vertices are: `nodes`, `output_vars`, `source_vars`, in this order.
 # Source vars are input vars that are not included in the output of any node.
 function EnrichedDiGraph(nodes::AbstractVector{Node})
-
     # generate variable to index dictionary
     d = Dict{String, Int}()
-    # process outbound edges (we keep non unique ones to later test for repetition)
+    # process `node => output_var` edges
     src_out, tgt_out, output_vars = node_var_pairings!(get_outputs, d, nodes)
-    # process inbound edges
+    # process `input_var => node` edges
     tgt_in, src_in, source_vars = node_var_pairings!(get_inputs, d, nodes)
 
     # validate result
-    n_nodes = length(nodes)
-    repetead_idxs = unique(idx - n_nodes for (i, idx) in enumerate(tgt_out) if idx ≠ n_nodes + i)
-    if !isempty(repetead_idxs)
-        throw(ArgumentError("Columns $(output_vars[repetead_idxs]) would be overwritten"))
+    N = length(nodes)
+    repetead = unique(idx - N for (i, idx) in enumerate(tgt_out) if idx ≠ N + i)
+    if !isempty(repetead)
+        throw(ArgumentError("Columns $(output_vars[repetead]) would be overwritten"))
     end
 
-    # this is fast (it uses counting sort for `Vector` of integers)
-    # and makes digraph generation more efficient (see `DiGraph` docs)
-    p = sortperm(tgt_in)
-    edges = Edge.([src_out; src_in[p]], [tgt_out; tgt_in[p]])
-    g = DiGraph(edges)
+    # `sortperm` here is fast (it uses counting sort for `Vector` of integers)
+    # and makes digraph generation more efficient (see `DiGraph` docs).
+    # As `tgt_in` is already sorted, edges will now be lexicographically sorted.
+    p = sortperm(src_in)
+    src::Vector{Int} = vcat(src_out, view(src_in, p))
+    tgt::Vector{Int} = vcat(tgt_out, view(tgt_in, p))
+    g = isempty(tgt) ? DiGraph{Int}() : DiGraph(Edge.(src, tgt))
 
     # return enriched graph
     return EnrichedDiGraph(g, source_vars, output_vars)

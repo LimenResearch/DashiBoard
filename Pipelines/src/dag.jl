@@ -1,29 +1,17 @@
-repeated_keys(cs) = Iterators.flatmap(splat(Iterators.repeated), pairs(cs))
-lazy_pairs(cs, xs) = Iterators.map(=>, repeated_keys(cs), xs)
-
-function dict_append!(d::AbstractDict, vars::AbstractVector)
-    return Int[get!(d, v, length(d) + 1) for v in vars]
-end
-
-function output_dict(output_vars)
-    d = OrderedDict{String, Int}(Iterators.map(reverse, enumerate(output_vars)))
-    repeated = unique(var for (i, var) in enumerate(output_vars) if i ≠ get!(d, var, i))
-    isempty(repeated) || throw(ArgumentError("Columns $(repeated) would be overwritten"))
-    return d
-end
-
-function flatten_and_count(f::F, ::Type{T}, v::AbstractVector) where {F, T}
-    vals::Vector{T} = T[]
-    counts::Vector{Int} = fill(0, length(v))
-    for (i, x) in pairs(v)
-        l = length(vals)
-        append!(vals, f(x))
-        counts[i] = length(vals) - l
+# Generate `node_idxs` and `var_idxs` pairings for digraph as well as a list of variable names corresponding to the indices.
+# A buffer dict `d` containing `var => var_idx` mappings is updated in place.
+# It is assumed that all entries in `d` have distinct values within `length(nodes) + 1` and `length(nodes) + length(d)`.
+function node_var_pairings!(f::F, d::AbstractDict{K}, nodes::AbstractVector{Node}) where {F, K}
+    node_idxs, var_idxs, vars = Int[], Int[], K[]
+    for (node_idx, node) in enumerate(nodes), var in f(node)
+        def = length(nodes) + length(d) + 1
+        var_idx = get!(d, var, def)
+        push!(node_idxs, node_idx)
+        push!(var_idxs, var_idx)
+        (var_idx == def) && push!(vars, var)
     end
-    return vals, counts
+    return node_idxs, var_idxs, vars
 end
-
-##
 
 struct EnrichedDiGraph{I <: Integer}
     g::DiGraph{I}
@@ -31,57 +19,35 @@ struct EnrichedDiGraph{I <: Integer}
     output_vars::Vector{String}
 end
 
-digraph(nodes::AbstractVector{Node}) = EnrichedDiGraph(nodes).g
-
+# We generate a graph whose vertices are: `nodes`, `output_vars`, `source_vars`, in this order.
+# Source vars are input vars that are not included in the output of any node.
 function EnrichedDiGraph(nodes::AbstractVector{Node})
-    Base.require_one_based_indexing(nodes)
-    # preprocess outbound edges
-    output_vars, output_counts = flatten_and_count(get_outputs, String, nodes)
-    # generate variable to index dictionary and validate result
-    n_outputs = length(output_vars)
-    d = output_dict(output_vars)
-    # preprocess inbound edges
-    inputs, input_counts = flatten_and_count(Int, nodes) do node
-        vars = get_inputs(node)
-        return dict_append!(d, vars)
+
+    # generate variable to index dictionary
+    d = Dict{String, Int}()
+    # process outbound edges (we keep non unique ones to later test for repetition)
+    src_out, tgt_out, output_vars = node_var_pairings!(get_outputs, d, nodes)
+    # process inbound edges
+    tgt_in, src_in, source_vars = node_var_pairings!(get_inputs, d, nodes)
+
+    # validate result
+    n_nodes = length(nodes)
+    repetead_idxs = unique(idx - n_nodes for (i, idx) in enumerate(tgt_out) if idx ≠ n_nodes + i)
+    if !isempty(repetead_idxs)
+        throw(ArgumentError("Columns $(output_vars[repetead_idxs]) would be overwritten"))
     end
-    source_vars = collect(String, Iterators.map(first, Iterators.drop(d, n_outputs)))
+
+    # this is fast (it uses counting sort for `Vector` of integers)
+    # and makes digraph generation more efficient (see `DiGraph` docs)
+    p = sortperm(tgt_in)
+    edges = Edge.([src_out; src_in[p]], [tgt_out; tgt_in[p]])
+    g = DiGraph(edges)
+
     # return enriched graph
-    g = digraph(inputs, input_counts, output_counts, length(d))
     return EnrichedDiGraph(g, source_vars, output_vars)
 end
 
-function digraph(
-        inputs::AbstractVector{<:Integer},
-        input_counts::AbstractVector{<:Integer},
-        output_counts::AbstractVector{<:Integer},
-        n_vars::Integer
-    )
-
-    # compute number of input (`n_inputs`) and output (`n_outputs`) variables and number of nodes (`N`)
-    n_inputs, n_outputs, N = sum(input_counts), sum(output_counts), length(output_counts)
-    # counting sort
-    counts = fill(0, n_vars + 1)
-    for input in inputs
-        counts[input + 1] += 1
-    end
-    for i in 1:n_vars
-        counts[i + 1] += counts[i]
-    end
-
-    # initialize and fill `edges` array
-    edges = fill(Edge(0, 0), n_outputs + n_inputs)
-    for (node_idx, output) in lazy_pairs(output_counts, 1:n_outputs)
-        edge_idx = output
-        edges[edge_idx] = Edge(node_idx, N + output)
-    end
-    for (node_idx, input) in lazy_pairs(input_counts, inputs)
-        edge_idx = n_outputs + (counts[input] += 1)
-        edges[edge_idx] = Edge(N + input, node_idx)
-    end
-
-    return DiGraph(edges)
-end
+digraph(nodes::AbstractVector{Node}) = EnrichedDiGraph(nodes).g
 
 ##
 

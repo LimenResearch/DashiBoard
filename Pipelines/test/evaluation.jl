@@ -45,7 +45,7 @@
     ]
 
     g = Pipelines.digraph(nodes)[1:8]
-    order = Pipelines.topological_sort(g)
+    order = topological_sort(g)
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
     repo = Repository()
@@ -65,7 +65,7 @@
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"))
-    @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]))
+    @test_throws "pred temp" Pipelines.digraph(vcat(nodes, [faulty_node]))
 
     # Test returned value of `Pipelines.train_evaljoin!`
     p = Pipelines.train_evaljoin!(repo, nodes, "tbl2", "no")

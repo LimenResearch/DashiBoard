@@ -50,14 +50,11 @@ function regularize(
     return repository, query, ps
 end
 
-to_nrow(x) = only(x).Count
+to_nrow(x)::Int64 = only(x).Count
 
-function table_creation_summary(x)
-    r = iterate(x)
-    # return nothing if we do not get output from `DuckDB`
-    isnothing(r) && return nothing
-    val, _ = r
-    return (; Count = val.Count)
+function table_creation_summary(x, virtual::Bool = false)
+    # return nothing for views, row count otherwise
+    return virtual ? nothing : (; Count = to_nrow(x))
 end
 
 """
@@ -91,7 +88,7 @@ function replace_table(args...; schema::Union{AbstractString, Nothing} = nothing
         " AS\n",
         query
     )
-    return DBInterface.execute(table_creation_summary, repository, sql, params)
+    return DBInterface.execute(Fix2(table_creation_summary, virtual), repository, sql, params)
 end
 
 """

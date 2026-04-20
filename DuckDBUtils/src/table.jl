@@ -52,7 +52,13 @@ end
 
 to_nrow(x) = only(x).Count
 
-create_table_summary(x) = (; Count = to_nrow(x))
+function table_creation_summary(x)
+    r = iterate(x)
+    # return nothing if we do not get output from `DuckDB`
+    isnothing(r) && return nothing
+    val, _ = r
+    return (; Count = val.Count)
+end
 
 """
     replace_table(
@@ -85,7 +91,7 @@ function replace_table(args...; schema::Union{AbstractString, Nothing} = nothing
         " AS\n",
         query
     )
-    return DBInterface.execute(create_table_summary, repository, sql, params)
+    return DBInterface.execute(table_creation_summary, repository, sql, params)
 end
 
 """
@@ -117,7 +123,7 @@ function export_table(args...; schema::Union{AbstractString, Nothing} = nothing,
         print(io, ";")
     end
 
-    return DBInterface.execute(create_table_summary, repository, sql, params)
+    return DBInterface.execute(table_creation_summary, repository, sql, params)
 end
 
 """

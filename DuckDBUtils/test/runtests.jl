@@ -64,7 +64,7 @@ end
     @test n == 1
 
     res = DBInterface.execute(
-        DuckDBUtils.create_table_summary,
+        DuckDBUtils.table_creation_summary,
         r,
         """
         CREATE TABLE t2 AS (SELECT 1 AS x, 2 AS j);

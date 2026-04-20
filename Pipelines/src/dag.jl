@@ -58,7 +58,7 @@ function digraph(
         n_vars::Integer
     )
 
-    # compute number of nodes, input and output variables
+    # compute number of input (`n_inputs`) and output (`n_outputs`) variables and number of nodes (`N`)
     n_inputs, n_outputs, N = sum(input_counts), sum(output_counts), length(output_counts)
     # counting sort
     counts = fill(0, n_vars + 1)

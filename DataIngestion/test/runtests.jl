@@ -1,6 +1,7 @@
 using DataIngestion
 using IntervalSets, Dates
 using DBInterface, DuckDBUtils, DataFrames, JSON
+using FunSQL: From, Get, Select
 using Downloads
 using Test
 
@@ -105,6 +106,10 @@ end
 
     DataIngestion.select(repo, filters, "custom_table" => "custom_selection")
     DataIngestion.select(repo, filters; schema)
+    DataIngestion.select(
+        repo, filters, From("custom_table") => "slim_selection";
+        transform = Select(Get.hour)
+    )
 
     df = DBInterface.execute(DataFrame, repo, "FROM custom_selection")
     @test issetequal(df.cbwd, ["NW", "SE"])
@@ -115,6 +120,10 @@ end
     @test issetequal(df.cbwd, ["NW", "SE"])
     @test issetequal(df.hour, 1:3)
     @test issetequal(df.day, 1:15)
+
+    df = DBInterface.execute(DataFrame, repo, "FROM slim_selection")
+    @test issetequal(df.hour, 1:3)
+    @test names(df) == ["hour"]
 
     DataIngestion.select(repo, []; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")

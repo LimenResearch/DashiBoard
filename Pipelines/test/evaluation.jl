@@ -37,6 +37,10 @@
         )
     end
 
+    g = Pipelines.digraph(Pipelines.Node[])
+    @test nv(g) == 0
+    @test eltype(g) === Int
+
     nodes = [
         Pipelines.Node(trivialcard(["temp"], "pred humid"), update = true),
         Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
@@ -44,8 +48,16 @@
         Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
     ]
 
+    enriched_digraph = Pipelines.EnrichedDiGraph(nodes)
+    @test eltype(enriched_digraph.g) === Int
+    @test nv(enriched_digraph.g) == 10
+    @test enriched_digraph.output_vars == [
+        "pred humid", "pred wind", "pred temp", "wind name",
+    ]
+    @test enriched_digraph.source_vars == ["temp", "wind"]
+
     g = Pipelines.digraph(nodes)[1:8]
-    order = Pipelines.topological_sort(g)
+    order = topological_sort(g)
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
     repo = Repository()
@@ -65,7 +77,7 @@
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"))
-    @test_throws ArgumentError Pipelines.digraph(vcat(nodes, [faulty_node]))
+    @test_throws "pred temp" Pipelines.digraph(vcat(nodes, [faulty_node]))
 
     # Test returned value of `Pipelines.train_evaljoin!`
     p = Pipelines.train_evaljoin!(repo, nodes, "tbl2", "no")

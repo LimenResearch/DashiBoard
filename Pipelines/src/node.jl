@@ -11,7 +11,10 @@ struct Node
     invert::Bool
     state::StateRef
     function Node(card::Card, update::Bool, train::Bool, invert::Bool, state::StateRef)
-        invert && !invertible(card) && throw(ArgumentError("Node is not invertible"))
+        if invert
+            invertible(card) || throw(ArgumentError("Node is not invertible"))
+            train && throw(ArgumentError("Cannot train an inverted node"))
+        end
         return new(card, update, train, invert, state)
     end
 end
@@ -61,16 +64,13 @@ get_outputs(node::Node) = get_outputs(get_card(node); node.invert)
 
 invertible(n::Node) = invertible(get_card(n))
 
-invert(n::Node) = Node(n.card, n.update, n.train, !n.invert, n.state)
-notrain(n::Node) = Node(n.card, n.update, false, n.invert, n.state)
-unlink(n::Node) = Node(n.card, n.update, n.train, n.invert, StateRef(get_state(n)))
-
-function check_inverted_no_train(n::Node)
-    if get_train(n) && get_invert(n)
-        throw(ArgumentError("Cannot train an inverted node"))
-    end
-    return
+# set `invert = true`, in which case training is disabled
+function invert(n::Node)
+    n.invert && throw(ArgumentError("Node is already inverted"))
+    return Node(n.card, n.update, false, true, n.state)
 end
+
+unlink(n::Node) = Node(n.card, n.update, n.train, n.invert, StateRef(get_state(n)))
 
 """
     train!(
@@ -91,7 +91,6 @@ function train!(
         table::AbstractString, id_var::AbstractPrimaryKey;
         schema = nothing
     )
-    check_inverted_no_train(node)
     get_train(node) && set_state!(node, train(repository, get_card(node), table, id_var; schema))
     return
 end

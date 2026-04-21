@@ -8,8 +8,7 @@ struct Pipeline
 end
 
 function Pipeline(node_iter; train::Bool = true)
-    nodes::Vector{Node} = train ? collect(Node, node_iter) : map(notrain, node_iter)
-    foreach(check_inverted_no_train, nodes)
+    nodes::Vector{Node} = collect(Node, node_iter)
     enriched_digraph = EnrichedDiGraph(nodes)
     hs = compute_height(enriched_digraph.g, get_update.(nodes))
     precomputed_nodes = findall(==(-1), hs)
@@ -62,7 +61,7 @@ function _evaljoin(
         schema::Union{AbstractString, Nothing} = nothing,
         lock::Union{AbstractLock, Nothing} = nothing
     )
-    output_names::Vector{String} = evaluate(repository, notrain(node), src => tmp_name, id_var; schema)
+    output_names::Vector{String} = evaluate(repository, node, src => tmp_name, id_var; schema)
     if isnothing(lock)
         join_on_id_var(repository, dst, tmp_name, id_var, output_names; schema)
     else

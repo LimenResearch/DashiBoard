@@ -22,6 +22,11 @@ Note that the columns of the output table must be exactly the union of
 - the primary key `id_var` and
 - the variables in `wc.outputs`.
 
+!!! note
+    The current `WildCard` interface is not fully finalized and is to be considered experimental.
+    At the moment, it is not possible for a wild card to have additional fields to set parameters,
+    but that may be implemented in the future.
+
 ## Examples
 
 ```julia
@@ -72,6 +77,7 @@ function WildCard{T}(c::AbstractDict) where {T}
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
 
+    # TODO: allow a `by` field as well?
     order_by::Vector{String} = config.needs_order ? c["order_by"] : String[]
     inputs::Vector{String} = c["inputs"]
     targets::Vector{String} = config.needs_targets ? c["targets"] : String[]

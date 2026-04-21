@@ -243,4 +243,23 @@ mktempdir() do dir
         @test isnothing(get_state(node3).content)
         @test isempty(get_state(node3).metadata)
     end
+
+    @testset "invert nodes" begin
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
+        card = Pipelines.Card(d["zscore"])
+        _udpate, _train, _invert = true, true, true
+        state = Pipelines.StateRef(Pipelines.CardState())
+        @test_throws ArgumentError Node(card, _udpate, _train, _invert, state)
+
+        node = Node(card)
+        inv_node = invert(node)
+        @test inv_node.invert
+        @test !inv_node.train
+        @test_throws ArgumentError invert(inv_node)
+
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
+        card = Pipelines.Card(d["tiles"])
+        node = Node(card)
+        @test_throws ArgumentError invert(node)
+    end
 end

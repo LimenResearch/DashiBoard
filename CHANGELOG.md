@@ -7,6 +7,7 @@
 - A repository reserves tables of the form `_table_{number}` and views of the form `_view_{number}` [#98](https://github.com/LimenResearch/DashiBoard/pull/98).
 - Dropped support for `keep_vars` in `evaljoin` and `train_evaljoin!` [#99](https://github.com/LimenResearch/DashiBoard/pull/99).
 - `evaljoin` and `train_evaljoin!` now take a mandatory argument `id_var` denoting a column with _unique_ entries present in the data, to be used to join with the output [#100](https://github.com/LimenResearch/DashiBoard/pull/100).
+- Nodes inverted with `invert` have automatically `train = false` and can no longer be inverted back [#107](https://github.com/LimenResearch/DashiBoard/pull/107).
 
 ### Features
 

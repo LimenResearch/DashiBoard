@@ -56,7 +56,6 @@ mktempdir() do dir
 
         card = Pipelines.Card(d["percentile"])
         node = Node(card)
-        @test_throws ArgumentError invert(node)
         Pipelines.train_evaljoin!(repo, node, "selection" => "split", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM split")
         @test names(df) == [

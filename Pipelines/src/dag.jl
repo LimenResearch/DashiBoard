@@ -29,12 +29,10 @@ function EnrichedDiGraph(nodes::AbstractVector{Node})
     # process `input_var => node` edges
     tgt_in, src_in, source_vars = node_var_pairings!(get_inputs, d, nodes)
 
-    # validate result
-    N = length(nodes)
-    repetead = unique(idx - N for (i, idx) in enumerate(tgt_out) if idx ≠ N + i)
-    if !isempty(repetead)
-        throw(ArgumentError("Columns $(output_vars[repetead]) would be overwritten"))
-    end
+    # validate result (`tgt_out .- length(nodes)` should be equal to `1:length(tgt_out)`)
+    idxs = Iterators.map(x -> x - length(nodes), tgt_out)
+    repetead = unique(output_vars[idx] for (i, idx) in enumerate(idxs) if idx ≠ i)
+    isempty(repetead) || throw(ArgumentError("Columns $(repetead) would be overwritten"))
 
     # `sortperm` here is fast (it uses counting sort for `Vector` of integers)
     # and makes digraph generation more efficient (see `DiGraph` docs).
@@ -42,7 +40,7 @@ function EnrichedDiGraph(nodes::AbstractVector{Node})
     p = sortperm(src_in)
     src::Vector{Int} = vcat(src_out, view(src_in, p))
     tgt::Vector{Int} = vcat(tgt_out, view(tgt_in, p))
-    g = isempty(tgt) ? DiGraph{Int}() : DiGraph(Edge.(src, tgt))
+    g = isempty(src) ? DiGraph{Int}() : DiGraph(Edge.(src, tgt))
 
     # return enriched graph
     return EnrichedDiGraph(g, source_vars, output_vars)

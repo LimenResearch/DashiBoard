@@ -103,6 +103,25 @@ end
     @test tbl4.b == ["b"]
 
     @test_throws ArgumentError DuckDBUtils.replace_table(r, From("tbl"), [], "tbl2"; schema = "schm")
+
+    res = DuckDBUtils.replace_table(r, From("tbl"), "tbl2"; schema = "schm", virtual = true)
+    @test isnothing(res)
+    tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl2;")
+    @test tbl.a == x.a
+    @test tbl.b == x.b
+    DuckDBUtils.delete_table(r, "tbl2"; schema = "schm", virtual = true)
+
+    mktempdir() do data_dir
+        db_path = joinpath(data_dir, "db.duckdb")
+        DBInterface.execute(Returns(nothing), r, "ATTACH '$(db_path)' AS my_db;")
+        DBInterface.execute(Returns(nothing), r, "CREATE TABLE my_db.main.tbl(i BIGINT, j BIGINT);")
+        res3 = DuckDBUtils.replace_table(r, "FROM my_db.tbl", "external_view"; schema = "schm")
+        @test isnothing(res)
+        tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.external_view;")
+        @test tbl.i == Int64[]
+        @test tbl.j == Int64[]
+    end
+
     res = DuckDBUtils.replace_table(r, From("tbl"), "tbl2"; schema = "schm")
     @test res == (; Count = 3)
     tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl2;")
@@ -128,15 +147,24 @@ end
     mktempdir() do dir
         path1 = joinpath(dir, "table1.csv")
         path2 = joinpath(dir, "table2.csv")
+        path3 = joinpath(dir, "table3.csv")
         x = (x = 1:3, y = ["a", "b", "c"])
         DuckDBUtils.with_table(r, x; schema = "schm") do name
             res1 = DuckDBUtils.export_table(r, From(name), path1; schema = "schm")
             res2 = DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2)
             @test res1 == (; Count = 3)
             @test res2 == (; Count = 3)
-            read(path1, String) == "x,y\n1,a\n2,b\n3,c\n"
-            read(path2, String) == "x,y\n1,a\n2,b\n3,c\n"
+            @test read(path1, String) == "x,y\n1,a\n2,b\n3,c\n"
+            @test read(path2, String) == "x,y\n1,a\n2,b\n3,c\n"
             @test_warn "Schema will be ignored" DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2; schema = "schm")
+        end
+        mktempdir() do data_dir
+            db_path = joinpath(data_dir, "db.duckdb")
+            DBInterface.execute(Returns(nothing), r, "ATTACH '$(db_path)' AS my_db;")
+            DBInterface.execute(Returns(nothing), r, "CREATE TABLE my_db.main.tbl(i BIGINT, j BIGINT);")
+            res3 = DuckDBUtils.export_table(r, "FROM my_db.tbl", path3)
+            @test res3 == (; Count = 0)
+            @test read(path3, String) == "i,j\n"
         end
     end
 end

@@ -1,4 +1,4 @@
-## AbstractDictHelper interface
+## AbstractDictHelper interface (to write slimmer config files)
 
 abstract type AbstractDictHelper end
 

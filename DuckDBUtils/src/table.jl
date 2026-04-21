@@ -44,8 +44,7 @@ function regularize(
         if !isa(params, NamedParams)
             throw(ArgumentError("Named parameters are required when `node::SQLNode`"))
         end
-        catalog = get_catalog(repository; schema)
-        render_params(catalog, node, params)
+        render_params(repository, node, params; schema)
     end
     return repository, query, ps
 end

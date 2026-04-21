@@ -163,13 +163,40 @@ function DBInterface.execute(
 end
 
 """
-    render_params(catalog::SQLCatalog, node::SQLNode, params::Union{NamedTuple, AbstractDict} = NamedTuple())
+    render_params(
+        catalog::SQLCatalog,
+        node::SQLNode,
+        params::Union{NamedTuple, AbstractDict} = NamedTuple()
+    )
+
+    render_params(
+        repository::Repository,
+        node::SQLNode,
+        params::Union{NamedTuple, AbstractDict} = NamedTuple();
+        schema::Union{AbstractString, Nothing}
+    )
 
 Return query string and parameter list from query expressed as `node`.
+The first argument can be either a `SQLCatalog` (obtained via the [`get_catalog`](@ref) function)
+or a `Repository`.
+In the latter case, a `schema` should also be passed,
+as different schemas within a repository may have different catalogs.
 """
+function render_params end
+
 function render_params(catalog::SQLCatalog, node::SQLNode, params::NamedParams = NamedTuple())
     sql = render(catalog, node)
     return String(sql), pack(sql, params)
+end
+
+function render_params(
+        repository::Repository,
+        node::SQLNode,
+        params::Union{NamedTuple, AbstractDict} = NamedTuple();
+        schema::Union{AbstractString, Nothing}
+    )
+    catalog = get_catalog(repository; schema)
+    return render_params(catalog, node, params)
 end
 
 function DBInterface.execute(
@@ -179,8 +206,7 @@ function DBInterface.execute(
         params = NamedTuple();
         schema::Union{AbstractString, Nothing} = nothing
     )
-    catalog = get_catalog(repository; schema)
-    q, ps = render_params(catalog, node, params)
+    q, ps = render_params(repository, node, params; schema)
     return DBInterface.execute(f, repository, q, ps)
 end
 

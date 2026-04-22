@@ -28,6 +28,7 @@
     "method": "percentile",
     "method_options": { "percentile": 0.9 },
     "order_by": ["No"],
-    "output": "partition"
+    "output": "partition",
+    "funnel": "default"
   }
 }

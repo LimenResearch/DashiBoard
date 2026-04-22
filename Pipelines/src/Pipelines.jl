@@ -22,7 +22,7 @@ public train, evaluate, inputs, outputs, invertible
 
 public report, visualize, get_card, get_state, invert, Node
 
-public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
+public default_parser, PARSER, MODEL_DIR, TRAINING_DIR, FUNNEL_DIR
 
 public apply_helpers
 
@@ -117,6 +117,7 @@ using DataInterpolations: ExtrapolationType,
 
 using StreamlinerCore: StreamlinerCore,
     AbstractData,
+    Funnel,
     Model,
     Streaming,
     Training,

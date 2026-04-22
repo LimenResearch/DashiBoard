@@ -672,11 +672,13 @@ mktempdir() do dir
 
         model_dir = joinpath(@__DIR__, "static", "model")
         training_dir = joinpath(@__DIR__, "static", "training")
+        funnel_dir = joinpath(@__DIR__, "static", "funnel")
 
         card = @with(
             Pipelines.PARSER => Pipelines.default_parser(),
             Pipelines.MODEL_DIR => model_dir,
             Pipelines.TRAINING_DIR => training_dir,
+            Pipelines.FUNNEL_DIR => funnel_dir,
             Pipelines.Card(d["basic"]),
         )
         @test !Pipelines.invertible(card)
@@ -708,6 +710,7 @@ mktempdir() do dir
             Pipelines.PARSER => Pipelines.default_parser(),
             Pipelines.MODEL_DIR => model_dir,
             Pipelines.TRAINING_DIR => training_dir,
+            Pipelines.FUNNEL_DIR => funnel_dir,
             Pipelines.Card(d["classifier"]),
         )
         @test !Pipelines.invertible(card)

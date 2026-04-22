@@ -1,5 +1,6 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
+const FUNNEL_DIR = ScopedValue{String}()
 
 function parse_without_widgets(dir, x)
     file = string(x, ".toml")
@@ -24,6 +25,18 @@ function get_streamliner_training(parser::Parser, c::AbstractDict, training_name
     return Training(parser, training, training_options)
 end
 
+function get_streamliner_funnel(parser::Parser, c::AbstractDict, funnel_name::AbstractString)
+    funnel_options = extract_options(c, "funnel", funnel_name)
+    funnel = get(c, "funnel_metadata") do
+        return if funnel_name == "" # support basic funnel by default
+            StringDict()
+        else
+            parse_without_widgets(FUNNEL_DIR[], funnel_name)
+        end
+    end
+    return Funnel(parser, funnel, funnel_options)
+end
+
 """
     struct StreamlinerCard <: Card
         type::String
@@ -32,6 +45,8 @@ end
         model::Model
         training_name::String
         training::Training
+        funnel_name::String
+        funnel::Funnel
         order_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -48,6 +63,8 @@ struct StreamlinerCard <: StreamingCard
     model::Model
     training_name::String
     training::Training
+    funnel_name::String
+    funnel::Funnel
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -88,6 +105,8 @@ function StreamlinerCard(c::AbstractDict)
     model = get_streamliner_model(parser, c, model_name)
     training_name::String = c["training"]
     training = get_streamliner_training(parser, c, training_name)
+    funnel_name::String = get(c, "funnel", "")
+    funnel = get_streamliner_funnel(parser, c, funnel_name)
 
     partition = get(c, "partition", nothing)
     suffix = get(c, "suffix", "hat")
@@ -99,6 +118,8 @@ function StreamlinerCard(c::AbstractDict)
         model,
         training_name,
         training,
+        funnel_name,
+        funnel,
         order_by,
         inputs,
         targets,
@@ -125,7 +146,8 @@ function train(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-    data = DBData{2}(;
+    data = get_partitioned_data(
+        sc.funnel;
         table = source,
         repository,
         schema,
@@ -135,8 +157,6 @@ function train(
         sc.targets,
         sc.partition
     )
-
-    train!(data)
 
     (; model, training) = sc
 
@@ -176,7 +196,8 @@ function evaluate(
         end
         partition = nothing
 
-        data = DBData{1}(;
+        data = get_evaluation_data(
+            sc.funnel;
             table = source,
             repository,
             schema,

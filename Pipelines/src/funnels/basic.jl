@@ -1,3 +1,11 @@
+get_evaluation_data(::Funnel{Nothing}; options...) = DBData{1}(; options...)
+
+function get_partitioned_data(::Funnel{Nothing}; options...)
+    data = DBData{2}(; options...)
+    train!(data)
+    return data
+end
+
 @kwdef struct DBData{N} <: AbstractData{N}
     repository::Repository
     schema::Union{String, Nothing}

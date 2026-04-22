@@ -161,7 +161,10 @@ weight_var(::GaussianEncodingCard) = nothing
 partition_var(::GaussianEncodingCard) = nothing
 output_vars(gec::GaussianEncodingCard) = join_names.(gec.input, gec.suffix, 1:gec.n_components)
 
-function train(::Repository, gec::GaussianEncodingCard, ::AbstractString, ::AbstractPrimaryKey; schema = nothing)
+function train(
+        ::Repository, gec::GaussianEncodingCard, ::AbstractString, ::AbstractPrimaryKey;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
     μs = range(start = 0, step = 1 / gec.n_components, length = gec.n_components)
     σ = step(μs) * gec.lambda
     params = Dict("σ" => [σ], "d" => [gec.temporal_preprocessor.max])
@@ -185,7 +188,7 @@ function evaluate(
         state::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema = nothing
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
     params_tbl = jlddeserialize(state.content)

@@ -109,7 +109,8 @@ end
     evaljoin(
         repository::Repository,
         nodes::AbstractVector,
-        table::AbstractString;
+        table::AbstractString,
+        id_var::AbstractString;
         schema::Union{AbstractString, Nothing} = nothing,
         eval_callback = Returns(nothing),
         ntasks::Integer = Threads.threadpoolsize()
@@ -118,13 +119,15 @@ end
     evaljoin(
         repository::Repository,
         node::Node,
-        (source, destination)::Pair;
-        schema = nothing
+        (source, destination)::Pair,
+        id_var::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
 Replace `table` in the database `repository.db` with the outcome of executing all
 the transformations in `nodes`, _without training the nodes_.
-The resulting outputs of the pipeline are joined with the original columns.
+The resulting outputs of the pipeline are joined with the original columns via the
+primary column `id_var`.
 
 If only a `node` is provided, then one should pass both source and destination tables.
 If a list of nodes is provided, return pipeline graph and metadata.
@@ -137,7 +140,8 @@ function evaljoin end
     train_evaljoin!(
         repository::Repository,
         nodes::AbstractVector,
-        table::AbstractString;
+        table::AbstractString,
+        id_var::AbstractString;
         schema::Union{AbstractString, Nothing} = nothing,
         train_callback = Returns(nothing),
         eval_callback = Returns(nothing),
@@ -147,13 +151,15 @@ function evaljoin end
     train_evaljoin!(
         repository::Repository,
         node::Node,
-        (source, destination)::Pair;
-        schema = nothing
+        (source, destination)::Pair,
+        id_var::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
 Replace `table` in the database `repository.db` with the outcome of executing all
 the transformations in `nodes`, _after having trained the nodes_.
-The resulting outputs of the pipeline are joined with the original columns.
+The resulting outputs of the pipeline are joined with the original columns via the
+primary column `id_var`.
 
 If only a `node` is provided, then one should pass both source and destination tables.
 If a list of nodes is provided, return pipeline graph and metadata.

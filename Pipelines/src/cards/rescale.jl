@@ -184,7 +184,7 @@ function pair_wise_group_by(
         cols::AbstractVector,
         fs...;
         partition::Union{AbstractString, Nothing} = nothing,
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
     )
 
     key = Get.(by)
@@ -199,7 +199,8 @@ end
 
 function train(
         repository::Repository, rc::RescaleCard,
-        source::AbstractString, ::AbstractPrimaryKey; schema = nothing
+        source::AbstractString, ::AbstractPrimaryKey;
+        schema::Union{AbstractString, Nothing} = nothing
     )
     (; by, rescaler) = rc
     (; stats) = rescaler
@@ -218,7 +219,7 @@ function evaluate(
         state::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema = nothing,
+        schema::Union{AbstractString, Nothing} = nothing,
         invert::Bool = false
     )
     (; by, targets, rescaler, suffix) = rc

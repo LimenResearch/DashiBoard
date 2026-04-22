@@ -77,8 +77,8 @@ unlink(n::Node) = Node(n.card, n.update, n.train, n.invert, StateRef(get_state(n
         repository::Repository,
         node::Node,
         table::AbstractString,
-        id_var::AbstractPrimaryKey;
-        schema = nothing
+        id_var::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
 Train `node` on table `table` in `repository` with primary key `id_var`.
@@ -89,13 +89,28 @@ See also [`evaljoin`](@ref), [`train_evaljoin!`](@ref).
 function train!(
         repository::Repository, node::Node,
         table::AbstractString, id_var::AbstractPrimaryKey;
-        schema = nothing
+        schema::Union{AbstractString, Nothing} = nothing
     )
     get_train(node) && set_state!(node, train(repository, get_card(node), table, id_var; schema))
     return
 end
 
-function evaluate(repository::Repository, node::Node, sd::Pair, id_var::AbstractPrimaryKey; schema = nothing)
+"""
+    evaluate(
+        repository::Repository, node::Node,
+        (source, destination)::Pair, id_var::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+
+Evaluate the card corresponding to a given `node` (using the node's state)
+on table `source` with primary column `id_var`.
+Then save the output in table `destination`.
+"""
+function evaluate(
+        repository::Repository, node::Node,
+        sd::Pair, id_var::AbstractPrimaryKey;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
     card, state = get_card(node), get_state(node)
     return if get_invert(node)
         evaluate(repository, card, state, sd, id_var; schema, invert = true)

@@ -1,18 +1,25 @@
 # Helpers to query table created by DataIngestion
 
-function table_schema(repository::Repository, tbl::AbstractString; schema = nothing)
+function table_schema(
+        repository::Repository, tbl::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
     query = From(tbl) |> Limit(0)
     return DBInterface.execute(Tables.schema, repository, query; schema)
 end
 
-function categorical_summary(repository::Repository, tbl::AbstractString, var::AbstractString; schema = nothing)
+function categorical_summary(
+        repository::Repository, tbl::AbstractString, var::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
     query = From(tbl) |> Group(Get(var)) |> Order(Get(var))
     return DBInterface.execute(res -> map(only, res), repository, query; schema)
 end
 
 function numerical_summary(
         repository::Repository, tbl::AbstractString, var::AbstractString;
-        schema = nothing, length = 100, sigdigits = 2
+        schema::Union{AbstractString, Nothing} = nothing,
+        length::Integer = 100, sigdigits::Integer = 2
     )
     query = From(tbl) |> Select("x0" => Fun.min(Get(var)), "x1" => Fun.max(Get(var)))
     (; x0, x1) = DBInterface.execute(first, repository, query; schema)
@@ -48,7 +55,10 @@ function stringify_type(::Type{T}) where {T}
 end
 
 """
-    summarize(repository::Repository, tbl::AbstractString; schema = nothing)
+    summarize(
+        repository::Repository, tbl::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
 
 Compute summaries of variables in table `tbl` within the database `repository.db`.
 The summary of a variable depends on its type, according to the following rules.
@@ -56,7 +66,10 @@ The summary of a variable depends on its type, according to the following rules.
 - Categorical variable => list of unique types.
 - Continuous variable => extrema.
 """
-function summarize(repository::Repository, tbl::AbstractString; schema = nothing)
+function summarize(
+        repository::Repository, tbl::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
     (; names, types) = table_schema(repository, tbl; schema)
     return map(names, types) do name, eltype
         T = nonmissingtype(eltype)

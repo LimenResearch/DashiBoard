@@ -233,7 +233,10 @@ Return `true` for invertible cards, `false` otherwise.
 invertible(::Card) = false
 
 """
-    train(repository::Repository, card::Card, source; schema = nothing)::CardState
+    train(
+        repository::Repository, card::Card, source;
+        schema::Union{AbstractString, Nothing} = nothing
+    )::CardState
 
 Return a trained model for a given `card` on a table `table` in the database `repository.db`.
 """
@@ -245,15 +248,15 @@ function train end
         card::Card,
         state::CardState,
         (source, destination)::Pair,
-        id::AbstractString;
-        schema = nothing
+        id_var::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
 Replace table `destination` in the database `repository.db` with the outcome of executing the `card`
 on the table `source`.
-The column `id` should be a primarye key of the `source` table.
-The new table `destination` will then also have an additional column `id`,
-to be joined with the column `id` of the original table.
+The column `id_var` should be a primarye key of the `source` table.
+The new table `destination` will then also have an additional column `id_var`,
+to be joined with the column `id_var` of the original table.
 
 A valid implementation of `evaluate` must return the list of output variables added to `destination`.
 

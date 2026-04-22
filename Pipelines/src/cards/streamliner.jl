@@ -122,7 +122,7 @@ function train(
         sc::StreamlinerCard,
         source::AbstractString,
         id_var::AbstractPrimaryKey;
-        schema = nothing
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
     data = DBData{2}(;
@@ -160,7 +160,7 @@ function evaluate(
         state::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema = nothing
+        schema::Union{AbstractString, Nothing} = nothing
     )
 
     isnothing(state.content) && throw(ArgumentError("Invalid state"))

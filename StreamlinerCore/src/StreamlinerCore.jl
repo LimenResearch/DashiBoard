@@ -1,6 +1,6 @@
 module StreamlinerCore
 
-export Result, Model, Data, AbstractData, DataPartition, Training, Streaming
+export Result, Model, Data, AbstractData, DataPartition, Training, Streaming, Funnel
 export default_parser
 export get_templates, get_metadata, get_nsamples
 export stream, finetune, train, loadmodel, validate, evaluate, summarize
@@ -58,6 +58,8 @@ include("utils.jl")
 include("variables.jl")
 include("parser.jl")
 include("data.jl")
+
+include("funnel/funnel.jl")
 
 include("model/formats.jl")
 include("model/chain.jl")

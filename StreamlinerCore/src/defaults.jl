@@ -127,6 +127,10 @@ const DEFAULT_PARSER = let
         "f64" => Flux.f64,
     )
 
+    windowings = StringDict(
+        "" => Returns(nothing),
+    )
+
     Parser(;
         models,
         layers,
@@ -138,8 +142,8 @@ const DEFAULT_PARSER = let
         schedules,
         stoppers,
         devices,
+        windowings
     )
-
 end
 
 const PARSER = ScopedValue{Parser}(DEFAULT_PARSER)

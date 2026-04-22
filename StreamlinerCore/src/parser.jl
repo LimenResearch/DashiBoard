@@ -36,6 +36,7 @@ See [`default_parser`](@ref) for more advanced uses.
     schedules::StringDict = StringDict()
     stoppers::StringDict = StringDict()
     devices::StringDict = StringDict()
+    windowings::StringDict = StringDict()
 end
 
 Base.copy(p::Parser) = Parser(ntuple(n -> copy(getfield(p, n)), fieldcount(Parser))...)

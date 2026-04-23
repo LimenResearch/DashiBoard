@@ -11,6 +11,7 @@ public has_weights, output_path, stats_path, stats_tensor, metricname
 public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
 public Metric
+public RichColumn, colname
 
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std
@@ -59,6 +60,7 @@ include("variables.jl")
 include("parser.jl")
 include("data.jl")
 
+include("funnel/transform.jl")
 include("funnel/funnel.jl")
 
 include("model/formats.jl")

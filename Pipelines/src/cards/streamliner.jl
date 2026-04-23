@@ -47,10 +47,7 @@ end
         training::Training
         funnel_name::String
         funnel::Funnel
-        order_by::Vector{String}
-        inputs::Vector{String}
-        targets::Vector{String}
-        partition::Union{String, Nothing} = nothing
+        data_spec::DataSpec
         suffix::String = "hat"
     end
 
@@ -65,27 +62,29 @@ struct StreamlinerCard <: StreamingCard
     training::Training
     funnel_name::String
     funnel::Funnel
-    order_by::Vector{String}
-    inputs::Vector{String}
-    targets::Vector{String}
-    partition::Union{String, Nothing}
+    data_spec::DataSpec
     suffix::String
 end
 
 const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("config", "streamliner"))
 
 function get_metadata(sc::StreamlinerCard)
+    ds = sc.data_spec
     return StringDict(
         "type" => sc.type,
         "label" => sc.label,
         "model" => sc.model_name,
-        "model_metadata" => StreamlinerCore.get_metadata(sc.model),
+        "model_metadata" => SC.get_metadata(sc.model),
         "training" => sc.training_name,
-        "training_metadata" => StreamlinerCore.get_metadata(sc.training),
-        "order_by" => sc.order_by,
-        "inputs" => sc.inputs,
-        "targets" => sc.targets,
-        "partition" => sc.partition,
+        "training_metadata" => SC.get_metadata(sc.training),
+        "funnel" => sc.funnel_name,
+        "funnel_metadata" => SC.get_metadata(sc.funnel),
+        "order_by" => ds.order_by,
+        "inputs" => SC.get_metadata.(ds.inputs),
+        "input_paths" => ds.input_paths,
+        "targets" => SC.get_metadata.(ds.targets),
+        "target_paths" => ds.target_paths,
+        "partition" => ds.partition,
         "suffix" => sc.suffix,
     )
 end
@@ -94,10 +93,6 @@ function StreamlinerCard(c::AbstractDict)
     type::String = c["type"]
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
-
-    order_by::Vector{String} = get(c, "order_by", String[])
-    inputs::Vector{String} = get(c, "inputs", String[])
-    targets::Vector{String} = get(c, "targets", String[])
 
     parser = PARSER[]
 
@@ -108,8 +103,15 @@ function StreamlinerCard(c::AbstractDict)
     funnel_name::String = get(c, "funnel", "")
     funnel = get_streamliner_funnel(parser, c, funnel_name)
 
-    partition = get(c, "partition", nothing)
-    suffix = get(c, "suffix", "hat")
+    order_by::Vector{String} = get(c, "order_by", String[])
+    inputs::Vector{RichColumn} = RichColumn.((parser,), get(c, "inputs", []))
+    input_paths::Union{String, Nothing} = get(c, "input_paths", nothing)
+    targets::Vector{RichColumn} = RichColumn.((parser,), get(c, "targets", []))
+    target_paths::Union{String, Nothing} = get(c, "target_paths", nothing)
+    partition::Union{String, Nothing} = get(c, "partition", nothing)
+    data_spec = DataSpec(order_by, inputs, input_paths, targets, target_paths, partition)
+
+    suffix::String = get(c, "suffix", "hat")
 
     return StreamlinerCard(
         type,
@@ -120,23 +122,36 @@ function StreamlinerCard(c::AbstractDict)
         training,
         funnel_name,
         funnel,
-        order_by,
-        inputs,
-        targets,
-        partition,
+        data_spec,
         suffix
     )
 end
 
 ## StreamingCard interface
 
-sorting_vars(sc::StreamlinerCard) = sc.order_by
+sorting_vars(sc::StreamlinerCard) = sc.data_spec.order_by
 grouping_vars(::StreamlinerCard) = String[]
-input_vars(sc::StreamlinerCard) = sc.inputs
-target_vars(sc::StreamlinerCard) = sc.targets
+
+function input_vars(sc::StreamlinerCard)::Vector{String}
+    return vcat(
+        SC.colname.(sc.data_spec.inputs),
+        to_stringlist(sc.data_spec.input_paths)
+    )
+end
+
+function target_vars(sc::StreamlinerCard)::Vector{String}
+    return vcat(
+        SC.colname.(sc.data_spec.targets),
+        to_stringlist(sc.data_spec.target_paths)
+    )
+end
+
 weight_var(::StreamlinerCard) = nothing
-partition_var(sc::StreamlinerCard) = sc.partition
-output_vars(sc::StreamlinerCard) = join_names.(sc.targets, sc.suffix)
+partition_var(sc::StreamlinerCard) = sc.data_spec.partition
+
+function output_vars(sc::StreamlinerCard)
+    return join_names.(SC.colname.(sc.data_spec.targets), sc.suffix)
+end
 
 function train(
         repository::Repository,
@@ -147,28 +162,21 @@ function train(
     )
 
     data = get_partitioned_data(
-        sc.funnel;
-        table = source,
-        repository,
-        schema,
-        id_var,
-        sc.order_by,
-        sc.inputs,
-        sc.targets,
-        sc.partition
+        sc.funnel, sc.data_spec;
+        repository, schema, table = source, id_var
     )
 
     (; model, training) = sc
 
     return mktempdir() do dir
-        result = StreamlinerCore.train(dir, model, data, training)
-        path = StreamlinerCore.output_path(dir)
+        result = SC.train(dir, model, data, training)
+        path = SC.output_path(dir)
         # TODO: where to keep stats tensor?
         jldopen(path, "a") do file
-            file["stats"] = StreamlinerCore.stats_tensor(result, dir)
+            file["stats"] = SC.stats_tensor(result, dir)
             file["uvals"] = data.uvals
         end
-        content = StreamlinerCore.has_weights(result) ? read(path) : nothing
+        content = SC.has_weights(result) ? read(path) : nothing
         metadata = make(StringDict, result)
         return CardState(; content, metadata)
     end
@@ -189,7 +197,7 @@ function evaluate(
     streaming = Streaming(; training.device, training.batchsize)
 
     return mktempdir() do dir
-        path = StreamlinerCore.output_path(dir)
+        path = SC.output_path(dir)
         write(path, state.content)
         uvals = jldopen(path) do file
             file["uvals"]
@@ -209,7 +217,7 @@ function evaluate(
             uvals
         )
 
-        StreamlinerCore.evaluate(dir, model, data, streaming; destination, suffix, id = id_var)
+        SC.evaluate(dir, model, data, streaming; destination, suffix, id = id_var)
     end
 end
 

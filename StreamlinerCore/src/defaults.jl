@@ -131,6 +131,11 @@ const DEFAULT_PARSER = let
         "" => Returns(nothing),
     )
 
+    transforms = StringDict(
+        "" => identity,
+        "identity" => identity,
+    )
+
     Parser(;
         models,
         layers,
@@ -142,7 +147,8 @@ const DEFAULT_PARSER = let
         schedules,
         stoppers,
         devices,
-        windowings
+        windowings,
+        transforms
     )
 end
 

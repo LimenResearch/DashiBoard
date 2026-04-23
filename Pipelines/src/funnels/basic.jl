@@ -1,30 +1,46 @@
-get_evaluation_data(::Funnel{Nothing}; options...) = DBData{1}(; options...)
+struct DataSpec
+    order_by::Vector{String}
+    inputs::Vector{RichColumn}
+    input_paths::Union{String, Nothing}
+    targets::Vector{RichColumn}
+    target_paths::Union{String, Nothing}
+    partition::Union{String, Nothing}
+end
 
-function get_partitioned_data(::Funnel{Nothing}; options...)
-    data = DBData{2}(; options...)
+function get_evaluation_data(
+        ::Funnel{Nothing}, data_spec::DataSpec;
+        repository, schema, table, id_var
+    )
+    return DBData{1}(; repository, schema, table, id_var, data_spec)
+end
+
+function get_partitioned_data(
+        ::Funnel{Nothing}, data_spec::DataSpec;
+        repository, schema, table, id_var
+    )
+    data = DBData{2}(; repository, schema, table, id_var, data_spec)
     train!(data)
     return data
 end
+
 
 @kwdef struct DBData{N} <: AbstractData{N}
     repository::Repository
     schema::Union{String, Nothing}
     table::String
     id_var::PrimaryKey # TODO: determine if this belong here?
-    order_by::Vector{String}
-    inputs::Vector{String}
-    targets::Vector{String}
-    partition::Union{String, Nothing}
+    data_spec::DataSpec
     uvals::Dict{String, AbstractVector} = Dict{String, AbstractVector}()
 end
 
 function train!(data::DBData)
-    (; repository, table, schema, inputs, targets, partition, uvals) = data
+    (; repository, table, schema, data_spec, uvals) = data
+    (; inputs, targets, partition) = data_spec
 
     empty!(uvals)
     src = From(table) |> filter_partition(partition)
     schm = DBInterface.execute(Tables.schema, repository, src |> Limit(0); schema)
-    cols = union(inputs, targets)
+    cols = union(SC.colname.(inputs), SC.colname.(targets))
     idxs = indexin(Symbol.(cols), collect(schm.names))
 
     for (i, k) in zip(idxs, cols)
@@ -53,7 +69,7 @@ function (p::Processor)(cols)
     return (; id, input = p.device(input), target = p.device(target))
 end
 
-function StreamlinerCore.get_templates(data::DBData)
+function SC.get_templates(data::DBData)
     (; inputs, targets, uvals) = data
     n_inputs = sum(Fix2(column_number, uvals), inputs)
     n_targets = sum(Fix2(column_number, uvals), targets)
@@ -63,7 +79,7 @@ function StreamlinerCore.get_templates(data::DBData)
 end
 
 # TODO: understand role of `get_metadata` in the presence of cards?
-function StreamlinerCore.get_metadata(data::DBData)
+function SC.get_metadata(data::DBData)
     return Dict(
         "schema" => data.schema,
         "table" => data.table,
@@ -74,7 +90,7 @@ function StreamlinerCore.get_metadata(data::DBData)
     )
 end
 
-function StreamlinerCore.get_nsamples(data::DBData, i::Int)
+function SC.get_nsamples(data::DBData, i::Int)
     (; repository, schema, partition, table) = data
     q = From(table) |>
         filter_partition(partition, i) |>
@@ -83,7 +99,7 @@ function StreamlinerCore.get_nsamples(data::DBData, i::Int)
     return DBInterface.execute(to_nrow, repository, q; schema)
 end
 
-function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
+function SC.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
     (; repository, schema, id_var, order_by, partition) = data
 
@@ -91,7 +107,7 @@ function StreamlinerCore.stream(f, data::DBData, i::Int, streaming::Streaming)
         throw(ArgumentError("Unbatched streaming is not supported."))
     end
 
-    nrows = StreamlinerCore.get_nsamples(data, i)
+    nrows = SC.get_nsamples(data, i)
 
     return with_connection(repository) do con
         catalog = get_catalog(repository; schema)
@@ -131,7 +147,7 @@ function append_batch(appender::DuckDBUtils.Appender, id, vs)
     return
 end
 
-function StreamlinerCore.ingest(data::DBData{1}, eval_stream, select; suffix::AbstractString, destination, id)
+function SC.ingest(data::DBData{1}, eval_stream, select; suffix::AbstractString, destination, id)
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
     output_names = join_names.(data.targets, Ref(suffix))

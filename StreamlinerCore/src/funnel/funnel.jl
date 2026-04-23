@@ -1,7 +1,7 @@
 struct Funnel{W}
     metadata::StringDict
     windowing::W
-    helper_variables::Dict{Symbol, Vector{String}}
+    variables::Dict{Symbol, Vector{String}}
 end
 
 @parsable Funnel
@@ -19,8 +19,7 @@ end
 function Funnel(parser::Parser, metadata::AbstractDict)
     return @with PARSER => parser begin
         windowing = parse_windowing(get(metadata, "windowing", StringDict()))
-        helper_variables::Dict{Symbol, Vector{String}} =
-            get(metadata, "variables", StringDict())
-        Funnel(metadata, windowing, helper_variables)
+        variables::Dict{Symbol, Vector{String}} = get(metadata, "variables", StringDict())
+        Funnel(metadata, windowing, variables)
     end
 end

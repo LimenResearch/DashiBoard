@@ -115,8 +115,9 @@ using DataInterpolations: ExtrapolationType,
     AkimaInterpolation,
     PCHIPInterpolation
 
-using StreamlinerCore: StreamlinerCore,
+using StreamlinerCore:
     AbstractData,
+    RichColumn,
     Funnel,
     Model,
     Streaming,
@@ -126,7 +127,8 @@ using StreamlinerCore: StreamlinerCore,
     default_parser,
     PARSER,
     metricname,
-    get_rng
+    get_rng,
+    StreamlinerCore as SC
 
 using OneHotArrays: onehotbatch
 

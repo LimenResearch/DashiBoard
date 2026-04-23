@@ -166,6 +166,7 @@ _input_and_target_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
 
 sorting_vars(::RescaleCard) = String[]
 grouping_vars(rc::RescaleCard) = rc.by
+helper_vars(::RescaleCard) = String[]
 input_vars(rc::RescaleCard) = rc.inputs
 target_vars(rc::RescaleCard) = rc.targets
 weight_var(::RescaleCard) = nothing

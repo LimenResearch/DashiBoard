@@ -190,6 +190,8 @@ end
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
 
     config = d["basic"]
+    config["by"] = String[]
+    config["funnel"] = ""
 
     model_dir = joinpath(@__DIR__, "static", "model")
     training_dir = joinpath(@__DIR__, "static", "training")
@@ -199,9 +201,8 @@ end
 
         metadata = Pipelines.get_metadata(card)
         fields = [
-            "type", "order_by", "inputs", "targets",
-            "partition", "suffix",
-            "model", "training",
+            "type", "order_by", "by", "partition", "suffix",
+            "model", "training", "funnel",
         ]
         for k in fields
             @test metadata[k] == config[k]
@@ -209,6 +210,12 @@ end
         @test metadata["label"] == "Streamliner"
         @test metadata["model_metadata"] == StreamlinerCore.get_metadata(card.model)
         @test metadata["training_metadata"] == StreamlinerCore.get_metadata(card.training)
+        @test metadata["funnel_metadata"] == StreamlinerCore.get_metadata(card.funnel)
+        @test metadata["inputs"] == [
+            Dict("colname" => "TEMP", "transform" => ""),
+            Dict("colname" => "PRES", "transform" => ""),
+        ]
+        @test metadata["targets"] == [Dict("colname" => "Iws", "transform" => "")]
         card2 = Pipelines.Card(metadata)
     end
     @test metadata == Pipelines.get_metadata(card2)

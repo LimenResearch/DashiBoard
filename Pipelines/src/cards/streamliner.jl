@@ -117,7 +117,15 @@ end
 ## StreamingCard interface
 
 sorting_vars(sc::StreamlinerCard) = sc.data_spec.order_by
-grouping_vars(::StreamlinerCard) = String[]
+grouping_vars(sc::StreamlinerCard) = sc.data_spec.by
+
+function helper_vars(sc::StreamlinerCard)
+    s = OrderedSet{String}()
+    for vars in values(sc.funnel.helper_variables)
+        union!(s, vars)
+    end
+    return collect(String, s)
+end
 
 function input_vars(sc::StreamlinerCard)::Vector{String}
     return vcat(

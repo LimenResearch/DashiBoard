@@ -113,6 +113,7 @@ end
 
 sorting_vars(::ClusterCard) = String[]
 grouping_vars(::ClusterCard) = String[]
+helper_vars(::ClusterCard) = String[]
 input_vars(cc::ClusterCard) = cc.inputs
 target_vars(::ClusterCard) = String[]
 weight_var(cc::ClusterCard) = cc.weights

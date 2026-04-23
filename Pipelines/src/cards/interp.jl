@@ -167,6 +167,7 @@ end
 
 sorting_vars(ic::InterpCard) = [ic.input]
 grouping_vars(::InterpCard) = String[]
+helper_vars(::InterpCard) = String[]
 input_vars(ic::InterpCard) = [ic.input]
 target_vars(ic::InterpCard) = ic.targets
 weight_var(::InterpCard) = nothing

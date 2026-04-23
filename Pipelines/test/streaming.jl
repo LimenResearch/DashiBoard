@@ -25,6 +25,7 @@
 
     @test Pipelines.get_metadata(data_spec) == Dict(
         "order_by" => ["No"],
+        "by" => String[],
         "inputs" => [Dict("colname" => "TEMP", "transform" => ""), Dict("colname" => "PRES", "transform" => "")],
         "input_paths" => nothing,
         "targets" => [Dict("colname" => "Iws", "transform" => "")],

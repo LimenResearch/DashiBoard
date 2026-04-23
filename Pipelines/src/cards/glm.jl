@@ -123,6 +123,7 @@ _output(gc::AbstractGLMCard) = join_names(_target(gc), gc.suffix)
 
 sorting_vars(::AbstractGLMCard) = String[]
 grouping_vars(::AbstractGLMCard) = String[]
+helper_vars(::AbstractGLMCard) = String[]
 input_vars(gc::AbstractGLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
 target_vars(gc::AbstractGLMCard) = [_target(gc)]
 weight_var(gc::AbstractGLMCard) = gc.weights

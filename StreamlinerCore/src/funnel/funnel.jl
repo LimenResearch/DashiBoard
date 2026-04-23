@@ -1,7 +1,9 @@
+# TODO: more descriptive name?
+# TODO: unit test within StreamlinerCore tests
 struct Funnel{W}
     metadata::StringDict
     windowing::W
-    variables::Dict{Symbol, Vector{String}}
+    helper_variables::Dict{Symbol, Vector{String}}
 end
 
 @parsable Funnel
@@ -34,7 +36,7 @@ by `StreamlinerCore` models.
 function Funnel(parser::Parser, metadata::AbstractDict)
     return @with PARSER => parser begin
         windowing = parse_windowing(get(metadata, "windowing", StringDict()))
-        variables::Dict{Symbol, Vector{String}} = get(metadata, "variables", StringDict())
-        Funnel(metadata, windowing, variables)
+        helper_variables::Dict{Symbol, Vector{String}} = get(metadata, "variables", StringDict())
+        Funnel(metadata, windowing, helper_variables)
     end
 end

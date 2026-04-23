@@ -69,8 +69,7 @@ end
 const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("config", "streamliner"))
 
 function get_metadata(sc::StreamlinerCard)
-    ds = sc.data_spec
-    return StringDict(
+    d = StringDict(
         "type" => sc.type,
         "label" => sc.label,
         "model" => sc.model_name,
@@ -79,14 +78,9 @@ function get_metadata(sc::StreamlinerCard)
         "training_metadata" => SC.get_metadata(sc.training),
         "funnel" => sc.funnel_name,
         "funnel_metadata" => SC.get_metadata(sc.funnel),
-        "order_by" => ds.order_by,
-        "inputs" => SC.get_metadata.(ds.inputs),
-        "input_paths" => ds.input_paths,
-        "targets" => SC.get_metadata.(ds.targets),
-        "target_paths" => ds.target_paths,
-        "partition" => ds.partition,
         "suffix" => sc.suffix,
     )
+    return merge(d, get_metadata(sc.data_spec))
 end
 
 function StreamlinerCard(c::AbstractDict)
@@ -102,14 +96,7 @@ function StreamlinerCard(c::AbstractDict)
     training = get_streamliner_training(parser, c, training_name)
     funnel_name::String = get(c, "funnel", "")
     funnel = get_streamliner_funnel(parser, c, funnel_name)
-
-    order_by::Vector{String} = get(c, "order_by", String[])
-    inputs::Vector{RichColumn} = RichColumn.((parser,), get(c, "inputs", []))
-    input_paths::Union{String, Nothing} = get(c, "input_paths", nothing)
-    targets::Vector{RichColumn} = RichColumn.((parser,), get(c, "targets", []))
-    target_paths::Union{String, Nothing} = get(c, "target_paths", nothing)
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    data_spec = DataSpec(order_by, inputs, input_paths, targets, target_paths, partition)
+    data_spec = DataSpec(parser, c)
 
     suffix::String = get(c, "suffix", "hat")
 
@@ -134,14 +121,14 @@ grouping_vars(::StreamlinerCard) = String[]
 
 function input_vars(sc::StreamlinerCard)::Vector{String}
     return vcat(
-        SC.colname.(sc.data_spec.inputs),
+        input_names(sc.data_spec),
         to_stringlist(sc.data_spec.input_paths)
     )
 end
 
 function target_vars(sc::StreamlinerCard)::Vector{String}
     return vcat(
-        SC.colname.(sc.data_spec.targets),
+        target_names(sc.data_spec),
         to_stringlist(sc.data_spec.target_paths)
     )
 end
@@ -150,7 +137,7 @@ weight_var(::StreamlinerCard) = nothing
 partition_var(sc::StreamlinerCard) = sc.data_spec.partition
 
 function output_vars(sc::StreamlinerCard)
-    return join_names.(SC.colname.(sc.data_spec.targets), sc.suffix)
+    return join_names.(target_names(sc.data_spec), sc.suffix)
 end
 
 function train(
@@ -205,15 +192,11 @@ function evaluate(
         partition = nothing
 
         data = get_evaluation_data(
-            sc.funnel;
-            table = source,
+            sc.funnel, no_partition(sc.data_spec);
             repository,
             schema,
+            table = source,
             id_var,
-            sc.order_by,
-            sc.inputs,
-            sc.targets,
-            partition,
             uvals
         )
 

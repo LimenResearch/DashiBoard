@@ -1,4 +1,4 @@
-struct DataSpec
+@kwdef struct DataSpec
     order_by::Vector{String}
     inputs::Vector{RichColumn}
     input_paths::Union{String, Nothing}
@@ -7,22 +7,41 @@ struct DataSpec
     partition::Union{String, Nothing}
 end
 
-function get_evaluation_data(
-        ::Funnel{Nothing}, data_spec::DataSpec;
-        repository, schema, table, id_var
+function no_partition(ds::DataSpec)
+    return DataSpec(;
+        ds.order_by,
+        ds.inputs,
+        ds.input_paths,
+        ds.targets,
+        ds.target_paths,
+        partition = nothing
     )
-    return DBData{1}(; repository, schema, table, id_var, data_spec)
 end
 
-function get_partitioned_data(
-        ::Funnel{Nothing}, data_spec::DataSpec;
-        repository, schema, table, id_var
-    )
-    data = DBData{2}(; repository, schema, table, id_var, data_spec)
-    train!(data)
-    return data
+input_names(ds::DataSpec) = SC.colname.(ds.inputs)
+
+target_names(ds::DataSpec) = SC.colname.(ds.targets)
+
+function DataSpec(parser::Parser, c::AbstractDict)
+    order_by::Vector{String} = get(c, "order_by", String[])
+    inputs::Vector{RichColumn} = RichColumn.((parser,), get(c, "inputs", []))
+    input_paths::Union{String, Nothing} = get(c, "input_paths", nothing)
+    targets::Vector{RichColumn} = RichColumn.((parser,), get(c, "targets", []))
+    target_paths::Union{String, Nothing} = get(c, "target_paths", nothing)
+    partition::Union{String, Nothing} = get(c, "partition", nothing)
+    return DataSpec(order_by, inputs, input_paths, targets, target_paths, partition)
 end
 
+function get_metadata(ds::DataSpec)
+    return StringDict(
+        "order_by" => ds.order_by,
+        "inputs" => SC.get_metadata.(ds.inputs),
+        "input_paths" => ds.input_paths,
+        "targets" => SC.get_metadata.(ds.targets),
+        "target_paths" => ds.target_paths,
+        "partition" => ds.partition,
+    )
+end
 
 @kwdef struct DBData{N} <: AbstractData{N}
     repository::Repository
@@ -35,12 +54,12 @@ end
 
 function train!(data::DBData)
     (; repository, table, schema, data_spec, uvals) = data
-    (; inputs, targets, partition) = data_spec
+    inputs, targets = input_names(data_spec), target_names(data_spec)
 
     empty!(uvals)
-    src = From(table) |> filter_partition(partition)
+    src = From(table) |> filter_partition(data_spec.partition)
     schm = DBInterface.execute(Tables.schema, repository, src |> Limit(0); schema)
-    cols = union(SC.colname.(inputs), SC.colname.(targets))
+    cols = union(inputs, targets)
     idxs = indexin(Symbol.(cols), collect(schm.names))
 
     for (i, k) in zip(idxs, cols)
@@ -55,6 +74,22 @@ function train!(data::DBData)
     return data
 end
 
+function get_evaluation_data(
+        ::Funnel{Nothing}, data_spec::DataSpec;
+        repository, schema, table, id_var, uvals
+    )
+    return DBData{1}(; repository, schema, table, id_var, data_spec, uvals)
+end
+
+function get_partitioned_data(
+        ::Funnel{Nothing}, data_spec::DataSpec;
+        repository, schema, table, id_var
+    )
+    data = DBData{2}(; repository, schema, table, id_var, data_spec)
+    train!(data)
+    return data
+end
+
 struct Processor{N, D}
     data::DBData{N}
     device::D
@@ -62,7 +97,8 @@ struct Processor{N, D}
 end
 
 function (p::Processor)(cols)
-    (; inputs, targets, uvals) = p.data
+    (; data_spec, uvals) = p.data
+    inputs, targets = input_names(data_spec), target_names(data_spec)
     input::Array{Float32, 2} = encode_columns(cols, inputs, uvals)
     target::Array{Float32, 2} = encode_columns(cols, targets, uvals)
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
@@ -70,7 +106,8 @@ function (p::Processor)(cols)
 end
 
 function SC.get_templates(data::DBData)
-    (; inputs, targets, uvals) = data
+    (; data_spec, uvals) = data
+    inputs, targets = input_names(data_spec), target_names(data_spec)
     n_inputs = sum(Fix2(column_number, uvals), inputs)
     n_targets = sum(Fix2(column_number, uvals), targets)
     input = Template(Float32, (n_inputs,))
@@ -78,22 +115,10 @@ function SC.get_templates(data::DBData)
     return (; input, target)
 end
 
-# TODO: understand role of `get_metadata` in the presence of cards?
-function SC.get_metadata(data::DBData)
-    return Dict(
-        "schema" => data.schema,
-        "table" => data.table,
-        "order_by" => data.order_by,
-        "inputs" => data.inputs,
-        "targets" => data.targets,
-        "partition" => data.partition
-    )
-end
-
 function SC.get_nsamples(data::DBData, i::Int)
-    (; repository, schema, partition, table) = data
+    (; repository, schema, table, data_spec) = data
     q = From(table) |>
-        filter_partition(partition, i) |>
+        filter_partition(data_spec.partition, i) |>
         Group() |>
         Select("Count" => Agg.count())
     return DBInterface.execute(to_nrow, repository, q; schema)
@@ -101,7 +126,8 @@ end
 
 function SC.stream(f, data::DBData, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
-    (; repository, schema, id_var, order_by, partition) = data
+    (; repository, schema, id_var, data_spec) = data
+    (; order_by, partition) = data_spec
 
     if isnothing(batchsize)
         throw(ArgumentError("Unbatched streaming is not supported."))
@@ -150,8 +176,9 @@ end
 function SC.ingest(data::DBData{1}, eval_stream, select; suffix::AbstractString, destination, id)
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
-    output_names = join_names.(data.targets, Ref(suffix))
-    output_types = column_type.(data.targets, Ref(data.uvals))
+    targets = target_names(data.data_spec)
+    output_names = join_names.(targets, Ref(suffix))
+    output_types = column_type.(targets, Ref(data.uvals))
 
     tbl = SimpleTable(id => Int64[])
     for (output_name, output_type) in zip(output_names, output_types)
@@ -162,7 +189,7 @@ function SC.ingest(data::DBData{1}, eval_stream, select; suffix::AbstractString,
     appender = DuckDBUtils.Appender(data.repository.db, destination, data.schema)
     for batch in eval_stream
         v = collect(batch.prediction)
-        append_batch(appender, batch.id, decode_columns(v, data.targets, data.uvals))
+        append_batch(appender, batch.id, decode_columns(v, targets, data.uvals))
     end
     DuckDBUtils.close(appender)
     return output_names

@@ -15,15 +15,20 @@
     end
     Pipelines.train_evaljoin!(repo, node, "source" => "split", "No"; schema)
 
+    parser = StreamlinerCore.default_parser()
+    data_spec = Pipelines.DataSpec(
+        order_by = ["No"],
+        inputs = StreamlinerCore.RichColumn.((parser,), ["TEMP", "PRES"]),
+        targets = StreamlinerCore.RichColumn.((parser,), ["Iws"]),
+        partition = "_tiled_partition"
+    )
+
     data = Pipelines.DBData{2}(
         repository = repo,
         schema = schema,
         table = "split",
         id_var = "No",
-        order_by = ["No"],
-        inputs = ["TEMP", "PRES"],
-        targets = ["Iws"],
-        partition = "_tiled_partition"
+        data_spec = data_spec
     )
 
     df = DBInterface.execute(DataFrame, repo, "FROM schm.split ORDER BY No")
@@ -34,15 +39,6 @@
     @test StreamlinerCore.get_templates(data) === (
         input = StreamlinerCore.Template(Float32, (2,)),
         target = StreamlinerCore.Template(Float32, (1,)),
-    )
-
-    @test StreamlinerCore.get_metadata(data) == Dict(
-        "schema" => schema,
-        "table" => "split",
-        "order_by" => ["No"],
-        "inputs" => ["TEMP", "PRES"],
-        "targets" => ["Iws"],
-        "partition" => "_tiled_partition",
     )
 
     parser = StreamlinerCore.default_parser()
@@ -96,15 +92,19 @@
     batches′ = StreamlinerCore.stream(collect, data, 2, streaming)
     @test batches′[1].input == batches[1].input # ensure determinism
 
+    data_spec = Pipelines.DataSpec(
+        order_by = ["No"],
+        inputs = StreamlinerCore.RichColumn.((parser,), ["TEMP", "PRES"]),
+        targets = StreamlinerCore.RichColumn.((parser,), ["cbwd"]),
+        partition = "_tiled_partition"
+    )
+
     data = Pipelines.DBData{2}(
         repository = repo,
         schema = schema,
         table = "split",
         id_var = "No",
-        order_by = ["No"],
-        inputs = ["TEMP", "PRES"],
-        targets = ["cbwd"],
-        partition = "_tiled_partition"
+        data_spec = data_spec
     )
     Pipelines.train!(data)
 

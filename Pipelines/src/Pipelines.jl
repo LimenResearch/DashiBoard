@@ -156,9 +156,9 @@ include("widgets.jl")
 include("utils.jl")
 include("dict_helpers.jl")
 
-include("funnels/data_spec.jl")
-include("funnels/onehot.jl")
-include("funnels/basic.jl")
+include("streaming/data_spec.jl")
+include("streaming/onehot.jl")
+include("streaming/db_data.jl")
 
 include("card.jl")
 

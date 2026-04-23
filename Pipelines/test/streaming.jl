@@ -1,4 +1,4 @@
-@testset "basic funnel" begin
+@testset "DBData" begin
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     schema = "schm"
     repo = Repository()
@@ -21,6 +21,15 @@
         inputs = StreamlinerCore.RichColumn.((parser,), ["TEMP", "PRES"]),
         targets = StreamlinerCore.RichColumn.((parser,), ["Iws"]),
         partition = "_tiled_partition"
+    )
+
+    @test Pipelines.get_metadata(data_spec) == Dict(
+        "order_by" => ["No"],
+        "inputs" => [Dict("colname" => "TEMP", "transform" => ""), Dict("colname" => "PRES", "transform" => "")],
+        "input_paths" => nothing,
+        "targets" => [Dict("colname" => "Iws", "transform" => "")],
+        "target_paths" => nothing,
+        "partition" => "_tiled_partition",
     )
 
     data = Pipelines.DBData{2}(

@@ -17,7 +17,7 @@ function encode_column(cols, k::AbstractString, uvals::AbstractDict)::Matrix{Flo
 end
 
 function encode_columns(cols, ks::AbstractVector, uvals::AbstractDict)
-    ms = [encode_column(cols, k, uvals) for k in ks]
+    ms = [encode_column(cols, k, uvals)::AbstractMatrix for k in ks]
     return reduce(vcat, ms)
 end
 

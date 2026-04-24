@@ -1,6 +1,6 @@
-abstract type AbstractFunnel end
+abstract type Funnel end
 
-@kwdef struct DBFunnel <: AbstractFunnel
+@kwdef struct DBFunnel <: Funnel
     order_by::Vector{String}
     inputs::Vector{RichColumn}
     input_paths::Union{String, Nothing} = nothing

@@ -1,6 +1,5 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
-const FUNNEL_DIR = ScopedValue{String}()
 
 function parse_without_widgets(dir, x)
     file = string(x, ".toml")
@@ -9,32 +8,20 @@ function parse_without_widgets(dir, x)
     return c
 end
 
-function get_streamliner_model(parser::Parser, c::AbstractDict, model_name::AbstractString)
+function get_streamliner_model(c::AbstractDict, model_name::AbstractString)
     model_options = extract_options(c, "model", model_name)
     model = get(c, "model_metadata") do
         return parse_without_widgets(MODEL_DIR[], model_name)
     end
-    return Model(parser, model, model_options)
+    return Model(PARSER[], model, model_options)
 end
 
-function get_streamliner_training(parser::Parser, c::AbstractDict, training_name::AbstractString)
+function get_streamliner_training(c::AbstractDict, training_name::AbstractString)
     training_options = extract_options(c, "training", training_name)
     training = get(c, "training_metadata") do
         return parse_without_widgets(TRAINING_DIR[], training_name)
     end
-    return Training(parser, training, training_options)
-end
-
-function get_streamliner_funnel(parser::Parser, c::AbstractDict, funnel_name::AbstractString)
-    funnel_options = extract_options(c, "funnel", funnel_name)
-    funnel = get(c, "funnel_metadata") do
-        return if funnel_name == "" # support basic funnel by default
-            StringDict()
-        else
-            parse_without_widgets(FUNNEL_DIR[], funnel_name)
-        end
-    end
-    return Funnel(parser, funnel, funnel_options)
+    return Training(PARSER[], training, training_options)
 end
 
 """
@@ -47,7 +34,7 @@ end
         training::Training
         funnel_name::String
         funnel::Funnel
-        data_spec::DataSpec
+        partition::Union{String, Nothing}
         suffix::String = "hat"
     end
 
@@ -62,7 +49,7 @@ struct StreamlinerCard <: StreamingCard
     training::Training
     funnel_name::String
     funnel::Funnel
-    data_spec::DataSpec
+    partition::Union{String, Nothing}
     suffix::String
 end
 
@@ -76,11 +63,12 @@ function get_metadata(sc::StreamlinerCard)
         "model_metadata" => SC.get_metadata(sc.model),
         "training" => sc.training_name,
         "training_metadata" => SC.get_metadata(sc.training),
-        "funnel" => sc.funnel_name,
-        "funnel_metadata" => SC.get_metadata(sc.funnel),
+        "partition" => sc.partition,
         "suffix" => sc.suffix,
     )
-    return merge(d, get_metadata(sc.data_spec))
+    d["funnel"] = sc.funnel_name
+    merge!(d, SC.get_metadata(sc.funnel))
+    return d
 end
 
 function StreamlinerCard(c::AbstractDict)
@@ -88,16 +76,14 @@ function StreamlinerCard(c::AbstractDict)
     config = CARD_CONFIGS[type]
     label::String = card_label(c, config)
 
-    parser = PARSER[]
-
     model_name::String = c["model"]
-    model = get_streamliner_model(parser, c, model_name)
+    model = get_streamliner_model(c, model_name)
     training_name::String = c["training"]
-    training = get_streamliner_training(parser, c, training_name)
+    training = get_streamliner_training(c, training_name)
     funnel_name::String = get(c, "funnel", "")
-    funnel = get_streamliner_funnel(parser, c, funnel_name)
-    data_spec = DataSpec(parser, c)
+    funnel = PARSER[].funnels[funnel_name](c)
 
+    partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
     return StreamlinerCard(
@@ -109,44 +95,23 @@ function StreamlinerCard(c::AbstractDict)
         training,
         funnel_name,
         funnel,
-        data_spec,
+        partition,
         suffix
     )
 end
 
 ## StreamingCard interface
 
-sorting_vars(sc::StreamlinerCard) = sc.data_spec.order_by
-grouping_vars(sc::StreamlinerCard) = sc.data_spec.by
-
-function helper_vars(sc::StreamlinerCard)
-    s = OrderedSet{String}()
-    for vars in values(sc.funnel.helper_variables)
-        union!(s, vars)
-    end
-    return collect(String, s)
-end
-
-function input_vars(sc::StreamlinerCard)::Vector{String}
-    return vcat(
-        input_names(sc.data_spec),
-        to_stringlist(sc.data_spec.input_paths)
-    )
-end
-
-function target_vars(sc::StreamlinerCard)::Vector{String}
-    return vcat(
-        target_names(sc.data_spec),
-        to_stringlist(sc.data_spec.target_paths)
-    )
-end
+sorting_vars(sc::StreamlinerCard) = sorting_vars(sc.funnel)
+grouping_vars(sc::StreamlinerCard) = String[]
+helper_vars(sc::StreamlinerCard) = helper_vars(sc.funnel)
+input_vars(sc::StreamlinerCard) = vcat(input_vars(sc.funnel), to_stringlist(input_path_var(sc.funnel)))
+target_vars(sc::StreamlinerCard) = vcat(target_vars(sc.funnel), to_stringlist(target_path_var(sc.funnel)))
 
 weight_var(::StreamlinerCard) = nothing
-partition_var(sc::StreamlinerCard) = sc.data_spec.partition
+partition_var(sc::StreamlinerCard) = sc.partition
 
-function output_vars(sc::StreamlinerCard)
-    return join_names.(target_names(sc.data_spec), sc.suffix)
-end
+output_vars(sc::StreamlinerCard) = join_names.(target_vars(sc.funnel), sc.suffix)
 
 function train(
         repository::Repository,
@@ -156,10 +121,12 @@ function train(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-    data = get_partitioned_data(
-        sc.funnel, sc.data_spec;
-        repository, schema, table = source, id_var
+    data = FunneledData(
+        Val(2), sc.funnel;
+        repository, schema, table = source,
+        id_var, sc.partition
     )
+    train!(data)
 
     (; model, training) = sc
 
@@ -197,18 +164,14 @@ function evaluate(
         uvals = jldopen(path) do file
             file["uvals"]
         end
-        partition = nothing
 
-        data = get_evaluation_data(
-            sc.funnel, no_partition(sc.data_spec);
-            repository,
-            schema,
-            table = source,
-            id_var,
-            uvals
+        data = FunneledData(
+            Val(1), sc.funnel;
+            repository, schema, table = source,
+            id_var, partition = nothing, uvals
         )
 
-        SC.evaluate(dir, model, data, streaming; destination, suffix, id = id_var)
+        SC.evaluate(dir, model, data, streaming; destination, suffix, id_var = id_var)
     end
 end
 

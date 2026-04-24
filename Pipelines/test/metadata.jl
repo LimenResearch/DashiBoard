@@ -201,7 +201,7 @@ end
 
         metadata = Pipelines.get_metadata(card)
         fields = [
-            "type", "order_by", "by", "partition", "suffix",
+            "type", "order_by", "partition", "suffix",
             "model", "training", "funnel",
         ]
         for k in fields
@@ -210,12 +210,14 @@ end
         @test metadata["label"] == "Streamliner"
         @test metadata["model_metadata"] == StreamlinerCore.get_metadata(card.model)
         @test metadata["training_metadata"] == StreamlinerCore.get_metadata(card.training)
-        @test metadata["funnel_metadata"] == StreamlinerCore.get_metadata(card.funnel)
+        @test metadata["order_by"] == ["No"]
         @test metadata["inputs"] == [
             Dict("colname" => "TEMP", "transform" => ""),
             Dict("colname" => "PRES", "transform" => ""),
         ]
+        @test isnothing(metadata["input_paths"])
         @test metadata["targets"] == [Dict("colname" => "Iws", "transform" => "")]
+        @test isnothing(metadata["target_paths"])
         card2 = Pipelines.Card(metadata)
     end
     @test metadata == Pipelines.get_metadata(card2)

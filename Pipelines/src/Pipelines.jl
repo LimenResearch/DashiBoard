@@ -22,7 +22,7 @@ public train, evaluate, inputs, outputs, invertible
 
 public report, visualize, get_card, get_state, invert, Node
 
-public default_parser, PARSER, MODEL_DIR, TRAINING_DIR, FUNNEL_DIR
+public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 public apply_helpers
 
@@ -118,6 +118,7 @@ using DataInterpolations: ExtrapolationType,
 using StreamlinerCore:
     AbstractData,
     RichColumn,
+    DBFunnel,
     Funnel,
     Model,
     Streaming,
@@ -156,9 +157,8 @@ include("widgets.jl")
 include("utils.jl")
 include("dict_helpers.jl")
 
-include("streaming/data_spec.jl")
+include("streaming/funnel.jl")
 include("streaming/onehot.jl")
-include("streaming/db_data.jl")
 
 include("card.jl")
 

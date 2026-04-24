@@ -11,7 +11,7 @@ public has_weights, output_path, stats_path, stats_tensor, metricname
 public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
 public Metric
-public RichColumn, colname, AbstractFunnel
+public RichColumn, colname, DBFunnel, Funnel
 
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std

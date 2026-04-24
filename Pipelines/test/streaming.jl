@@ -1,4 +1,4 @@
-@testset "DBData" begin
+@testset "FunneledData" begin
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     schema = "schm"
     repo = Repository()
@@ -15,30 +15,27 @@
     end
     Pipelines.train_evaljoin!(repo, node, "source" => "split", "No"; schema)
 
-    parser = StreamlinerCore.default_parser()
-    data_spec = Pipelines.DataSpec(
+    funnel = StreamlinerCore.DBFunnel(
         order_by = ["No"],
-        inputs = StreamlinerCore.RichColumn.((parser,), ["TEMP", "PRES"]),
-        targets = StreamlinerCore.RichColumn.((parser,), ["Iws"]),
-        partition = "_tiled_partition"
+        inputs = StreamlinerCore.RichColumn.(["TEMP", "PRES"]),
+        targets = StreamlinerCore.RichColumn.(["Iws"])
     )
 
-    @test Pipelines.get_metadata(data_spec) == Dict(
+    @test StreamlinerCore.get_metadata(funnel) == Dict(
         "order_by" => ["No"],
-        "by" => String[],
         "inputs" => [Dict("colname" => "TEMP", "transform" => ""), Dict("colname" => "PRES", "transform" => "")],
         "input_paths" => nothing,
         "targets" => [Dict("colname" => "Iws", "transform" => "")],
         "target_paths" => nothing,
-        "partition" => "_tiled_partition",
     )
 
-    data = Pipelines.DBData{2}(
+    data = Pipelines.FunneledData(
+        Val(2), funnel,
         repository = repo,
         schema = schema,
         table = "split",
         id_var = "No",
-        data_spec = data_spec
+        partition = "_tiled_partition",
     )
 
     df = DBInterface.execute(DataFrame, repo, "FROM schm.split ORDER BY No")
@@ -102,19 +99,19 @@
     batches′ = StreamlinerCore.stream(collect, data, 2, streaming)
     @test batches′[1].input == batches[1].input # ensure determinism
 
-    data_spec = Pipelines.DataSpec(
+    funnel = StreamlinerCore.DBFunnel(
         order_by = ["No"],
-        inputs = StreamlinerCore.RichColumn.((parser,), ["TEMP", "PRES"]),
-        targets = StreamlinerCore.RichColumn.((parser,), ["cbwd"]),
-        partition = "_tiled_partition"
+        inputs = StreamlinerCore.RichColumn.(["TEMP", "PRES"]),
+        targets = StreamlinerCore.RichColumn.(["cbwd"]),
     )
 
-    data = Pipelines.DBData{2}(
+    data = Pipelines.FunneledData(
+        Val(2), funnel;
         repository = repo,
         schema = schema,
         table = "split",
         id_var = "No",
-        data_spec = data_spec
+        partition = "_tiled_partition"
     )
     Pipelines.train!(data)
 

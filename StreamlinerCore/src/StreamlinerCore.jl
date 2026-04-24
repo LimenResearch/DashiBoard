@@ -1,6 +1,6 @@
 module StreamlinerCore
 
-export Result, Model, Data, AbstractData, DataPartition, Training, Streaming, Funnel
+export Result, Model, Data, AbstractData, DataPartition, Training, Streaming
 export default_parser
 export get_templates, get_metadata, get_nsamples
 export stream, finetune, train, loadmodel, validate, evaluate, summarize
@@ -11,7 +11,7 @@ public has_weights, output_path, stats_path, stats_tensor, metricname
 public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
 public Metric
-public RichColumn, colname
+public RichColumn, colname, AbstractFunnel
 
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std
@@ -54,6 +54,15 @@ using EnumX: @enumx
 using Primes: factor
 using JLD2: jldopen
 using Printf: @sprintf
+
+"""
+    get_metadata(x)::Dict{String, Any}
+
+Extract metadata for `x`.
+`metadata` should be a dictionary of information that identifies `x` univoquely.
+`get_metadata` has methods for [`Model`](@ref) and [`Training`](@ref).
+"""
+function get_metadata end
 
 include("utils.jl")
 include("variables.jl")

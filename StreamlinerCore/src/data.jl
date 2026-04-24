@@ -119,15 +119,6 @@ See also [`Template`](@ref)
 function get_templates end
 
 """
-    get_metadata(x)::Dict{String, Any}
-
-Extract metadata for `x`.
-`metadata` should be a dictionary of information that identifies `x` univoquely.
-`get_metadata` has methods for [`Model`](@ref), [`Training`](@ref), and [`Funnel`](@ref), .
-"""
-function get_metadata end
-
-"""
     get_nsamples(data::AbstractData{N})::NTuple{N, Int} where {N}
 
 Return number of samples for `data`.

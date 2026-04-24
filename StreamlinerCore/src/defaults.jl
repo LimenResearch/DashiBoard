@@ -127,8 +127,8 @@ const DEFAULT_PARSER = let
         "f64" => Flux.f64,
     )
 
-    windowings = StringDict(
-        "" => Returns(nothing),
+    funnels = StringDict(
+        "" => db_funnel,
     )
 
     transforms = StringDict(
@@ -147,7 +147,7 @@ const DEFAULT_PARSER = let
         schedules,
         stoppers,
         devices,
-        windowings,
+        funnels,
         transforms
     )
 end

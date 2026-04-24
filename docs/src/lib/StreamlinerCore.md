@@ -32,7 +32,6 @@ StreamlinerCore.default_parser
 StreamlinerCore.Model
 StreamlinerCore.Training
 StreamlinerCore.Streaming
-StreamlinerCore.Funnel
 ```
 
 ## Training and evaluation

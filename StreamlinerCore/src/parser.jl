@@ -36,7 +36,7 @@ See [`default_parser`](@ref) for more advanced uses.
     schedules::StringDict = StringDict()
     stoppers::StringDict = StringDict()
     devices::StringDict = StringDict()
-    windowings::StringDict = StringDict()
+    funnels::StringDict = StringDict()
     transforms::StringDict = StringDict()
 end
 

@@ -131,6 +131,7 @@ const DEFAULT_PARSER = let
         "" => db_funnel,
     )
 
+    # TODO: here and in sigmas decide whether we want to keep `""` option
     transforms = StringDict(
         "" => identity,
         "identity" => identity,

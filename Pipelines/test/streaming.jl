@@ -113,7 +113,7 @@
         id_var = "No",
         partition = "_tiled_partition"
     )
-    Pipelines.train!(data)
+    Pipelines.initialize!(data)
 
     batches = StreamlinerCore.stream(collect, data, 2, streaming)
 

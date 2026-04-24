@@ -126,7 +126,7 @@ function train(
         repository, schema, table = source,
         id_var, sc.partition
     )
-    train!(data)
+    initialize!(data)
 
     (; model, training) = sc
 

@@ -64,7 +64,7 @@ target_path_var(dbf::Funnel) = dbf.target_paths
 # - `SC.stream` on `data::FunneledData{FunnelType}`
 # - `SC.ingest` on `data::FunneledData{FunnelType}`
 
-function train!(data::FunneledData{DBFunnel}) # TODO: generalize?
+function initialize!(data::FunneledData{DBFunnel})
     (; repository, table, schema, funnel, partition, uvals) = data
     (; inputs, targets) = funnel
     input_names, target_names = SC.colname.(inputs), SC.colname.(targets)
@@ -119,6 +119,7 @@ function encode_transform(cols, vars::AbstractVector, uvals::AbstractDict)
     return arr
 end
 
+# TODO: also create tensor of paths if any of `input_paths` or `target_paths` is not `nothing`
 function (p::Processor)(cols)
     (; funnel, require_targets, uvals) = p.data
     (; inputs, targets) = funnel

@@ -5,6 +5,7 @@ struct FunneledData{F <: Funnel, N} <: AbstractData{N}
     id_var::PrimaryKey # TODO: determine if this belong here?
     funnel::F
     partition::Union{String, Nothing}
+    require_targets::Bool
     uvals::Dict{String, AbstractVector}
 end
 
@@ -15,10 +16,32 @@ function FunneledData(
         table::AbstractString,
         id_var::AbstractPrimaryKey,
         partition::Union{AbstractString, Nothing},
+        require_targets::Bool = true,
         uvals::AbstractDict = Dict{String, AbstractVector}()
     ) where {F <: Funnel, N}
 
-    return FunneledData{F, N}(repository, schema, table, id_var, funnel, partition, uvals)
+    return FunneledData{F, N}(
+        repository, schema, table, id_var,
+        funnel, partition, require_targets, uvals
+    )
+end
+
+# Note: `uvals` might be invalidated by this
+function FunneledData{F, N}(
+        fd::FunneledData, funnel::F = fd.funnel;
+        repository::Repository = fd.repository,
+        schema::Union{AbstractString, Nothing} = fd.schema,
+        table::AbstractString = fd.table,
+        id_var::AbstractPrimaryKey = fd.id_var,
+        partition::Union{AbstractString, Nothing} = fd.partition,
+        require_targets::Bool = fd.require_targets,
+        uvals::AbstractDict = fd.uvals
+    ) where {F <: Funnel, N}
+
+    return FunneledData{F, N}(
+        repository, schema, table, id_var,
+        funnel, partition, require_targets, uvals
+    )
 end
 
 # Fallbacks (TODO: check with external implementations if this is helpful)
@@ -34,6 +57,7 @@ target_path_var(dbf::Funnel) = dbf.target_paths
 #
 # An implementation must include:
 # - var helpers on `fn::FunnelType` (if fallback is insufficient)
+# - `SC.metadata` on `fn::FunnelType`
 # - `Pipelines.train!` on `data::FunneledData{FunnelType}`
 # - `SC.get_nsamples` on `data::FunneledData{FunnelType}`
 # - `SC.get_templates` on `data::FunneledData{FunnelType}`
@@ -96,10 +120,14 @@ function encode_transform(cols, vars::AbstractVector, uvals::AbstractDict)
 end
 
 function (p::Processor)(cols)
-    (; funnel, uvals) = p.data
+    (; funnel, require_targets, uvals) = p.data
     (; inputs, targets) = funnel
     input::Array{Float32, 2} = encode_transform(cols, inputs, uvals)
-    target::Array{Float32, 2} = encode_transform(cols, targets, uvals)
+    target::Union{Array{Float32, 2}, Nothing} = if require_targets
+        encode_transform(cols, targets, uvals)
+    else
+        nothing
+    end
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
     return (; id, input = p.device(input), target = p.device(target))
 end
@@ -173,7 +201,7 @@ end
 
 function SC.ingest(
         data::FunneledData{DBFunnel, 1}, eval_stream, select;
-        suffix::AbstractString, destination, id_var
+        suffix::AbstractString, destination
     )
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
@@ -181,7 +209,7 @@ function SC.ingest(
     output_names = join_names.(targets, Ref(suffix))
     output_types = column_type.(targets, Ref(data.uvals))
 
-    tbl = SimpleTable(id_var => Int64[])
+    tbl = SimpleTable(data.id_var => Int64[])
     for (output_name, output_type) in zip(output_names, output_types)
         tbl[output_name] = output_type[]
     end

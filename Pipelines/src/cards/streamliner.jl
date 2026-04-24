@@ -168,10 +168,11 @@ function evaluate(
         data = FunneledData(
             Val(1), sc.funnel;
             repository, schema, table = source,
-            id_var, partition = nothing, uvals
+            id_var, partition = nothing,
+            require_targets = false, uvals
         )
 
-        SC.evaluate(dir, model, data, streaming; destination, suffix, id_var = id_var)
+        SC.evaluate(dir, model, data, streaming; destination, suffix)
     end
 end
 

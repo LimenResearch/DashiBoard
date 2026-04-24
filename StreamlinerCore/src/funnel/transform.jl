@@ -8,6 +8,8 @@ colname(r::RichColumn) = r.colname
 
 get_metadata(r::RichColumn) = Dict("colname" => r.colname, "transform" => r.transform_name)
 
+RichColumn(r::RichColumn) = r
+
 function RichColumn(s::Union{AbstractString, AbstractDict})
     column_name::String, transform_name::String =
         s isa AbstractDict ? (s["colname"], s["transform"]) : (s, "")

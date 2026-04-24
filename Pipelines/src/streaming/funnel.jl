@@ -21,7 +21,7 @@ function FunneledData(
     return FunneledData{F, N}(repository, schema, table, id_var, funnel, partition, uvals)
 end
 
-# Fallbacks
+# Fallbacks (TODO: check with external implementations if this is helpful)
 
 sorting_vars(dbf::Funnel) = dbf.order_by
 helper_vars(::Funnel) = String[]
@@ -30,7 +30,15 @@ input_path_var(dbf::Funnel) = dbf.input_paths
 target_vars(dbf::Funnel) = SC.colname.(dbf.targets)
 target_path_var(dbf::Funnel) = dbf.target_paths
 
-# DBFunnel implementation
+# Specific implementation for `DBFunnel`
+#
+# An implementation must include:
+# - var helpers on `fn::FunnelType` (if fallback is insufficient)
+# - `Pipelines.train!` on `data::FunneledData{FunnelType}`
+# - `SC.get_nsamples` on `data::FunneledData{FunnelType}`
+# - `SC.get_templates` on `data::FunneledData{FunnelType}`
+# - `SC.stream` on `data::FunneledData{FunnelType}`
+# - `SC.ingest` on `data::FunneledData{FunnelType}`
 
 function train!(data::FunneledData{DBFunnel}) # TODO: generalize?
     (; repository, table, schema, funnel, partition, uvals) = data
@@ -61,12 +69,37 @@ struct Processor{N, D}
     id::String
 end
 
+function transform!(
+        arr::AbstractArray{T, N}, vars::AbstractVector, uvals::AbstractDict
+    ) where {T <: Number, N}
+
+    # TODO: avoid having to check `haskey` several times
+    idxs = column_indices(Iterators.map(SC.colname, vars), uvals)
+    for (I, var) in zip(idxs, vars)
+        if haskey(uvals, SC.colname(var))
+            if var.transform !== identity
+                throw(ArgumentError("Transformation of one-hot encoded variable is not supported"))
+            end
+        else
+            idx = only(I)
+            slice = selectdim(arr, N - 1, idx)
+            copy!(slice, var.transform(slice))
+        end
+    end
+    return arr
+end
+
+function encode_transform(cols, vars::AbstractVector, uvals::AbstractDict)
+    arr = encode_columns(cols, Iterators.map(SC.colname, vars), uvals)
+    transform!(arr, vars, uvals)
+    return arr
+end
+
 function (p::Processor)(cols)
     (; funnel, uvals) = p.data
     (; inputs, targets) = funnel
-    input::Array{Float32, 2} = encode_columns(cols, SC.colname.(inputs), uvals)
-    target::Array{Float32, 2} = encode_columns(cols, SC.colname.(targets), uvals)
-    # FIXME: apply transform!
+    input::Array{Float32, 2} = encode_transform(cols, inputs, uvals)
+    target::Array{Float32, 2} = encode_transform(cols, targets, uvals)
     id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
     return (; id, input = p.device(input), target = p.device(target))
 end

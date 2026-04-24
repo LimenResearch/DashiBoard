@@ -102,6 +102,7 @@ end
 
 sorting_vars(sc::SplitCard) = sc.order_by
 grouping_vars(sc::SplitCard) = sc.by
+helper_vars(::SplitCard) = String[]
 input_vars(::SplitCard) = String[]
 target_vars(::SplitCard) = String[]
 weight_var(::SplitCard) = nothing

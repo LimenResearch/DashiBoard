@@ -74,6 +74,7 @@ end
 
 sorting_vars(wc::WildCard) = wc.order_by
 grouping_vars(::WildCard) = String[]
+helper_vars(::WildCard) = String[]
 input_vars(wc::WildCard) = wc.inputs
 target_vars(wc::WildCard) = wc.targets
 weight_var(wc::WildCard) = wc.weights

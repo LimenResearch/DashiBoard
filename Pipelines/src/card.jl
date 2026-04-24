@@ -177,6 +177,7 @@ end
 
 function sorting_vars end
 function grouping_vars end
+function helper_vars end
 function input_vars end
 function target_vars end
 function weight_var end
@@ -194,7 +195,7 @@ function inverse_output_vars end
 Return the list of inputs for a given card.
 """
 function get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
-    always_include = (sorting_vars(c), grouping_vars(c))
+    always_include = (sorting_vars(c), grouping_vars(c), helper_vars(c))
     return if invert
         union(always_include..., inverse_input_vars(c))
     elseif train

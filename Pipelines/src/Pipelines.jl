@@ -115,8 +115,10 @@ using DataInterpolations: ExtrapolationType,
     AkimaInterpolation,
     PCHIPInterpolation
 
-using StreamlinerCore: StreamlinerCore,
+using StreamlinerCore:
     AbstractData,
+    DBFunnel,
+    Funnel,
     Model,
     Streaming,
     Training,
@@ -125,7 +127,8 @@ using StreamlinerCore: StreamlinerCore,
     default_parser,
     PARSER,
     metricname,
-    get_rng
+    get_rng,
+    StreamlinerCore as SC
 
 using OneHotArrays: onehotbatch
 
@@ -153,8 +156,8 @@ include("widgets.jl")
 include("utils.jl")
 include("dict_helpers.jl")
 
-include("funnels/onehot.jl")
-include("funnels/basic.jl")
+include("streaming/funnel.jl")
+include("streaming/onehot.jl")
 
 include("card.jl")
 

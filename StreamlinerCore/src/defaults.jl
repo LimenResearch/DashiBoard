@@ -127,6 +127,15 @@ const DEFAULT_PARSER = let
         "f64" => Flux.f64,
     )
 
+    funnels = StringDict(
+        "" => db_funnel,
+    )
+
+    transforms = StringDict(
+        "" => identity,
+        "identity" => identity,
+    )
+
     Parser(;
         models,
         layers,
@@ -138,8 +147,9 @@ const DEFAULT_PARSER = let
         schedules,
         stoppers,
         devices,
+        funnels,
+        transforms
     )
-
 end
 
 const PARSER = ScopedValue{Parser}(DEFAULT_PARSER)

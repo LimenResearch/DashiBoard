@@ -119,17 +119,6 @@ See also [`Template`](@ref)
 function get_templates end
 
 """
-    get_metadata(x)::Dict{String, Any}
-
-Extract metadata for `x`.
-`metadata` should be a dictionary of information that identifies `x` univoquely.
-`get_metadata` has methods for [`AbstractData`](@ref), [`Model`](@ref), and [`Training`](@ref).
-"""
-function get_metadata end
-
-get_metadata(d::AbstractDict) = d
-
-"""
     get_nsamples(data::AbstractData{N})::NTuple{N, Int} where {N}
 
 Return number of samples for `data`.
@@ -143,11 +132,10 @@ get_nsamples(data::AbstractData, partition::Int) = throw(MethodError(get_nsample
 struct Data{N, S, T} <: AbstractData{N}
     streams::NTuple{N, S}
     templates::T
-    metadata::StringDict
 end
 
-function Data{N}(streams::NTuple{N, S}, templates::T, metadata::AbstractDict) where {N, S, T}
-    return Data{N, S, T}(streams, templates, metadata)
+function Data{N}(streams::NTuple{N, S}, templates::T) where {N, S, T}
+    return Data{N, S, T}(streams, templates)
 end
 
 function stream(f, data::Data, partition::Int, streaming::Streaming)
@@ -164,7 +152,5 @@ end
 ingest(::Data{1}, stream, select) = Iterators.map(NamedTuple{select}, stream)
 
 get_templates(data::Data) = data.templates
-
-get_metadata(data::Data) = data.metadata
 
 get_nsamples(data::Data, partition::Int) = numobs(data.streams[partition])

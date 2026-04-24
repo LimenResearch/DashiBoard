@@ -155,6 +155,7 @@ end
 
 sorting_vars(::GaussianEncodingCard) = String[]
 grouping_vars(::GaussianEncodingCard) = String[]
+helper_vars(::GaussianEncodingCard) = String[]
 input_vars(gec::GaussianEncodingCard) = [gec.input]
 target_vars(::GaussianEncodingCard) = String[]
 weight_var(::GaussianEncodingCard) = nothing

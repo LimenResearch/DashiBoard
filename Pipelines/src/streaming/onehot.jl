@@ -3,7 +3,7 @@ function column_number(k::AbstractString, uvals::AbstractDict)
     return isnothing(vals) ? 1 : length(vals)
 end
 
-function column_indices(ks::AbstractVector, uvals::AbstractDict)
+function column_indices(ks, uvals::AbstractDict)
     ns = map(Fix2(column_number, uvals), ks)
     cns = cumsum(ns)
     return @. range(cns - ns + 1, cns)
@@ -16,12 +16,12 @@ function encode_column(cols, k::AbstractString, uvals::AbstractDict)::Matrix{Flo
     return isnothing(vals) ? v' : onehotbatch(v, vals)
 end
 
-function encode_columns(cols, ks::AbstractVector, uvals::AbstractDict)
-    ms = [encode_column(cols, k, uvals) for k in ks]
+function encode_columns(cols, ks, uvals::AbstractDict)
+    ms = [encode_column(cols, k, uvals)::AbstractMatrix for k in ks]
     return reduce(vcat, ms)
 end
 
-function decode_columns(mat, ks::AbstractVector, uvals::AbstractDict)
+function decode_columns(mat, ks, uvals::AbstractDict)
     rgs = column_indices(ks, uvals)
     return map(ks, rgs) do k, rg
         vals = get(uvals, k, nothing)

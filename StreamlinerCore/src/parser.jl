@@ -3,7 +3,7 @@
 """
     Parser(;
         model, layers, sigmas, aggregators, metrics, regularizations,
-        optimizers, schedules, stoppers, devices
+        optimizers, schedules, stoppers, devices, windowings, transforms
     )
 
 Collection of dictionaries to performance the necessary conversion from the
@@ -36,6 +36,8 @@ See [`default_parser`](@ref) for more advanced uses.
     schedules::StringDict = StringDict()
     stoppers::StringDict = StringDict()
     devices::StringDict = StringDict()
+    funnels::StringDict = StringDict()
+    transforms::StringDict = StringDict()
 end
 
 Base.copy(p::Parser) = Parser(ntuple(n -> copy(getfield(p, n)), fieldcount(Parser))...)

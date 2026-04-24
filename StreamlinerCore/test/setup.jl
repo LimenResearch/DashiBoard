@@ -61,19 +61,16 @@ regression_templates = (
     input = Template(Float32, (28, 28, 1)),
     target = Template(Bool, (10,)),
 )
-regression_metadata = Dict("id" => "regression-mnist")
 train_regression_data = Data{2}(
     (
         getobs(regression_train_data, train_idxs),
         getobs(regression_train_data, valid_idxs),
     ),
-    regression_templates,
-    regression_metadata
+    regression_templates
 )
 test_regression_data = Data{1}(
     (getobs(regression_test_data, test_idxs),),
-    regression_templates,
-    regression_metadata
+    regression_templates
 )
 
 hybrid_templates = (
@@ -81,56 +78,47 @@ hybrid_templates = (
     metadata = Template(Float32, (3,)),
     target = Template(Bool, (10,)),
 )
-hybrid_metadata = Dict("id" => "hybrid-mnist")
 train_hybrid_data = Data{2}(
     (
         getobs(hybrid_train_data, train_idxs),
         getobs(hybrid_train_data, valid_idxs),
     ),
-    hybrid_templates,
-    hybrid_metadata
+    hybrid_templates
 )
 test_hybrid_data = Data{1}(
     (getobs(hybrid_test_data, test_idxs),),
-    hybrid_templates,
-    hybrid_metadata
+    hybrid_templates
 )
 
 autoencoder_templates = (
     input = Template(Float32, (28, 28, 1)),
 )
-autoencoder_metadata = Dict("id" => "autoencoder-mnist")
 train_autoencoder_data = Data{2}(
     (
         getobs(autoencoder_train_data, train_idxs),
         getobs(autoencoder_train_data, valid_idxs),
     ),
-    autoencoder_templates,
-    autoencoder_metadata
+    autoencoder_templates
 )
 test_autoencoder_data = Data{1}(
     (getobs(autoencoder_test_data, test_idxs),),
-    autoencoder_templates,
-    autoencoder_metadata
+    autoencoder_templates
 )
 
 prediction_templates = (
     input = Template(Float32, (28, 28, 1)),
     target = Template(Float32, (6, 1, 1)),
 )
-prediction_metadata = Dict("id" => "prediction-mnist")
 train_prediction_data = Data{2}(
     (
         getobs(prediction_train_data, train_idxs),
         getobs(prediction_train_data, valid_idxs),
     ),
-    prediction_templates,
-    prediction_metadata
+    prediction_templates
 )
 test_prediction_data = Data{1}(
     (getobs(prediction_test_data, test_idxs),),
-    prediction_templates,
-    prediction_metadata
+    prediction_templates
 )
 
 @info "Regression data summary statistics"

@@ -115,6 +115,7 @@ end
 
 sorting_vars(::DimensionalityReductionCard) = String[]
 grouping_vars(::DimensionalityReductionCard) = String[]
+helper_vars(::DimensionalityReductionCard) = String[]
 input_vars(drc::DimensionalityReductionCard) = drc.inputs
 target_vars(::DimensionalityReductionCard) = String[]
 weight_var(::DimensionalityReductionCard) = nothing

@@ -59,8 +59,38 @@ get_invert(node::Node) = node.invert
 get_state(node::Node) = node.state[]
 set_state!(node::Node, state) = setindex!(node.state, state)
 
-get_inputs(node::Node) = get_inputs(get_card(node); node.invert, node.train)
-get_outputs(node::Node) = get_outputs(get_card(node); node.invert)
+"""
+    get_inputs(node::Node)::Vector{String}
+
+Return the list of inputs for a given `node`.
+"""
+function get_inputs(node::Node)::Vector{String}
+    c, invert, train = get_card(node), get_invert(node), get_train(node)
+    always_include = (sorting_vars(c), grouping_vars(c), helper_vars(c))
+    return if invert
+        union(always_include..., inverse_input_vars(c))
+    elseif train
+        union(
+            always_include...,
+            input_vars(c),
+            target_vars(c),
+            to_stringlist(weight_var(c)),
+            to_stringlist(partition_var(c)),
+        )
+    else
+        union(always_include..., input_vars(c))
+    end
+end
+
+"""
+    get_outputs(node::Node)::Vector{String}
+
+Return the list of outputs for a given `node`.
+"""
+function get_outputs(node::Node)::Vector{String}
+    c, invert = get_card(node), get_invert(node)
+    return invert ? inverse_output_vars(c) : output_vars(c)
+end
 
 invertible(n::Node) = invertible(get_card(n))
 

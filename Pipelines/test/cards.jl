@@ -17,10 +17,10 @@ DataIngestion.select(repo, filters)
     card = Pipelines.Card(d["tiles"])
     @test !Pipelines.invertible(card)
 
-    @test Pipelines.get_inputs(card) == ["No", "cbwd"]
-    @test Pipelines.get_outputs(card) == ["_tiled_partition"]
-
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["No", "cbwd"]
+    @test Pipelines.get_outputs(node) == ["_tiled_partition"]
+
     Pipelines.train_evaljoin!(repo, node, "selection" => "split", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM split")
     @test names(df) == [
@@ -79,10 +79,10 @@ end
     card = Pipelines.Card(d["zscore"])
     @test Pipelines.invertible(card)
 
-    @test Pipelines.get_inputs(card) == ["cbwd", "TEMP"]
-    @test Pipelines.get_outputs(card) == ["TEMP_rescaled"]
-
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["cbwd", "TEMP"]
+    @test Pipelines.get_outputs(node) == ["TEMP_rescaled"]
+
     Pipelines.train_evaljoin!(repo, node, "selection" => "rescaled", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
     @test names(df) == [
@@ -236,12 +236,12 @@ end
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
 
     card = Pipelines.Card(d["kmeans"])
-
     @test !Pipelines.invertible(card)
-    @test Pipelines.get_inputs(card) == ["TEMP", "PRES", "Iws"]
-    @test Pipelines.get_outputs(card) == ["cluster"]
 
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["TEMP", "PRES", "Iws"]
+    @test Pipelines.get_outputs(node) == ["cluster"]
+
     Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM clustering")
     @test names(df) == [
@@ -256,12 +256,12 @@ end
     @test assignments(R) == df.cluster
 
     card = Pipelines.Card(d["dbscan"])
-
     @test !Pipelines.invertible(card)
-    @test Pipelines.get_inputs(card) == ["TEMP", "PRES"]
-    @test Pipelines.get_outputs(card) == ["dbcluster"]
 
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["TEMP", "PRES"]
+    @test Pipelines.get_outputs(node) == ["dbcluster"]
+
     Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM clustering")
     @test names(df) == [
@@ -292,12 +292,12 @@ end
     Pipelines.train_evaljoin!(repo, part_node, "small" => "partition", "No")
 
     card = Pipelines.Card(d["pca"])
-
     @test !Pipelines.invertible(card)
-    @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-    @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["DEWP", "TEMP", "PRES", "partition"]
+    @test Pipelines.get_outputs(node) == ["component_1", "component_2"]
+
     Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
@@ -314,12 +314,12 @@ end
     @test Y[2, :] == df.component_2
 
     card = Pipelines.Card(d["ppca"])
-
     @test !Pipelines.invertible(card)
-    @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-    @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["DEWP", "TEMP", "PRES", "partition"]
+    @test Pipelines.get_outputs(node) == ["component_1", "component_2"]
+
     Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
@@ -342,12 +342,12 @@ end
     @test Y[2, :] == df.component_2
 
     card = Pipelines.Card(d["factoranalysis"])
-
     @test !Pipelines.invertible(card)
-    @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-    @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["DEWP", "TEMP", "PRES", "partition"]
+    @test Pipelines.get_outputs(node) == ["component_1", "component_2"]
+
     Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
@@ -370,12 +370,12 @@ end
     @test Y[2, :] == df.component_2
 
     card = Pipelines.Card(d["mds"])
-
     @test !Pipelines.invertible(card)
-    @test Pipelines.get_inputs(card) == ["DEWP", "TEMP", "PRES", "partition"]
-    @test Pipelines.get_outputs(card) == ["component_1", "component_2"]
 
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["DEWP", "TEMP", "PRES", "partition"]
+    @test Pipelines.get_outputs(node) == ["component_1", "component_2"]
+
     Pipelines.train_evaljoin!(repo, node, "partition" => "dimres", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
@@ -407,10 +407,10 @@ end
     card = Pipelines.Card(d["hasPartition"])
     @test !Pipelines.invertible(card)
 
-    @test Pipelines.get_inputs(card) == ["cbwd", "year", "No", "TEMP", "partition"]
-    @test Pipelines.get_outputs(card) == ["TEMP_hat"]
-
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["cbwd", "year", "No", "TEMP", "partition"]
+    @test Pipelines.get_outputs(node) == ["TEMP_hat"]
+
     Pipelines.train_evaljoin!(repo, node, "partition" => "glm", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM glm")
     @test names(df) == [
@@ -475,10 +475,10 @@ end
     card = Pipelines.Card(d["constant"])
     @test !Pipelines.invertible(card)
 
-    @test Pipelines.get_inputs(card) == ["No", "TEMP", "PRES", "partition"]
-    @test Pipelines.get_outputs(card) == ["TEMP_hat", "PRES_hat"]
-
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["No", "TEMP", "PRES", "partition"]
+    @test Pipelines.get_outputs(node) == ["TEMP_hat", "PRES_hat"]
+
     Pipelines.train_evaljoin!(repo, node, "partition" => "interp", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
     @test names(df) == [
@@ -508,10 +508,10 @@ end
 
     card = Pipelines.Card(d["quadratic"])
 
-    @test Pipelines.get_inputs(card) == ["No", "TEMP", "PRES", "partition"]
-    @test Pipelines.get_outputs(card) == ["TEMP_hat", "PRES_hat"]
-
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["No", "TEMP", "PRES", "partition"]
+    @test Pipelines.get_outputs(node) == ["TEMP_hat", "PRES_hat"]
+
     Pipelines.train_evaljoin!(repo, node, "partition" => "interp", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
     @test names(df) == [
@@ -597,7 +597,7 @@ end
     _rem(x) = rem(x, 1, RoundNearest)
     function gauss_evaluate_test(result, node::Node, origin; processing)
         card = get_card(node)
-        @test names(result) == union(names(origin), Pipelines.get_outputs(card))
+        @test names(result) == union(names(origin), Pipelines.get_outputs(node))
 
         origin_column = origin[:, card.input]
         max_value = card.temporal_preprocessor.max
@@ -618,8 +618,8 @@ end
     gauss_train_test(node)
     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
     gauss_evaluate_test(result, node, origin; processing = identity)
-    @test Pipelines.get_outputs(card) == ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"]
-    @test Pipelines.get_inputs(card) == ["month"]
+    @test Pipelines.get_outputs(node) == ["month_gaussian_1", "month_gaussian_2", "month_gaussian_3", "month_gaussian_4"]
+    @test Pipelines.get_inputs(node) == ["month"]
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
     card = Pipelines.Card(d["dayofweek"])
@@ -628,8 +628,8 @@ end
     gauss_train_test(node)
     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
     gauss_evaluate_test(result, node, origin; processing = x -> dayofweek(x) % 7) # SQL starts from Sunday = 0
-    @test Pipelines.get_outputs(card) == ["date_gaussian_1", "date_gaussian_2", "date_gaussian_3"]
-    @test Pipelines.get_inputs(card) == ["date"]
+    @test Pipelines.get_outputs(node) == ["date_gaussian_1", "date_gaussian_2", "date_gaussian_3"]
+    @test Pipelines.get_inputs(node) == ["date"]
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
     card = Pipelines.Card(d["dayofyear"])
@@ -638,12 +638,12 @@ end
     gauss_train_test(node)
     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
     gauss_evaluate_test(result, node, origin; processing = dayofyear)
-    @test Pipelines.get_outputs(card) == [
+    @test Pipelines.get_outputs(node) == [
         "date_gaussian_1", "date_gaussian_2", "date_gaussian_3", "date_gaussian_4",
         "date_gaussian_5", "date_gaussian_6", "date_gaussian_7", "date_gaussian_8",
         "date_gaussian_9", "date_gaussian_10", "date_gaussian_11", "date_gaussian_12",
     ]
-    @test Pipelines.get_inputs(card) == ["date"]
+    @test Pipelines.get_inputs(node) == ["date"]
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
     card = Pipelines.Card(d["hour"])
@@ -652,8 +652,8 @@ end
     gauss_train_test(node)
     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
     gauss_evaluate_test(result, node, origin; processing = hour)
-    @test Pipelines.get_outputs(card) == ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"]
-    @test only(Pipelines.get_inputs(card)) == "time"
+    @test Pipelines.get_outputs(node) == ["time_gaussian_1", "time_gaussian_2", "time_gaussian_3", "time_gaussian_4"]
+    @test only(Pipelines.get_inputs(node)) == "time"
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
     card = Pipelines.Card(d["minute"])
@@ -662,8 +662,8 @@ end
     gauss_train_test(node)
     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
     gauss_evaluate_test(result, node, origin; processing = minute)
-    @test Pipelines.get_outputs(card) == ["time_gaussian_1"]
-    @test only(Pipelines.get_inputs(card)) == "time"
+    @test Pipelines.get_outputs(node) == ["time_gaussian_1"]
+    @test only(Pipelines.get_inputs(node)) == "time"
 end
 
 @testset "streamliner" begin
@@ -683,10 +683,11 @@ end
         Pipelines.Card(d["basic"]),
     )
     @test !Pipelines.invertible(card)
-    @test Pipelines.get_inputs(card) == ["No", "TEMP", "PRES", "Iws", "partition"]
-    @test Pipelines.get_outputs(card) == ["Iws_hat"]
 
     node = Node(card)
+    @test Pipelines.get_inputs(node) == ["No", "TEMP", "PRES", "Iws", "partition"]
+    @test Pipelines.get_outputs(node) == ["Iws_hat"]
+
     Pipelines.train!(repo, node, "partition", "No")
     state = get_state(node)
     res = state.metadata

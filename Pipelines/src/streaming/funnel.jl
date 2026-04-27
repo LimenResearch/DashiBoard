@@ -44,35 +44,16 @@ function FunneledData{F, N}(
     )
 end
 
-# Fallbacks (TODO: check with external implementations if this is helpful)
-
-sorting_vars(dbf::Funnel) = dbf.order_by
-helper_vars(::Funnel) = String[]
-input_vars(dbf::Funnel) = SC.colname.(dbf.inputs)
-input_path_var(dbf::Funnel) = dbf.input_paths
-target_vars(dbf::Funnel) = SC.colname.(dbf.targets)
-target_path_var(dbf::Funnel) = dbf.target_paths
-
-# Specific implementation for `DBFunnel`
-#
-# An implementation must include:
-# - var helpers on `fn::FunnelType` (if fallback is insufficient)
-# - `SC.metadata` on `fn::FunnelType`
-# - `Pipelines.train!` on `data::FunneledData{FunnelType}`
-# - `SC.get_nsamples` on `data::FunneledData{FunnelType}`
-# - `SC.get_templates` on `data::FunneledData{FunnelType}`
-# - `SC.stream` on `data::FunneledData{FunnelType}`
-# - `SC.ingest` on `data::FunneledData{FunnelType}`
-
-function initialize!(data::FunneledData{DBFunnel})
+function compute_unique_values!(data::FunneledData)
     (; repository, table, schema, funnel, partition, uvals) = data
-    (; inputs, targets) = funnel
+    inputs, constant_inputs = SC.get_inputs(funnel), SC.get_constant_inputs(funnel)
+    targets, constant_targets = SC.get_targets(funnel), SC.get_constant_targets(funnel)
     input_names, target_names = SC.colname.(inputs), SC.colname.(targets)
 
     empty!(uvals)
     src = From(table) |> filter_partition(partition)
     schm = DBInterface.execute(Tables.schema, repository, src |> Limit(0); schema)
-    cols = union(input_names, target_names)
+    cols = union(input_names, constant_inputs, target_names, constant_targets)
     idxs = indexin(Symbol.(cols), collect(schm.names))
 
     for (i, k) in zip(idxs, cols)
@@ -86,6 +67,26 @@ function initialize!(data::FunneledData{DBFunnel})
 
     return data
 end
+
+# Interface:
+#
+# An implementation of a `FunnelType <: Funnel` must include:
+# - SC accessors on `fn::FunnelType`
+#   - `get_helpers`
+#   - `get_order_by`
+#   - `get_inputs`
+#   - `get_constant_inputs`
+#   - `get_input_paths`
+#   - `get_targets`
+#   - `get_constant_targets`
+#   - `get_target_paths`
+# - `SC.get_metadata` on `fn::FunnelType`
+# - `SC.get_nsamples` on `data::FunneledData{FunnelType}`
+# - `SC.get_templates` on `data::FunneledData{FunnelType}`
+# - `SC.stream` on `data::FunneledData{FunnelType}`
+# - `SC.ingest` on `data::FunneledData{FunnelType}`
+
+# Specific implementation for `DBFunnel`
 
 struct Processor{N, D}
     data::FunneledData{DBFunnel, N}
@@ -206,7 +207,7 @@ function SC.ingest(
     )
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
-    targets = target_vars(data.funnel)
+    targets = SC.colname.(SC.get_targets(data.funnel))
     output_names = join_names.(targets, Ref(suffix))
     output_types = column_type.(targets, Ref(data.uvals))
 

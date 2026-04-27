@@ -187,40 +187,9 @@ function output_vars end
 function inverse_input_vars end
 function inverse_output_vars end
 
-## Accessor functions
-
-"""
-    get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
-
-Return the list of inputs for a given card.
-"""
-function get_inputs(c::Card; invert::Bool = false, train::Bool = !invert)::Vector{String}
-    always_include = (sorting_vars(c), grouping_vars(c), helper_vars(c))
-    return if invert
-        union(always_include..., inverse_input_vars(c))
-    elseif train
-        union(
-            always_include...,
-            input_vars(c),
-            target_vars(c),
-            to_stringlist(weight_var(c)),
-            to_stringlist(partition_var(c)),
-        )
-    else
-        union(always_include..., input_vars(c))
-    end
-end
-
-"""
-    get_outputs(c::Card; invert::Bool = false)::Vector{String}
-
-Return the list of outputs for a given card.
-"""
-function get_outputs(c::Card; invert::Bool = false)::Vector{String}
-    return invert ? inverse_output_vars(c) : output_vars(c)
-end
-
 function get_metadata end
+
+## Accessor functions
 
 get_label(c::Card) = c.label
 

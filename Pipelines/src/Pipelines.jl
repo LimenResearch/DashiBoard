@@ -16,7 +16,7 @@ export Card,
 
 export get_metadata, register_card, CardConfig
 
-public initialize!, train!, evaljoin, train_evaljoin!
+public train!, evaljoin, train_evaljoin!
 
 public train, evaluate, inputs, outputs, invertible
 

@@ -109,6 +109,7 @@ helper_vars(sc::StreamlinerCard) = SC.get_helpers(sc.funnel)
 function input_vars(sc::StreamlinerCard)
     return vcat(
         SC.colname.(SC.get_inputs(sc.funnel)),
+        SC.get_constant_inputs(sc.funnel),
         to_stringlist(SC.get_input_paths(sc.funnel))
     )
 end
@@ -116,6 +117,7 @@ end
 function target_vars(sc::StreamlinerCard)
     return vcat(
         SC.colname.(SC.get_targets(sc.funnel)),
+        SC.get_constant_targets(sc.funnel),
         to_stringlist(SC.get_target_paths(sc.funnel))
     )
 end
@@ -138,7 +140,7 @@ function train(
         repository, schema, table = source,
         id_var, sc.partition
     )
-    initialize!(data)
+    compute_unique_values!(data)
 
     (; model, training) = sc
 

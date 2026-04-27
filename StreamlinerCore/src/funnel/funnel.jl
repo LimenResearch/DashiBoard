@@ -8,12 +8,16 @@ abstract type Funnel end
     target_paths::Union{String, Nothing} = nothing
 end
 
-get_order_by(dbf::DBFunnel) = dbf.order_by
-get_inputs(dbf::DBFunnel) = dbf.inputs
-get_input_paths(dbf::DBFunnel) = dbf.input_paths
-get_targets(dbf::DBFunnel) = dbf.targets
-get_target_paths(dbf::DBFunnel) = dbf.target_paths
 get_helpers(dbf::DBFunnel) = String[]
+get_order_by(dbf::DBFunnel) = dbf.order_by
+
+get_inputs(dbf::DBFunnel) = dbf.inputs
+get_constant_inputs(dbf::DBFunnel) = String[]
+get_input_paths(dbf::DBFunnel) = dbf.input_paths
+
+get_targets(dbf::DBFunnel) = dbf.targets
+get_constant_targets(dbf::DBFunnel) = String[]
+get_target_paths(dbf::DBFunnel) = dbf.target_paths
 
 function db_funnel(c::AbstractDict)
     order_by::Vector{String} = get(c, "order_by", String[])

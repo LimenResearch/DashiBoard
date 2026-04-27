@@ -8,12 +8,31 @@ abstract type Funnel end
     target_paths::Union{String, Nothing} = nothing
 end
 
+get_order_by(dbf::DBFunnel) = dbf.order_by
+get_inputs(dbf::DBFunnel) = dbf.inputs
+get_input_paths(dbf::DBFunnel) = dbf.input_paths
+get_targets(dbf::DBFunnel) = dbf.targets
+get_target_paths(dbf::DBFunnel) = dbf.target_paths
+get_helpers(dbf::DBFunnel) = String[]
+
 function db_funnel(c::AbstractDict)
     order_by::Vector{String} = get(c, "order_by", String[])
     inputs::Vector{RichColumn} = RichColumn.(get(c, "inputs", []))
     input_paths::Union{String, Nothing} = get(c, "input_paths", nothing)
     targets::Vector{RichColumn} = RichColumn.(get(c, "targets", []))
     target_paths::Union{String, Nothing} = get(c, "target_paths", nothing)
+
+    # validation
+    if isempty(order_by)
+        throw(ArgumentError("User must define sorting variable(s)"))
+    end
+    if isempty(targets) && isnothing(target_paths)
+        throw(ArgumentError("User must define target variable(s) or target paths"))
+    end
+    if isempty(inputs) && isnothing(input_paths)
+        throw(ArgumentError("User must define input variable(s) or input paths"))
+    end
+
     return DBFunnel(order_by, inputs, input_paths, targets, target_paths)
 end
 

@@ -11,7 +11,9 @@ public has_weights, output_path, stats_path, stats_tensor, metricname
 public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
 public Metric
-public RichColumn, colname, DBFunnel, Funnel
+# funnels and funnel accessor functions
+public RichColumn, colname, db_funnel, DBFunnel, Funnel
+public get_order_by, get_inputs, get_input_paths, get_targets, get_target_paths, get_helpers
 
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std

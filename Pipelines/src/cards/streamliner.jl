@@ -102,16 +102,28 @@ end
 
 ## StreamingCard interface
 
-sorting_vars(sc::StreamlinerCard) = sorting_vars(sc.funnel)
+sorting_vars(sc::StreamlinerCard) = SC.get_order_by(sc.funnel)
 grouping_vars(sc::StreamlinerCard) = String[]
-helper_vars(sc::StreamlinerCard) = helper_vars(sc.funnel)
-input_vars(sc::StreamlinerCard) = vcat(input_vars(sc.funnel), to_stringlist(input_path_var(sc.funnel)))
-target_vars(sc::StreamlinerCard) = vcat(target_vars(sc.funnel), to_stringlist(target_path_var(sc.funnel)))
+helper_vars(sc::StreamlinerCard) = SC.get_helpers(sc.funnel)
+
+function input_vars(sc::StreamlinerCard)
+    return vcat(
+        SC.colname.(SC.get_inputs(sc.funnel)),
+        to_stringlist(SC.get_input_paths(sc.funnel))
+    )
+end
+
+function target_vars(sc::StreamlinerCard)
+    return vcat(
+        SC.colname.(SC.get_targets(sc.funnel)),
+        to_stringlist(SC.get_target_paths(sc.funnel))
+    )
+end
 
 weight_var(::StreamlinerCard) = nothing
 partition_var(sc::StreamlinerCard) = sc.partition
 
-output_vars(sc::StreamlinerCard) = join_names.(target_vars(sc.funnel), sc.suffix)
+output_vars(sc::StreamlinerCard) = join_names.(SC.colname.(SC.get_targets(sc.funnel)), sc.suffix)
 
 function train(
         repository::Repository,

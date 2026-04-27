@@ -46,19 +46,18 @@ end
 
 # Fallbacks (TODO: check with external implementations if this is helpful)
 
-sorting_vars(dbf::Funnel) = dbf.order_by
-helper_vars(::Funnel) = String[]
-input_vars(dbf::Funnel) = SC.colname.(dbf.inputs)
-input_path_var(dbf::Funnel) = dbf.input_paths
-target_vars(dbf::Funnel) = SC.colname.(dbf.targets)
-target_path_var(dbf::Funnel) = dbf.target_paths
-
 # Specific implementation for `DBFunnel`
 #
 # An implementation must include:
-# - var helpers on `fn::FunnelType` (if fallback is insufficient)
+# - SC accessors on `fn::FunnelType`
+#   - `get_order_by`
+#   - `get_inputs`
+#   - `get_input_paths`
+#   - `get_targets`
+#   - `get_target_paths`
+#   - `get_helpers`
 # - `SC.metadata` on `fn::FunnelType`
-# - `Pipelines.train!` on `data::FunneledData{FunnelType}`
+# - `Pipelines.initialize!` on `data::FunneledData{FunnelType}`
 # - `SC.get_nsamples` on `data::FunneledData{FunnelType}`
 # - `SC.get_templates` on `data::FunneledData{FunnelType}`
 # - `SC.stream` on `data::FunneledData{FunnelType}`
@@ -206,7 +205,7 @@ function SC.ingest(
     )
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
-    targets = target_vars(data.funnel)
+    targets = SC.colname.(SC.get_targets(data.funnel))
     output_names = join_names.(targets, Ref(suffix))
     output_types = column_type.(targets, Ref(data.uvals))
 

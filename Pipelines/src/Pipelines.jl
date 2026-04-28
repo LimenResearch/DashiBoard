@@ -41,8 +41,6 @@ using DBInterface: DBInterface
 
 using DuckDBUtils: DuckDBUtils,
     Repository,
-    Batches,
-    StreamResult,
     in_schema,
     render_params,
     get_catalog,
@@ -129,8 +127,6 @@ using StreamlinerCore:
     metricname,
     get_rng,
     StreamlinerCore as SC
-
-using OneHotArrays: onehotbatch
 
 using Clustering: assignments, kmeans, dbscan
 

@@ -17,6 +17,11 @@ public get_helpers, get_order_by,
     get_inputs, get_constant_inputs, get_input_paths,
     get_targets, get_constant_targets, get_target_paths
 
+using DuckDBUtils: DuckDBUtils,
+    Repository,
+    Batches,
+    StreamResult
+
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std
 using Random: AbstractRNG, Xoshiro, seed!
@@ -75,6 +80,8 @@ include("data.jl")
 
 include("funnel/transform.jl")
 include("funnel/funnel.jl")
+include("funnel/funneled_data.jl")
+include("funnel/onehot.jl")
 
 include("model/formats.jl")
 include("model/chain.jl")

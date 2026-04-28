@@ -79,8 +79,8 @@ include("parser.jl")
 include("data.jl")
 
 include("funnel/transform.jl")
-include("funnel/funnel.jl")
 include("funnel/funneled_data.jl")
+include("funnel/db_funnel.jl")
 include("funnel/onehot.jl")
 
 include("model/formats.jl")

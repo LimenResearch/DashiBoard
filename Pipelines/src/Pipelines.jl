@@ -66,7 +66,6 @@ using FunSQL: render,
     Select,
     Order,
     Where,
-    Limit,
     From,
     LeftJoin,
     Join
@@ -115,7 +114,7 @@ using DataInterpolations: ExtrapolationType,
 
 using StreamlinerCore:
     AbstractData,
-    DBFunnel,
+    FunneledData,
     Funnel,
     Model,
     Streaming,
@@ -151,10 +150,6 @@ include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
 include("dict_helpers.jl")
-
-include("streaming/funnel.jl")
-include("streaming/onehot.jl")
-
 include("card.jl")
 
 include("cards/standard.jl")

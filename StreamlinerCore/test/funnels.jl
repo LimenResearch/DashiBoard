@@ -1,5 +1,4 @@
 @testset "FunneledData" begin
-    spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     schema = "schm"
     repo = Repository()
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm;")
@@ -11,9 +10,14 @@
             "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
             joinpath(data_dir, "pollution.csv")
         )
+        sql = """
+
+        """
+        DBInterface.execute(Returns())
         DataIngestion.load_files(repo, data_dir, spec["data"]; schema)
     end
-    Pipelines.train_evaljoin!(repo, node, "source" => "split", "No"; schema)
+
+    StreamlinerCore.train_evaljoin!(repo, node, "source" => "split", "No"; schema)
 
     funnel = StreamlinerCore.DBFunnel(
         order_by = ["No"],
@@ -29,7 +33,7 @@
         "target_paths" => nothing,
     )
 
-    data = Pipelines.FunneledData(
+    data = StreamlinerCore.FunneledData(
         Val(2), funnel,
         repository = repo,
         schema = schema,
@@ -105,7 +109,7 @@
         targets = StreamlinerCore.RichColumn.(["cbwd"]),
     )
 
-    data = Pipelines.FunneledData(
+    data = StreamlinerCore.FunneledData(
         Val(2), funnel;
         repository = repo,
         schema = schema,
@@ -113,7 +117,7 @@
         id_var = "No",
         partition = "_tiled_partition"
     )
-    Pipelines.compute_unique_values!(data)
+    StreamlinerCore.compute_unique_values!(data)
 
     batches = StreamlinerCore.stream(collect, data, 2, streaming)
 

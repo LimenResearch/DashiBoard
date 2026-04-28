@@ -14,9 +14,9 @@ public Appender, append, end_row, close
 
 public colnames, to_sql, to_nrow
 
-public load_table, delete_table, replace_table, export_table, with_table, with_view
+public initialize_table, load_table, delete_table, replace_table, export_table
 
-public with_table_name, with_table_names
+public with_table, with_view, with_table_name, with_table_names
 
 public render_params, in_schema, query, transaction
 

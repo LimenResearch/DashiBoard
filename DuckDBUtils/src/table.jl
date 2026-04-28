@@ -192,6 +192,28 @@ function load_table(
 end
 
 """
+    initialize_table(
+        repository::Repository,
+        colnames, coltypes,
+        name::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+
+Initialize a Julia table `table` as `name` in schema `schema` in `repository.db`
+with column names `colnames` and column types `coltypes`.
+"""
+function initialize_table(
+        repository::Repository, colnames, coltypes, name::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+    tbl = OrderedDict{String, Vector}()
+    for (colname, coltype) in zip(colnames, coltypes)
+        tbl[colname] = coltype[]
+    end
+    return load_table(repository, tbl, name; schema)
+end
+
+"""
     with_table(f, repository::Repository, table; schema::Union{AbstractString, Nothing} = nothing)
 
 Load `table` under an automatically generated name `name`, apply `f(name)`,

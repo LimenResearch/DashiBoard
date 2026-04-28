@@ -1,3 +1,51 @@
+abstract type Funnel end
+
+struct FunneledData{F <: Funnel, N} <: AbstractData{N}
+    repository::Repository
+    schema::Union{String, Nothing}
+    table::String
+    id_var::String # TODO: determine if this belong here?
+    funnel::F
+    partition::Union{String, Nothing}
+    require_targets::Bool
+    uvals::Dict{String, AbstractVector}
+end
+
+function FunneledData(
+        ::Val{N}, funnel::F;
+        repository::Repository,
+        schema::Union{AbstractString, Nothing},
+        table::AbstractString,
+        id_var::AbstractString,
+        partition::Union{AbstractString, Nothing},
+        require_targets::Bool = true,
+        uvals::AbstractDict = Dict{String, AbstractVector}()
+    ) where {F <: Funnel, N}
+
+    return FunneledData{F, N}(
+        repository, schema, table, id_var,
+        funnel, partition, require_targets, uvals
+    )
+end
+
+# Note: `uvals` might be invalidated by this
+function FunneledData{F, N}(
+        fd::FunneledData, funnel::F = fd.funnel;
+        repository::Repository = fd.repository,
+        schema::Union{AbstractString, Nothing} = fd.schema,
+        table::AbstractString = fd.table,
+        id_var::AbstractString = fd.id_var,
+        partition::Union{AbstractString, Nothing} = fd.partition,
+        require_targets::Bool = fd.require_targets,
+        uvals::AbstractDict = fd.uvals
+    ) where {F <: Funnel, N}
+
+    return FunneledData{F, N}(
+        repository, schema, table, id_var,
+        funnel, partition, require_targets, uvals
+    )
+end
+
 # Interface:
 #
 # An implementation of a `FunnelType <: Funnel` must include:
@@ -186,14 +234,16 @@ function ingest(
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
     targets = colname.(get_targets(data.funnel))
-    output_names = join_names.(targets, Ref(suffix))
-    output_types = column_type.(targets, Ref(data.uvals))
+    output_names::Vector{String} = join_names.(targets, Ref(suffix))
+    output_types::Vector{Type} = column_type.(targets, Ref(data.uvals))
 
-    tbl = SimpleTable(data.id_var => Int64[])
-    for (output_name, output_type) in zip(output_names, output_types)
-        tbl[output_name] = output_type[]
-    end
-    load_table(data.repository, tbl, destination; data.schema)
+    initialize_table(
+        data.repository,
+        vcat(String[data.id_var], output_names),
+        vcat(Type[Int64], output_types),
+        destination;
+        data.schema
+    )
 
     appender = DuckDBUtils.Appender(data.repository.db, destination, data.schema)
     for batch in eval_stream

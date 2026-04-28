@@ -140,7 +140,7 @@ function train(
         repository, schema, table = source,
         id_var, sc.partition
     )
-    compute_unique_values!(data)
+    SC.compute_unique_values!(data)
 
     (; model, training) = sc
 

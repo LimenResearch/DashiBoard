@@ -73,6 +73,7 @@ end
     @test res == (; Count = 1)
 end
 
+# TODO: test initialize_table
 @testset "load and delete tables" begin
     r = Repository()
     DBInterface.execute(Returns(nothing), r, "CREATE SCHEMA IF NOT EXISTS \"schm\";")

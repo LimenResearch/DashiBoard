@@ -95,7 +95,7 @@
 
     # TODO: ingestion with categorical target?
     data1 = StreamlinerCore.FunneledData{StreamlinerCore.DBFunnel, 1}(data)
-    outputs = [(id = [1, 2], prediction = [10.0 20.0]), (id = [3, 4], prediction = [30.0 40.0])]
+    outputs = [(_id = [1, 2], prediction = [10.0 20.0]), (_id = [3, 4], prediction = [30.0 40.0])]
 
     StreamlinerCore.ingest(data1, outputs, (:prediction,); suffix = "hat", destination = "outputs")
 

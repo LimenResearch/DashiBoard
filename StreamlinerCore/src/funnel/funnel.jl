@@ -153,8 +153,8 @@ function (p::Processor)(cols)
     else
         nothing
     end
-    id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
-    return (; id, input = p.device(input), target = p.device(target))
+    _id::Vector{Int64} = Tables.getcolumn(cols, Symbol(p.id))
+    return (; _id, input = p.device(input), target = p.device(target))
 end
 
 function get_templates(data::FunneledData{DBFunnel})
@@ -250,7 +250,7 @@ function ingest(
     with_appender(repository, destination; schema) do appender
         for batch in eval_stream
             v = collect(batch.prediction)
-            append_batch(appender, batch.id, decode_columns(v, targets, data.unique_values))
+            append_batch(appender, batch._id, decode_columns(v, targets, data.unique_values))
         end
     end
 

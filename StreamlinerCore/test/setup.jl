@@ -1,5 +1,7 @@
 using StreamlinerCore
 using StreamlinerCore: modules, formatter, Shape
+using DuckDBUtils, DataFrames
+using DBInterface: DBInterface
 using Flux
 using Flux: onehotbatch
 using MLUtils

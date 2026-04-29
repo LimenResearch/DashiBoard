@@ -4,7 +4,7 @@ function test_optim(dir)
 
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "optim.toml"))
-    streaming = Streaming(parser, joinpath(static_dir, "streaming.toml"))
+    streaming = Streaming(parser, joinpath(static_dir, "streaming", "unshuffled.toml"))
 
     outputdir = joinpath(dir, "output")
     result = train(outputdir, model, train_regression_data, training)

@@ -4,7 +4,7 @@ function test_mnist_conv(dir)
 
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "scheduled.toml"))
-    streaming = Streaming(parser, joinpath(static_dir, "streaming.toml"))
+    streaming = Streaming(parser, joinpath(static_dir, "streaming", "unshuffled.toml"))
 
     # Instantiate a model to inspect architecture / parameters
     # Check data volume

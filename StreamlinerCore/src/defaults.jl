@@ -68,8 +68,8 @@ const DEFAULT_PARSER = let
         "poisson_loss" => PoissonLoss,
         "hinge_loss" => HingeLoss,
         "squared_hinge_loss" => SquaredHingeLoss,
-        "binary_focal_loss" => FocalLoss,
-        "focal_loss" => BinaryFocalLoss,
+        "binary_focal_loss" => BinaryFocalLoss,
+        "focal_loss" => FocalLoss,
         "siamese_contrastive_loss" => SiameseContrastiveLoss,
         "vae_loss" => VAELoss,
         # These Flux losses do not yet support `agg`

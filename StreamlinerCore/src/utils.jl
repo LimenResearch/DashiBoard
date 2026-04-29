@@ -28,14 +28,3 @@ stats_path(dir::AbstractString) = joinpath(dir, "stats.bin")
 
 expand(_, x::Tuple) = x
 expand(N, x::Int) = ntuple(Returns(x), N)
-
-# Funneled data utils
-
-filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
-
-function filter_partition(::Nothing, n::Integer = 1)
-    if n != 1
-        throw(ArgumentError("Data has not been split"))
-    end
-    return identity
-end

@@ -93,12 +93,8 @@ function stream(f, data::AbstractData{1}, streaming::Streaming)
     return stream(f, data, 1, streaming)
 end
 
-function stream(f, data::AbstractData, partition::DataPartition.T, streaming::Streaming)
+function stream(f, data::AbstractData{2}, partition::DataPartition.T, streaming::Streaming)
     return stream(f, data, Int(partition), streaming)
-end
-
-function stream(f, data::AbstractData, partition::Int, streaming::Streaming)
-    throw(MethodError(stream, (f, data, partition, streaming)))
 end
 
 """
@@ -126,8 +122,12 @@ Return number of samples for `data`.
 function get_nsamples end
 
 get_nsamples(data::AbstractData{1}) = get_nsamples(data, 1)
-get_nsamples(data::AbstractData, partition) = get_nsamples(data::AbstractData, Int(partition))
-get_nsamples(data::AbstractData, partition::Int) = throw(MethodError(get_nsamples, (data, partition)))
+
+function get_nsamples(data::AbstractData{2}, partition::DataPartition.T)
+    return get_nsamples(data::AbstractData, Int(partition))
+end
+
+# `Data` implementation
 
 struct Data{N, S, T} <: AbstractData{N}
     streams::NTuple{N, S}
@@ -138,7 +138,7 @@ function Data{N}(streams::NTuple{N, S}, templates::T) where {N, S, T}
     return Data{N, S, T}(streams, templates)
 end
 
-function stream(f, data::Data, partition::Int, streaming::Streaming)
+function stream(f, data::Data, partition::Integer, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
     batches = if isnothing(batchsize)
         (device(data.streams[partition]),)
@@ -153,4 +153,4 @@ ingest(::Data{1}, stream, select) = Iterators.map(NamedTuple{select}, stream)
 
 get_templates(data::Data) = data.templates
 
-get_nsamples(data::Data, partition::Int) = numobs(data.streams[partition])
+get_nsamples(data::Data, partition::Integer) = numobs(data.streams[partition])

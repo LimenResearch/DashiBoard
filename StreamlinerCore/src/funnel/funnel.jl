@@ -30,6 +30,9 @@ function FunneledData(
     return FunneledData{F, N}(table_spec, funnel, partition, require_targets, unique_values)
 end
 
+get_partition_cond(::Nothing, i::Integer) = (i == 1)
+get_partition_cond(partition::AbstractString, i::Integer) = (Get(partition) .== i)
+
 # Interface:
 #
 # An implementation of a `FunnelType <: Funnel` must include:
@@ -154,17 +157,18 @@ function get_templates(data::FunneledData{DBFunnel})
     return (; input, target)
 end
 
-function get_nsamples(data::FunneledData{DBFunnel}, i::Int)
+function get_nsamples(data::FunneledData{DBFunnel}, i::Integer)
     (; table_spec, partition) = data
     (; repository, schema, table) = table_spec
+    cond = get_partition_cond(partition, i)
     q = From(table) |>
-        filter_partition(partition, i) |>
+        Where(cond) |>
         Group() |>
         Select("Count" => Agg.count())
     return DBInterface.execute(to_nrow, repository, q; schema)
 end
 
-function stream(f, data::FunneledData{DBFunnel}, i::Int, streaming::Streaming)
+function stream(f, data::FunneledData{DBFunnel}, i::Integer, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
     (; table_spec, funnel, partition) = data
     (; repository, schema, table, id_var) = table_spec
@@ -178,8 +182,9 @@ function stream(f, data::FunneledData{DBFunnel}, i::Int, streaming::Streaming)
     return with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(funnel.order_by)
+        cond = get_partition_cond(partition, i)
         stream_query = From(table) |>
-            filter_partition(partition, i) |>
+            Where(cond) |>
             Order(by = sorters)
 
         if shuffle

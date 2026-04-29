@@ -29,7 +29,7 @@ using DuckDBUtils: DuckDBUtils,
     with_appender,
     to_nrow
 
-using FunSQL: Agg, Fun, Var, Get, From, Group, Select, Where, Order, Limit
+using FunSQL: Agg, Fun, Lit, Var, Get, From, Group, Select, Where, Order, Limit
 using DBInterface: DBInterface
 
 using Base: Fix1, Fix2, front, tail

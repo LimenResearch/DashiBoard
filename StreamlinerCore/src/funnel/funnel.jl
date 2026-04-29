@@ -30,7 +30,7 @@ function FunneledData(
     return FunneledData{F, N}(table_spec, funnel, partition, require_targets, unique_values)
 end
 
-get_partition_cond(::Nothing, i::Integer) = (i == 1)
+get_partition_cond(::Nothing, i::Integer) = Lit(i == 1)
 get_partition_cond(partition::AbstractString, i::Integer) = (Get(partition) .== i)
 
 # Interface:

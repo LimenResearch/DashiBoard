@@ -19,7 +19,7 @@ function train(
 
     wt_var = weight_var(c)
     q = From(source) |>
-        filter_partition(partition_var(c)) |>
+        filter_training(partition_var(c)) |>
         sort_columns(sorting_vars(c)) |>
         select_columns([id_var], input_vars(c), target_vars(c), grouping_vars(c), to_stringlist(wt_var))
 

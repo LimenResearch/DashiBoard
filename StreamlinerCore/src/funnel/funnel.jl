@@ -220,8 +220,8 @@ function ingest(
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
     targets = colname.(get_targets(data.funnel))
-    output_names::Vector{String} = join_names.(targets, Ref(suffix))
-    output_types::Vector{Type} = column_type.(targets, Ref(data.unique_values))
+    output_names::Vector{String} = String[join((tgt, suffix), "_") for tgt in targets]
+    output_types::Vector{Type} = Type[column_type(tgt, data.unique_values) for tgt in targets]
     (; repository, schema, id_var) = data.table_spec
 
     initialize_table(

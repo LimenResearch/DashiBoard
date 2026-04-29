@@ -39,5 +39,3 @@ function filter_partition(::Nothing, n::Integer = 1)
     end
     return identity
 end
-
-join_names(args...) = join(args, "_")

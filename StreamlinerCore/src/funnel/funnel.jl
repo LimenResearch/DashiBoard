@@ -30,6 +30,16 @@ function FunneledData(
     return FunneledData{F, N}(table_spec, funnel, partition, require_targets, unique_values)
 end
 
+function FunneledData{F, N}(
+        data::FunneledData, funnel::F = data.funnel;
+        partition::Union{AbstractString, Nothing} = data.partition,
+        require_targets::Bool = data.require_targets,
+        unique_values::AbstractDict = data.unique_values
+    ) where {F <: Funnel, N}
+
+    return FunneledData{F, N}(data.table_spec, funnel, partition, require_targets, unique_values)
+end
+
 get_partition_cond(::Nothing, i::Integer) = Lit(i == 1)
 get_partition_cond(partition::AbstractString, i::Integer) = (Get(partition) .== i)
 

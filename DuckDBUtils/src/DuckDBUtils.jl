@@ -4,7 +4,9 @@ export Batches
 
 export Repository
 
-export acquire_connection, release_connection, drain_connections!, with_connection
+export acquire_connection, release_connection, drain_connections!
+
+export with_connection, with_appender
 
 export get_catalog
 
@@ -14,9 +16,9 @@ public Appender, append, end_row, close
 
 public colnames, to_sql, to_nrow
 
-public load_table, delete_table, replace_table, export_table, with_table, with_view
+public initialize_table, load_table, delete_table, replace_table, export_table
 
-public with_table_name, with_table_names
+public with_table, with_view, with_table_name, with_table_names
 
 public render_params, in_schema, query, transaction
 
@@ -30,8 +32,7 @@ using DuckDB: DuckDB,
     MaterializedResult,
     Appender,
     append,
-    end_row,
-    close
+    end_row
 
 using DBInterface: DBInterface
 using ConcurrentUtilities: Pool, acquire, release, drain!, Pools

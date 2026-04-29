@@ -1,0 +1,4 @@
+batchsize = 32
+device = "cpu"
+seed = 1234
+shuffle = false

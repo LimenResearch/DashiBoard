@@ -143,6 +143,34 @@ function with_connection(f, repository::Repository, N = Val{1}())
 end
 
 """
+    with_appender(
+        f,
+        repository::Repository,
+        name::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+
+Initialize an appender `f` on destination table `name` in schema `schema` in `repository.db`,
+apply `f` having as only argument the appender, then close the appender.
+"""
+function with_appender(
+        f,
+        repository::Repository,
+        name::AbstractString;
+        schema::Union{AbstractString, Nothing} = nothing
+    )
+
+    return with_connection(repository) do con
+        appender = Appender(con, name, schema)
+        try
+            f(appender)
+        finally
+            DBInterface.close!(appender)
+        end
+    end
+end
+
+"""
     get_catalog(repository::Repository; schema::Union{AbstractString, Nothing} = nothing)
 
 Extract the catalog of available tables from a `Repository` `repository`.

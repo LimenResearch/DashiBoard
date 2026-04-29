@@ -191,7 +191,7 @@ function pair_wise_group_by(
     key = Get.(by)
     val = [join_names(col, name) => f(Get(col)) for col in cols for (name, f) in fs]
     query = From(source) |>
-        filter_partition(partition) |>
+        filter_training(partition) |>
         Group(by = key) |>
         Select(key..., val...) |>
         Order(by = key)

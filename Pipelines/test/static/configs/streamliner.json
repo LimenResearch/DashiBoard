@@ -13,6 +13,7 @@
   },
   "classifier": {
     "type": "streamliner",
+    "funnel": "",
     "order_by": ["No"],
     "inputs": ["TEMP", "PRES"],
     "targets": ["cbwd"],
@@ -28,7 +29,6 @@
     "method": "percentile",
     "method_options": { "percentile": 0.9 },
     "order_by": ["No"],
-    "output": "partition",
-    "funnel": "default"
+    "output": "partition"
   }
 }

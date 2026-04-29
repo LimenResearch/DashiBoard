@@ -41,12 +41,9 @@ using DBInterface: DBInterface
 
 using DuckDBUtils: DuckDBUtils,
     Repository,
-    Batches,
-    StreamResult,
     in_schema,
     render_params,
     get_catalog,
-    with_connection,
     with_table,
     load_table,
     replace_table,
@@ -63,12 +60,12 @@ using FunSQL: render,
     Group,
     Agg,
     Fun,
+    Lit,
     Get,
     Var,
     Select,
     Order,
     Where,
-    Limit,
     From,
     LeftJoin,
     Join
@@ -117,7 +114,7 @@ using DataInterpolations: ExtrapolationType,
 
 using StreamlinerCore:
     AbstractData,
-    DBFunnel,
+    FunneledData,
     Funnel,
     Model,
     Streaming,
@@ -129,8 +126,6 @@ using StreamlinerCore:
     metricname,
     get_rng,
     StreamlinerCore as SC
-
-using OneHotArrays: onehotbatch
 
 using Clustering: assignments, kmeans, dbscan
 
@@ -155,10 +150,6 @@ include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
 include("dict_helpers.jl")
-
-include("streaming/funnel.jl")
-include("streaming/onehot.jl")
-
 include("card.jl")
 
 include("cards/standard.jl")

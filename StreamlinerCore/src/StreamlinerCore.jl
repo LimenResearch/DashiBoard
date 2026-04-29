@@ -3,7 +3,7 @@ module StreamlinerCore
 export Result, Model, Data, AbstractData, DataPartition, Training, Streaming
 export default_parser
 export get_templates, get_metadata, get_nsamples
-export stream, finetune, train, loadmodel, validate, evaluate, summarize
+export stream, finetune, train, loadmodel, validate, evaluate, ingest, summarize
 
 public instantiate, requires_shape, requires_format
 public Parser, PARSER, MODEL_CONTEXT
@@ -12,10 +12,25 @@ public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
 public Metric
 # funnels and funnel accessor functions
-public RichColumn, colname, db_funnel, DBFunnel, Funnel
+public RichColumn, colname, compute_unique_values!,
+    db_funnel, DBFunnel, Funnel, FunneledData
 public get_helpers, get_order_by,
     get_inputs, get_constant_inputs, get_input_paths,
     get_targets, get_constant_targets, get_target_paths
+
+using DuckDBUtils: DuckDBUtils,
+    Repository,
+    Batches,
+    StreamResult,
+    render_params,
+    get_catalog,
+    initialize_table,
+    with_connection,
+    with_appender,
+    to_nrow
+
+using FunSQL: Agg, Fun, Lit, Var, Get, From, Group, Select, Where, Order, Limit
+using DBInterface: DBInterface
 
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std
@@ -75,6 +90,7 @@ include("data.jl")
 
 include("funnel/transform.jl")
 include("funnel/funnel.jl")
+include("funnel/onehot.jl")
 
 include("model/formats.jl")
 include("model/chain.jl")

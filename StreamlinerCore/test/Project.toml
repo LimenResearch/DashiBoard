@@ -1,5 +1,8 @@
 [deps]
 ChainRulesTestUtils = "cdddcdb0-9152-4a09-a978-84456f9df70a"
+DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 MLDatasets = "eb30cadb-4394-5ae3-aed4-317e484a6458"
@@ -11,4 +14,5 @@ StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
-StreamlinerCore = { path = ".." }
+DuckDBUtils = {path = "../../DuckDBUtils"}
+StreamlinerCore = {path = ".."}

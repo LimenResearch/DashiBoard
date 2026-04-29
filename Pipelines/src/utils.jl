@@ -10,14 +10,8 @@ select_columns(args...) = Select(args = Get.(union(args...)))
 
 sort_columns(cols::AbstractVector) = Order(by = Get.(cols))
 
-filter_partition(partition::AbstractString, n::Integer = 1) = Where(Get(partition) .== n)
-
-function filter_partition(::Nothing, n::Integer = 1)
-    if n != 1
-        throw(ArgumentError("Data has not been split"))
-    end
-    return identity
-end
+filter_training(partition::AbstractString) = Where(Get(partition) .== 1)
+filter_training(::Nothing) = Where(Lit(true)) # without partition, everything goes in training
 
 # Prediction utils
 

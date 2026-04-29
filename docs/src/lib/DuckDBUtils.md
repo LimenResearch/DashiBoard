@@ -12,6 +12,7 @@ get_catalog
 acquire_connection
 release_connection
 drain_connections!
+with_appender
 with_connection
 with_table_name
 with_table_names
@@ -22,6 +23,7 @@ to_sql
 ## Table tools
 
 ```@docs
+initialize_table
 load_table
 replace_table
 export_table

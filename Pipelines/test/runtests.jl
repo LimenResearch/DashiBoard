@@ -11,7 +11,6 @@ using Base.ScopedValues: @with
 using Test
 
 include("evaluation.jl")
-include("streaming.jl")
 include("options.jl")
 include("cards.jl")
 include("parametric_cards.jl")

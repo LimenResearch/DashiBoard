@@ -5,9 +5,12 @@ authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
 EnumX = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 MLUtils = "f1d291b0-491e-4a28-83b9-f70985020b54"
 NLSolversBase = "d41bc354-129a-5804-8e4c-c37616107c6c"
@@ -25,10 +28,15 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
+[sources]
+DuckDBUtils = {path = "../DuckDBUtils"}
+
 [compat]
 ChainRulesCore = "1"
+DBInterface = "2.6.1"
 EnumX = "1.0.4"
 Flux = "0.14, 0.15, 0.16"
+FunSQL = "0.15.0"
 JLD2 = "0.5.10, 0.6"
 MLUtils = "0.4"
 NLSolversBase = "8.0.0"

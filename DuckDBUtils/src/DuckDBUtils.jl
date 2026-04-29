@@ -4,7 +4,9 @@ export Batches
 
 export Repository
 
-export acquire_connection, release_connection, drain_connections!, with_connection
+export acquire_connection, release_connection, drain_connections!
+
+export with_connection, with_appender
 
 export get_catalog
 
@@ -30,8 +32,7 @@ using DuckDB: DuckDB,
     MaterializedResult,
     Appender,
     append,
-    end_row,
-    close
+    end_row
 
 using DBInterface: DBInterface
 using ConcurrentUtilities: Pool, acquire, release, drain!, Pools

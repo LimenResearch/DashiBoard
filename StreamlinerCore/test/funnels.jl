@@ -118,4 +118,27 @@
         input = StreamlinerCore.Template(Float32, (2,)),
         target = StreamlinerCore.Template(Float32, (4,)),
     )
+
+    # TODO: ingestion with categorical target?
+    funnel = StreamlinerCore.DBFunnel(
+        order_by = ["No"],
+        inputs = StreamlinerCore.RichColumn.(["TEMP", "PRES"]),
+        targets = StreamlinerCore.RichColumn.(["Iws"]),
+    )
+
+    data = StreamlinerCore.FunneledData(
+        Val(1), funnel;
+        repository = repo,
+        schema = schema,
+        table = "split",
+        id_var = "No",
+        partition = "_partition"
+    )
+    outputs = [(id = [1, 2], prediction = [10.0 20.0]), (id = [3, 4], prediction = [30.0 40.0])]
+
+    StreamlinerCore.ingest(data, outputs, (:prediction,); suffix = "hat", destination = "outputs")
+
+    df = DBInterface.execute(DataFrame, repo, "FROM schm.outputs")
+    @test df.No == [1, 2, 3, 4]
+    @test df.Iws_hat == [10.0, 20.0, 30.0, 40.0]
 end

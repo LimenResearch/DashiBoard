@@ -26,6 +26,7 @@ using DuckDBUtils: DuckDBUtils,
     get_catalog,
     initialize_table,
     with_connection,
+    with_appender,
     to_nrow
 
 using FunSQL: Agg, Fun, Var, Get, From, Group, Select, Where, Order, Limit

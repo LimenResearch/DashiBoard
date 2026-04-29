@@ -150,7 +150,7 @@ function train(
         # TODO: where to keep stats tensor?
         jldopen(path, "a") do file
             file["stats"] = SC.stats_tensor(result, dir)
-            file["uvals"] = data.uvals
+            file["unique_values"] = data.unique_values
         end
         content = SC.has_weights(result) ? read(path) : nothing
         metadata = make(StringDict, result)
@@ -175,15 +175,15 @@ function evaluate(
     return mktempdir() do dir
         path = SC.output_path(dir)
         write(path, state.content)
-        uvals = jldopen(path) do file
-            file["uvals"]
+        unique_values = jldopen(path) do file
+            file["unique_values"]
         end
 
         data = FunneledData(
             Val(1), sc.funnel;
             repository, schema, table = source,
             id_var, partition = nothing,
-            require_targets = false, uvals
+            require_targets = false, unique_values
         )
 
         SC.evaluate(dir, model, data, streaming; destination, suffix)

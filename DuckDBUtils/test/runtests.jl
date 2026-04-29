@@ -73,7 +73,6 @@ end
     @test res == (; Count = 1)
 end
 
-# TODO: test initialize_table
 @testset "load and delete tables" begin
     r = Repository()
     DBInterface.execute(Returns(nothing), r, "CREATE SCHEMA IF NOT EXISTS \"schm\";")
@@ -139,6 +138,27 @@ end
     DuckDBUtils.transaction(r, "CREATE TABLE schm2.tbl2(i BIGINT); CREATE TABLE schm2.tbl3(i BIGINT);")
     ns = DBInterface.execute(res -> map(row -> row.name, res), r, "SHOW TABLES FROM schm2")
     @test issetequal(ns, ["tbl", "tbl2", "tbl3"])
+end
+
+@testset "appender" begin
+    r = Repository()
+    schema = "schm"
+    DuckDBUtils.query(Returns(nothing), r, "CREATE SCHEMA schm;")
+    DuckDBUtils.initialize_table(r, ["col1", "col2"], [Int, String], "tbl"; schema)
+    tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl")
+    @test tbl == (col1 = Int[], col2 = String[])
+    
+    DuckDBUtils.with_appender(r, "tbl"; schema) do appender
+        DuckDBUtils.append(appender, 1)
+        DuckDBUtils.append(appender, "a")
+        DuckDBUtils.end_row(appender)
+        DuckDBUtils.append(appender, 2)
+        DuckDBUtils.append(appender, "b")
+        DuckDBUtils.end_row(appender)
+    end
+        
+    tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl")
+    @test tbl == (col1 = Int[1, 2], col2 = String["a", "b"])
 end
 
 @testset "table export" begin

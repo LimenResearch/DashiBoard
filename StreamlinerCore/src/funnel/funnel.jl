@@ -1,14 +1,18 @@
 abstract type Funnel end
 
-struct FunneledData{F <: Funnel, N} <: AbstractData{N}
+@kwdef struct TableSpec
     repository::Repository
     schema::Union{String, Nothing}
     table::String
-    id_var::String # TODO: determine if this belong here?
-    funnel::F
-    partition::Union{String, Nothing}
-    require_targets::Bool
-    uvals::Dict{String, AbstractVector}
+    id_var::String
+end
+
+mutable struct FunneledData{F <: Funnel, N} <: AbstractData{N}
+    const table_spec::TableSpec
+    const funnel::F
+    const partition::Union{String, Nothing}
+    const require_targets::Bool
+    unique_values::Dict{String, AbstractVector}
 end
 
 function FunneledData(
@@ -19,31 +23,11 @@ function FunneledData(
         id_var::AbstractString,
         partition::Union{AbstractString, Nothing},
         require_targets::Bool = true,
-        uvals::AbstractDict = Dict{String, AbstractVector}()
+        unique_values::AbstractDict = Dict{String, AbstractVector}()
     ) where {F <: Funnel, N}
 
-    return FunneledData{F, N}(
-        repository, schema, table, id_var,
-        funnel, partition, require_targets, uvals
-    )
-end
-
-# Note: `uvals` might be invalidated by this
-function FunneledData{F, N}(
-        fd::FunneledData, funnel::F = fd.funnel;
-        repository::Repository = fd.repository,
-        schema::Union{AbstractString, Nothing} = fd.schema,
-        table::AbstractString = fd.table,
-        id_var::AbstractString = fd.id_var,
-        partition::Union{AbstractString, Nothing} = fd.partition,
-        require_targets::Bool = fd.require_targets,
-        uvals::AbstractDict = fd.uvals
-    ) where {F <: Funnel, N}
-
-    return FunneledData{F, N}(
-        repository, schema, table, id_var,
-        funnel, partition, require_targets, uvals
-    )
+    table_spec = TableSpec(; repository, schema, table, id_var)
+    return FunneledData{F, N}(table_spec, funnel, partition, require_targets, unique_values)
 end
 
 # Interface:
@@ -121,13 +105,13 @@ struct Processor{N, D}
 end
 
 function transform!(
-        arr::AbstractArray{T, N}, vars::AbstractVector, uvals::AbstractDict
+        arr::AbstractArray{T, N}, vars::AbstractVector, unique_values::AbstractDict
     ) where {T <: Number, N}
 
     # TODO: avoid having to check `haskey` several times
-    idxs = column_indices(Iterators.map(colname, vars), uvals)
+    idxs = column_indices(Iterators.map(colname, vars), unique_values)
     for (I, var) in zip(idxs, vars)
-        if haskey(uvals, colname(var))
+        if haskey(unique_values, colname(var))
             if var.transform !== identity
                 throw(ArgumentError("Transformation of one-hot encoded variable is not supported"))
             end
@@ -140,19 +124,19 @@ function transform!(
     return arr
 end
 
-function encode_transform(cols, vars::AbstractVector, uvals::AbstractDict)
-    arr = encode_columns(cols, Iterators.map(colname, vars), uvals)
-    transform!(arr, vars, uvals)
+function encode_transform(cols, vars::AbstractVector, unique_values::AbstractDict)
+    arr = encode_columns(cols, Iterators.map(colname, vars), unique_values)
+    transform!(arr, vars, unique_values)
     return arr
 end
 
 # TODO: also create tensor of paths if any of `input_paths` or `target_paths` is not `nothing`
 function (p::Processor)(cols)
-    (; funnel, require_targets, uvals) = p.data
+    (; funnel, require_targets, unique_values) = p.data
     (; inputs, targets) = funnel
-    input::Array{Float32, 2} = encode_transform(cols, inputs, uvals)
+    input::Array{Float32, 2} = encode_transform(cols, inputs, unique_values)
     target::Union{Array{Float32, 2}, Nothing} = if require_targets
-        encode_transform(cols, targets, uvals)
+        encode_transform(cols, targets, unique_values)
     else
         nothing
     end
@@ -161,17 +145,18 @@ function (p::Processor)(cols)
 end
 
 function get_templates(data::FunneledData{DBFunnel})
-    (; funnel, uvals) = data
+    (; funnel, unique_values) = data
     input_names, target_names = colname.(funnel.inputs), colname.(funnel.targets)
-    n_inputs = sum(Fix2(column_number, uvals), input_names)
-    n_targets = sum(Fix2(column_number, uvals), target_names)
+    n_inputs = sum(Fix2(column_number, unique_values), input_names)
+    n_targets = sum(Fix2(column_number, unique_values), target_names)
     input = Template(Float32, (n_inputs,))
     target = Template(Float32, (n_targets,))
     return (; input, target)
 end
 
 function get_nsamples(data::FunneledData{DBFunnel}, i::Int)
-    (; repository, schema, table, partition) = data
+    (; table_spec, partition) = data
+    (; repository, schema, table) = table_spec
     q = From(table) |>
         filter_partition(partition, i) |>
         Group() |>
@@ -181,7 +166,8 @@ end
 
 function stream(f, data::FunneledData{DBFunnel}, i::Int, streaming::Streaming)
     (; device, batchsize, shuffle, rng) = streaming
-    (; repository, schema, id_var, funnel, partition) = data
+    (; table_spec, funnel, partition) = data
+    (; repository, schema, table, id_var) = table_spec
 
     if isnothing(batchsize)
         throw(ArgumentError("Unbatched streaming is not supported."))
@@ -192,7 +178,7 @@ function stream(f, data::FunneledData{DBFunnel}, i::Int, streaming::Streaming)
     return with_connection(repository) do con
         catalog = get_catalog(repository; schema)
         sorters = shuffle ? [Fun.random()] : Get.(funnel.order_by)
-        stream_query = From(data.table) |>
+        stream_query = From(table) |>
             filter_partition(partition, i) |>
             Order(by = sorters)
 
@@ -235,21 +221,23 @@ function ingest(
 
     targets = colname.(get_targets(data.funnel))
     output_names::Vector{String} = join_names.(targets, Ref(suffix))
-    output_types::Vector{Type} = column_type.(targets, Ref(data.uvals))
+    output_types::Vector{Type} = column_type.(targets, Ref(data.unique_values))
+    (; repository, schema, id_var) = data.table_spec
 
     initialize_table(
-        data.repository,
-        vcat(String[data.id_var], output_names),
+        repository,
+        vcat(String[id_var], output_names),
         vcat(Type[Int64], output_types),
         destination;
-        data.schema
+        schema
     )
 
-    appender = DuckDBUtils.Appender(data.repository.db, destination, data.schema)
-    for batch in eval_stream
-        v = collect(batch.prediction)
-        append_batch(appender, batch.id, decode_columns(v, targets, data.uvals))
+    with_appender(repository, destination; schema) do appender
+        for batch in eval_stream
+            v = collect(batch.prediction)
+            append_batch(appender, batch.id, decode_columns(v, targets, data.unique_values))
+        end
     end
-    DuckDBUtils.close(appender)
+
     return output_names
 end

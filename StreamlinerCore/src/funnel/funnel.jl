@@ -1,5 +1,7 @@
 abstract type Funnel end
 
+get_helper_table_names(::Funnel) = String[]
+
 @kwdef struct TableSpec
     repository::Repository
     schema::Union{String, Nothing}
@@ -13,6 +15,7 @@ mutable struct FunneledData{F <: Funnel, N} <: AbstractData{N}
     const partition::Union{String, Nothing}
     const require_targets::Bool
     unique_values::Dict{String, AbstractVector}
+    helper_tables::Union{Dict{String, String}, Nothing}
 end
 
 function FunneledData(
@@ -23,25 +26,38 @@ function FunneledData(
         id_var::AbstractString,
         partition::Union{AbstractString, Nothing},
         require_targets::Bool = true,
-        unique_values::AbstractDict = Dict{String, AbstractVector}()
+        unique_values::AbstractDict = Dict{String, AbstractVector}(),
+        helper_tables::Union{AbstractDict, Nothing} = nothing
     ) where {F <: Funnel, N}
 
     table_spec = TableSpec(; repository, schema, table, id_var)
-    return FunneledData{F, N}(table_spec, funnel, partition, require_targets, unique_values)
+    return FunneledData{F, N}(
+        table_spec, funnel, partition,
+        require_targets, unique_values, helper_tables
+    )
 end
 
 function FunneledData{F, N}(
         data::FunneledData, funnel::F = data.funnel;
         partition::Union{AbstractString, Nothing} = data.partition,
         require_targets::Bool = data.require_targets,
-        unique_values::AbstractDict = data.unique_values
+        unique_values::AbstractDict = data.unique_values,
+        helper_tables::AbstractDict = data.helper_tables
     ) where {F <: Funnel, N}
 
-    return FunneledData{F, N}(data.table_spec, funnel, partition, require_targets, unique_values)
+    return FunneledData{F, N}(
+        data.table_spec, funnel, partition,
+        require_targets, unique_values, helper_tables
+    )
 end
 
-get_partition_cond(::Nothing, i::Integer) = Lit(i == 1)
-get_partition_cond(partition::AbstractString, i::Integer) = (Get(partition) .== i)
+function initialize_tables!(data::FunneledData, d::AbstractDict)
+    # TODO: maybe check that keys of `d` match `get_helper_table_names(data.funnel)`
+    data.helper_tables = d
+    return initialize_tables(data)
+end
+
+initialize_tables(data::FunneledData) = data
 
 # Interface:
 #
@@ -56,10 +72,12 @@ get_partition_cond(partition::AbstractString, i::Integer) = (Get(partition) .== 
 #   - `get_constant_targets`
 #   - `get_target_paths`
 # - `get_metadata` on `fn::FunnelType`
+# - `helper_tables` on `fn::FunnelType` (optional)
 # - `get_nsamples` on `data::FunneledData{FunnelType}`
 # - `get_templates` on `data::FunneledData{FunnelType}`
 # - `stream` on `data::FunneledData{FunnelType}`
 # - `ingest` on `data::FunneledData{FunnelType}`
+# - `initialize_tables!` on `data::FunneledData{FunnelType}` (optional)
 
 @kwdef struct DBFunnel <: Funnel
     order_by::Vector{String}
@@ -166,6 +184,9 @@ function get_templates(data::FunneledData{DBFunnel})
     target = Template(Float32, (n_targets,))
     return (; input, target)
 end
+
+get_partition_cond(::Nothing, i::Integer) = Lit(i == 1)
+get_partition_cond(partition::AbstractString, i::Integer) = (Get(partition) .== i)
 
 function get_nsamples(data::FunneledData{DBFunnel}, i::Integer)
     (; table_spec, partition) = data

@@ -1,14 +1,11 @@
 @testset "evaluation order" begin
-    _train(wc, t, id_var) = nothing
-    function _evaluate(wc, model, t, id_var)
+    Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
+    function (wc::WildCard{:trivial})(model, t, id_var)
         id = t[id_var]
-        res = Pipelines.SimpleTable(id_var => id)
-        for k in wc.outputs
-            res[k] = zeros(length(id))
-        end
-        return res
+        nrows = length(id)
+        return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
     end
-    card_config = CardConfig{WildCard{_train, _evaluate}}(
+    card_config = CardConfig{WildCard{:trivial}}(
         key = "trivial",
         label = "Trivial",
         needs_targets = false,
@@ -16,7 +13,7 @@
         allows_partition = false,
         allows_weights = false
     )
-    @test card_type(card_config) === WildCard{_train, _evaluate}
+    @test card_type(card_config) === WildCard{:trivial}
     Pipelines.register_card(card_config)
 
     function trivialcard(inputs::AbstractVector, output::AbstractString)
@@ -25,7 +22,7 @@
     end
 
     function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
-        return WildCard{_train, _evaluate}(
+        return WildCard{:trivial}(
             type = "trivial",
             label = "Trivial",
             order_by = String[],

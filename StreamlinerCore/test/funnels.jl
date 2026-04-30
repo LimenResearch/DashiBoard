@@ -16,7 +16,7 @@
         targets = StreamlinerCore.RichColumn.(["Iws"])
     )
 
-    @test StreamlinerCore.get_helper_table_names(funnel) == String[]
+    @test StreamlinerCore.get_helper_table_keys(funnel) == String[]
 
     @test StreamlinerCore.get_metadata(funnel) == Dict(
         "order_by" => ["No"],
@@ -36,6 +36,11 @@
     )
 
     @test isnothing(data.helper_tables)
+
+    helper_tables = Dict("fake_key" => "table_name")
+    @test_throws ArgumentError StreamlinerCore.initialize_helper_tables!(data, helper_tables)
+
+    helper_tables = Dict()
     StreamlinerCore.initialize_helper_tables!(data, Dict())
     @test data.helper_tables == Dict()
 

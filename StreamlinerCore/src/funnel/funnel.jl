@@ -1,6 +1,6 @@
 abstract type Funnel end
 
-get_helper_table_names(::Funnel) = String[]
+get_helper_table_keys(::Funnel) = String[]
 
 @kwdef struct TableSpec
     repository::Repository
@@ -52,7 +52,18 @@ function FunneledData{F, N}(
 end
 
 function initialize_helper_tables!(data::FunneledData, d::AbstractDict)
-    # TODO: maybe check that keys of `d` match `get_helper_table_names(data.funnel)`
+    # check that keys of `d` match `get_helper_table_keys(data.funnel)`
+    expected_keys = get_helper_table_keys(data.funnel)
+    if !issetequal(expected_keys, keys(d))
+        throw(
+            ArgumentError(
+                """
+                Incorrect keys: expected $(expected_keys), found $(collect(keys(d))).
+                """
+            )
+        )
+    end
+
     data.helper_tables = d
     return initialize_helper_tables(data)
 end

@@ -145,9 +145,9 @@ function train(
     SC.compute_unique_values!(data)
 
     return mktempdir() do dir
-        helper_table_names = SC.get_helper_table_names(funnel)
-        result = with_table_names(repository, length(helper_table_names); schema) do table_names
-            SC.initialize_helper_tables!(data, Dict(helper_table_names .=> table_names))
+        table_keys = SC.get_helper_table_keys(funnel)
+        result = with_table_names(repository, length(table_keys); schema) do table_names
+            SC.initialize_helper_tables!(data, Dict(table_keys .=> table_names))
             SC.train(dir, model, data, training)
         end
         path = SC.output_path(dir)
@@ -190,9 +190,9 @@ function evaluate(
             require_targets = false, unique_values
         )
 
-        helper_table_names = SC.get_helper_table_names(funnel)
-        with_table_names(repository, length(helper_table_names); schema) do table_names
-            SC.initialize_helper_tables!(data, Dict(helper_table_names .=> table_names))
+        table_keys = SC.get_helper_table_keys(funnel)
+        with_table_names(repository, length(table_keys); schema) do table_names
+            SC.initialize_helper_tables!(data, Dict(table_keys .=> table_names))
             SC.evaluate(dir, model, data, streaming; destination, suffix)
         end
     end

@@ -42,7 +42,7 @@ function FunneledData{F, N}(
         partition::Union{AbstractString, Nothing} = data.partition,
         require_targets::Bool = data.require_targets,
         unique_values::AbstractDict = data.unique_values,
-        helper_tables::AbstractDict = data.helper_tables
+        helper_tables::Union{AbstractDict, Nothing} = data.helper_tables
     ) where {F <: Funnel, N}
 
     return FunneledData{F, N}(
@@ -51,13 +51,13 @@ function FunneledData{F, N}(
     )
 end
 
-function initialize_tables!(data::FunneledData, d::AbstractDict)
+function initialize_helper_tables!(data::FunneledData, d::AbstractDict)
     # TODO: maybe check that keys of `d` match `get_helper_table_names(data.funnel)`
     data.helper_tables = d
-    return initialize_tables(data)
+    return initialize_helper_tables(data)
 end
 
-initialize_tables(data::FunneledData) = data
+initialize_helper_tables(data::FunneledData) = data
 
 # Interface:
 #
@@ -77,7 +77,7 @@ initialize_tables(data::FunneledData) = data
 # - `get_templates` on `data::FunneledData{FunnelType}`
 # - `stream` on `data::FunneledData{FunnelType}`
 # - `ingest` on `data::FunneledData{FunnelType}`
-# - `initialize_tables!` on `data::FunneledData{FunnelType}` (optional)
+# - `initialize_helper_tables` on `data::FunneledData{FunnelType}` (optional)
 
 @kwdef struct DBFunnel <: Funnel
     order_by::Vector{String}

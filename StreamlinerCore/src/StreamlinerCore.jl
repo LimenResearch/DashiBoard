@@ -12,7 +12,7 @@ public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
 public Metric
 # funnels and funnel accessor functions
-public get_helper_tables, initialize_tables, initialize_tables!
+public get_helper_table_names, initialize_helper_tables, initialize_helper_tables!
 public RichColumn, colname, compute_unique_values!,
     db_funnel, DBFunnel, Funnel, FunneledData
 public get_helpers, get_order_by,

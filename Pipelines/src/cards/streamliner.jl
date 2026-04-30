@@ -147,7 +147,7 @@ function train(
     return mktempdir() do dir
         helper_table_names = SC.get_helper_table_names(funnel)
         result = with_table_names(repository, length(helper_table_names); schema) do table_names
-            SC.initialize_tables!(data, Dict(helper_table_names .=> table_names))
+            SC.initialize_helper_tables!(data, Dict(helper_table_names .=> table_names))
             SC.train(dir, model, data, training)
         end
         path = SC.output_path(dir)
@@ -192,7 +192,7 @@ function evaluate(
 
         helper_table_names = SC.get_helper_table_names(funnel)
         with_table_names(repository, length(helper_table_names); schema) do table_names
-            SC.initialize_tables!(data, Dict(helper_table_names .=> table_names))
+            SC.initialize_helper_tables!(data, Dict(helper_table_names .=> table_names))
             SC.evaluate(dir, model, data, streaming; destination, suffix)
         end
     end

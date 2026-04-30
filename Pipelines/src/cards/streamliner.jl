@@ -135,17 +135,21 @@ function train(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
+    (; model, training, funnel, partition) = sc
+
     data = FunneledData(
-        Val(2), sc.funnel;
+        Val(2), funnel;
         repository, schema, table = source,
-        id_var, sc.partition
+        id_var, partition
     )
     SC.compute_unique_values!(data)
 
-    (; model, training) = sc
-
     return mktempdir() do dir
-        result = SC.train(dir, model, data, training)
+        table_keys = SC.get_helper_table_keys(funnel)
+        result = with_table_names(repository, length(table_keys); schema) do table_names
+            SC.initialize_helper_tables!(data, Dict(table_keys .=> table_names))
+            SC.train(dir, model, data, training)
+        end
         path = SC.output_path(dir)
         # TODO: where to keep stats tensor?
         jldopen(path, "a") do file
@@ -169,7 +173,7 @@ function evaluate(
 
     isnothing(state.content) && throw(ArgumentError("Invalid state"))
 
-    (; model, training, suffix) = sc
+    (; model, training, funnel, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)
 
     return mktempdir() do dir
@@ -180,13 +184,17 @@ function evaluate(
         end
 
         data = FunneledData(
-            Val(1), sc.funnel;
+            Val(1), funnel;
             repository, schema, table = source,
             id_var, partition = nothing,
             require_targets = false, unique_values
         )
 
-        SC.evaluate(dir, model, data, streaming; destination, suffix)
+        table_keys = SC.get_helper_table_keys(funnel)
+        with_table_names(repository, length(table_keys); schema) do table_names
+            SC.initialize_helper_tables!(data, Dict(table_keys .=> table_names))
+            SC.evaluate(dir, model, data, streaming; destination, suffix)
+        end
     end
 end
 

@@ -37,6 +37,8 @@ function FunneledData(
     )
 end
 
+# TODO: warn that this method is potentially problematic,
+# as precomputed `unique_values` and `helper_tables` may be incorrect
 function FunneledData{F, N}(
         data::FunneledData, funnel::F = data.funnel;
         partition::Union{AbstractString, Nothing} = data.partition,
@@ -83,7 +85,7 @@ initialize_helper_tables(data::FunneledData) = data
 #   - `get_constant_targets`
 #   - `get_target_paths`
 # - `get_metadata` on `fn::FunnelType`
-# - `helper_tables` on `fn::FunnelType` (optional)
+# - `get_helper_table_keys` on `fn::FunnelType` (optional)
 # - `get_nsamples` on `data::FunneledData{FunnelType}`
 # - `get_templates` on `data::FunneledData{FunnelType}`
 # - `stream` on `data::FunneledData{FunnelType}`

@@ -76,7 +76,8 @@ initialize_helper_tables(data::FunneledData) = data
 #
 # An implementation of a `FunnelType <: Funnel` must include:
 # - accessors on `fn::FunnelType`
-#   - `get_helpers`
+#   - `get_helpers_in`
+#   - `get_helpers_out`
 #   - `get_order_by`
 #   - `get_inputs`
 #   - `get_constant_inputs`
@@ -100,7 +101,8 @@ initialize_helper_tables(data::FunneledData) = data
     target_paths::Union{String, Nothing} = nothing
 end
 
-get_helpers(dbf::DBFunnel) = String[]
+get_helpers_in(dbf::DBFunnel) = String[]
+get_helpers_out(dbf::DBFunnel) = String[]
 get_order_by(dbf::DBFunnel) = dbf.order_by
 
 get_inputs(dbf::DBFunnel) = dbf.inputs
@@ -263,9 +265,10 @@ function append_batch(appender::DuckDBUtils.Appender, id, vs)
 end
 
 function ingest(
-        data::FunneledData{DBFunnel, 1}, eval_stream, select;
-        suffix::AbstractString, destination
+        data::FunneledData{DBFunnel, 1}, eval_stream, select::Union{AbstractVector, Tuple};
+        suffix::AbstractString, destination::AbstractString
     )
+
     select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
 
     targets = colname.(get_targets(data.funnel))

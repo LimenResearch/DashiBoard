@@ -104,7 +104,7 @@ end
 
 sorting_vars(sc::StreamlinerCard) = SC.get_order_by(sc.funnel)
 grouping_vars(sc::StreamlinerCard) = String[]
-helper_vars(sc::StreamlinerCard) = SC.get_helpers(sc.funnel)
+helper_vars(sc::StreamlinerCard) = SC.get_helpers_in(sc.funnel)
 
 function input_vars(sc::StreamlinerCard)
     return vcat(
@@ -125,7 +125,10 @@ end
 weight_var(::StreamlinerCard) = nothing
 partition_var(sc::StreamlinerCard) = sc.partition
 
-output_vars(sc::StreamlinerCard) = join_names.(SC.colname.(SC.get_targets(sc.funnel)), sc.suffix)
+function output_vars(sc::StreamlinerCard)
+    outputs = join_names.(SC.colname.(SC.get_targets(sc.funnel)), sc.suffix)
+    return vcat(outputs, SC.get_helpers_out(sc.funnel))
+end
 
 function train(
         repository::Repository,

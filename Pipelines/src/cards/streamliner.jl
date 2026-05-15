@@ -125,7 +125,7 @@ end
 
 function Variables(sc::StreamlinerCard)
     return Variables(;
-        sorting = SC.get_order_by(sc.funnel),
+        order_by = SC.get_order_by(sc.funnel),
         helpers = SC.get_helpers_in(sc.funnel),
         inputs = input_vars(sc),
         targets = target_vars(sc),

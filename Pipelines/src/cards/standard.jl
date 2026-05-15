@@ -11,10 +11,10 @@ function train(
     )
 
     vars = Variables(c)
-    sel = (vars.grouping, vars.helpers, vars.inputs, vars.targets, to_stringlist(vars.weights))
+    sel = (vars.group_by, vars.helpers, vars.inputs, vars.targets, to_stringlist(vars.weights))
     q = From(source) |>
         filter_training(vars.partition) |>
-        sort_columns(vars.sorting) |>
+        sort_columns(vars.order_by) |>
         select_columns([id_var], sel...)
 
     t = DBInterface.execute(fromtable, repository, q; schema)
@@ -34,8 +34,8 @@ function evaluate(
     vars = Variables(c)
 
     q = From(source) |>
-        sort_columns(vars.sorting) |>
-        select_columns([id_var], vars.grouping, vars.helpers, vars.inputs)
+        sort_columns(vars.order_by) |>
+        select_columns([id_var], vars.group_by, vars.helpers, vars.inputs)
     t = DBInterface.execute(fromtable, repository, q; schema)
 
     model = jlddeserialize(state.content)

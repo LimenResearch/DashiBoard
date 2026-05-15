@@ -173,11 +173,11 @@ function Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
     return Card(apply_helpers(d, params; recursive))
 end
 
-# TODO: document
+## Encode how a given card uses table variables
 
 @kwdef struct Variables
-    sorting::Vector{String} = String[]
-    grouping::Vector{String} = String[]
+    order_by::Vector{String} = String[]
+    group_by::Vector{String} = String[]
     helpers::Vector{String} = String[]
     inputs::Vector{String} = String[]
     targets::Vector{String} = String[]

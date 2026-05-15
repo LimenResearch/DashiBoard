@@ -67,7 +67,7 @@ Return the lists of inputs and outputs for a given `node`.
 function get_dependencies(node::Node)::Pair{Vector{String}, Vector{String}}
     c, invert, train = get_card(node), get_invert(node), get_train(node)
     vars = Variables(c)
-    always_include = (vars.sorting, vars.grouping, vars.helpers)
+    always_include = (vars.order_by, vars.group_by, vars.helpers)
     inputs::Vector{String} = if invert
         union(always_include..., vars.inverse_inputs)
     elseif train

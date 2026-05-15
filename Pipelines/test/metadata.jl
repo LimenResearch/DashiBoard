@@ -4,7 +4,7 @@
     config = d["percentile"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "by", "output"]
+    for k in ["type", "method", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
     @test metadata["method_options"] == Dict("percentile" => 0.9)
@@ -15,7 +15,7 @@
     config = d["tiles"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "by", "output"]
+    for k in ["type", "method", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
     @test metadata["method_options"] == Dict(
@@ -30,7 +30,7 @@
     config = d["tiles2"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "by", "output"]
+    for k in ["type", "method", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
     @test metadata["method_options"] == Dict(
@@ -49,7 +49,7 @@ end
     config = d["zscore"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "by", "inputs", "targets", "suffix"]
+    for k in ["type", "method", "group_by", "inputs", "targets", "suffix"]
         @test metadata[k] == config[k]
     end
     @test metadata["label"] == "Rescale"
@@ -66,7 +66,7 @@ end
         @test metadata[k] == config[k]
     end
     @test metadata["label"] == "Rescale"
-    @test metadata["by"] == String[]
+    @test metadata["group_by"] == String[]
     @test isnothing(metadata["partition"])
     @test metadata["suffix"] == "rescaled"
     card2 = Pipelines.Card(metadata)
@@ -190,7 +190,7 @@ end
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
 
     config = d["basic"]
-    config["by"] = String[]
+    config["group_by"] = String[]
     config["funnel"] = ""
 
     model_dir = joinpath(@__DIR__, "static", "model")

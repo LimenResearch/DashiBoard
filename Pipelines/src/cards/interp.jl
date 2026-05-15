@@ -167,7 +167,7 @@ end
 
 function Variables(ic::InterpCard)
     return Variables(;
-        sorting = [ic.input],
+        order_by = [ic.input],
         inputs = [ic.input],
         ic.targets,
         ic.partition,

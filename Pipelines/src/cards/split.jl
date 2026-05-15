@@ -50,7 +50,7 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
         method::String
         splitter::SplittingMethod
         order_by::Vector{String}
-        by::Vector{String}
+        group_by::Vector{String}
         output::String
     end
 
@@ -66,7 +66,7 @@ struct SplitCard <: SQLCard
     method::String
     splitter::SplittingMethod
     order_by::Vector{String}
-    by::Vector{String}
+    group_by::Vector{String}
     output::String
 end
 
@@ -79,7 +79,7 @@ function get_metadata(sc::SplitCard)
         "method" => sc.method,
         "method_options" => get_options(sc.splitter),
         "order_by" => sc.order_by,
-        "by" => sc.by,
+        "group_by" => sc.group_by,
         "output" => sc.output,
     )
 end
@@ -90,20 +90,20 @@ function SplitCard(c::AbstractDict)
     label::String = card_label(c, config)
     order_by::Vector{String} = get(c, "order_by", String[])
     has_order = !isempty(order_by)
-    by::Vector{String} = get(c, "by", String[])
+    group_by::Vector{String} = get(c, "group_by", String[])
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
     splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
     output::String = c["output"]
-    return SplitCard(type, label, method, splitter, order_by, by, output)
+    return SplitCard(type, label, method, splitter, order_by, group_by, output)
 end
 
 ## SQLCard interface
 
 function Variables(sc::SplitCard)
     return Variables(;
-        sorting = sc.order_by,
-        grouping = sc.by,
+        sc.order_by,
+        sc.group_by,
         outputs = String[sc.output]
     )
 end
@@ -125,7 +125,7 @@ function evaluate(
     )
 
     query = From(source) |>
-        Partition(; order_by = Get.(sc.order_by), by = Get.(sc.by)) |>
+        Partition(; order_by = Get.(sc.order_by), by = Get.(sc.group_by)) |>
         Select(id_var => Get(id_var), sc.output => get_sql(sc.splitter))
 
     replace_table(repository, query, destination; schema)
@@ -144,7 +144,7 @@ function CardWidget(config::CardConfig{SplitCard}, c::AbstractDict)
         method_dependent_widgets(c, "method", config.methods),
         [
             Widget("order_by", c),
-            Widget("by", c, required = false),
+            Widget("group_by", c, required = false),
             Widget("output", c, value = "partition"),
         ]
     )

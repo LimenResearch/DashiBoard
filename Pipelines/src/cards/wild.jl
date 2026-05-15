@@ -74,7 +74,7 @@ end
 
 function Variables(wc::WildCard)
     return Variables(;
-        sorting = wc.order_by,
+        wc.order_by,
         wc.inputs,
         wc.targets,
         wc.weights,

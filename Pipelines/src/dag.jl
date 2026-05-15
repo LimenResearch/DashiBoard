@@ -1,9 +1,9 @@
 # Generate `node_idxs` and `var_idxs` pairings for digraph as well as a list of variable names corresponding to the indices.
 # A buffer dict `d` containing `var => var_idx` mappings is updated in place.
 # It is assumed that all entries in `d` have distinct values within `length(nodes) + 1` and `length(nodes) + length(d)`.
-function node_var_pairings!(f::F, d::AbstractDict{K}, nodes::AbstractVector) where {F, K}
+function node_var_pairings!(f::F, d::AbstractDict{K}, nodes::AbstractVector{Node}) where {F, K}
     node_idxs, var_idxs, vars = Int[], Int[], K[]
-    for (node_idx, dep) in enumerate(nodes), var in f(dep)
+    for (node_idx, node) in enumerate(nodes), var in f(node)
         def = length(nodes) + length(d) + 1
         var_idx = get!(d, var, def)
         push!(node_idxs, node_idx)

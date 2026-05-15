@@ -162,21 +162,24 @@ end
 
 invertible(::RescaleCard) = true
 
-_input_and_target_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
-
-sorting_vars(::RescaleCard) = String[]
-grouping_vars(rc::RescaleCard) = rc.by
-helper_vars(::RescaleCard) = String[]
-input_vars(rc::RescaleCard) = rc.inputs
-target_vars(rc::RescaleCard) = rc.targets
-weight_var(::RescaleCard) = nothing
-partition_var(rc::RescaleCard) = rc.partition
-output_vars(rc::RescaleCard) = join_names.(_input_and_target_vars(rc), rc.suffix)
+input_and_target_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
+output_vars(rc::RescaleCard) = join_names.(input_and_target_vars(rc), rc.suffix)
 
 _append_suffix(s::AbstractString, suffix) = isnothing(suffix) ? s : join_names(s, suffix)
-
 inverse_input_vars(rc::RescaleCard) = _append_suffix.(join_names.(rc.targets, rc.suffix), rc.target_suffix)
 inverse_output_vars(rc::RescaleCard) = _append_suffix.(rc.targets, rc.target_suffix)
+
+function Variables(rc::RescaleCard)
+    return Variables(;
+        grouping = rc.by,
+        rc.inputs,
+        rc.targets, # TODO: this is not fully clean, they might be needed also in eval mode at times
+        rc.partition,
+        outputs = output_vars(rc),
+        inverse_inputs = inverse_input_vars(rc),
+        inverse_outputs = inverse_output_vars(rc)
+    )
+end
 
 function pair_wise_group_by(
         repository::Repository,
@@ -208,7 +211,7 @@ function train(
     tbl = if isempty(stats)
         SimpleTable()
     else
-        vars = _input_and_target_vars(rc)
+        vars = input_and_target_vars(rc)
         pair_wise_group_by(repository, source, by, vars, stats...; schema, rc.partition)
     end
     return CardState(content = jldserialize(tbl))
@@ -230,7 +233,7 @@ function evaluate(
         inverse_inputs, inverse_outputs = inverse_input_vars(rc), inverse_output_vars(rc)
         @. inverse_outputs => invtransform(targets, inverse_inputs)
     else
-        inputs, outputs = _input_and_target_vars(rc), output_vars(rc)
+        inputs, outputs = input_and_target_vars(rc), output_vars(rc)
         @. outputs => transform(inputs)
     end
 

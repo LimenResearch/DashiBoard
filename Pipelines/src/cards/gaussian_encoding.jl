@@ -153,14 +153,12 @@ end
 
 ## SQLCard interface
 
-sorting_vars(::GaussianEncodingCard) = String[]
-grouping_vars(::GaussianEncodingCard) = String[]
-helper_vars(::GaussianEncodingCard) = String[]
-input_vars(gec::GaussianEncodingCard) = [gec.input]
-target_vars(::GaussianEncodingCard) = String[]
-weight_var(::GaussianEncodingCard) = nothing
-partition_var(::GaussianEncodingCard) = nothing
-output_vars(gec::GaussianEncodingCard) = join_names.(gec.input, gec.suffix, 1:gec.n_components)
+function Variables(gec::GaussianEncodingCard)
+    return Variables(;
+        inputs = [gec.input],
+        outputs = join_names.(gec.input, gec.suffix, 1:gec.n_components)
+    )
+end
 
 function train(
         ::Repository, gec::GaussianEncodingCard, ::AbstractString, ::AbstractPrimaryKey;

@@ -72,14 +72,16 @@ end
 
 ## StandardCard interface
 
-sorting_vars(wc::WildCard) = wc.order_by
-grouping_vars(::WildCard) = String[]
-helper_vars(::WildCard) = String[]
-input_vars(wc::WildCard) = wc.inputs
-target_vars(wc::WildCard) = wc.targets
-weight_var(wc::WildCard) = wc.weights
-partition_var(wc::WildCard) = wc.partition
-output_vars(wc::WildCard) = wc.outputs
+function Variables(wc::WildCard)
+    return Variables(;
+        sorting = wc.order_by,
+        wc.inputs,
+        wc.targets,
+        wc.weights,
+        wc.partition,
+        wc.outputs
+    )
+end
 
 _train(wc::WildCard{train}, t, id_var::AbstractPrimaryKey) where {train} = train(wc, t, id_var)
 

@@ -175,17 +175,18 @@ end
 
 # TODO: document
 
-function sorting_vars end
-function grouping_vars end
-function helper_vars end
-function input_vars end
-function target_vars end
-function weight_var end
-function partition_var end
-function output_vars end
-
-function inverse_input_vars end
-function inverse_output_vars end
+@kwdef struct Variables
+    sorting::Vector{String} = String[]
+    grouping::Vector{String} = String[]
+    helpers::Vector{String} = String[]
+    inputs::Vector{String} = String[]
+    targets::Vector{String} = String[]
+    weights::Union{String, Nothing} = nothing
+    partition::Union{String, Nothing} = nothing
+    outputs::Vector{String} = String[]
+    inverse_inputs::Vector{String} = String[]
+    inverse_outputs::Vector{String} = String[]
+end
 
 function get_metadata end
 

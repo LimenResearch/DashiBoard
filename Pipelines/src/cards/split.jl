@@ -100,14 +100,13 @@ end
 
 ## SQLCard interface
 
-sorting_vars(sc::SplitCard) = sc.order_by
-grouping_vars(sc::SplitCard) = sc.by
-helper_vars(::SplitCard) = String[]
-input_vars(::SplitCard) = String[]
-target_vars(::SplitCard) = String[]
-weight_var(::SplitCard) = nothing
-partition_var(::SplitCard) = nothing
-output_vars(sc::SplitCard) = String[sc.output]
+function Variables(sc::SplitCard)
+    return Variables(;
+        sorting = sc.order_by,
+        grouping = sc.by,
+        outputs = String[sc.output]
+    )
+end
 
 function train(
         ::Repository, ::SplitCard, ::AbstractString, ::AbstractPrimaryKey;

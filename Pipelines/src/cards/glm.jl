@@ -121,14 +121,15 @@ isterm(x::AbstractTerm) = x isa Term
 _target(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
 _output(gc::AbstractGLMCard) = join_names(_target(gc), gc.suffix)
 
-sorting_vars(::AbstractGLMCard) = String[]
-grouping_vars(::AbstractGLMCard) = String[]
-helper_vars(::AbstractGLMCard) = String[]
-input_vars(gc::AbstractGLMCard) = termnames.(filter(isterm, terms(gc.formula.rhs)))
-target_vars(gc::AbstractGLMCard) = [_target(gc)]
-weight_var(gc::AbstractGLMCard) = gc.weights
-partition_var(gc::AbstractGLMCard) = gc.partition
-output_vars(gc::AbstractGLMCard) = [_output(gc)]
+function Variables(gc::AbstractGLMCard)
+    return Variables(;
+        inputs = termnames.(filter(isterm, terms(gc.formula.rhs))),
+        targets = [_target(gc)],
+        gc.weights,
+        gc.partition,
+        outputs = [_output(gc)]
+    )
+end
 
 ## GLMCard
 
@@ -170,7 +171,7 @@ has_grouping_factor(::Type{GLMCard}) = false
 GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
 
 function _train(gc::GLMCard, t, ::AbstractPrimaryKey)
-    weights = get_weights(gc, t, fweights)
+    weights = isnothing(gc.weights) ? nothing : fweights(t[gc.weights])
     return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
 end
 

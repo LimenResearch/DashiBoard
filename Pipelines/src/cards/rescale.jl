@@ -169,16 +169,18 @@ _append_suffix(s::AbstractString, suffix) = isnothing(suffix) ? s : join_names(s
 inverse_input_vars(rc::RescaleCard) = _append_suffix.(join_names.(rc.targets, rc.suffix), rc.target_suffix)
 inverse_output_vars(rc::RescaleCard) = _append_suffix.(rc.targets, rc.target_suffix)
 
-function Variables(rc::RescaleCard)
-    return Variables(;
+function SourceVariables(rc::RescaleCard)
+    return SourceVariables(;
         rc.group_by,
         rc.inputs,
-        rc.targets, # FIXME: this is not fully clean, they might be needed also in eval mode at times
-        rc.partition,
-        outputs = output_vars(rc),
         inverse_inputs = inverse_input_vars(rc),
-        inverse_outputs = inverse_output_vars(rc)
+        rc.targets, # FIXME: this is not fully clean, they might be needed also in eval mode at times
+        rc.partition
     )
+end
+
+function OutputVariables(rc::RescaleCard)
+    return OutputVariables(output_vars(rc), inverse_output_vars(rc))
 end
 
 function pair_wise_group_by(

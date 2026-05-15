@@ -72,16 +72,17 @@ end
 
 ## StandardCard interface
 
-function Variables(wc::WildCard)
-    return Variables(;
+function SourceVariables(wc::WildCard)
+    return SourceVariables(;
         wc.order_by,
         wc.inputs,
         wc.targets,
         wc.weights,
-        wc.partition,
-        wc.outputs
+        wc.partition
     )
 end
+
+OutputVariables(wc::WildCard) = OutputVariables(wc.outputs)
 
 _train(wc::WildCard{train}, t, id_var::AbstractPrimaryKey) where {train} = train(wc, t, id_var)
 

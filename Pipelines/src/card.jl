@@ -175,18 +175,23 @@ end
 
 ## Encode how a given card uses table variables
 
-@kwdef struct Variables
+@kwdef struct SourceVariables
     order_by::Vector{String} = String[]
     group_by::Vector{String} = String[]
     helpers::Vector{String} = String[]
     inputs::Vector{String} = String[]
+    inverse_inputs::Vector{String} = String[]
     targets::Vector{String} = String[]
     weights::Union{String, Nothing} = nothing
     partition::Union{String, Nothing} = nothing
-    outputs::Vector{String} = String[]
-    inverse_inputs::Vector{String} = String[]
-    inverse_outputs::Vector{String} = String[]
 end
+
+struct OutputVariables
+    outputs::Vector{String}
+    inverse_outputs::Vector{String}
+end
+
+OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
 
 function get_metadata end
 

@@ -123,16 +123,17 @@ function output_vars(sc::StreamlinerCard)
     return vcat(outputs, SC.get_helpers_out(sc.funnel))
 end
 
-function Variables(sc::StreamlinerCard)
-    return Variables(;
+function SourceVariables(sc::StreamlinerCard)
+    return SourceVariables(;
         order_by = SC.get_order_by(sc.funnel),
         helpers = SC.get_helpers_in(sc.funnel),
         inputs = input_vars(sc),
         targets = target_vars(sc),
-        sc.partition,
-        outputs = output_vars(sc)
+        sc.partition
     )
 end
+
+OutputVariables(sc::StreamingCard) = OutputVariables(output_vars(sc))
 
 function train(
         repository::Repository,

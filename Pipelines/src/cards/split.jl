@@ -100,13 +100,9 @@ end
 
 ## SQLCard interface
 
-function Variables(sc::SplitCard)
-    return Variables(;
-        sc.order_by,
-        sc.group_by,
-        outputs = String[sc.output]
-    )
-end
+SourceVariables(sc::SplitCard) = SourceVariables(; sc.order_by, sc.group_by)
+
+OutputVariables(sc::SplitCard) = OutputVariables([sc.output])
 
 function train(
         ::Repository, ::SplitCard, ::AbstractString, ::AbstractPrimaryKey;

@@ -1,10 +1,10 @@
 # Generate `node_idxs` and `var_idxs` pairings for digraph as well as a list of variable names corresponding to the indices.
 # A buffer dict `d` containing `var => var_idx` mappings is updated in place.
-# It is assumed that all entries in `d` have distinct values within `length(deps) + 1` and `length(deps) + length(d)`.
-function node_var_pairings!(f::F, d::AbstractDict{K}, deps::AbstractVector) where {F, K}
+# It is assumed that all entries in `d` have distinct values within `length(nodes) + 1` and `length(nodes) + length(d)`.
+function node_var_pairings!(f::F, d::AbstractDict{K}, nodes::AbstractVector) where {F, K}
     node_idxs, var_idxs, vars = Int[], Int[], K[]
-    for (node_idx, dep) in enumerate(deps), var in f(dep)
-        def = length(deps) + length(d) + 1
+    for (node_idx, dep) in enumerate(nodes), var in f(dep)
+        def = length(nodes) + length(d) + 1
         var_idx = get!(d, var, def)
         push!(node_idxs, node_idx)
         push!(var_idxs, var_idx)
@@ -20,16 +20,15 @@ struct EnrichedDiGraph{I <: Integer}
 end
 
 # We generate a graph whose vertices are: `nodes`, `output_vars`, `source_vars`, in this order.
-# Source vars are input vars that are not included in the output of any node.
+# Source vars in the enriched graph are input vars of some node
+# that are not included in the output of any node.
 function EnrichedDiGraph(nodes::AbstractVector{Node})
     # generate variable to index dictionary
     d = Dict{String, Int}()
-    # compute dependencies
-    deps = get_dependencies.(nodes) # each `dep in deps` is a `input_vars => output_vars` pair
     # process `node => output_var` edges
-    src_out, tgt_out, output_vars = node_var_pairings!(last, d, deps)
+    src_out, tgt_out, output_vars = node_var_pairings!(get_node_outputs, d, nodes)
     # process `input_var => node` edges
-    tgt_in, src_in, source_vars = node_var_pairings!(first, d, deps)
+    tgt_in, src_in, source_vars = node_var_pairings!(get_node_inputs, d, nodes)
 
     # validate result (`tgt_out .- length(nodes)` should be equal to `1:length(tgt_out)`)
     idxs = Iterators.map(x -> x - length(nodes), tgt_out)

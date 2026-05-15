@@ -60,15 +60,15 @@ get_state(node::Node) = node.state[]
 set_state!(node::Node, state) = setindex!(node.state, state)
 
 """
-    get_dependencies(node::Node)::Pair{Vector{String}, Vector{String}}
+    get_node_inputs(node::Node)::Vector{String}
 
-Return the lists of inputs and outputs for a given `node`.
+Return the lists of variables required in input for a given `node`.
 """
-function get_dependencies(node::Node)::Pair{Vector{String}, Vector{String}}
+function get_node_inputs(node::Node)::Vector{String}
     c, invert, train = get_card(node), get_invert(node), get_train(node)
-    vars = Variables(c)
+    vars = SourceVariables(c)
     always_include = (vars.order_by, vars.group_by, vars.helpers)
-    inputs::Vector{String} = if invert
+    return if invert
         union(always_include..., vars.inverse_inputs)
     elseif train
         union(
@@ -81,8 +81,17 @@ function get_dependencies(node::Node)::Pair{Vector{String}, Vector{String}}
     else
         union(always_include..., vars.inputs)
     end
-    outputs::Vector{String} = invert ? vars.inverse_outputs : vars.outputs
-    return inputs => outputs
+end
+
+"""
+    get_node_outputs(node::Node)::Vector{String}
+
+Return the lists of variables returned as output by a given `node`.
+"""
+function get_node_outputs(node::Node)::Vector{String}
+    c, invert = get_card(node), get_invert(node)
+    vars = OutputVariables(c)
+    return invert ? vars.inverse_outputs : vars.outputs
 end
 
 invertible(n::Node) = invertible(get_card(n))

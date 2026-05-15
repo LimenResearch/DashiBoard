@@ -10,7 +10,7 @@ function train(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-    vars = Variables(c)
+    vars = SourceVariables(c)
     sel = (vars.group_by, vars.helpers, vars.inputs, vars.targets, to_stringlist(vars.weights))
     q = From(source) |>
         filter_training(vars.partition) |>
@@ -31,7 +31,7 @@ function evaluate(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-    vars = Variables(c)
+    vars = SourceVariables(c)
 
     q = From(source) |>
         sort_columns(vars.order_by) |>

@@ -111,14 +111,9 @@ end
 
 ## StandardCard interface
 
-function Variables(cc::ClusterCard)
-    return Variables(;
-        cc.inputs,
-        cc.weights,
-        cc.partition,
-        outputs = [cc.output]
-    )
-end
+SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.partition)
+
+OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 
 function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)

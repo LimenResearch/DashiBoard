@@ -16,7 +16,7 @@ export Card,
 
 export get_metadata, register_card, CardConfig
 
-public Variables
+public SourceVariables, OutputVariables
 
 public train!, evaljoin, train_evaljoin!
 

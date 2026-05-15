@@ -118,18 +118,18 @@ end
 ## StandardCard interface
 
 isterm(x::AbstractTerm) = x isa Term
-_target(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
-_output(gc::AbstractGLMCard) = join_names(_target(gc), gc.suffix)
+target_var(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
+output_var(gc::AbstractGLMCard) = join_names(target_var(gc), gc.suffix)
 
-function Variables(gc::AbstractGLMCard)
-    return Variables(;
+function SourceVariables(gc::AbstractGLMCard)
+    return SourceVariables(;
         inputs = termnames.(filter(isterm, terms(gc.formula.rhs))),
-        targets = [_target(gc)],
-        gc.weights,
-        gc.partition,
-        outputs = [_output(gc)]
+        targets = [target_var(gc)],
+        gc.weights, gc.partition
     )
 end
+
+OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 
 ## GLMCard
 
@@ -175,7 +175,9 @@ function _train(gc::GLMCard, t, ::AbstractPrimaryKey)
     return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
 end
 
-(gc::GLMCard)(model, t, id_var::AbstractPrimaryKey) = SimpleTable(id_var => t[id_var], _output(gc) => predict(model, t))
+function (gc::GLMCard)(model, t, id_var::AbstractPrimaryKey)
+    return SimpleTable(id_var => t[id_var], output_var(gc) => predict(model, t))
+end
 
 const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
 
@@ -223,9 +225,9 @@ function (gc::MixedModelCard)(model, t, id_var::AbstractPrimaryKey)
     M = modelmatrix(model)
     col = first(eachcol(M))
     # this column is required, see https://github.com/JuliaStats/MixedModels.jl/issues/626
-    t[_target(gc)] = zero(col)
+    t[target_var(gc)] = zero(col)
     # TODO: understand what to do with new values of grouping variable (in particular, `predict` vs `simulate`)
-    return SimpleTable(id_var => t[id_var], _output(gc) => predict(model, t))
+    return SimpleTable(id_var => t[id_var], output_var(gc) => predict(model, t))
 end
 
 const MIXED_MODEL_CARD_CONFIG = CardConfig{MixedModelCard}(parse_toml_config("config", "mixed_model"))

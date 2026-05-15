@@ -86,7 +86,7 @@ end
 """
     get_node_outputs(node::Node)::Vector{String}
 
-Return the lists of variables returned as output by a given `node`.
+Return the lists of variables produced as output by a given `node`.
 """
 function get_node_outputs(node::Node)::Vector{String}
     c, invert = get_card(node), get_invert(node)

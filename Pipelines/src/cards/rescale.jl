@@ -173,7 +173,7 @@ function Variables(rc::RescaleCard)
     return Variables(;
         grouping = rc.by,
         rc.inputs,
-        rc.targets, # TODO: this is not fully clean, they might be needed also in eval mode at times
+        rc.targets, # FIXME: this is not fully clean, they might be needed also in eval mode at times
         rc.partition,
         outputs = output_vars(rc),
         inverse_inputs = inverse_input_vars(rc),

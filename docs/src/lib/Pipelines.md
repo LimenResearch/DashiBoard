@@ -14,8 +14,8 @@ Pipelines.Card(::AbstractDict)
 Pipelines.Card(::AbstractDict, ::AbstractDict)
 Pipelines.train
 Pipelines.evaluate
-Pipelines.get_inputs
-Pipelines.get_outputs
+Pipelines.get_node_inputs
+Pipelines.get_node_outputs
 Pipelines.invertible
 ```
 

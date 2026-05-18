@@ -84,7 +84,7 @@ const RESCALERS = OrderedDict{String, Rescaler}(
     struct RescaleCard <: Card
         type::String
         label::String
-        by::Vector{String}
+        group_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
         partition::Union{String, Nothing}
@@ -108,7 +108,7 @@ struct RescaleCard <: SQLCard
     label::String
     method::String
     rescaler::Rescaler
-    by::Vector{String}
+    group_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
     partition::Union{String, Nothing}
@@ -123,7 +123,7 @@ function get_metadata(rc::RescaleCard)
         "type" => rc.type,
         "label" => rc.label,
         "method" => rc.method,
-        "by" => rc.by,
+        "group_by" => rc.group_by,
         "inputs" => rc.inputs,
         "targets" => rc.targets,
         "partition" => rc.partition,
@@ -138,7 +138,7 @@ function RescaleCard(c::AbstractDict)
     label::String = card_label(c, config)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
-    by::Vector{String} = get(c, "by", String[])
+    group_by::Vector{String} = get(c, "group_by", String[])
     inputs::Vector{String} = c["inputs"]
     targets::Vector{String} = get(c, "targets", String[])
     partition::Union{String, Nothing} = get(c, "partition", nothing)
@@ -149,7 +149,7 @@ function RescaleCard(c::AbstractDict)
         label,
         method,
         rescaler,
-        by,
+        group_by,
         inputs,
         targets,
         partition,
@@ -162,21 +162,26 @@ end
 
 invertible(::RescaleCard) = true
 
-_input_and_target_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
-
-sorting_vars(::RescaleCard) = String[]
-grouping_vars(rc::RescaleCard) = rc.by
-helper_vars(::RescaleCard) = String[]
-input_vars(rc::RescaleCard) = rc.inputs
-target_vars(rc::RescaleCard) = rc.targets
-weight_var(::RescaleCard) = nothing
-partition_var(rc::RescaleCard) = rc.partition
-output_vars(rc::RescaleCard) = join_names.(_input_and_target_vars(rc), rc.suffix)
+input_and_target_vars(rc::RescaleCard) = [rc.inputs; rc.targets]
+output_vars(rc::RescaleCard) = join_names.(input_and_target_vars(rc), rc.suffix)
 
 _append_suffix(s::AbstractString, suffix) = isnothing(suffix) ? s : join_names(s, suffix)
-
 inverse_input_vars(rc::RescaleCard) = _append_suffix.(join_names.(rc.targets, rc.suffix), rc.target_suffix)
 inverse_output_vars(rc::RescaleCard) = _append_suffix.(rc.targets, rc.target_suffix)
+
+function SourceVariables(rc::RescaleCard)
+    return SourceVariables(;
+        rc.group_by,
+        rc.inputs,
+        inverse_inputs = inverse_input_vars(rc),
+        rc.targets, # FIXME: this is not fully clean, they might be needed also in eval mode at times
+        rc.partition
+    )
+end
+
+function OutputVariables(rc::RescaleCard)
+    return OutputVariables(output_vars(rc), inverse_output_vars(rc))
+end
 
 function pair_wise_group_by(
         repository::Repository,
@@ -203,13 +208,13 @@ function train(
         source::AbstractString, ::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing
     )
-    (; by, rescaler) = rc
+    (; group_by, rescaler) = rc
     (; stats) = rescaler
     tbl = if isempty(stats)
         SimpleTable()
     else
-        vars = _input_and_target_vars(rc)
-        pair_wise_group_by(repository, source, by, vars, stats...; schema, rc.partition)
+        vars = input_and_target_vars(rc)
+        pair_wise_group_by(repository, source, group_by, vars, stats...; schema, rc.partition)
     end
     return CardState(content = jldserialize(tbl))
 end
@@ -223,14 +228,14 @@ function evaluate(
         schema::Union{AbstractString, Nothing} = nothing,
         invert::Bool = false
     )
-    (; by, targets, rescaler, suffix) = rc
+    (; group_by, targets, rescaler, suffix) = rc
     (; stats, transform, invtransform) = rescaler
 
     rescaled = if invert
         inverse_inputs, inverse_outputs = inverse_input_vars(rc), inverse_output_vars(rc)
         @. inverse_outputs => invtransform(targets, inverse_inputs)
     else
-        inputs, outputs = _input_and_target_vars(rc), output_vars(rc)
+        inputs, outputs = input_and_target_vars(rc), output_vars(rc)
         @. outputs => transform(inputs)
     end
 
@@ -242,7 +247,7 @@ function evaluate(
         replace_table(repository, query, destination; schema)
     else
         with_table(repository, stats_tbl; schema) do tbl_name
-            eqs = (.==).(Get.(by), GetStats.(by))
+            eqs = (.==).(Get.(group_by), GetStats.(group_by))
             query = From(source) |>
                 LeftJoin("stats" => From(tbl_name); on = Fun.and(eqs...)) |>
                 Select(args = selection)
@@ -260,7 +265,7 @@ function CardWidget(config::CardConfig{RescaleCard}, c::AbstractDict)
 
     fields = [
         Widget("method", c; options = methods),
-        Widget("by", c, visible = Dict("method" => need_group), required = false),
+        Widget("group_by", c, visible = Dict("method" => need_group), required = false),
         Widget("inputs", c),
         Widget("targets", c, required = false),
         Widget("partition", c, required = false),

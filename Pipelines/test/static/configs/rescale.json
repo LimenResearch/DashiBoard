@@ -2,7 +2,7 @@
   "zscore": {
     "type": "rescale",
     "method": "zscore",
-    "by": ["cbwd"],
+    "group_by": ["cbwd"],
     "inputs": [],
     "targets": ["TEMP"],
     "suffix": "rescaled"
@@ -18,7 +18,7 @@
   "maxabs": {
     "type": "rescale",
     "method": "maxabs",
-    "by": ["year", "month", "cbwd"],
+    "group_by": ["year", "month", "cbwd"],
     "inputs": [],
     "targets": ["TEMP"],
     "suffix": "rescaled"
@@ -26,7 +26,7 @@
   "minmax": {
     "type": "rescale",
     "method": "minmax",
-    "by": [],
+    "group_by": [],
     "inputs": [],
     "targets": ["TEMP"],
     "suffix": "rescaled"
@@ -34,7 +34,7 @@
   "log": {
     "type": "rescale",
     "method": "log",
-    "by": [],
+    "group_by": [],
     "inputs": [],
     "targets": ["PRES"],
     "suffix": "rescaled"
@@ -42,7 +42,7 @@
   "logistic": {
     "type": "rescale",
     "method": "logistic",
-    "by": [],
+    "group_by": [],
     "inputs": [],
     "targets": ["hour"],
     "suffix": "rescaled"

@@ -2,13 +2,6 @@
 # - `_train(c, tbl, id; weights) -> model`
 # - `(c)(model, tbl, id) -> new_tbl, new_id`
 
-# Helper function
-
-function get_weights(c::StandardCard, t::SimpleTable, f = identity)
-    var = weight_var(c)
-    return isnothing(var) ? nothing : f(t[var])
-end
-
 # Implementation of Card methods
 
 function train(
@@ -17,11 +10,12 @@ function train(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-    wt_var = weight_var(c)
+    vars = SourceVariables(c)
+    sel = (vars.group_by, vars.helpers, vars.inputs, vars.targets, to_stringlist(vars.weights))
     q = From(source) |>
-        filter_training(partition_var(c)) |>
-        sort_columns(sorting_vars(c)) |>
-        select_columns([id_var], input_vars(c), target_vars(c), grouping_vars(c), to_stringlist(wt_var))
+        filter_training(vars.partition) |>
+        sort_columns(vars.order_by) |>
+        select_columns([id_var], sel...)
 
     t = DBInterface.execute(fromtable, repository, q; schema)
     model = _train(c, t, id_var)
@@ -37,9 +31,11 @@ function evaluate(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
+    vars = SourceVariables(c)
+
     q = From(source) |>
-        sort_columns(sorting_vars(c)) |>
-        select_columns([id_var], input_vars(c), grouping_vars(c))
+        sort_columns(vars.order_by) |>
+        select_columns([id_var], vars.group_by, vars.helpers, vars.inputs)
     t = DBInterface.execute(fromtable, repository, q; schema)
 
     model = jlddeserialize(state.content)

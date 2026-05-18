@@ -20,14 +20,15 @@ struct EnrichedDiGraph{I <: Integer}
 end
 
 # We generate a graph whose vertices are: `nodes`, `output_vars`, `source_vars`, in this order.
-# Source vars are input vars that are not included in the output of any node.
+# Source vars in the enriched graph are input vars of some node
+# that are not included in the output of any node.
 function EnrichedDiGraph(nodes::AbstractVector{Node})
     # generate variable to index dictionary
     d = Dict{String, Int}()
     # process `node => output_var` edges
-    src_out, tgt_out, output_vars = node_var_pairings!(get_outputs, d, nodes)
+    src_out, tgt_out, output_vars = node_var_pairings!(get_node_outputs, d, nodes)
     # process `input_var => node` edges
-    tgt_in, src_in, source_vars = node_var_pairings!(get_inputs, d, nodes)
+    tgt_in, src_in, source_vars = node_var_pairings!(get_node_inputs, d, nodes)
 
     # validate result (`tgt_out .- length(nodes)` should be equal to `1:length(tgt_out)`)
     idxs = Iterators.map(x -> x - length(nodes), tgt_out)

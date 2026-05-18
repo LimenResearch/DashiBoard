@@ -111,18 +111,13 @@ end
 
 ## StandardCard interface
 
-sorting_vars(::ClusterCard) = String[]
-grouping_vars(::ClusterCard) = String[]
-helper_vars(::ClusterCard) = String[]
-input_vars(cc::ClusterCard) = cc.inputs
-target_vars(::ClusterCard) = String[]
-weight_var(cc::ClusterCard) = cc.weights
-partition_var(cc::ClusterCard) = cc.partition
-output_vars(cc::ClusterCard) = [cc.output]
+SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.partition)
+
+OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 
 function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
-    weights = get_weights(cc, t)
+    weights = isnothing(cc.weights) ? nothing : t[cc.weights]
     res = cc.clusterer(X; weights)
     label = assignments(res)
     return (; label, id = t[id_var]) # return `label`s and relative `id`s for the evaluation

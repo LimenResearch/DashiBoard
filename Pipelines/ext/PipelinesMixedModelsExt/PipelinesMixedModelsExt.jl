@@ -1,13 +1,13 @@
 module PipelinesMixedModelsExt
 
 using Pipelines:
-    AbstractPrimaryKey, get_weights, train_glm,
+    AbstractPrimaryKey, train_glm,
     MixedModelCard, MIXED_MODEL_CARD_CONFIG,
     register_card, Pipelines
 using MixedModels: LinearMixedModel, GeneralizedLinearMixedModel
 
 function Pipelines._train(gc::MixedModelCard, t, ::AbstractPrimaryKey)
-    weights = get_weights(gc, t)
+    weights = isnothing(gc.weights) ? nothing : t[gc.weights]
     return train_glm(gc, t, LinearMixedModel, GeneralizedLinearMixedModel; weights)
 end
 

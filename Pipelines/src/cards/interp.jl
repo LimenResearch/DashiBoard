@@ -165,14 +165,11 @@ end
 
 ## StandardCard interface
 
-sorting_vars(ic::InterpCard) = [ic.input]
-grouping_vars(::InterpCard) = String[]
-helper_vars(::InterpCard) = String[]
-input_vars(ic::InterpCard) = [ic.input]
-target_vars(ic::InterpCard) = ic.targets
-weight_var(::InterpCard) = nothing
-partition_var(ic::InterpCard) = ic.partition
-output_vars(ic::InterpCard) = join_names.(ic.targets, ic.suffix)
+function SourceVariables(ic::InterpCard)
+    return SourceVariables(; order_by = [ic.input], inputs = [ic.input], ic.targets, ic.partition)
+end
+
+OutputVariables(ic::InterpCard) = OutputVariables(join_names.(ic.targets, ic.suffix))
 
 function _train(ic::InterpCard, t, ::AbstractPrimaryKey)
     (; interpolator, targets, input, partition) = ic

@@ -102,10 +102,6 @@ end
 
 ## StreamingCard interface
 
-sorting_vars(sc::StreamlinerCard) = SC.get_order_by(sc.funnel)
-grouping_vars(sc::StreamlinerCard) = String[]
-helper_vars(sc::StreamlinerCard) = SC.get_helpers_in(sc.funnel)
-
 function input_vars(sc::StreamlinerCard)
     return vcat(
         SC.colname.(SC.get_inputs(sc.funnel)),
@@ -122,13 +118,22 @@ function target_vars(sc::StreamlinerCard)
     )
 end
 
-weight_var(::StreamlinerCard) = nothing
-partition_var(sc::StreamlinerCard) = sc.partition
-
 function output_vars(sc::StreamlinerCard)
     outputs = join_names.(SC.colname.(SC.get_targets(sc.funnel)), sc.suffix)
     return vcat(outputs, SC.get_helpers_out(sc.funnel))
 end
+
+function SourceVariables(sc::StreamlinerCard)
+    return SourceVariables(;
+        order_by = SC.get_order_by(sc.funnel),
+        helpers = SC.get_helpers_in(sc.funnel),
+        inputs = input_vars(sc),
+        targets = target_vars(sc),
+        sc.partition
+    )
+end
+
+OutputVariables(sc::StreamingCard) = OutputVariables(output_vars(sc))
 
 function train(
         repository::Repository,

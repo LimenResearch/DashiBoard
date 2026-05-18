@@ -59,7 +59,7 @@ label = "Partition"
 placeholder = "Select partition variable..."
 options = { "-v" = "names" }
 
-[by]
+[group_by]
 widget = "select"
 label = "Group"
 placeholder = "Select grouping variables..."

@@ -173,19 +173,25 @@ function Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
     return Card(apply_helpers(d, params; recursive))
 end
 
-# TODO: document
+## Encode how a given card uses table variables
 
-function sorting_vars end
-function grouping_vars end
-function helper_vars end
-function input_vars end
-function target_vars end
-function weight_var end
-function partition_var end
-function output_vars end
+@kwdef struct SourceVariables
+    order_by::Vector{String} = String[]
+    group_by::Vector{String} = String[]
+    helpers::Vector{String} = String[]
+    inputs::Vector{String} = String[]
+    inverse_inputs::Vector{String} = String[]
+    targets::Vector{String} = String[]
+    weights::Union{String, Nothing} = nothing
+    partition::Union{String, Nothing} = nothing
+end
 
-function inverse_input_vars end
-function inverse_output_vars end
+struct OutputVariables
+    outputs::Vector{String}
+    inverse_outputs::Vector{String}
+end
+
+OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
 
 function get_metadata end
 

@@ -50,7 +50,7 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
         method::String
         splitter::SplittingMethod
         order_by::Vector{String}
-        by::Vector{String}
+        group_by::Vector{String}
         output::String
     end
 
@@ -66,7 +66,7 @@ struct SplitCard <: SQLCard
     method::String
     splitter::SplittingMethod
     order_by::Vector{String}
-    by::Vector{String}
+    group_by::Vector{String}
     output::String
 end
 
@@ -79,7 +79,7 @@ function get_metadata(sc::SplitCard)
         "method" => sc.method,
         "method_options" => get_options(sc.splitter),
         "order_by" => sc.order_by,
-        "by" => sc.by,
+        "group_by" => sc.group_by,
         "output" => sc.output,
     )
 end
@@ -90,24 +90,19 @@ function SplitCard(c::AbstractDict)
     label::String = card_label(c, config)
     order_by::Vector{String} = get(c, "order_by", String[])
     has_order = !isempty(order_by)
-    by::Vector{String} = get(c, "by", String[])
+    group_by::Vector{String} = get(c, "group_by", String[])
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
     splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
     output::String = c["output"]
-    return SplitCard(type, label, method, splitter, order_by, by, output)
+    return SplitCard(type, label, method, splitter, order_by, group_by, output)
 end
 
 ## SQLCard interface
 
-sorting_vars(sc::SplitCard) = sc.order_by
-grouping_vars(sc::SplitCard) = sc.by
-helper_vars(::SplitCard) = String[]
-input_vars(::SplitCard) = String[]
-target_vars(::SplitCard) = String[]
-weight_var(::SplitCard) = nothing
-partition_var(::SplitCard) = nothing
-output_vars(sc::SplitCard) = String[sc.output]
+SourceVariables(sc::SplitCard) = SourceVariables(; sc.order_by, sc.group_by)
+
+OutputVariables(sc::SplitCard) = OutputVariables([sc.output])
 
 function train(
         ::Repository, ::SplitCard, ::AbstractString, ::AbstractPrimaryKey;
@@ -126,7 +121,7 @@ function evaluate(
     )
 
     query = From(source) |>
-        Partition(; order_by = Get.(sc.order_by), by = Get.(sc.by)) |>
+        Partition(; order_by = Get.(sc.order_by), by = Get.(sc.group_by)) |>
         Select(id_var => Get(id_var), sc.output => get_sql(sc.splitter))
 
     replace_table(repository, query, destination; schema)
@@ -145,7 +140,7 @@ function CardWidget(config::CardConfig{SplitCard}, c::AbstractDict)
         method_dependent_widgets(c, "method", config.methods),
         [
             Widget("order_by", c),
-            Widget("by", c, required = false),
+            Widget("group_by", c, required = false),
             Widget("output", c, value = "partition"),
         ]
     )

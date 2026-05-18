@@ -9,6 +9,8 @@
 - `evaljoin` and `train_evaljoin!` now take a mandatory argument `id_var` denoting a column with _unique_ entries present in the data, to be used to join with the output [#100](https://github.com/LimenResearch/DashiBoard/pull/100).
 - Nodes inverted with `invert` have automatically `train = false` and can no longer be inverted back [#107](https://github.com/LimenResearch/DashiBoard/pull/107).
 - `Pipelines.get_inputs` and `Pipelines.get_outputs` now work directly on nodes, not on cards [#110](https://github.com/LimenResearch/DashiBoard/pull/110).
+- `Pipelines.get_inputs` and `Pipelines.get_outputs` are renamed to `Pipelines.get_node_inputs` and `Pipelines.get_node_outputs` [#117](https://github.com/LimenResearch/DashiBoard/pull/117).
+- `SourceVariables` and `OutputVariables` are used to specify how a card uses table variables [#117](https://github.com/LimenResearch/DashiBoard/pull/117).
 
 ### Features
 

@@ -113,14 +113,11 @@ end
 
 ## StandardCard interface
 
-sorting_vars(::DimensionalityReductionCard) = String[]
-grouping_vars(::DimensionalityReductionCard) = String[]
-helper_vars(::DimensionalityReductionCard) = String[]
-input_vars(drc::DimensionalityReductionCard) = drc.inputs
-target_vars(::DimensionalityReductionCard) = String[]
-weight_var(::DimensionalityReductionCard) = nothing
-partition_var(drc::DimensionalityReductionCard) = drc.partition
 output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)
+
+SourceVariables(drc::DimensionalityReductionCard) = SourceVariables(; drc.inputs, drc.partition)
+
+OutputVariables(drc::DimensionalityReductionCard) = OutputVariables(output_vars(drc))
 
 function _train(drc::DimensionalityReductionCard, t, ::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), drc.inputs, dims = 1)

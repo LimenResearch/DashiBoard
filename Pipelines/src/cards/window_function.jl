@@ -1,9 +1,9 @@
 # TODO: support window functions with additional arguments
 # TODO: support multiple window functions within a card?
-const WINDOW_FUNCTIONS = OrderedDict{String, FunClosure}(
-    "rank" => Fun.rank,
-    "percent_rank" => Fun.percent_rank,
-    "row_number" => Fun.row_number,
+const WINDOW_FUNCTIONS = OrderedDict{String, AggClosure}(
+    "rank" => Agg.rank,
+    "percent_rank" => Agg.percent_rank,
+    "row_number" => Agg.row_number,
 )
 
 """

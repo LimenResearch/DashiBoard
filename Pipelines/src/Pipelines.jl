@@ -57,11 +57,11 @@ using DuckDBUtils: DuckDBUtils,
 
 using FunSQL:
     render,
-    FunClosure,
     SQLNode,
     SQLCatalog,
     Partition,
     Group,
+    AggClosure,
     Agg,
     Fun,
     Lit,

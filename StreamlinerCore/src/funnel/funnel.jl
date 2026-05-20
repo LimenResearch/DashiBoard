@@ -20,7 +20,7 @@ end
 
 function FunneledData(
         ::Val{N}, funnel::F, table_spec::TableSpec;
-        partition::Union{AbstractString, Nothing} = nothing,
+        partition::Union{AbstractString, Nothing},
         require_targets::Bool = true,
         unique_values::AbstractDict = Dict{String, AbstractVector}(),
         helper_tables::Union{AbstractDict, Nothing} = nothing

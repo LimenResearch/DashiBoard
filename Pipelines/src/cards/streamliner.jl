@@ -190,7 +190,7 @@ function evaluate(
 
         data = FunneledData(
             Val(1), funnel, table_spec;
-            require_targets = false, unique_values
+            partition = nothing, require_targets = false, unique_values
         )
 
         table_keys = SC.get_helper_table_keys(funnel)

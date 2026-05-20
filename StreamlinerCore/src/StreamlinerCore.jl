@@ -14,7 +14,7 @@ public Metric
 # funnels and funnel accessor functions
 public get_helper_table_keys, initialize_helper_tables, initialize_helper_tables!
 public RichColumn, colname, compute_unique_values!,
-    db_funnel, DBFunnel, Funnel, FunneledData
+    db_funnel, DBFunnel, Funnel, FunneledData, TableSpec
 public get_helpers_in, get_helpers_out, get_order_by,
     get_inputs, get_constant_inputs, get_input_paths,
     get_targets, get_constant_targets, get_target_paths

@@ -133,7 +133,7 @@ function SourceVariables(sc::StreamlinerCard)
     )
 end
 
-OutputVariables(sc::StreamingCard) = OutputVariables(output_vars(sc))
+OutputVariables(sc::StreamlinerCard) = OutputVariables(output_vars(sc))
 
 function train(
         repository::Repository,

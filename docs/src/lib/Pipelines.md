@@ -44,6 +44,7 @@ Pipelines.visualize
 
 ```@docs
 Pipelines.SplitCard
+Pipelines.WindowFunctionCard
 Pipelines.RescaleCard
 Pipelines.ClusterCard
 Pipelines.DimensionalityReductionCard

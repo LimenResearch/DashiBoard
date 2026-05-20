@@ -1,0 +1,12 @@
+key = "window_function"
+label = "Window Function"
+needs_targets = false
+needs_order = true
+allows_weights = false
+allows_partition = false
+
+widget_configs = {}
+
+methods.rank.widgets = []
+methods.percent_rank.widgets = []
+methods.row_number.widgets = []

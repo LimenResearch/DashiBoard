@@ -55,11 +55,13 @@ using DuckDBUtils: DuckDBUtils,
     colnames,
     to_nrow
 
-using FunSQL: render,
+using FunSQL:
+    render,
     SQLNode,
     SQLCatalog,
     Partition,
     Group,
+    AggClosure,
     Agg,
     Fun,
     Lit,
@@ -156,6 +158,7 @@ include("card.jl")
 
 include("cards/standard.jl")
 include("cards/split.jl")
+include("cards/window_function.jl")
 include("cards/rescale.jl")
 include("cards/cluster.jl")
 include("cards/dimensionality_reduction.jl")
@@ -171,6 +174,7 @@ include("pipeline.jl")
 
 function __init__()
     register_card(SPLIT_CARD_CONFIG)
+    register_card(WINDOW_FUNCTION_CARD_CONFIG)
     register_card(RESCALE_CARD_CONFIG)
     register_card(CLUSTER_CARD_CONFIG)
     register_card(DIMENSIONALITY_REDUCTION_CARD_CONFIG)

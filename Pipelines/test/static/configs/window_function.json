@@ -1,0 +1,24 @@
+{
+  "percent_rank": {
+    "type": "window_function",
+    "order_by": ["No"],
+    "group_by": ["cbwd"],
+    "method": "percent_rank",
+    "output": "_percent_rank"
+  },
+  "rank": {
+    "type": "window_function",
+    "order_by": ["No"],
+    "group_by": ["cbwd"],
+    "method": "rank",
+    "output": "_rank"
+  },
+  "row_number": {
+    "type": "window_function",
+    "order_by": ["No"],
+    "group_by": ["cbwd"],
+    "method": "row_number",
+    "method_options": { "tiles": [1, 1, 2, 1, 1, 2] },
+    "output": "_row_number"
+  }
+}

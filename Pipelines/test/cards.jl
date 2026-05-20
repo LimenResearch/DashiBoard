@@ -72,6 +72,54 @@ DataIngestion.select(repo, filters)
     @test_throws ArgumentError Pipelines.Card(d["unsorted"])
 end
 
+@testset "widow_function" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "window_function.json"))
+    card = Pipelines.Card(d["row_number"])
+    @test !Pipelines.invertible(card)
+    node = Node(card)
+    @test Pipelines.get_node_inputs(node) == ["No", "cbwd"]
+    @test Pipelines.get_node_outputs(node) == ["_row_number"]
+
+    Pipelines.train_evaljoin!(repo, node, "selection" => "output", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM output")
+    @test names(df) == [
+        "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_row_number",
+    ]
+    for dd in groupby(df, :cbwd)
+        sorted = sort(dd, :No)
+        @test sorted._row_number == axes(sorted.No, 1)
+    end
+
+    card = Pipelines.Card(d["percent_rank"])
+    node = Node(card)
+
+    Pipelines.train_evaljoin!(repo, node, "selection" => "output", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM output")
+    @test names(df) == [
+        "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_percent_rank",
+    ]
+    for dd in groupby(df, :cbwd)
+        sorted = sort(dd, :No)
+        @test sorted._percent_rank ≈ (denserank(sorted.No) .- 1) ./ (length(sorted.No) - 1)
+    end
+
+    card = Pipelines.Card(d["rank"])
+    node = Node(card)
+
+    Pipelines.train_evaljoin!(repo, node, "selection" => "output", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM output")
+    @test names(df) == [
+        "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_rank",
+    ]
+    for dd in groupby(df, :cbwd)
+        sorted = sort(dd, :No)
+        @test sorted._rank == denserank(sorted.No)
+    end
+end
+
 # TODO: also test partitioned version
 @testset "rescale" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))

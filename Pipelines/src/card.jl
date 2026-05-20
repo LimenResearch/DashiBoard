@@ -34,6 +34,7 @@ Abstract supertype to encompass all possible cards.
 Current implementations:
 
 - [`SplitCard`](@ref) (`type = "split"`),
+- [`WindowFunctionCard`](@ref) (`type = "window_function"`),
 - [`RescaleCard`](@ref) (`type = "rescale"`),
 - [`ClusterCard`](@ref) (`type = "cluster"`),
 - [`DimensionalityReductionCard`](@ref) (`type = "dimensionality_reduction"`),

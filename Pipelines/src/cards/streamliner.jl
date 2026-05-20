@@ -144,12 +144,8 @@ function train(
     )
 
     (; model, training, funnel, partition) = sc
-
-    data = FunneledData(
-        Val(2), funnel;
-        repository, schema, table = source,
-        id_var, partition
-    )
+    table_spec = SC.TableSpec(; repository, schema, table = source, id_var)
+    data = FunneledData(Val(2), funnel, table_spec; partition)
     SC.compute_unique_values!(data)
 
     return mktempdir() do dir
@@ -183,6 +179,7 @@ function evaluate(
 
     (; model, training, funnel, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)
+    table_spec = SC.TableSpec(; repository, schema, table = source, id_var)
 
     return mktempdir() do dir
         path = SC.output_path(dir)
@@ -192,9 +189,7 @@ function evaluate(
         end
 
         data = FunneledData(
-            Val(1), funnel;
-            repository, schema, table = source,
-            id_var, partition = nothing,
+            Val(1), funnel, table_spec;
             require_targets = false, unique_values
         )
 

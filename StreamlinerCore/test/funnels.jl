@@ -26,14 +26,13 @@
         "target_paths" => nothing,
     )
 
-    data = StreamlinerCore.FunneledData(
-        Val(2), funnel,
+    table_spec = StreamlinerCore.TableSpec(
         repository = repo,
         schema = schema,
         table = "split",
-        id_var = "No",
-        partition = "_partition",
+        id_var = "No"
     )
+    data = StreamlinerCore.FunneledData(Val(2), funnel, table_spec, partition = "_partition")
 
     @test isnothing(data.helper_tables)
 
@@ -105,7 +104,7 @@
     @test batches′[1].input == batches[1].input # ensure determinism
 
     # TODO: ingestion with categorical target?
-    data1 = StreamlinerCore.FunneledData{StreamlinerCore.DBFunnel, 1}(data)
+    data1 = StreamlinerCore.FunneledData(Val(1), funnel, table_spec, partition = "_partition")
     outputs = [(_id = [1, 2], prediction = [10.0 20.0]), (_id = [3, 4], prediction = [30.0 40.0])]
 
     StreamlinerCore.ingest(data1, outputs, (:prediction,); suffix = "hat", destination = "outputs")
@@ -120,14 +119,7 @@
         targets = StreamlinerCore.RichColumn.(["cbwd"]),
     )
 
-    data = StreamlinerCore.FunneledData(
-        Val(2), funnel;
-        repository = repo,
-        schema = schema,
-        table = "split",
-        id_var = "No",
-        partition = "_partition"
-    )
+    data = StreamlinerCore.FunneledData(Val(2), funnel, table_spec; partition = "_partition")
     StreamlinerCore.compute_unique_values!(data)
 
     batches = StreamlinerCore.stream(collect, data, 2, streaming)

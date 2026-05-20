@@ -19,36 +19,15 @@ mutable struct FunneledData{F <: Funnel, N} <: AbstractData{N}
 end
 
 function FunneledData(
-        ::Val{N}, funnel::F;
-        repository::Repository,
-        schema::Union{AbstractString, Nothing},
-        table::AbstractString,
-        id_var::AbstractString,
-        partition::Union{AbstractString, Nothing},
+        ::Val{N}, funnel::F, table_spec::TableSpec;
+        partition::Union{AbstractString, Nothing} = nothing,
         require_targets::Bool = true,
         unique_values::AbstractDict = Dict{String, AbstractVector}(),
         helper_tables::Union{AbstractDict, Nothing} = nothing
     ) where {F <: Funnel, N}
 
-    table_spec = TableSpec(; repository, schema, table, id_var)
     return FunneledData{F, N}(
         table_spec, funnel, partition,
-        require_targets, unique_values, helper_tables
-    )
-end
-
-# TODO: warn that this method is potentially problematic,
-# as precomputed `unique_values` and `helper_tables` may be incorrect
-function FunneledData{F, N}(
-        data::FunneledData, funnel::F = data.funnel;
-        partition::Union{AbstractString, Nothing} = data.partition,
-        require_targets::Bool = data.require_targets,
-        unique_values::AbstractDict = data.unique_values,
-        helper_tables::Union{AbstractDict, Nothing} = data.helper_tables
-    ) where {F <: Funnel, N}
-
-    return FunneledData{F, N}(
-        data.table_spec, funnel, partition,
         require_targets, unique_values, helper_tables
     )
 end

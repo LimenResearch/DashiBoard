@@ -101,8 +101,8 @@ julia> card.inputs
 """
 function Card(d::AbstractDict)
     type::String = d["type"]
-    config = CARD_CONFIGS[type]
-    return config(d)
+    card_type = CARD_TYPES[type]
+    return card_type(d)
 end
 
 """
@@ -198,7 +198,7 @@ function get_metadata end
 
 ## Accessor functions
 
-get_label(c::Card) = c.label
+get_label(c::Card) = c.type #
 
 ## Training and evaluation
 
@@ -330,7 +330,7 @@ card_type(::CardConfig{T}) where {T <: Card} = T
 
 (config::CardConfig)(c::AbstractDict) = card_type(config)(c)
 
-const CARD_CONFIGS = OrderedDict{String, CardConfig}()
+const CARD_TYPES = OrderedDict{String, DataType}()
 
 ## Generate widgets
 
@@ -349,14 +349,12 @@ function card_widgets(options::AbstractDict = StringDict())
 end
 
 """
-    register_card(config::CardConfig)
+    register_card((key, type)::Pair{<:AbstractString, <:Type})
 
-Set a given card configuration as globally available.
-
-See also [`CardConfig`](@ref).
+Register a card type `type` as the default card for string `key`.
 """
-function register_card(config::CardConfig)
-    CARD_CONFIGS[config.key] = config
+function register_card((key, type)::Pair{<:AbstractString, <:Type})
+    CARD_TYPES[key] = type
     return
 end
 

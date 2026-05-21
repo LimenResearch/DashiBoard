@@ -103,7 +103,6 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
 """
     struct InterpCard <: Card
         type::String
-        label::String
         method::String
         interpolator::InterpolationMethod
         input::String
@@ -116,7 +115,6 @@ Interpolate `targets` based on `input`.
 """
 struct InterpCard <: StandardCard
     type::String
-    label::String
     method::String
     interpolator::InterpolationMethod
     input::String
@@ -130,7 +128,6 @@ const INTERP_CARD_CONFIG = CardConfig{InterpCard}(parse_toml_config("config", "i
 function get_metadata(ic::InterpCard)
     return StringDict(
         "type" => ic.type,
-        "label" => ic.label,
         "method" => ic.method,
         "method_options" => get_options(ic.interpolator),
         "input" => ic.input,
@@ -142,8 +139,6 @@ end
 
 function InterpCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
     interpolator::InterpolationMethod = INTERPOLATION_METHODS[method](method_options)
@@ -153,7 +148,6 @@ function InterpCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "hat")
     return InterpCard(
         type,
-        label,
         method,
         interpolator,
         input,

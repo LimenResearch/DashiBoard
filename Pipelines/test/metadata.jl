@@ -8,7 +8,6 @@
         @test metadata[k] == config[k]
     end
     @test metadata["method_options"] == Dict("percentile" => 0.9)
-    @test metadata["label"] == "Split"
     card2 = Pipelines.Card(metadata)
     @test card.splitter == card2.splitter
 
@@ -23,7 +22,6 @@
         "repeat" => 1,
         "tail" => 0
     )
-    @test metadata["label"] == "Split"
     card2 = Pipelines.Card(metadata)
     @test card.splitter == card2.splitter
 
@@ -38,7 +36,6 @@
         "repeat" => 2,
         "tail" => 1
     )
-    @test metadata["label"] == "Split"
     card2 = Pipelines.Card(metadata)
     @test card.splitter == card2.splitter
 end
@@ -52,7 +49,6 @@ end
     for k in ["type", "method", "group_by", "inputs", "targets", "suffix"]
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Rescale"
     @test isnothing(metadata["partition"])
     @test metadata["suffix"] == "rescaled"
     @test isnothing(metadata["target_suffix"])
@@ -65,7 +61,6 @@ end
     for k in ["type", "method", "inputs", "targets", "suffix", "target_suffix"]
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Rescale"
     @test metadata["group_by"] == String[]
     @test isnothing(metadata["partition"])
     @test metadata["suffix"] == "rescaled"
@@ -82,7 +77,6 @@ end
     for k in ["type", "method", "inputs", "output", "method_options"]
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Cluster"
     @test isnothing(metadata["partition"])
     card2 = Pipelines.Card(metadata)
     @test card.clusterer == card2.clusterer
@@ -97,7 +91,6 @@ end
     for k in ["type", "method", "inputs", "n_components", "partition"]
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Dimensionality Reduction"
     @test metadata["output"] == "component"
     @test isempty(metadata["method_options"])
     card2 = Pipelines.Card(metadata)
@@ -109,7 +102,6 @@ end
     for k in ["type", "method", "inputs", "n_components", "method_options", "partition"]
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Dimensionality Reduction"
     @test metadata["output"] == "component"
     card2 = Pipelines.Card(metadata)
     @test card.projector == card2.projector
@@ -124,7 +116,6 @@ end
     for k in ["type", "inputs", "target", "partition", "distribution", "link"]
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "GLM"
     @test metadata["suffix"] == "hat"
     @test isnothing(metadata["weights"])
     card2 = Pipelines.Card(metadata)
@@ -139,7 +130,6 @@ end
         @test metadata[k] == config[k]
     end
     @test metadata["distribution"] == "normal"
-    @test metadata["label"] == "Mixed Model"
     @test metadata["suffix"] == "hat"
     @test isnothing(metadata["link"])
     @test isnothing(metadata["weights"])
@@ -162,7 +152,6 @@ end
     for k in fields
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Interpolation"
     @test metadata["suffix"] == "hat"
     card2 = Pipelines.Card(metadata)
     @test card.interpolator == card2.interpolator
@@ -181,7 +170,6 @@ end
     for k in fields
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Gaussian Encoding"
     card2 = Pipelines.Card(metadata)
     @test card.temporal_preprocessor == card2.temporal_preprocessor
 end
@@ -207,7 +195,6 @@ end
         for k in fields
             @test metadata[k] == config[k]
         end
-        @test metadata["label"] == "Streamliner"
         @test metadata["model_metadata"] == StreamlinerCore.get_metadata(card.model)
         @test metadata["training_metadata"] == StreamlinerCore.get_metadata(card.training)
         @test metadata["order_by"] == ["No"]
@@ -228,15 +215,7 @@ end
     function _evaluate(wc, model, t, id)
         return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end
-    card_config = CardConfig{WildCard{_train, _evaluate}}(
-        key = "trivial",
-        label = "Trivial",
-        needs_targets = false,
-        needs_order = false,
-        allows_partition = false,
-        allows_weights = false
-    )
-    Pipelines.register_card(card_config)
+    Pipelines.register_card("trivial" => WildCard{_train, _evaluate})
 
     config = Dict("type" => "trivial", "inputs" => ["a", "b"], "output" => "c")
     card = Pipelines.Card(config)
@@ -245,7 +224,6 @@ end
     for k in fields
         @test metadata[k] == config[k]
     end
-    @test metadata["label"] == "Trivial"
     @test isempty(metadata["order_by"])
     @test isnothing(metadata["weights"])
     @test isnothing(metadata["partition"])

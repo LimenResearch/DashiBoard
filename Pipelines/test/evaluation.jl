@@ -8,16 +8,7 @@
         end
         return res
     end
-    card_config = CardConfig{WildCard{_train, _evaluate}}(
-        key = "trivial",
-        label = "Trivial",
-        needs_targets = false,
-        needs_order = false,
-        allows_partition = false,
-        allows_weights = false
-    )
-    @test card_type(card_config) === WildCard{_train, _evaluate}
-    Pipelines.register_card(card_config)
+    Pipelines.register_card("trivial" => WildCard{_train, _evaluate})
 
     function trivialcard(inputs::AbstractVector, output::AbstractString)
         c = Dict("type" => "trivial", "inputs" => inputs, "output" => output)
@@ -27,7 +18,6 @@
     function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
         return WildCard{_train, _evaluate}(
             type = "trivial",
-            label = "Trivial",
             order_by = String[],
             inputs = inputs,
             targets = String[],

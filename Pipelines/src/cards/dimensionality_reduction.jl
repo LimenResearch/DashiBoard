@@ -48,7 +48,6 @@ const PROJECTION_METHODS = OrderedDict{String, DataType}(
 """
     struct DimensionalityReductionCard <: Card
         type::String
-        label::String
         method::String
         projector::ProjectionMethod
         inputs::Vector{String}
@@ -62,7 +61,6 @@ Save resulting column as `output`.
 """
 struct DimensionalityReductionCard <: StandardCard
     type::String
-    label::String
     method::String
     projector::ProjectionMethod
     inputs::Vector{String}
@@ -78,7 +76,6 @@ const DIMENSIONALITY_REDUCTION_CARD_CONFIG = CardConfig{DimensionalityReductionC
 function get_metadata(drc::DimensionalityReductionCard)
     return StringDict(
         "type" => drc.type,
-        "label" => drc.label,
         "method" => drc.method,
         "method_options" => get_options(drc.projector),
         "inputs" => drc.inputs,
@@ -90,8 +87,6 @@ end
 
 function DimensionalityReductionCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
     projector::ProjectionMethod = PROJECTION_METHODS[method](method_options)
@@ -101,7 +96,6 @@ function DimensionalityReductionCard(c::AbstractDict)
     output::String = get(c, "output", "component")
     return DimensionalityReductionCard(
         type,
-        label,
         method,
         projector,
         inputs,

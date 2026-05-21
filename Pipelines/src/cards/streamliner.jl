@@ -27,7 +27,6 @@ end
 """
     struct StreamlinerCard <: Card
         type::String
-        label::String
         model_name::String
         model::Model
         training_name::String
@@ -42,7 +41,6 @@ Run a Streamliner model, predicting `targets` from `inputs`.
 """
 struct StreamlinerCard <: StreamingCard
     type::String
-    label::String
     model_name::String
     model::Model
     training_name::String
@@ -58,7 +56,6 @@ const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("c
 function get_metadata(sc::StreamlinerCard)
     d = StringDict(
         "type" => sc.type,
-        "label" => sc.label,
         "model" => sc.model_name,
         "model_metadata" => SC.get_metadata(sc.model),
         "training" => sc.training_name,
@@ -73,8 +70,6 @@ end
 
 function StreamlinerCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
 
     model_name::String = c["model"]
     model = get_streamliner_model(c, model_name)
@@ -88,7 +83,6 @@ function StreamlinerCard(c::AbstractDict)
 
     return StreamlinerCard(
         type,
-        label,
         model_name,
         model,
         training_name,

@@ -46,7 +46,6 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
 """
     struct SplitCard <: Card
         type::String
-        label::String
         method::String
         splitter::SplittingMethod
         order_by::Vector{String}
@@ -62,7 +61,6 @@ Currently supported methods are
 """
 struct SplitCard <: SQLCard
     type::String
-    label::String
     method::String
     splitter::SplittingMethod
     order_by::Vector{String}
@@ -75,7 +73,6 @@ const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "spl
 function get_metadata(sc::SplitCard)
     return StringDict(
         "type" => sc.type,
-        "label" => sc.label,
         "method" => sc.method,
         "method_options" => get_options(sc.splitter),
         "order_by" => sc.order_by,
@@ -86,8 +83,6 @@ end
 
 function SplitCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     order_by::Vector{String} = get(c, "order_by", String[])
     has_order = !isempty(order_by)
     group_by::Vector{String} = get(c, "group_by", String[])
@@ -95,7 +90,7 @@ function SplitCard(c::AbstractDict)
     method_options::StringDict = extract_options(c, "method", method)
     splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
     output::String = c["output"]
-    return SplitCard(type, label, method, splitter, order_by, group_by, output)
+    return SplitCard(type, method, splitter, order_by, group_by, output)
 end
 
 ## SQLCard interface

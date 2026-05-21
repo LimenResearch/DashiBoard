@@ -1,7 +1,6 @@
 """
     struct WildCard{train, evaluate} <: Card
         type::String
-        label::String
         order_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -14,7 +13,6 @@ Custom `card` that uses arbitrary training and evaluations functions.
 """
 @kwdef struct WildCard{train, evaluate} <: StandardCard
     type::String
-    label::String
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -26,7 +24,6 @@ end
 function get_metadata(wc::WildCard)
     return StringDict(
         "type" => wc.type,
-        "label" => wc.label,
         "order_by" => wc.order_by,
         "inputs" => wc.inputs,
         "weights" => wc.weights,
@@ -38,20 +35,17 @@ end
 
 function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
-
-    order_by::Vector{String} = config.needs_order ? c["order_by"] : String[]
+    order_by::Vector{String} = get(c, "order_by", String[])
     inputs::Vector{String} = c["inputs"]
-    targets::Vector{String} = config.needs_targets ? c["targets"] : String[]
+    targets::Vector{String} = get(c, "targets", String[])
 
     outputs::Vector{String} = get(c, "outputs") do
-        if config.needs_targets
-            suffix::String = c["suffix"]
-            join_names(targets, suffix)
-        else
+        suffix::Union{String, Nothing} = get(c, "suffix", nothing)
+        if isnothing(suffix)
             output::String = c["output"]
             [output]
+        else
+            join_names(targets, suffix)
         end
     end
 
@@ -60,7 +54,6 @@ function WildCard{train, evaluate}(c::AbstractDict) where {train, evaluate}
 
     return WildCard{train, evaluate}(
         type,
-        label,
         order_by,
         inputs,
         targets,

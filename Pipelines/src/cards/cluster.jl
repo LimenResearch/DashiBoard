@@ -48,7 +48,6 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
 """
     struct ClusterCard <: Card
         type::String
-        label::String
         method::String
         clusterer::ClusteringMethod
         inputs::Vector{String}
@@ -62,7 +61,6 @@ Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
     type::String
-    label::String
     method::String
     clusterer::ClusteringMethod
     inputs::Vector{String}
@@ -76,7 +74,6 @@ const CLUSTER_CARD_CONFIG = CardConfig{ClusterCard}(parse_toml_config("config", 
 function get_metadata(cc::ClusterCard)
     return StringDict(
         "type" => cc.type,
-        "label" => cc.label,
         "method" => cc.method,
         "method_options" => get_options(cc.clusterer),
         "inputs" => cc.inputs,
@@ -88,8 +85,6 @@ end
 
 function ClusterCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
     clusterer::ClusteringMethod = CLUSTERING_METHODS[method](method_options)
@@ -99,7 +94,6 @@ function ClusterCard(c::AbstractDict)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
         type,
-        label,
         method,
         clusterer,
         inputs,

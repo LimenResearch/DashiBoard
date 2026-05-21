@@ -9,7 +9,6 @@ const WINDOW_FUNCTIONS = OrderedDict{String, AggClosure}(
 """
     struct WindowFunctionCard <: Card
         type::String
-        label::String
         method::String
         window_function::SQLNode
         order_by::Vector{String}
@@ -21,7 +20,6 @@ Add new column with output of window function.
 """
 struct WindowFunctionCard <: SQLCard
     type::String
-    label::String
     method::String
     window_function::SQLNode
     order_by::Vector{String}
@@ -34,7 +32,6 @@ const WINDOW_FUNCTION_CARD_CONFIG = CardConfig{WindowFunctionCard}(parse_toml_co
 function get_metadata(wfc::WindowFunctionCard)
     return StringDict(
         "type" => wfc.type,
-        "label" => wfc.label,
         "method" => wfc.method,
         "order_by" => wfc.order_by,
         "group_by" => wfc.group_by,
@@ -44,14 +41,12 @@ end
 
 function WindowFunctionCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     order_by::Vector{String} = get(c, "order_by", String[])
     group_by::Vector{String} = get(c, "group_by", String[])
     method::String = c["method"]
     window_function::SQLNode = WINDOW_FUNCTIONS[method]()
     output::String = c["output"]
-    return WindowFunctionCard(type, label, method, window_function, order_by, group_by, output)
+    return WindowFunctionCard(type, method, window_function, order_by, group_by, output)
 end
 
 ## SQLCard interface

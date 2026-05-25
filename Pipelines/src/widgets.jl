@@ -1,39 +1,4 @@
-## Generate widgets
-
-"""
-    @kwdef struct CardWidgetConfigs
-        widget_configs::StringDict = StringDict()
-        methods::StringDict = StringDict()
-    end
-
-Configuration used to describe a card graphical representation.
-"""
-@kwdef struct CardWidgetConfigs
-    widget_configs::StringDict = StringDict()
-    methods::StringDict = StringDict()
-end
-
-function CardWidgetConfigs(c::AbstractDict)
-    widget_configs::StringDict = c["widget_configs"]
-    methods::StringDict = get(c, "methods", StringDict())
-    return CardWidgetConfigs(; widget_configs, methods)
-end
-
-function card_widgets(options::AbstractDict = StringDict())
-    widgets = CardWidget[]
-    for (k, config) in pairs(CARD_CONFIGS)
-        specific_options = mergewith(
-            merge,
-            WIDGET_CONFIGS[],
-            config.widget_configs,
-            get(options, k, StringDict())
-        )
-        push!(widgets, CardWidget(config, specific_options))
-    end
-    return widgets
-end
-
-const GLOBAL_WIDGET_CONFIGS = ScopedValue{StringDict}(parse_toml_config("widget_configs"))
+## Widget description
 
 struct Widget
     widget::String
@@ -130,4 +95,48 @@ struct CardWidget
     label::String
     fields::Vector{Widget}
     output::OutputSpec
+end
+
+function CardWidget(type::AbstractString, fields::AbstractVector, output::OutputSpec)
+    return CardWidget(type, get_label(type), fields, output)
+end
+
+## Widget configurations
+
+"""
+    @kwdef struct CardWidgetConfigs
+        widget_configs::StringDict = StringDict()
+        methods::StringDict = StringDict()
+    end
+
+Configuration used to describe a card graphical representation.
+"""
+@kwdef struct CardWidgetConfigs
+    widget_configs::StringDict = StringDict()
+    methods::StringDict = StringDict()
+end
+
+function CardWidgetConfigs(c::AbstractDict)
+    widget_configs::StringDict = c["widget_configs"]
+    methods::StringDict = get(c, "methods", StringDict())
+    return CardWidgetConfigs(; widget_configs, methods)
+end
+
+function card_widgets(options::AbstractDict = StringDict())
+    widgets = CardWidget[]
+    global_options = parse_toml_config("widget_configs")
+    for (k, spec) in pairs(CARD_SPECS)
+        user_options = get(options, k, StringDict())
+        push!(widgets, CardWidget(spec.type, k; global_options, user_options))
+    end
+    return widgets
+end
+
+function combine_options(card_options; global_options, user_options)
+    return mergewith(
+        merge,
+        global_options,
+        card_options,
+        user_options
+    )
 end

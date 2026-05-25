@@ -223,7 +223,14 @@ end
 
 ## UI representation
 
-function CardWidget(::C, c::AbstractDict) where {C <: AbstractGLMCard}
+function CardWidget(
+        ::Type{C}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    ) where {C <: AbstractGLMCard}
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     noise_models = collect(keys(NOISE_MODELS))
     link_functions = collect(keys(LINK_TYPES))
 
@@ -248,5 +255,5 @@ function CardWidget(::C, c::AbstractDict) where {C <: AbstractGLMCard}
 
     fields = vcat(formula_fields, additional_fields)
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))
+    return CardWidget(key, fields, OutputSpec("target", "suffix"))
 end

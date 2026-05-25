@@ -96,5 +96,5 @@ _train(wc::WildCard{train}, t, id_var::AbstractPrimaryKey) where {train} = train
 
 #     fields = map(first, filter(last, conditional_fields))
 #     output = config.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
-#     return CardWidget(config.key, config.label, fields, output)
+#     return CardWidget(key, fields, output)
 # end

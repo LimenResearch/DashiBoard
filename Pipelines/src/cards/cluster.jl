@@ -124,7 +124,14 @@ end
 
 ## UI representation
 
-function CardWidget(::Type{ClusterCard}, key::AbstractString, c::AbstractDict)
+function CardWidget(
+        ::Type{ClusterCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     methods = collect(keys(CLUSTERING_METHODS))
     support_weights = ["kmeans"]
 
@@ -141,5 +148,5 @@ function CardWidget(::Type{ClusterCard}, key::AbstractString, c::AbstractDict)
         ]
     )
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("output"))
+    return CardWidget(key, fields, OutputSpec("output"))
 end

@@ -79,7 +79,14 @@ end
 
 ## UI representation
 
-function CardWidget(::WindowFunctionCard, c::AbstractDict)
+function CardWidget(
+        ::Type{WindowFunctionCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     methods = collect(keys(WINDOW_FUNCTIONS))
 
     fields = [
@@ -89,5 +96,5 @@ function CardWidget(::WindowFunctionCard, c::AbstractDict)
         Widget("output", c, value = "output"),
     ]
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("output"))
+    return CardWidget(key, fields, OutputSpec("output"))
 end

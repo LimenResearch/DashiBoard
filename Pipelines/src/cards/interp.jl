@@ -187,7 +187,14 @@ end
 
 ## UI representation
 
-function CardWidget(::InterpCard, c::AbstractDict)
+function CardWidget(
+        ::Type{InterpCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     methods = collect(keys(INTERPOLATION_METHODS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))
@@ -205,5 +212,5 @@ function CardWidget(::InterpCard, c::AbstractDict)
         ]
     )
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
+    return CardWidget(key, fields, OutputSpec("targets", "suffix"))
 end

@@ -216,7 +216,14 @@ function read_wdgs(dir)
     return d
 end
 
-function CardWidget(::StreamlinerCard, c::AbstractDict)
+function CardWidget(
+        ::Type{StreamlinerCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     model_wdgs = read_wdgs(MODEL_DIR[])
     training_wdgs = read_wdgs(TRAINING_DIR[])
 
@@ -238,5 +245,5 @@ function CardWidget(::StreamlinerCard, c::AbstractDict)
         method_dependent_widgets(c, "training", training_wdgs)
     )
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
+    return CardWidget(key, fields, OutputSpec("targets", "suffix"))
 end

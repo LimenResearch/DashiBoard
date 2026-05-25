@@ -9,35 +9,39 @@ struct Node
     update::Bool
     train::Bool
     invert::Bool
+    label::AbstractString
     state::StateRef
-    function Node(card::Card, update::Bool, train::Bool, invert::Bool, state::StateRef)
+    function Node(card::Card, update::Bool, train::Bool, invert::Bool, label::AbstractString, state::StateRef)
         if invert
             invertible(card) || throw(ArgumentError("Node is not invertible"))
             train && throw(ArgumentError("Cannot train an inverted node"))
         end
-        return new(card, update, train, invert, state)
+        return new(card, update, train, invert, label, state)
     end
 end
 
 """
     Node(
-        card::Card,
-        state = CardState();
-        update::Bool = true,
-        train::Bool = true
+        card::Card, state = CardState();
+        update::Bool = true, train::Bool = true,
+        label::AbstractString = get_default_label(card)
     )
 
 Generate a `Node` object from a [`Card`](@ref).
 """
 function Node(
         card::Card, state::CardState = CardState();
-        update::Bool = true, train::Bool = true
+        update::Bool = true, train::Bool = true,
+        label::AbstractString = get_default_label(card)
     )
-    return Node(card, update, train, false, StateRef(state))
+    return Node(card, update, train, false, label, StateRef(state))
 end
 
 function Node(c::AbstractDict; update::Bool = true)
     card = Card(c["card"])
+    label::String = get(c, "label") do
+        get_default_label(card)
+    end
     train::Bool = get(c, "train", true)
     state_config = get(c, "state", nothing)
     state = if isnothing(state_config)
@@ -48,13 +52,14 @@ function Node(c::AbstractDict; update::Bool = true)
             metadata = c["state"]["metadata"]
         )
     end
-    return Node(card, state; update, train)
+    return Node(card, state; update, train, label)
 end
 
 get_card(node::Node) = node.card
 get_update(node::Node) = node.update
 get_train(node::Node) = node.train
 get_invert(node::Node) = node.invert
+get_label(node::Node) = node.label
 
 get_state(node::Node) = node.state[]
 set_state!(node::Node, state) = setindex!(node.state, state)
@@ -99,10 +104,10 @@ invertible(n::Node) = invertible(get_card(n))
 # set `invert = true`, in which case training is disabled
 function invert(n::Node)
     n.invert && throw(ArgumentError("Node is already inverted"))
-    return Node(n.card, n.update, false, true, n.state)
+    return Node(n.card, n.update, false, true, n.label, n.state)
 end
 
-unlink(n::Node) = Node(n.card, n.update, n.train, n.invert, StateRef(get_state(n)))
+unlink(n::Node) = Node(n.card, n.update, n.train, n.invert, n.label, StateRef(get_state(n)))
 
 """
     train!(

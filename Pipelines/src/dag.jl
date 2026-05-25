@@ -92,7 +92,7 @@ function graphviz(io::IO, eg::EnrichedDiGraph, nodes::AbstractVector{Node})
     println(io, "  subgraph cards {")
     println(io, "    node [shape = \"box\" style = \"filled\"];")
     for (i, node) in enumerate(nodes)
-        label = get_label(get_card(node))
+        label = get_label(node)
         fillcolor = get_update(node) ? "white" : "transparent"
         println(io, "    \"$(i)\" [label = \"$(label)\" fillcolor = \"$(fillcolor)\"];")
     end

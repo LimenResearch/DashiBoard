@@ -211,11 +211,22 @@ end
 end
 
 @testset "metadata wild" begin
-    _train(wc, t, id) = nothing
-    function _evaluate(wc, model, t, id)
-        return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
+    Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
+    function (wc::WildCard{:trivial})(model, t, id_var)
+        id = t[id_var]
+        nrows = length(id)
+        return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
     end
     Pipelines.register_card("trivial", WildCard{_train, _evaluate}, "Trivial")
+    card_config = CardConfig{WildCard{:trivial}}(
+        key = "trivial",
+        label = "Trivial",
+        needs_targets = false,
+        needs_order = false,
+        allows_partition = false,
+        allows_weights = false
+    )
+    Pipelines.register_card(card_config)
 
     config = Dict("type" => "trivial", "inputs" => ["a", "b"], "output" => "c")
     card = Pipelines.Card(config)
@@ -230,6 +241,6 @@ end
     @test isempty(metadata["targets"])
 
     card2 = Pipelines.Card(metadata)
-    @test card2 isa WildCard{_train, _evaluate}
+    @test card2 isa WildCard{:trivial}
     @test card.outputs == card2.outputs
 end

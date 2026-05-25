@@ -103,14 +103,7 @@ end
 
 ## Widget configurations
 
-"""
-    @kwdef struct CardWidgetConfigs
-        widget_configs::StringDict = StringDict()
-        methods::StringDict = StringDict()
-    end
-
-Configuration used to describe a card graphical representation.
-"""
+# Configuration used to describe custom widgets to use for a given card type.
 @kwdef struct CardWidgetConfigs
     widget_configs::StringDict = StringDict()
     methods::StringDict = StringDict()

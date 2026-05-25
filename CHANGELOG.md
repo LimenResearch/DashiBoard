@@ -12,6 +12,7 @@
 - `Pipelines.get_inputs` and `Pipelines.get_outputs` now work directly on nodes, not on cards [#110](https://github.com/LimenResearch/DashiBoard/pull/110).
 - `Pipelines.get_inputs` and `Pipelines.get_outputs` are renamed to `Pipelines.get_node_inputs` and `Pipelines.get_node_outputs` [#117](https://github.com/LimenResearch/DashiBoard/pull/117).
 - `SourceVariables` and `OutputVariables` are used to specify how a card uses table variables [#117](https://github.com/LimenResearch/DashiBoard/pull/117).
+- `CardConfig` was simplified and renamed to `CardSpec` [#120](https://github.com/LimenResearch/DashiBoard/pull/120).
 
 ### Features
 

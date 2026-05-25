@@ -13,7 +13,8 @@ Custom `card` that uses arbitrary training and evaluations functions.
 
 Overload the following methods for your custom type or symbol `T`:
 1. `Pipelines._train(wc::WildCard{T}, tbl, id_var)`
-2. `(wc::WildCard{T})(model, tbl, id_var)` (return output table of `model` from input table `tbl` and primary key `id_var` -).
+2. `(wc::WildCard{T})(model, tbl, id_var)` (return output table of `model` from input table `tbl` and primary key `id_var` -)
+3. `WildCardConfig(::Type{WildCard{T})` (optional and experimental, return [`WildCardConfig`](@ref) for extra customizability)
 
 `Pipelines._train(wc::WildCard{T}, tbl, id_var)` trains the card given input table `tbl` and primary key `id_var`  and return a trained `model`.
 `(wc::WildCard{T})(model, tbl, id_var)` returns the output table of `model` from input table `tbl` and primary key `id_var`.
@@ -71,12 +72,8 @@ end
 
 function WildCard{T}(c::AbstractDict) where {T}
     type::String = c["type"]
+    # TODO: allow a `group_by` field as well?
     order_by::Vector{String} = get(c, "order_by", String[])
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
-
-    # TODO: allow a `by` field as well?
-    order_by::Vector{String} = config.needs_order ? c["order_by"] : String[]
     inputs::Vector{String} = c["inputs"]
     targets::Vector{String} = get(c, "targets", String[])
 
@@ -120,11 +117,34 @@ OutputVariables(wc::WildCard) = OutputVariables(wc.outputs)
 
 ## UI representation
 
+"""
+    @kwdef struct WildCardConfig
+        needs_order::Bool = false
+        needs_targets::Bool = false
+        allows_weights::Bool = false
+        allows_partition::Bool = true
+    end
+
+Define whether a given wild card requires sorting and / or target variables.
+Define whether it accepts a weights variable and / or a partition variable.
+"""
+@kwdef struct WildCardConfig
+    needs_order::Bool = false
+    needs_targets::Bool = false
+    allows_weights::Bool = false
+    allows_partition::Bool = true
+end
+
+WildCardConfig(::Type{<:WildCard}) = WildCardConfig()
+
 function CardWidget(
         ::Type{WildCard{T}}, key::AbstractString;
         global_options::AbstractDict, user_options::AbstractDict
     ) where {T}
 
+    c = combine_options(StringDict(); global_options, user_options)
+
+    config = WildCardConfig(WildCard{T})
     conditional_fields = Tuple{Widget, Bool}[
         (Widget("order_by", c), config.needs_order),
         (Widget("inputs", c), true),

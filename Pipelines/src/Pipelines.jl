@@ -14,7 +14,7 @@ export Card,
     StreamlinerCard,
     WildCard
 
-export get_metadata, register_card, CardUI
+export get_metadata, register_card, OutputSpec, CardWidget, WildCardConfig
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 

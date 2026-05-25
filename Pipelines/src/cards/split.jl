@@ -68,7 +68,7 @@ struct SplitCard <: SQLCard
     output::String
 end
 
-const SPLIT_CARD_CONFIG = CardConfig{SplitCard}(parse_toml_config("config", "split"))
+const SPLIT_CARD_CONFIG = CardUI(parse_toml_config("config", "split"))
 
 function get_metadata(sc::SplitCard)
     return StringDict(
@@ -125,7 +125,7 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{SplitCard}, c::AbstractDict)
+function CardWidget(::SplitCard, config::CardUI, c::AbstractDict)
     methods = collect(keys(SPLITTING_METHODS))
 
     fields = vcat(

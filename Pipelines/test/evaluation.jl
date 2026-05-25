@@ -8,7 +8,7 @@
         end
         return res
     end
-    Pipelines.register_card("trivial" => WildCard{_train, _evaluate})
+    Pipelines.register_card("trivial", WildCard{_train, _evaluate}, "Trivial")
 
     function trivialcard(inputs::AbstractVector, output::AbstractString)
         c = Dict("type" => "trivial", "inputs" => inputs, "output" => output)

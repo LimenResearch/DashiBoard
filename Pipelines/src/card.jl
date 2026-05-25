@@ -101,7 +101,7 @@ julia> card.inputs
 """
 function Card(d::AbstractDict)
     type::String = d["type"]
-    card_type = CARD_TYPES[type]
+    card_type = CARD_SPECS[type].type
     return card_type(d)
 end
 
@@ -281,56 +281,34 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 ## Define new cards
 
 """
-    @kwdef struct CardConfig{T <: Card}
-        key::String
-        label::String
-        needs_targets::Bool
-        needs_order::Bool
-        allows_weights::Bool
-        allows_partition::Bool
+    @kwdef struct CardUI
         widget_configs::StringDict = StringDict()
         methods::StringDict = StringDict()
     end
 
-Configuration used to register a card.
+Configuration used to describe a card graphical representation.
 """
-@kwdef struct CardConfig{T <: Card}
-    key::String
-    label::String
-    needs_targets::Bool
-    needs_order::Bool
-    allows_weights::Bool
-    allows_partition::Bool
+@kwdef struct CardUI
     widget_configs::StringDict = StringDict()
     methods::StringDict = StringDict()
 end
 
-function CardConfig{T}(c::AbstractDict) where {T <: Card}
-    key::String = c["key"]
-    label::String = c["label"]
-    needs_targets::Bool = c["needs_targets"]
-    needs_order::Bool = c["needs_order"]
-    allows_weights::Bool = c["allows_weights"]
-    allows_partition::Bool = c["allows_partition"]
+function CardUI(c::AbstractDict)
     widget_configs::StringDict = c["widget_configs"]
     methods::StringDict = get(c, "methods", StringDict())
-    return CardConfig{T}(;
-        key,
-        label,
-        needs_targets,
-        needs_order,
-        allows_weights,
-        allows_partition,
-        widget_configs,
-        methods
-    )
+    return CardUI(; widget_configs, methods)
 end
 
-card_type(::CardConfig{T}) where {T <: Card} = T
+## Global Dictionaries
 
-(config::CardConfig)(c::AbstractDict) = card_type(config)(c)
+struct CardSpec
+    type::DataType
+    label::String
+end
 
-const CARD_TYPES = OrderedDict{String, DataType}()
+const CARD_SPECS = OrderedDict{String, CardSpec}()
+
+function get_key end
 
 ## Generate widgets
 
@@ -349,15 +327,12 @@ function card_widgets(options::AbstractDict = StringDict())
 end
 
 """
-    register_card((key, type)::Pair{<:AbstractString, <:Type})
+    register_card(key::AbstractString, type::Type, label::AbstractString)
 
 Register a card type `type` as the default card for string `key`.
+Make `label` the default description of this card type.
 """
-function register_card((key, type)::Pair{<:AbstractString, <:Type})
-    CARD_TYPES[key] = type
+function register_card(key::AbstractString, type::Type, label::AbstractString)
+    CARD_SPECS[key] = CardSpec(type, label)
     return
 end
-
-## Helpers
-
-card_label(c::AbstractDict, config::CardConfig) = get(c, "label", config.label)

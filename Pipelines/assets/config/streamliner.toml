@@ -1,10 +1,3 @@
-key = "streamliner"
-label = "Streamliner"
-needs_targets = true
-needs_order = true
-allows_weights = false
-allows_partition = true
-
 [widget_configs.model]
 widget = "select"
 label = "Model configuration"

@@ -12,7 +12,7 @@ function Pipelines._train(gc::MixedModelCard, t, ::AbstractPrimaryKey)
 end
 
 function __init__()
-    return register_card("mixed_model" => MixedModelCard)
+    return register_card("mixed_model", MixedModelCard, "Mixed Model")
 end
 
 end

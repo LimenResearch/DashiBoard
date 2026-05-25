@@ -174,7 +174,7 @@ function (gc::GLMCard)(model, t, id_var::AbstractPrimaryKey)
     return SimpleTable(id_var => t[id_var], output_var(gc) => predict(model, t))
 end
 
-const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
+const GLM_CARD_CONFIG = CardUI(parse_toml_config("config", "glm"))
 
 ## MixedModelCard
 
@@ -223,11 +223,11 @@ function (gc::MixedModelCard)(model, t, id_var::AbstractPrimaryKey)
     return SimpleTable(id_var => t[id_var], output_var(gc) => predict(model, t))
 end
 
-const MIXED_MODEL_CARD_CONFIG = CardConfig{MixedModelCard}(parse_toml_config("config", "mixed_model"))
+const MIXED_MODEL_CARD_CONFIG = CardUI(parse_toml_config("config", "mixed_model"))
 
 ## UI representation
 
-function CardWidget(config::CardConfig{C}, c::AbstractDict) where {C <: AbstractGLMCard}
+function CardWidget(::C, config::CardUI, c::AbstractDict) where {C <: AbstractGLMCard}
     noise_models = collect(keys(NOISE_MODELS))
     link_functions = collect(keys(LINK_TYPES))
 

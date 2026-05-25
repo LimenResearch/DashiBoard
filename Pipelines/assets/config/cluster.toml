@@ -1,10 +1,3 @@
-key = "cluster"
-label = "Cluster"
-needs_targets = false
-needs_order = false
-allows_weights = true
-allows_partition = true
-
 widget_configs = {}
 
 [methods.kmeans]

@@ -123,7 +123,7 @@ struct InterpCard <: StandardCard
     suffix::String
 end
 
-const INTERP_CARD_CONFIG = CardConfig{InterpCard}(parse_toml_config("config", "interp"))
+const INTERP_CARD_CONFIG = CardUI(parse_toml_config("config", "interp"))
 
 function get_metadata(ic::InterpCard)
     return StringDict(
@@ -189,7 +189,7 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{InterpCard}, c::AbstractDict)
+function CardWidget(::InterpCard, config::CardUI, c::AbstractDict)
     methods = collect(keys(INTERPOLATION_METHODS))
     extrapolation_options = collect(keys(EXTRAPOLATION_OPTIONS))
     direction_options = collect(keys(DIRECTION_OPTIONS))

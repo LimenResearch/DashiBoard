@@ -14,7 +14,7 @@ export Card,
     StreamlinerCard,
     WildCard
 
-export get_metadata, register_card, CardConfig
+export get_metadata, register_card, CardUI
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
@@ -173,15 +173,15 @@ include("dag.jl")
 include("pipeline.jl")
 
 function __init__()
-    register_card("split" => SplitCard)
-    register_card("window_function" => WindowFunctionCard)
-    register_card("rescale" => RescaleCard)
-    register_card("cluster" => ClusterCard)
-    register_card("dimensionality_reduction" => DimensionalityReductionCard)
-    register_card("glm" => GLMCard)
-    register_card("interp" => InterpCard)
-    register_card("gaussian_encoding" => GaussianEncodingCard)
-    register_card("streamliner" => StreamlinerCard)
+    register_card("split", SplitCard, "Split")
+    register_card("window_function", WindowFunctionCard, "Window Function")
+    register_card("rescale", RescaleCard, "Rescale")
+    register_card("cluster", ClusterCard, "Cluster")
+    register_card("dimensionality_reduction", DimensionalityReductionCard, "Dimensionality Reduction")
+    register_card("glm", GLMCard, "GLM")
+    register_card("interp", InterpCard, "Interpolation")
+    register_card("gaussian_encoding", GaussianEncodingCard, "Gaussian Encoding")
+    register_card("streamliner", StreamlinerCard, "Streamliner")
     return
 end
 

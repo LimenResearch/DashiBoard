@@ -114,7 +114,7 @@ struct RescaleCard <: SQLCard
     target_suffix::Union{String, Nothing}
 end
 
-const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("config", "rescale"))
+const RESCALE_CARD_CONFIG = CardUI(parse_toml_config("config", "rescale"))
 
 function get_metadata(rc::RescaleCard)
     return StringDict(
@@ -253,7 +253,7 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{RescaleCard}, c::AbstractDict)
+function CardWidget(::RescaleCard, config::CardUI, c::AbstractDict)
     methods = collect(keys(RESCALERS))
     need_group = String[k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 

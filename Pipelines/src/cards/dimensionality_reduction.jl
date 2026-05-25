@@ -69,7 +69,7 @@ struct DimensionalityReductionCard <: StandardCard
     output::String
 end
 
-const DIMENSIONALITY_REDUCTION_CARD_CONFIG = CardConfig{DimensionalityReductionCard}(
+const DIMENSIONALITY_REDUCTION_CARD_CONFIG = CardUI(
     parse_toml_config("config", "dimensionality_reduction")
 )
 
@@ -132,7 +132,7 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{DimensionalityReductionCard}, c::AbstractDict)
+function CardWidget(::DimensionalityReductionCard, config::CardUI, c::AbstractDict)
     methods = collect(keys(PROJECTION_METHODS))
 
     fields = vcat(

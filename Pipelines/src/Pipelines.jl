@@ -14,7 +14,7 @@ export Card,
     StreamlinerCard,
     WildCard
 
-export get_metadata, register_card, OutputSpec, CardWidget, CardSpec
+export get_metadata, register_card, CardSpec
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
@@ -25,8 +25,6 @@ public train, evaluate, inputs, outputs, invertible
 public report, visualize, get_card, get_state, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
-
-public apply_helpers
 
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue

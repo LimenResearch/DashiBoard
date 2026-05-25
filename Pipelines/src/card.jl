@@ -174,6 +174,8 @@ function Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
     return Card(apply_helpers(d, params; recursive))
 end
 
+get_default_label(c::Card) = get_label(get_spec(c.type))
+
 ## Encode how a given card uses table variables
 
 @kwdef struct SourceVariables
@@ -276,9 +278,6 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 
 ## Define new cards using a global dictionary
 
-
-## Global Dictionaries
-
 """
     @kwdef struct CardSpec
         type::DataType
@@ -308,10 +307,6 @@ get_label(spec::CardSpec) = spec.label
 const CARD_SPECS = OrderedDict{String, CardSpec}()
 
 get_spec(k::AbstractString) = CARD_SPECS[k]
-
-get_key(c::Card) = c.type
-get_spec(c::Card) = get_spec(get_key(c))
-get_label(c::Card) = get_label(get_spec(c))
 
 """
     register_card((key, spec)::Pair{<:AbstractString, CardSpec})

@@ -110,9 +110,9 @@
     @test Pipelines.digraph(Pipelines.Node[]) == DiGraph(0)
 
     nodes = [
-        Pipelines.Node(trivialmultioutputcard(["a", "c", "e"], ["f"]), update = false),
+        Pipelines.Node(trivialmultioutputcard(["a", "c", "e"], ["f"]), update = false, label = "No update"),
         Pipelines.Node(trivialmultioutputcard(["a"], ["c", "d"]), update = true),
-        Pipelines.Node(trivialmultioutputcard(["b"], ["e"]), update = true),
+        Pipelines.Node(trivialmultioutputcard(["b"], ["e"]), update = true, label = "Single output"),
         Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
 
@@ -242,9 +242,9 @@ mktempdir() do dir
     @testset "invert nodes" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
         card = Pipelines.Card(d["zscore"])
-        _udpate, _train, _invert = true, true, true
+        _update, _train, _invert = true, true, true
         state = Pipelines.StateRef(Pipelines.CardState())
-        @test_throws ArgumentError Node(card, _udpate, _train, _invert, state)
+        @test_throws ArgumentError Node(card, _update, _train, _invert, "zscore", state)
 
         node = Node(card)
         inv_node = invert(node)
@@ -256,5 +256,17 @@ mktempdir() do dir
         card = Pipelines.Card(d["tiles"])
         node = Node(card)
         @test_throws ArgumentError invert(node)
+    end
+
+    @testset "labels" begin
+        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
+        node1 = Pipelines.Node(Dict("card" => d["zscore"]))
+        @test node1.label == "Rescale"
+
+        node2 = Pipelines.Node(Dict("card" => d["zscore"], "label" => "custom2"))
+        @test node2.label == "custom2"
+
+        node3 = Pipelines.Node(Card(d["zscore"]), label = "custom3")
+        @test node3.label == "custom3"
     end
 end

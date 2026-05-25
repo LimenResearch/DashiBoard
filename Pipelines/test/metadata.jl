@@ -215,7 +215,7 @@ end
     function _evaluate(wc, model, t, id)
         return Pipelines.SimpleTable(k => zeros(length(id)) for k in wc.outputs), id
     end
-    Pipelines.register_card("trivial" => WildCard{_train, _evaluate})
+    Pipelines.register_card("trivial", WildCard{_train, _evaluate}, "Trivial")
 
     config = Dict("type" => "trivial", "inputs" => ["a", "b"], "output" => "c")
     card = Pipelines.Card(config)

@@ -198,7 +198,8 @@ function get_metadata end
 
 ## Accessor functions
 
-get_label(c::Card) = c.type #
+get_key(c::Card) = c.type
+get_label(c::Card) = get_label(get_key(c))
 
 ## Training and evaluation
 
@@ -278,26 +279,8 @@ to implement a default visualization for a given card type.
 """
 visualize(::Repository, ::Card, ::CardState) = nothing
 
-## Define new cards
+## Define new cards using a global dictionary
 
-"""
-    @kwdef struct CardUI
-        widget_configs::StringDict = StringDict()
-        methods::StringDict = StringDict()
-    end
-
-Configuration used to describe a card graphical representation.
-"""
-@kwdef struct CardUI
-    widget_configs::StringDict = StringDict()
-    methods::StringDict = StringDict()
-end
-
-function CardUI(c::AbstractDict)
-    widget_configs::StringDict = c["widget_configs"]
-    methods::StringDict = get(c, "methods", StringDict())
-    return CardUI(; widget_configs, methods)
-end
 
 ## Global Dictionaries
 
@@ -308,23 +291,8 @@ end
 
 const CARD_SPECS = OrderedDict{String, CardSpec}()
 
-function get_key end
-
-## Generate widgets
-
-function card_widgets(options::AbstractDict = StringDict())
-    widgets = CardWidget[]
-    for (k, config) in pairs(CARD_CONFIGS)
-        specific_options = mergewith(
-            merge,
-            WIDGET_CONFIGS[],
-            config.widget_configs,
-            get(options, k, StringDict())
-        )
-        push!(widgets, CardWidget(config, specific_options))
-    end
-    return widgets
-end
+get_type(k::AbstractString) = CARD_SPECS[k].type
+get_label(k::AbstractString) = CARD_SPECS[k].label
 
 """
     register_card(key::AbstractString, type::Type, label::AbstractString)
@@ -335,4 +303,19 @@ Make `label` the default description of this card type.
 function register_card(key::AbstractString, type::Type, label::AbstractString)
     CARD_SPECS[key] = CardSpec(type, label)
     return
+end
+
+## Helper (support two modalities to pass method options)
+
+function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
+    option_key = string(key, "_", "options")
+    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
+    return get(c, option_key) do
+        d = StringDict()
+        for (k, v) in pairs(c)
+            m = match(r, k)
+            isnothing(m) || (d[m[:name]] = v)
+        end
+        return d
+    end
 end

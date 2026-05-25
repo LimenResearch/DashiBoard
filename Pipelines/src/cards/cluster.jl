@@ -69,8 +69,6 @@ struct ClusterCard <: StandardCard
     output::String
 end
 
-const CLUSTER_CARD_CONFIG = CardUI(parse_toml_config("config", "cluster"))
-
 function get_metadata(cc::ClusterCard)
     return StringDict(
         "type" => cc.type,
@@ -126,7 +124,7 @@ end
 
 ## UI representation
 
-function CardWidget(::ClusterCard, config::CardUI, c::AbstractDict)
+function CardWidget(::Type{ClusterCard}, key::AbstractString, c::AbstractDict)
     methods = collect(keys(CLUSTERING_METHODS))
     support_weights = ["kmeans"]
 

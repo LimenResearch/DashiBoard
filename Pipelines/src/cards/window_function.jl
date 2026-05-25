@@ -27,8 +27,6 @@ struct WindowFunctionCard <: SQLCard
     output::String
 end
 
-const WINDOW_FUNCTION_CARD_CONFIG = CardUI(parse_toml_config("config", "window_function"))
-
 function get_metadata(wfc::WindowFunctionCard)
     return StringDict(
         "type" => wfc.type,
@@ -81,7 +79,7 @@ end
 
 ## UI representation
 
-function CardWidget(::WindowFunctionCard, config::CardUI, c::AbstractDict)
+function CardWidget(::WindowFunctionCard, c::AbstractDict)
     methods = collect(keys(WINDOW_FUNCTIONS))
 
     fields = [

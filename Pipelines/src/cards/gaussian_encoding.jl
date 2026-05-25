@@ -100,8 +100,6 @@ struct GaussianEncodingCard <: SQLCard
     suffix::String
 end
 
-const GAUSSIAN_ENCODING_CARD_CONFIG = CardUI(parse_toml_config("config", "gaussian_encoding"))
-
 function get_metadata(gec::GaussianEncodingCard)
     return StringDict(
         "type" => gec.type,
@@ -202,7 +200,7 @@ end
 
 ## UI representation
 
-function CardWidget(::GaussianEncodingCard, config::CardUI, c::AbstractDict)
+function CardWidget(::GaussianEncodingCard, c::AbstractDict)
     methods = collect(keys(TEMPORAL_PREPROCESSING_METHODS))
 
     fields = vcat(

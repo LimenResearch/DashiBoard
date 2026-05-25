@@ -51,8 +51,6 @@ struct StreamlinerCard <: StreamingCard
     suffix::String
 end
 
-const STREAMLINER_CARD_CONFIG = CardUI(parse_toml_config("config", "streamliner"))
-
 function get_metadata(sc::StreamlinerCard)
     d = StringDict(
         "type" => sc.type,
@@ -218,7 +216,7 @@ function read_wdgs(dir)
     return d
 end
 
-function CardWidget(::StreamlinerCard, config::CardUI, c::AbstractDict)
+function CardWidget(::StreamlinerCard, c::AbstractDict)
     model_wdgs = read_wdgs(MODEL_DIR[])
     training_wdgs = read_wdgs(TRAINING_DIR[])
 

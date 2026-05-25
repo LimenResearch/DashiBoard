@@ -1,4 +1,39 @@
-const WIDGET_CONFIGS = ScopedValue{StringDict}(parse_toml_config("widget_configs"))
+## Generate widgets
+
+"""
+    @kwdef struct CardWidgetConfigs
+        widget_configs::StringDict = StringDict()
+        methods::StringDict = StringDict()
+    end
+
+Configuration used to describe a card graphical representation.
+"""
+@kwdef struct CardWidgetConfigs
+    widget_configs::StringDict = StringDict()
+    methods::StringDict = StringDict()
+end
+
+function CardWidgetConfigs(c::AbstractDict)
+    widget_configs::StringDict = c["widget_configs"]
+    methods::StringDict = get(c, "methods", StringDict())
+    return CardWidgetConfigs(; widget_configs, methods)
+end
+
+function card_widgets(options::AbstractDict = StringDict())
+    widgets = CardWidget[]
+    for (k, config) in pairs(CARD_CONFIGS)
+        specific_options = mergewith(
+            merge,
+            WIDGET_CONFIGS[],
+            config.widget_configs,
+            get(options, k, StringDict())
+        )
+        push!(widgets, CardWidget(config, specific_options))
+    end
+    return widgets
+end
+
+const GLOBAL_WIDGET_CONFIGS = ScopedValue{StringDict}(parse_toml_config("widget_configs"))
 
 struct Widget
     widget::String
@@ -78,19 +113,6 @@ function method_dependent_widgets(settings::AbstractDict, key::AbstractString, m
         throw(ArgumentError("Ambiguous widget configuration"))
     end
     return wdgs
-end
-
-function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
-    option_key = string(key, "_", "options")
-    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
-    return get(c, option_key) do
-        d = StringDict()
-        for (k, v) in pairs(c)
-            m = match(r, k)
-            isnothing(m) || (d[m[:name]] = v)
-        end
-        return d
-    end
 end
 
 struct OutputSpec

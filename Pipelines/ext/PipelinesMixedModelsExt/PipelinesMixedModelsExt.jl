@@ -2,8 +2,7 @@ module PipelinesMixedModelsExt
 
 using Pipelines:
     AbstractPrimaryKey, train_glm,
-    MixedModelCard, MIXED_MODEL_CARD_CONFIG,
-    register_card, Pipelines
+    MixedModelCard, register_card, Pipelines
 using MixedModels: LinearMixedModel, GeneralizedLinearMixedModel
 
 function Pipelines._train(gc::MixedModelCard, t, ::AbstractPrimaryKey)

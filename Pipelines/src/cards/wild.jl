@@ -83,7 +83,7 @@ _train(wc::WildCard{train}, t, id_var::AbstractPrimaryKey) where {train} = train
 
 ## UI representation
 
-# function CardWidget(::WildCardtrain, config::CardUI, evaluate}}, c::AbstractDict) where {train, evaluate}
+# function CardWidget(::WildCardtrain, evaluate}}, c::AbstractDict) where {train, evaluate}
 #     conditional_fields = Tuple{Widget, Bool}[
 #         (Widget("order_by", c), config.needs_order),
 #         (Widget("inputs", c), true),

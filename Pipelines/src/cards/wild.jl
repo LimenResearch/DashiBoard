@@ -83,18 +83,22 @@ _train(wc::WildCard{train}, t, id_var::AbstractPrimaryKey) where {train} = train
 
 ## UI representation
 
-# function CardWidget(::WildCardtrain, evaluate}}, c::AbstractDict) where {train, evaluate}
-#     conditional_fields = Tuple{Widget, Bool}[
-#         (Widget("order_by", c), config.needs_order),
-#         (Widget("inputs", c), true),
-#         (Widget("targets", c), config.needs_targets),
-#         (Widget("weights", c), config.allows_weights),
-#         (Widget("partition", c), config.allows_partition),
-#         (Widget("output", c), !config.needs_targets),
-#         (Widget("suffix", c), config.needs_targets),
-#     ]
+function CardWidget(
+        ::Type{WildCard{train, evaluate}}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    ) where {train, evaluate}
 
-#     fields = map(first, filter(last, conditional_fields))
-#     output = config.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
-#     return CardWidget(key, fields, output)
-# end
+    conditional_fields = Tuple{Widget, Bool}[
+        (Widget("order_by", c), config.needs_order),
+        (Widget("inputs", c), true),
+        (Widget("targets", c), config.needs_targets),
+        (Widget("weights", c), config.allows_weights),
+        (Widget("partition", c), config.allows_partition),
+        (Widget("output", c), !config.needs_targets),
+        (Widget("suffix", c), config.needs_targets),
+    ]
+
+    fields = map(first, filter(last, conditional_fields))
+    output = config.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
+    return CardWidget(key, fields, output)
+end

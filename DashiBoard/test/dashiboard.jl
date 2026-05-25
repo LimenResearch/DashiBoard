@@ -10,15 +10,15 @@ function (wc::WildCard{:trivial})(model, t, id_var)
     nrows = length(id)
     return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
 end
-card_config = CardConfig{WildCard{:trivial}}(
-    key = "trivial",
+spec = Pipelines.CardSpec(
+    type = WildCard{:trivial},
     label = "Trivial",
-    needs_targets = false,
     needs_order = false,
+    needs_targets = false,
     allows_partition = false,
     allows_weights = false
 )
-Pipelines.register_card(card_config)
+Pipelines.register_card("trivial" => spec)
 
 mktempdir() do data_dir
     Downloads.download(
@@ -64,7 +64,7 @@ mktempdir() do data_dir
         resp = HTTP.post(url * "get-card-widgets", body = body)
         configs = JSON.parse(resp.body)
         @test configs isa AbstractVector
-        @test length(configs) == length(Pipelines.CARD_CONFIGS)
+        @test length(configs) == length(Pipelines.CARD_SPECS)
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",

@@ -52,7 +52,6 @@ Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
 - `type::String`: Card type, i.e., `"gaussian_encoding"`.
-- `label::String`: Label to represent the card in a UI.
 - `method::String`: Name of the processing method (see below).
 - `temporal_preprocessor::TemporalProcessingMethod`: Tranformation to process a given column (see below).
 - `input::String`: Name of the column to transform.
@@ -93,7 +92,6 @@ Evaluate:
 """
 struct GaussianEncodingCard <: SQLCard
     type::String
-    label::String
     method::String
     temporal_preprocessor::TemporalProcessingMethod
     input::String
@@ -102,13 +100,9 @@ struct GaussianEncodingCard <: SQLCard
     suffix::String
 end
 
-const GAUSSIAN_ENCODING_CARD_CONFIG =
-    CardConfig{GaussianEncodingCard}(parse_toml_config("config", "gaussian_encoding"))
-
 function get_metadata(gec::GaussianEncodingCard)
     return StringDict(
         "type" => gec.type,
-        "label" => gec.label,
         "method" => gec.method,
         "method_options" => get_options(gec.temporal_preprocessor),
         "input" => gec.input,
@@ -120,8 +114,6 @@ end
 
 function GaussianEncodingCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     method::String = get(c, "method", "identity")
     input::String = c["input"]
     if !haskey(TEMPORAL_PREPROCESSING_METHODS, method)
@@ -141,7 +133,6 @@ function GaussianEncodingCard(c::AbstractDict)
 
     return GaussianEncodingCard(
         type,
-        label,
         method,
         temporal_preprocessor,
         input,
@@ -209,7 +200,14 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{GaussianEncodingCard}, c::AbstractDict)
+function CardWidget(
+        ::Type{GaussianEncodingCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     methods = collect(keys(TEMPORAL_PREPROCESSING_METHODS))
 
     fields = vcat(
@@ -225,5 +223,5 @@ function CardWidget(config::CardConfig{GaussianEncodingCard}, c::AbstractDict)
         ]
     )
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("input", "suffix", "n_components"))
+    return CardWidget(key, fields, OutputSpec("input", "suffix", "n_components"))
 end

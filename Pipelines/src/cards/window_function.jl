@@ -9,7 +9,6 @@ const WINDOW_FUNCTIONS = OrderedDict{String, AggClosure}(
 """
     struct WindowFunctionCard <: Card
         type::String
-        label::String
         method::String
         window_function::SQLNode
         order_by::Vector{String}
@@ -21,7 +20,6 @@ Add new column with output of window function.
 """
 struct WindowFunctionCard <: SQLCard
     type::String
-    label::String
     method::String
     window_function::SQLNode
     order_by::Vector{String}
@@ -29,12 +27,9 @@ struct WindowFunctionCard <: SQLCard
     output::String
 end
 
-const WINDOW_FUNCTION_CARD_CONFIG = CardConfig{WindowFunctionCard}(parse_toml_config("config", "window_function"))
-
 function get_metadata(wfc::WindowFunctionCard)
     return StringDict(
         "type" => wfc.type,
-        "label" => wfc.label,
         "method" => wfc.method,
         "order_by" => wfc.order_by,
         "group_by" => wfc.group_by,
@@ -44,14 +39,12 @@ end
 
 function WindowFunctionCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     order_by::Vector{String} = get(c, "order_by", String[])
     group_by::Vector{String} = get(c, "group_by", String[])
     method::String = c["method"]
     window_function::SQLNode = WINDOW_FUNCTIONS[method]()
     output::String = c["output"]
-    return WindowFunctionCard(type, label, method, window_function, order_by, group_by, output)
+    return WindowFunctionCard(type, method, window_function, order_by, group_by, output)
 end
 
 ## SQLCard interface
@@ -86,7 +79,14 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{WindowFunctionCard}, c::AbstractDict)
+function CardWidget(
+        ::Type{WindowFunctionCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     methods = collect(keys(WINDOW_FUNCTIONS))
 
     fields = [
@@ -96,5 +96,5 @@ function CardWidget(config::CardConfig{WindowFunctionCard}, c::AbstractDict)
         Widget("output", c, value = "output"),
     ]
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("output"))
+    return CardWidget(key, fields, OutputSpec("output"))
 end

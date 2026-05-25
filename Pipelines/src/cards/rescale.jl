@@ -83,7 +83,6 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 """
     struct RescaleCard <: Card
         type::String
-        label::String
         group_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -105,7 +104,6 @@ The resulting rescaled variable is added to the table under the name
 """
 struct RescaleCard <: SQLCard
     type::String
-    label::String
     method::String
     rescaler::Rescaler
     group_by::Vector{String}
@@ -116,12 +114,9 @@ struct RescaleCard <: SQLCard
     target_suffix::Union{String, Nothing}
 end
 
-const RESCALE_CARD_CONFIG = CardConfig{RescaleCard}(parse_toml_config("config", "rescale"))
-
 function get_metadata(rc::RescaleCard)
     return StringDict(
         "type" => rc.type,
-        "label" => rc.label,
         "method" => rc.method,
         "group_by" => rc.group_by,
         "inputs" => rc.inputs,
@@ -134,8 +129,6 @@ end
 
 function RescaleCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
     group_by::Vector{String} = get(c, "group_by", String[])
@@ -146,7 +139,6 @@ function RescaleCard(c::AbstractDict)
     target_suffix::Union{String, Nothing} = get(c, "target_suffix", nothing)
     return RescaleCard(
         type,
-        label,
         method,
         rescaler,
         group_by,
@@ -259,7 +251,14 @@ end
 
 ## UI representation
 
-function CardWidget(config::CardConfig{RescaleCard}, c::AbstractDict)
+function CardWidget(
+        ::Type{RescaleCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     methods = collect(keys(RESCALERS))
     need_group = String[k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
 
@@ -273,5 +272,5 @@ function CardWidget(config::CardConfig{RescaleCard}, c::AbstractDict)
         Widget("target_suffix", c, value = "", required = false),
     ]
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("inputs", "suffix"))
+    return CardWidget(key, fields, OutputSpec("inputs", "suffix"))
 end

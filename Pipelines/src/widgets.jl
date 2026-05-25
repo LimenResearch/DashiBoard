@@ -1,4 +1,4 @@
-const WIDGET_CONFIGS = ScopedValue{StringDict}(parse_toml_config("widget_configs"))
+## Widget description
 
 struct Widget
     widget::String
@@ -80,19 +80,6 @@ function method_dependent_widgets(settings::AbstractDict, key::AbstractString, m
     return wdgs
 end
 
-function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
-    option_key = string(key, "_", "options")
-    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
-    return get(c, option_key) do
-        d = StringDict()
-        for (k, v) in pairs(c)
-            m = match(r, k)
-            isnothing(m) || (d[m[:name]] = v)
-        end
-        return d
-    end
-end
-
 struct OutputSpec
     field::String
     suffixField::Union{String, Nothing}
@@ -108,4 +95,41 @@ struct CardWidget
     label::String
     fields::Vector{Widget}
     output::OutputSpec
+end
+
+function CardWidget(type::AbstractString, fields::AbstractVector, output::OutputSpec)
+    return CardWidget(type, get_label(get_spec(type)), fields, output)
+end
+
+## Widget configurations
+
+# Configuration used to describe custom widgets to use for a given card type.
+@kwdef struct CardWidgetConfigs
+    widget_configs::StringDict = StringDict()
+    methods::StringDict = StringDict()
+end
+
+function CardWidgetConfigs(c::AbstractDict)
+    widget_configs::StringDict = c["widget_configs"]
+    methods::StringDict = get(c, "methods", StringDict())
+    return CardWidgetConfigs(; widget_configs, methods)
+end
+
+function card_widgets(options::AbstractDict = StringDict())
+    widgets = CardWidget[]
+    global_options = parse_toml_config("widget_configs")
+    for (k, spec) in pairs(CARD_SPECS)
+        user_options = get(options, k, StringDict())
+        push!(widgets, CardWidget(spec.type, k; global_options, user_options))
+    end
+    return widgets
+end
+
+function combine_options(card_options; global_options, user_options)
+    return mergewith(
+        merge,
+        global_options,
+        card_options,
+        user_options
+    )
 end

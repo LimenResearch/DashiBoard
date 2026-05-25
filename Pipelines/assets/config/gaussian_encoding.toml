@@ -1,10 +1,3 @@
-key = "gaussian_encoding"
-label = "Gaussian Encoding"
-needs_targets = false
-needs_order = false
-allows_weights = false
-allows_partition = false
-
 [widget_configs.max]
 widget = "input"
 label = "Maximum value"

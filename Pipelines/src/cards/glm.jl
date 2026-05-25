@@ -58,7 +58,6 @@ end
 function get_metadata(gc::C) where {C <: AbstractGLMCard}
     metadata = StringDict(
         "type" => gc.type,
-        "label" => gc.label,
         "target" => gc.target,
         "weights" => gc.weights,
         "distribution" => gc.distribution_name,
@@ -79,8 +78,6 @@ end
 
 function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMCard}
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
     distribution_name::String = get(c, "distribution", "normal")
     link_name::Union{String, Nothing} = get(c, "link", nothing)
     weights::Union{String, Nothing} = get(c, "weights", nothing)
@@ -96,7 +93,7 @@ function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMC
     inputs, target, formula = has_grouping_factor(C) ? compute_mixed_formula(c) : compute_formula(c)
 
     return C(
-        type, label, distribution_name, distribution, link_name, link,
+        type, distribution_name, distribution, link_name, link,
         inputs, target, formula, weights, partition, suffix
     )
 end
@@ -136,7 +133,6 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 """
     struct GLMCard <: Card
       type::String
-      label::String
       distribution_name::String
       distribution::Distribution
       link_name::Union{String, Nothing}
@@ -153,7 +149,6 @@ Run a Generalized Linear Model (GLM) based on `formula`.
 """
 struct GLMCard <: AbstractGLMCard
     type::String
-    label::String
     distribution_name::String
     distribution::Distribution
     link_name::Union{String, Nothing}
@@ -179,14 +174,11 @@ function (gc::GLMCard)(model, t, id_var::AbstractPrimaryKey)
     return SimpleTable(id_var => t[id_var], output_var(gc) => predict(model, t))
 end
 
-const GLM_CARD_CONFIG = CardConfig{GLMCard}(parse_toml_config("config", "glm"))
-
 ## MixedModelCard
 
 """
     struct MixedModelCard <: AbstractGLMCard
         type::String
-        label::String
         distribution_name::String
         distribution::Distribution
         link_name::Union{String, Nothing}
@@ -204,7 +196,6 @@ To use this card, you must load the MixedModels.jl package first.
 """
 struct MixedModelCard <: AbstractGLMCard
     type::String
-    label::String
     distribution_name::String
     distribution::Distribution
     link_name::Union{String, Nothing}
@@ -230,11 +221,16 @@ function (gc::MixedModelCard)(model, t, id_var::AbstractPrimaryKey)
     return SimpleTable(id_var => t[id_var], output_var(gc) => predict(model, t))
 end
 
-const MIXED_MODEL_CARD_CONFIG = CardConfig{MixedModelCard}(parse_toml_config("config", "mixed_model"))
-
 ## UI representation
 
-function CardWidget(config::CardConfig{C}, c::AbstractDict) where {C <: AbstractGLMCard}
+function CardWidget(
+        ::Type{C}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    ) where {C <: AbstractGLMCard}
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     noise_models = collect(keys(NOISE_MODELS))
     link_functions = collect(keys(LINK_TYPES))
 
@@ -259,5 +255,5 @@ function CardWidget(config::CardConfig{C}, c::AbstractDict) where {C <: Abstract
 
     fields = vcat(formula_fields, additional_fields)
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("target", "suffix"))
+    return CardWidget(key, fields, OutputSpec("target", "suffix"))
 end

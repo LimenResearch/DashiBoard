@@ -27,7 +27,6 @@ end
 """
     struct StreamlinerCard <: Card
         type::String
-        label::String
         model_name::String
         model::Model
         training_name::String
@@ -42,7 +41,6 @@ Run a Streamliner model, predicting `targets` from `inputs`.
 """
 struct StreamlinerCard <: StreamingCard
     type::String
-    label::String
     model_name::String
     model::Model
     training_name::String
@@ -53,12 +51,9 @@ struct StreamlinerCard <: StreamingCard
     suffix::String
 end
 
-const STREAMLINER_CARD_CONFIG = CardConfig{StreamlinerCard}(parse_toml_config("config", "streamliner"))
-
 function get_metadata(sc::StreamlinerCard)
     d = StringDict(
         "type" => sc.type,
-        "label" => sc.label,
         "model" => sc.model_name,
         "model_metadata" => SC.get_metadata(sc.model),
         "training" => sc.training_name,
@@ -73,8 +68,6 @@ end
 
 function StreamlinerCard(c::AbstractDict)
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
 
     model_name::String = c["model"]
     model = get_streamliner_model(c, model_name)
@@ -88,7 +81,6 @@ function StreamlinerCard(c::AbstractDict)
 
     return StreamlinerCard(
         type,
-        label,
         model_name,
         model,
         training_name,
@@ -224,7 +216,14 @@ function read_wdgs(dir)
     return d
 end
 
-function CardWidget(config::CardConfig{StreamlinerCard}, c::AbstractDict)
+function CardWidget(
+        ::Type{StreamlinerCard}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    )
+
+    config = CardWidgetConfigs(parse_toml_config("config", key))
+    c = combine_options(config.widget_configs; global_options, user_options)
+
     model_wdgs = read_wdgs(MODEL_DIR[])
     training_wdgs = read_wdgs(TRAINING_DIR[])
 
@@ -246,5 +245,5 @@ function CardWidget(config::CardConfig{StreamlinerCard}, c::AbstractDict)
         method_dependent_widgets(c, "training", training_wdgs)
     )
 
-    return CardWidget(config.key, config.label, fields, OutputSpec("targets", "suffix"))
+    return CardWidget(key, fields, OutputSpec("targets", "suffix"))
 end

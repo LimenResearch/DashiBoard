@@ -1,7 +1,6 @@
 """
     struct WildCard{T} <: Card
         type::String
-        label::String
         order_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -14,7 +13,7 @@ Custom `card` that uses arbitrary training and evaluations functions.
 
 Overload the following methods for your custom type or symbol `T`:
 1. `Pipelines._train(wc::WildCard{T}, tbl, id_var)`
-2. `(wc::WildCard{T})(model, tbl, id_var)` (return output table of `model` from input table `tbl` and primary key `id_var` -).
+2. `(wc::WildCard{T})(model, tbl, id_var)` (return output table of `model` from input table `tbl` and primary key `id_var` -)
 
 `Pipelines._train(wc::WildCard{T}, tbl, id_var)` trains the card given input table `tbl` and primary key `id_var`  and return a trained `model`.
 `(wc::WildCard{T})(model, tbl, id_var)` returns the output table of `model` from input table `tbl` and primary key `id_var`.
@@ -37,20 +36,19 @@ function (wc::WildCard{:trivial})(model, t, id_var)
     nrows = length(id)
     return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
 end
-card_config = CardConfig{WildCard{:trivial}}(
-    key = "trivial",
+spec = Pipelines.CardSpec(
+    type = WildCard{:trivial},
     label = "Trivial",
-    needs_targets = false,
     needs_order = false,
+    needs_targets = false,
     allows_partition = false,
     allows_weights = false
 )
-Pipelines.register_card(card_config)
+Pipelines.register_card("trivial" => spec)
 ```
 """
 @kwdef struct WildCard{T} <: StandardCard
     type::String
-    label::String
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -62,7 +60,6 @@ end
 function get_metadata(wc::WildCard)
     return StringDict(
         "type" => wc.type,
-        "label" => wc.label,
         "order_by" => wc.order_by,
         "inputs" => wc.inputs,
         "weights" => wc.weights,
@@ -74,16 +71,15 @@ end
 
 function WildCard{T}(c::AbstractDict) where {T}
     type::String = c["type"]
-    config = CARD_CONFIGS[type]
-    label::String = card_label(c, config)
+    spec = get_spec(type)
 
-    # TODO: allow a `by` field as well?
-    order_by::Vector{String} = config.needs_order ? c["order_by"] : String[]
+    # TODO: allow a `group_by` field as well?
+    order_by::Vector{String} = spec.needs_order ? c["order_by"] : String[]
     inputs::Vector{String} = c["inputs"]
-    targets::Vector{String} = config.needs_targets ? c["targets"] : String[]
+    targets::Vector{String} = spec.needs_targets ? c["targets"] : String[]
 
     outputs::Vector{String} = get(c, "outputs") do
-        if config.needs_targets
+        if spec.needs_targets
             suffix::String = c["suffix"]
             join_names(targets, suffix)
         else
@@ -97,7 +93,6 @@ function WildCard{T}(c::AbstractDict) where {T}
 
     return WildCard{T}(
         type,
-        label,
         order_by,
         inputs,
         targets,
@@ -123,18 +118,25 @@ OutputVariables(wc::WildCard) = OutputVariables(wc.outputs)
 
 ## UI representation
 
-function CardWidget(config::CardConfig{WildCard{T}}, c::AbstractDict) where {T}
+function CardWidget(
+        ::Type{WildCard{T}}, key::AbstractString;
+        global_options::AbstractDict, user_options::AbstractDict
+    ) where {T}
+
+    c = combine_options(StringDict(); global_options, user_options)
+
+    spec = get_spec(key)
     conditional_fields = Tuple{Widget, Bool}[
-        (Widget("order_by", c), config.needs_order),
+        (Widget("order_by", c), spec.needs_order),
         (Widget("inputs", c), true),
-        (Widget("targets", c), config.needs_targets),
-        (Widget("weights", c), config.allows_weights),
-        (Widget("partition", c), config.allows_partition),
-        (Widget("output", c), !config.needs_targets),
-        (Widget("suffix", c), config.needs_targets),
+        (Widget("targets", c), spec.needs_targets),
+        (Widget("weights", c), spec.allows_weights),
+        (Widget("partition", c), spec.allows_partition),
+        (Widget("output", c), !spec.needs_targets),
+        (Widget("suffix", c), spec.needs_targets),
     ]
 
     fields = map(first, filter(last, conditional_fields))
-    output = config.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
-    return CardWidget(config.key, config.label, fields, output)
+    output = spec.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
+    return CardWidget(key, get_label(spec), fields, output)
 end

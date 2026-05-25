@@ -2,7 +2,7 @@ module PipelinesMixedModelsExt
 
 using Pipelines:
     AbstractPrimaryKey, train_glm,
-    MixedModelCard, MIXED_MODEL_CARD_CONFIG,
+    MixedModelCard, MIXED_MODEL_SPEC,
     register_card, Pipelines
 using MixedModels: LinearMixedModel, GeneralizedLinearMixedModel
 
@@ -12,7 +12,7 @@ function Pipelines._train(gc::MixedModelCard, t, ::AbstractPrimaryKey)
 end
 
 function __init__()
-    return register_card(MIXED_MODEL_CARD_CONFIG)
+    return register_card("mixed_model" => MIXED_MODEL_SPEC)
 end
 
 end

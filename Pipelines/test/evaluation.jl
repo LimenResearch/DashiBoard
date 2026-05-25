@@ -5,16 +5,15 @@
         nrows = length(id)
         return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
     end
-    card_config = CardConfig{WildCard{:trivial}}(
-        key = "trivial",
+    spec = Pipelines.CardSpec(
+        type = WildCard{:trivial},
         label = "Trivial",
-        needs_targets = false,
         needs_order = false,
+        needs_targets = false,
         allows_partition = false,
         allows_weights = false
     )
-    @test card_type(card_config) === WildCard{:trivial}
-    Pipelines.register_card(card_config)
+    Pipelines.register_card("trivial" => spec)
 
     function trivialcard(inputs::AbstractVector, output::AbstractString)
         c = Dict("type" => "trivial", "inputs" => inputs, "output" => output)
@@ -24,7 +23,6 @@
     function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
         return WildCard{:trivial}(
             type = "trivial",
-            label = "Trivial",
             order_by = String[],
             inputs = inputs,
             targets = String[],

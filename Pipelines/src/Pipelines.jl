@@ -14,7 +14,7 @@ export Card,
     StreamlinerCard,
     WildCard
 
-export get_metadata, register_card, CardConfig
+export get_metadata, register_card, CardSpec
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
@@ -25,8 +25,6 @@ public train, evaluate, inputs, outputs, invertible
 public report, visualize, get_card, get_state, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
-
-public apply_helpers
 
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
@@ -168,20 +166,21 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 include("cards/wild.jl")
 
+include("specs.jl")
 include("node.jl")
 include("dag.jl")
 include("pipeline.jl")
 
 function __init__()
-    register_card(SPLIT_CARD_CONFIG)
-    register_card(WINDOW_FUNCTION_CARD_CONFIG)
-    register_card(RESCALE_CARD_CONFIG)
-    register_card(CLUSTER_CARD_CONFIG)
-    register_card(DIMENSIONALITY_REDUCTION_CARD_CONFIG)
-    register_card(GLM_CARD_CONFIG)
-    register_card(INTERP_CARD_CONFIG)
-    register_card(GAUSSIAN_ENCODING_CARD_CONFIG)
-    register_card(STREAMLINER_CARD_CONFIG)
+    register_card("split" => SPLIT_SPEC)
+    register_card("window_function" => WINDOW_FUNCTION_SPEC)
+    register_card("rescale" => RESCALE_SPEC)
+    register_card("cluster" => CLUSTER_SPEC)
+    register_card("dimensionality_reduction" => DIMENSIONALITY_REDUCTION_SPEC)
+    register_card("glm" => GLM_SPEC)
+    register_card("interp" => INTERP_SPEC)
+    register_card("gaussian_encoding" => GAUSSIAN_ENCODING_SPEC)
+    register_card("streamliner" => STREAMLINER_SPEC)
     return
 end
 

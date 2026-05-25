@@ -101,8 +101,8 @@ julia> card.inputs
 """
 function Card(d::AbstractDict)
     type::String = d["type"]
-    config = CARD_CONFIGS[type]
-    return config(d)
+    card_type = CARD_SPECS[type].type
+    return card_type(d)
 end
 
 """
@@ -196,10 +196,6 @@ OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
 
 function get_metadata end
 
-## Accessor functions
-
-get_label(c::Card) = c.label
-
 ## Training and evaluation
 
 """
@@ -278,88 +274,67 @@ to implement a default visualization for a given card type.
 """
 visualize(::Repository, ::Card, ::CardState) = nothing
 
-## Define new cards
+## Define new cards using a global dictionary
+
+
+## Global Dictionaries
 
 """
-    @kwdef struct CardConfig{T <: Card}
-        key::String
+    @kwdef struct CardSpec
+        type::DataType
         label::String
-        needs_targets::Bool
-        needs_order::Bool
-        allows_weights::Bool
-        allows_partition::Bool
-        widget_configs::StringDict = StringDict()
-        methods::StringDict = StringDict()
+        needs_order::Union{Bool, Nothing} = nothing
+        needs_targets::Union{Bool, Nothing} = nothing
+        allows_weights::Union{Bool, Nothing} = nothing
+        allows_partition::Union{Bool, Nothing} = nothing
     end
 
-Configuration used to register a card.
+Define whether a given wild card requires sorting and / or target variables.
+Define whether it accepts a weights variable and / or a partition variable.
+In all of the above cases, a value of `nothing` means that the sorting / target
+variable requirement or the weights / partition variables support are unknown.
 """
-@kwdef struct CardConfig{T <: Card}
-    key::String
+@kwdef struct CardSpec
+    type::DataType
     label::String
-    needs_targets::Bool
-    needs_order::Bool
-    allows_weights::Bool
-    allows_partition::Bool
-    widget_configs::StringDict = StringDict()
-    methods::StringDict = StringDict()
+    needs_order::Union{Bool, Nothing} = nothing
+    needs_targets::Union{Bool, Nothing} = nothing
+    allows_weights::Union{Bool, Nothing} = nothing
+    allows_partition::Union{Bool, Nothing} = nothing
 end
 
-function CardConfig{T}(c::AbstractDict) where {T <: Card}
-    key::String = c["key"]
-    label::String = c["label"]
-    needs_targets::Bool = c["needs_targets"]
-    needs_order::Bool = c["needs_order"]
-    allows_weights::Bool = c["allows_weights"]
-    allows_partition::Bool = c["allows_partition"]
-    widget_configs::StringDict = c["widget_configs"]
-    methods::StringDict = get(c, "methods", StringDict())
-    return CardConfig{T}(;
-        key,
-        label,
-        needs_targets,
-        needs_order,
-        allows_weights,
-        allows_partition,
-        widget_configs,
-        methods
-    )
-end
+get_label(spec::CardSpec) = spec.label
 
-card_type(::CardConfig{T}) where {T <: Card} = T
+const CARD_SPECS = OrderedDict{String, CardSpec}()
 
-(config::CardConfig)(c::AbstractDict) = card_type(config)(c)
+get_spec(k::AbstractString) = CARD_SPECS[k]
 
-const CARD_CONFIGS = OrderedDict{String, CardConfig}()
-
-## Generate widgets
-
-function card_widgets(options::AbstractDict = StringDict())
-    widgets = CardWidget[]
-    for (k, config) in pairs(CARD_CONFIGS)
-        specific_options = mergewith(
-            merge,
-            WIDGET_CONFIGS[],
-            config.widget_configs,
-            get(options, k, StringDict())
-        )
-        push!(widgets, CardWidget(config, specific_options))
-    end
-    return widgets
-end
+get_key(c::Card) = c.type
+get_spec(c::Card) = get_spec(get_key(c))
+get_label(c::Card) = get_label(get_spec(c))
 
 """
-    register_card(config::CardConfig)
+    register_card((key, spec)::Pair{<:AbstractString, CardSpec})
 
-Set a given card configuration as globally available.
-
-See also [`CardConfig`](@ref).
+Register a card spec `spec` as the default card for string.
+Seel [`CardSpec`](@ref).
 """
-function register_card(config::CardConfig)
-    CARD_CONFIGS[config.key] = config
+function register_card((key, spec)::Pair{<:AbstractString, CardSpec})
+    CARD_SPECS[key] = spec
     return
 end
 
-## Helpers
+## Helper (support two modalities to pass method options)
 
-card_label(c::AbstractDict, config::CardConfig) = get(c, "label", config.label)
+function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
+    option_key = string(key, "_", "options")
+    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
+    return get(c, option_key) do
+        d = StringDict()
+        for (k, v) in pairs(c)
+            m = match(r, k)
+            isnothing(m) || (d[m[:name]] = v)
+        end
+        return d
+    end
+end

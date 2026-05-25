@@ -14,7 +14,6 @@ Custom `card` that uses arbitrary training and evaluations functions.
 Overload the following methods for your custom type or symbol `T`:
 1. `Pipelines._train(wc::WildCard{T}, tbl, id_var)`
 2. `(wc::WildCard{T})(model, tbl, id_var)` (return output table of `model` from input table `tbl` and primary key `id_var` -)
-3. `WildCardConfig(::Type{WildCard{T})` (optional and experimental, return [`WildCardConfig`](@ref) for extra customizability)
 
 `Pipelines._train(wc::WildCard{T}, tbl, id_var)` trains the card given input table `tbl` and primary key `id_var`  and return a trained `model`.
 `(wc::WildCard{T})(model, tbl, id_var)` returns the output table of `model` from input table `tbl` and primary key `id_var`.
@@ -37,15 +36,15 @@ function (wc::WildCard{:trivial})(model, t, id_var)
     nrows = length(id)
     return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
 end
-card_config = CardConfig{WildCard{:trivial}}(
-    key = "trivial",
+spec = Pipelines.CardSpec(
+    type = WildCard{:trivial},
     label = "Trivial",
-    needs_targets = false,
     needs_order = false,
+    needs_targets = false,
     allows_partition = false,
     allows_weights = false
 )
-Pipelines.register_card(card_config)
+Pipelines.register_card("trivial" => spec)
 ```
 """
 @kwdef struct WildCard{T} <: StandardCard
@@ -117,26 +116,6 @@ OutputVariables(wc::WildCard) = OutputVariables(wc.outputs)
 
 ## UI representation
 
-"""
-    @kwdef struct WildCardConfig
-        needs_order::Bool = false
-        needs_targets::Bool = false
-        allows_weights::Bool = false
-        allows_partition::Bool = true
-    end
-
-Define whether a given wild card requires sorting and / or target variables.
-Define whether it accepts a weights variable and / or a partition variable.
-"""
-@kwdef struct WildCardConfig
-    needs_order::Bool = false
-    needs_targets::Bool = false
-    allows_weights::Bool = false
-    allows_partition::Bool = true
-end
-
-WildCardConfig(::Type{<:WildCard}) = WildCardConfig()
-
 function CardWidget(
         ::Type{WildCard{T}}, key::AbstractString;
         global_options::AbstractDict, user_options::AbstractDict
@@ -144,18 +123,18 @@ function CardWidget(
 
     c = combine_options(StringDict(); global_options, user_options)
 
-    config = WildCardConfig(WildCard{T})
+    spec = get_spec(key)
     conditional_fields = Tuple{Widget, Bool}[
-        (Widget("order_by", c), config.needs_order),
+        (Widget("order_by", c), spec.needs_order),
         (Widget("inputs", c), true),
-        (Widget("targets", c), config.needs_targets),
-        (Widget("weights", c), config.allows_weights),
-        (Widget("partition", c), config.allows_partition),
-        (Widget("output", c), !config.needs_targets),
-        (Widget("suffix", c), config.needs_targets),
+        (Widget("targets", c), spec.needs_targets),
+        (Widget("weights", c), spec.allows_weights),
+        (Widget("partition", c), spec.allows_partition),
+        (Widget("output", c), !spec.needs_targets),
+        (Widget("suffix", c), spec.needs_targets),
     ]
 
     fields = map(first, filter(last, conditional_fields))
-    output = config.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
-    return CardWidget(key, fields, output)
+    output = spec.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
+    return CardWidget(key, get_label(spec), fields, output)
 end

@@ -196,11 +196,6 @@ OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
 
 function get_metadata end
 
-## Accessor functions
-
-get_key(c::Card) = c.type
-get_label(c::Card) = get_label(get_key(c))
-
 ## Training and evaluation
 
 """
@@ -284,24 +279,48 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 
 ## Global Dictionaries
 
-struct CardSpec
+"""
+    @kwdef struct CardSpec
+        type::DataType
+        label::String
+        needs_order::Union{Bool, Nothing} = nothing
+        needs_targets::Union{Bool, Nothing} = nothing
+        allows_weights::Union{Bool, Nothing} = nothing
+        allows_partition::Union{Bool, Nothing} = nothing
+    end
+
+Define whether a given wild card requires sorting and / or target variables.
+Define whether it accepts a weights variable and / or a partition variable.
+In all of the above cases, a value of `nothing` means that the sorting / target
+variable requirement or the weights / partition variables support are unknown.
+"""
+@kwdef struct CardSpec
     type::DataType
     label::String
+    needs_order::Union{Bool, Nothing} = nothing
+    needs_targets::Union{Bool, Nothing} = nothing
+    allows_weights::Union{Bool, Nothing} = nothing
+    allows_partition::Union{Bool, Nothing} = nothing
 end
+
+get_label(spec::CardSpec) = spec.label
 
 const CARD_SPECS = OrderedDict{String, CardSpec}()
 
-get_type(k::AbstractString) = CARD_SPECS[k].type
-get_label(k::AbstractString) = CARD_SPECS[k].label
+get_spec(k::AbstractString) = CARD_SPECS[k]
+
+get_key(c::Card) = c.type
+get_spec(c::Card) = get_spec(get_key(c))
+get_label(c::Card) = get_label(get_spec(c))
 
 """
-    register_card(key::AbstractString, type::Type, label::AbstractString)
+    register_card((key, spec)::Pair{<:AbstractString, CardSpec})
 
-Register a card type `type` as the default card for string `key`.
-Make `label` the default description of this card type.
+Register a card spec `spec` as the default card for string.
+Seel [`CardSpec`](@ref).
 """
-function register_card(key::AbstractString, type::Type, label::AbstractString)
-    CARD_SPECS[key] = CardSpec(type, label)
+function register_card((key, spec)::Pair{<:AbstractString, CardSpec})
+    CARD_SPECS[key] = spec
     return
 end
 

@@ -98,7 +98,7 @@ struct CardWidget
 end
 
 function CardWidget(type::AbstractString, fields::AbstractVector, output::OutputSpec)
-    return CardWidget(type, get_label(type), fields, output)
+    return CardWidget(type, get_label(get_spec(type)), fields, output)
 end
 
 ## Widget configurations

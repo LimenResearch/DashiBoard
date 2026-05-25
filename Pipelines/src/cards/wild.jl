@@ -71,18 +71,20 @@ end
 
 function WildCard{T}(c::AbstractDict) where {T}
     type::String = c["type"]
+    spec = get_spec(type)
+
     # TODO: allow a `group_by` field as well?
-    order_by::Vector{String} = get(c, "order_by", String[])
+    order_by::Vector{String} = spec.needs_order ? c["order_by"] : String[]
     inputs::Vector{String} = c["inputs"]
-    targets::Vector{String} = get(c, "targets", String[])
+    targets::Vector{String} = spec.needs_targets ? c["targets"] : String[]
 
     outputs::Vector{String} = get(c, "outputs") do
-        suffix::Union{String, Nothing} = get(c, "suffix", nothing)
-        if isnothing(suffix)
+        if spec.needs_targets
+            suffix::String = c["suffix"]
+            join_names(targets, suffix)
+        else
             output::String = c["output"]
             [output]
-        else
-            join_names(targets, suffix)
         end
     end
 

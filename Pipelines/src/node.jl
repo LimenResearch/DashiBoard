@@ -9,11 +9,11 @@ struct Node
     update::Bool
     train::Bool
     invert::Bool
-    label::AbstractString
+    label::String
     state::StateRef
     function Node(card::Card, update::Bool, train::Bool, invert::Bool, label::AbstractString, state::StateRef)
         if invert
-            invertible(card) || throw(ArgumentError("Node is not invertible"))
+            invertible(card) || throw(ArgumentError("Card `$(card)` is not invertible"))
             train && throw(ArgumentError("Cannot train an inverted node"))
         end
         return new(card, update, train, invert, label, state)

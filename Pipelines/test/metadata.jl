@@ -83,7 +83,7 @@ end
 end
 
 @testset "metadata dimensionality reduction" begin
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimres.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimensionality_reduction.json"))
 
     config = d["pca"]
     card = Pipelines.Card(config)
@@ -158,7 +158,7 @@ end
 end
 
 @testset "metadata gaussian encoding" begin
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
 
     config = d["identity"]
     card = Pipelines.Card(config)

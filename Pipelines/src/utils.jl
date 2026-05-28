@@ -4,6 +4,41 @@ to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : Str
 
 get_options(m) = StringDict(string(k) => getproperty(m, k) for k in propertynames(m))
 
+# JSON schema utils
+
+function json_integer(;
+        min::Union{Integer, Nothing} = nothing,
+        max::Union{Integer, Nothing} = nothing
+    )
+    sch = Dict{String, Any}("type" => "integer")
+    isnothing(min) || (sch["minimum"] = min)
+    isnothing(max) || (sch["maximum"] = max)
+    return sch
+end
+
+function json_string(; min::Integer = 0)
+    return Dict("type" => "string", "minLength" => min)
+end
+
+function json_var(vars)
+    enum::Vector{String} = collect(String, vars)
+    return json_var(enum)
+end
+
+function json_var(vars::AbstractVector{<:AbstractString})
+    return Dict("type" => "string", "enum" => vars)
+end
+
+function json_vars(vars; min::Integer = 0)
+    return Dict(
+        "type" => "array",
+        "items" => json_var(vars),
+        "minItems" => min
+    )
+end
+
+nullable(s) = Dict("anyOf" => [s, Dict("type" => "null")])
+
 # Card computation utils
 
 select_columns(args...) = Select(args = Get.(union(args...)))

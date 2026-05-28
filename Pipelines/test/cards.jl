@@ -323,7 +323,7 @@ end
 end
 
 @testset "dimensionality reduction" begin
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimres.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimensionality_reduction.json"))
 
     DBInterface.execute(
         Returns(nothing),
@@ -658,7 +658,7 @@ end
         end
     end
 
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     card = Pipelines.Card(d["identity"])
     node = Node(card)
     @test !Pipelines.invertible(node)
@@ -674,7 +674,7 @@ end
     ]
     @test Pipelines.get_node_inputs(node) == ["month"]
 
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     card = Pipelines.Card(d["dayofweek"])
     node = Node(card)
     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
@@ -684,7 +684,7 @@ end
     @test Pipelines.get_node_outputs(node) == ["date_gaussian_1", "date_gaussian_2", "date_gaussian_3"]
     @test Pipelines.get_node_inputs(node) == ["date"]
 
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     card = Pipelines.Card(d["dayofyear"])
     node = Node(card)
     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
@@ -698,7 +698,7 @@ end
     ]
     @test Pipelines.get_node_inputs(node) == ["date"]
 
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     card = Pipelines.Card(d["hour"])
     node = Node(card)
     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
@@ -713,7 +713,7 @@ end
     ]
     @test only(Pipelines.get_node_inputs(node)) == "time"
 
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian.json"))
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     card = Pipelines.Card(d["minute"])
     node = Node(card)
     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")

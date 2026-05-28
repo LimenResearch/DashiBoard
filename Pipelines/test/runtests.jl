@@ -12,6 +12,7 @@ using Test
 
 include("evaluation.jl")
 include("options.jl")
+include("schemas.jl")
 include("cards.jl")
 include("parametric_cards.jl")
 include("metadata.jl")

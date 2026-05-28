@@ -46,5 +46,13 @@
     "inputs": [],
     "targets": ["hour"],
     "suffix": "rescaled"
+  },
+  "wrong_method": {
+    "type": "rescale",
+    "method": "loggistic",
+    "group_by": [],
+    "inputs": [],
+    "targets": ["hour"],
+    "suffix": "rescaled"
   }
 }

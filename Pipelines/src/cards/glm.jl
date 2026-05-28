@@ -4,7 +4,7 @@ product_term(x::AbstractVector) = mapfoldl(term, *, x)
 composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
 
 function compute_formula(c::AbstractDict)
-    inputs = c["inputs"]
+    inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
     lhs = term(target)
     rhs = composite_term(inputs)

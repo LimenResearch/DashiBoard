@@ -39,7 +39,7 @@ end
 
 function WindowFunctionCard(c::AbstractDict)
     type::String = c["type"]
-    order_by::Vector{String} = get(c, "order_by", String[])
+    order_by::Vector{String} = c["order_by"]
     group_by::Vector{String} = get(c, "group_by", String[])
     method::String = c["method"]
     window_function::SQLNode = WINDOW_FUNCTIONS[method]()

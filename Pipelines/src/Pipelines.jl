@@ -4,6 +4,7 @@ export card_type, card_widgets
 
 export Card,
     SplitCard,
+    WindowFunctionCard,
     RescaleCard,
     ClusterCard,
     DimensionalityReductionCard,

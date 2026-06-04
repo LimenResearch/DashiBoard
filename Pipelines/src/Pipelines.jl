@@ -167,7 +167,7 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 include("cards/wild.jl")
 
-include("specs.jl")
+include("schemas.jl")
 include("node.jl")
 include("dag.jl")
 include("pipeline.jl")

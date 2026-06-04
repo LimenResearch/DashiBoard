@@ -1,7 +1,5 @@
 module Pipelines
 
-export card_type, card_widgets
-
 export Card,
     SplitCard,
     WindowFunctionCard,
@@ -15,7 +13,7 @@ export Card,
     StreamlinerCard,
     WildCard
 
-export get_metadata, register_card, CardSpec
+public get_metadata, register_card, CardSpec, card_widgets
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
@@ -167,7 +165,7 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 include("cards/wild.jl")
 
-include("specs.jl")
+include("schemas.jl")
 include("node.jl")
 include("dag.jl")
 include("pipeline.jl")

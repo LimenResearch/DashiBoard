@@ -2,6 +2,7 @@ using Pipelines: Node, invert, get_card, get_state
 using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
 using Graphs: topological_sort, nv
 using DBInterface, DataFrames, Graphs, JSON, Downloads
+using JSONSchema: JSONSchema
 using StatsBase: fweights, denserank
 using Clustering, GLM, MixedModels, DataInterpolations, Distributions, Dates, Statistics
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
@@ -12,6 +13,7 @@ using Test
 
 include("evaluation.jl")
 include("options.jl")
+include("schemas.jl")
 include("cards.jl")
 include("parametric_cards.jl")
 include("metadata.jl")

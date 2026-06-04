@@ -1,6 +1,20 @@
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
+function available_streamliner_model_configs()
+    return isassigned(MODEL_DIR) ? available_streamliner_configs(MODEL_DIR[]) : String[]
+end
+
+function available_streamliner_training_configs()
+    return isassigned(TRAINING_DIR) ? available_streamliner_configs(TRAINING_DIR[]) : String[]
+end
+
+function available_streamliner_configs(dir)
+    return String[
+        fn for (fn, ext) in Iterators.map(splitext, readdir(dir)) if ext == ".toml"
+    ]
+end
+
 function parse_without_widgets(dir, x)
     file = string(x, ".toml")
     c = parsefile(joinpath(dir, file))

@@ -22,6 +22,17 @@
     "targets": ["TEMP", "PRES"],
     "partition": "partition"
   },
+  "wrongMethod": {
+    "type": "interp",
+    "method": "nonsupported",
+    "method_options": {
+      "extrapolation_left": "linear",
+      "extrapolation_right": "linear"
+    },
+    "input": "No",
+    "targets": ["TEMP", "PRES"],
+    "partition": "partition"
+  },
   "partition": {
     "type": "split",
     "method": "percentile",

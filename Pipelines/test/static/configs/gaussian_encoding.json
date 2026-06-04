@@ -43,5 +43,14 @@
     "suffix": "gaussian",
     "method": "minuteofhour",
     "method_options": { "max": 24 }
+  },
+  "zeroLambda": {
+    "type": "gaussian_encoding",
+    "input": "time",
+    "n_components": 1,
+    "lambda": 0,
+    "suffix": "gaussian",
+    "method": "minuteofhour",
+    "method_options": { "max": 24 }
   }
 }

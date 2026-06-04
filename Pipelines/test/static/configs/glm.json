@@ -14,6 +14,12 @@
     "target": "PRES",
     "distribution": "gamma"
   },
+  "noInputs": {
+    "type": "glm",
+    "weights": "Iws",
+    "target": "PRES",
+    "distribution": "gamma"
+  },
   "partition": {
     "type": "split",
     "method": "percentile",
@@ -33,6 +39,13 @@
     "fixed_effect_terms": [1, "year"],
     "random_effect_terms": [1],
     "grouping_factor": "cbwd",
+    "weights": "Iws",
+    "target": "TEMP"
+  },
+  "isMixedNoGrouping": {
+    "type": "mixed_model",
+    "fixed_effect_terms": [1, "year"],
+    "random_effect_terms": [1],
     "weights": "Iws",
     "target": "TEMP"
   }

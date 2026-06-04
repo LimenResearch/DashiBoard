@@ -738,7 +738,7 @@ end
         Pipelines.PARSER => Pipelines.default_parser(),
         Pipelines.MODEL_DIR => model_dir,
         Pipelines.TRAINING_DIR => training_dir,
-        Pipelines.Card(d["basic"]),
+        Pipelines.Card(d["basic"])
     )
     @test !Pipelines.invertible(card)
 
@@ -770,7 +770,7 @@ end
         Pipelines.PARSER => Pipelines.default_parser(),
         Pipelines.MODEL_DIR => model_dir,
         Pipelines.TRAINING_DIR => training_dir,
-        Pipelines.Card(d["classifier"]),
+        Pipelines.Card(d["classifier"])
     )
     @test !Pipelines.invertible(card)
 

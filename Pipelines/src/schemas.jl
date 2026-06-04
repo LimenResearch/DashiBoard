@@ -239,3 +239,54 @@ const STREAMLINER_SPEC = CardSpec(
     allows_weights = false,
     allows_partition = true
 )
+
+function _json_schema(::Type{StreamlinerCard}, key::AbstractString, vars::AbstractVector)
+    required = String["type", "model", "training"]
+    properties = Dict(
+        "type" => Dict("const" => key),
+        "model_options" => Dict("type" => "object"), # TODO: validate correct keywords
+        "training_options" => Dict("type" => "object"), # TODO: validate correct keywords
+        "funnel" => json_var(keys(PARSER[].funnels)), # TODO: implement json schema for funnels too
+        "partition" => nullable(json_var(vars)),
+        "suffix" => json_string(min = 1)
+    )
+
+    model_schema = Dict(
+        "anyOf" => [
+            Dict(
+                "required" => ["model_metadata"],
+                "properties" => Dict(
+                    "model_metadata" => Dict("type" => "object")
+                )
+            ),
+            Dict(
+                "properties" => Dict(
+                    "model" => json_var(available_streamliner_model_configs())
+                )
+            ),
+        ]
+    )
+
+    training_schema = Dict(
+        "anyOf" => [
+            Dict(
+                "required" => ["training_metadata"],
+                "properties" => Dict(
+                    "training_metadata" => Dict("type" => "object")
+                )
+            ),
+            Dict(
+                "properties" => Dict(
+                    "training" => json_var(available_streamliner_training_configs())
+                )
+            ),
+        ]
+    )
+
+    return Dict(
+        "type" => "object",
+        "properties" => properties,
+        "required" => required,
+        "allOf" => [model_schema, training_schema]
+    )
+end

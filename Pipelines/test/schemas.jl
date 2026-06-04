@@ -5,9 +5,11 @@ vars = [
 split_vars = vcat(vars, ["partition"])
 time_vars = vcat(vars, ["date", "time"])
 
-function _pipeline_schema_validate(schema, conf)
+function _pipeline_schema_validate(schema, conf; from_metadata::Bool = true)
     @test JSONSchema.validate(schema, conf) === nothing
-    @test JSONSchema.validate(schema, get_metadata(Card(conf))) === nothing
+    if from_metadata
+        @test JSONSchema.validate(schema, get_metadata(Card(conf))) === nothing
+    end
     return
 end
 
@@ -96,4 +98,34 @@ end
     _pipeline_schema_validate(schema, d["hour"])
     _pipeline_schema_validate(schema, d["minute"])
     _pipeline_schema_invalidate(schema, d["zeroLambda"])
+end
+
+@testset "streamliner" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
+    model_dir = joinpath(@__DIR__, "static", "model")
+    training_dir = joinpath(@__DIR__, "static", "training")
+
+    @with(
+        Pipelines.MODEL_DIR => model_dir,
+        Pipelines.TRAINING_DIR => training_dir,
+        begin
+            schema = Pipelines.json_schema("streamliner", split_vars) |> JSONSchema.Schema
+            _pipeline_schema_validate(schema, d["basic"], from_metadata = false)
+            _pipeline_schema_validate(schema, d["classifier"], from_metadata = false)
+            m_basic = get_metadata(Card(d["basic"]))
+            m_classifier = get_metadata(Card(d["classifier"]))
+        end
+    )
+
+    # consider scenario where configuration files are no longer available
+    schema = Pipelines.json_schema("streamliner", split_vars) |> JSONSchema.Schema
+
+    _pipeline_schema_validate(schema, m_basic, from_metadata = false)
+    _pipeline_schema_validate(schema, m_classifier, from_metadata = false)
+
+    pop!(m_basic, "model_metadata")
+    pop!(m_classifier, "training_metadata")
+
+    _pipeline_schema_invalidate(schema, m_basic)
+    _pipeline_schema_invalidate(schema, m_classifier)
 end

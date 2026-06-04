@@ -12,9 +12,9 @@ const SPLIT_SPEC = CardSpec(
     allows_partition = false
 )
 
-function _json_schema(::Type{SplitCard}, ::AbstractString, vars::AbstractVector)
+function _json_schema(::Type{SplitCard}, key::AbstractString, vars::AbstractVector)
     properties = Dict(
-        "type" => Dict("const" => "split"),
+        "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
         "group_by" => json_vars(vars),
         "method" => json_var(keys(SPLITTING_METHODS)),
@@ -37,9 +37,9 @@ const WINDOW_FUNCTION_SPEC = CardSpec(
     allows_partition = false
 )
 
-function _json_schema(::Type{WindowFunctionCard}, ::AbstractString, vars::AbstractVector)
+function _json_schema(::Type{WindowFunctionCard}, key::AbstractString, vars::AbstractVector)
     properties = Dict(
-        "type" => Dict("const" => "window_function"),
+        "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
         "group_by" => json_vars(vars),
         "method" => json_var(keys(WINDOW_FUNCTIONS)),
@@ -61,9 +61,9 @@ const RESCALE_SPEC = CardSpec(
     allows_partition = true
 )
 
-function _json_schema(::Type{RescaleCard}, ::AbstractString, vars::AbstractVector)
+function _json_schema(::Type{RescaleCard}, key::AbstractString, vars::AbstractVector)
     properties = Dict(
-        "type" => Dict("const" => "rescale"),
+        "type" => Dict("const" => key),
         "method" => json_var(keys(RESCALERS)),
         "group_by" => json_vars(vars),
         "inputs" => json_vars(vars),
@@ -88,9 +88,9 @@ const CLUSTER_SPEC = CardSpec(
     allows_partition = true
 )
 
-function _json_schema(::Type{ClusterCard}, ::AbstractString, vars::AbstractVector)
+function _json_schema(::Type{ClusterCard}, key::AbstractString, vars::AbstractVector)
     properties = Dict(
-        "type" => Dict("const" => "cluster"),
+        "type" => Dict("const" => key),
         "method" => json_var(keys(CLUSTERING_METHODS)),
         "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "inputs" => json_vars(vars, min = 1),
@@ -114,9 +114,9 @@ const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
     allows_partition = true
 )
 
-function _json_schema(::Type{DimensionalityReductionCard}, ::AbstractString, vars::AbstractVector)
+function _json_schema(::Type{DimensionalityReductionCard}, key::AbstractString, vars::AbstractVector)
     properties = Dict(
-        "type" => Dict("const" => "dimensionality_reduction"),
+        "type" => Dict("const" => key),
         "method" => json_var(keys(PROJECTION_METHODS)),
         "inputs" => json_vars(vars, min = 1),
         "partition" => nullable(json_var(vars)),
@@ -184,10 +184,10 @@ const INTERP_SPEC = CardSpec(
     allows_partition = true
 )
 
-function _json_schema(::Type{InterpCard}, ::AbstractString, vars::AbstractVector)
+function _json_schema(::Type{InterpCard}, key::AbstractString, vars::AbstractVector)
     required = String["type", "method", "input", "targets"]
     properties = Dict(
-        "type" => Dict("const" => "interp"),
+        "type" => Dict("const" => key),
         "method" => json_var(keys(INTERPOLATION_METHODS)),
         "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "input" => json_var(vars),
@@ -211,6 +211,25 @@ const GAUSSIAN_ENCODING_SPEC = CardSpec(
     allows_weights = false,
     allows_partition = false
 )
+
+function _json_schema(::Type{GaussianEncodingCard}, key::AbstractString, vars::AbstractVector)
+    required = String["type", "input", "n_components"]
+    properties = Dict(
+        "type" => Dict("const" => key),
+        "method" => json_var(keys(TEMPORAL_PREPROCESSING_METHODS)),
+        "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
+        "input" => json_var(vars),
+        "n_components" => json_integer(min = 1),
+        "lambda" => json_number(exclusive_min = 0),
+        "suffix" => json_string(min = 1)
+    )
+
+    return Dict(
+        "type" => "object",
+        "properties" => properties,
+        "required" => required
+    )
+end
 
 const STREAMLINER_SPEC = CardSpec(
     type = StreamlinerCard,

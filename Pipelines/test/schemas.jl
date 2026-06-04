@@ -2,7 +2,8 @@ vars = [
     "No", "year", "month", "day", "hour", "pm2.5",
     "DEWP", "TEMP", "PRES", "cbwd", "Iws", "Is", "Ir",
 ]
-ext_vars = vcat(vars, ["partition"])
+split_vars = vcat(vars, ["partition"])
+time_vars = vcat(vars, ["date", "time"])
 
 function _pipeline_schema_validate(schema, conf)
     @test JSONSchema.validate(schema, conf) === nothing
@@ -57,7 +58,7 @@ end
 
 @testset "dimensionality reduction schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimensionality_reduction.json"))
-    schema = Pipelines.json_schema("dimensionality_reduction", ext_vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("dimensionality_reduction", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["pca"])
     _pipeline_schema_validate(schema, d["ppca"])
     _pipeline_schema_validate(schema, d["factoranalysis"])
@@ -67,12 +68,12 @@ end
 
 @testset "glm" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
-    schema = Pipelines.json_schema("glm", ext_vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("glm", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["hasPartition"])
     _pipeline_schema_validate(schema, d["hasWeights"])
     _pipeline_schema_invalidate(schema, d["noInputs"])
 
-    schema = Pipelines.json_schema("mixed_model", ext_vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("mixed_model", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["isMixed"])
     _pipeline_schema_validate(schema, d["isMixedHasWeights"])
     _pipeline_schema_invalidate(schema, d["isMixedNoGrouping"])
@@ -80,8 +81,19 @@ end
 
 @testset "interp" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "interp.json"))
-    schema = Pipelines.json_schema("interp", ext_vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("interp", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["constant"])
     _pipeline_schema_validate(schema, d["quadratic"])
     _pipeline_schema_invalidate(schema, d["wrongMethod"])
+end
+
+@testset "gaussian_encoding" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    schema = Pipelines.json_schema("gaussian_encoding", time_vars) |> JSONSchema.Schema
+    _pipeline_schema_validate(schema, d["identity"])
+    _pipeline_schema_validate(schema, d["dayofweek"])
+    _pipeline_schema_validate(schema, d["dayofyear"])
+    _pipeline_schema_validate(schema, d["hour"])
+    _pipeline_schema_validate(schema, d["minute"])
+    _pipeline_schema_invalidate(schema, d["zeroLambda"])
 end

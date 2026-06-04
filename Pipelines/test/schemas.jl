@@ -8,7 +8,7 @@ time_vars = vcat(vars, ["date", "time"])
 function _pipeline_schema_validate(schema, conf; from_metadata::Bool = true)
     @test JSONSchema.validate(schema, conf) === nothing
     if from_metadata
-        @test JSONSchema.validate(schema, get_metadata(Card(conf))) === nothing
+        @test JSONSchema.validate(schema, Pipelines.get_metadata(Card(conf))) === nothing
     end
     return
 end
@@ -112,8 +112,8 @@ end
             schema = Pipelines.json_schema("streamliner", split_vars) |> JSONSchema.Schema
             _pipeline_schema_validate(schema, d["basic"], from_metadata = false)
             _pipeline_schema_validate(schema, d["classifier"], from_metadata = false)
-            m_basic = get_metadata(Card(d["basic"]))
-            m_classifier = get_metadata(Card(d["classifier"]))
+            m_basic = Pipelines.get_metadata(Card(d["basic"]))
+            m_classifier = Pipelines.get_metadata(Card(d["classifier"]))
         end
     )
 

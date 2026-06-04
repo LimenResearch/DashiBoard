@@ -17,7 +17,7 @@ end
 
 @testset "split schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
-    schema = Pipelines.json_schema(SplitCard, vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("split", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["percentile"])
     _pipeline_schema_validate(schema, d["tiles"])
     _pipeline_schema_validate(schema, d["tiles2"])
@@ -27,7 +27,7 @@ end
 
 @testset "window_function schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "window_function.json"))
-    schema = Pipelines.json_schema(WindowFunctionCard, vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("window_function", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["percent_rank"])
     _pipeline_schema_validate(schema, d["rank"])
     _pipeline_schema_validate(schema, d["row_number"])
@@ -36,7 +36,7 @@ end
 
 @testset "rescale schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
-    schema = Pipelines.json_schema(RescaleCard, vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("rescale", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["zscore"])
     _pipeline_schema_validate(schema, d["zscore2"])
     _pipeline_schema_validate(schema, d["maxabs"])
@@ -48,7 +48,7 @@ end
 
 @testset "cluster schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
-    schema = Pipelines.json_schema(ClusterCard, vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("cluster", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["kmeans"])
     _pipeline_schema_validate(schema, d["dbscan"])
     _pipeline_schema_validate(schema, d["dbscan_nullable"])
@@ -57,7 +57,7 @@ end
 
 @testset "dimensionality reduction schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimensionality_reduction.json"))
-    schema = Pipelines.json_schema(DimensionalityReductionCard, ext_vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("dimensionality_reduction", ext_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["pca"])
     _pipeline_schema_validate(schema, d["ppca"])
     _pipeline_schema_validate(schema, d["factoranalysis"])
@@ -67,11 +67,21 @@ end
 
 @testset "glm" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
-    schema = Pipelines.json_schema(GLMCard, ext_vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("glm", ext_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["hasPartition"])
     _pipeline_schema_validate(schema, d["hasWeights"])
+    _pipeline_schema_invalidate(schema, d["noInputs"])
 
-    schema = Pipelines.json_schema(MixedModelCard, ext_vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("mixed_model", ext_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["isMixed"])
     _pipeline_schema_validate(schema, d["isMixedHasWeights"])
+    _pipeline_schema_invalidate(schema, d["isMixedNoGrouping"])
+end
+
+@testset "interp" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "interp.json"))
+    schema = Pipelines.json_schema("interp", ext_vars) |> JSONSchema.Schema
+    _pipeline_schema_validate(schema, d["constant"])
+    _pipeline_schema_validate(schema, d["quadratic"])
+    _pipeline_schema_invalidate(schema, d["wrongMethod"])
 end

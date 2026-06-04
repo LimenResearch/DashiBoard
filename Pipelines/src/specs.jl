@@ -1,3 +1,8 @@
+function json_schema(key::AbstractString, args...)
+    type = get_spec(key).type
+    return _json_schema(type, key, args...)
+end
+
 const SPLIT_SPEC = CardSpec(
     type = SplitCard,
     label = "Split",
@@ -7,7 +12,7 @@ const SPLIT_SPEC = CardSpec(
     allows_partition = false
 )
 
-function json_schema(::Type{SplitCard}, vars::AbstractVector)
+function _json_schema(::Type{SplitCard}, ::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => "split"),
         "order_by" => json_vars(vars, min = 1),
@@ -32,7 +37,7 @@ const WINDOW_FUNCTION_SPEC = CardSpec(
     allows_partition = false
 )
 
-function json_schema(::Type{WindowFunctionCard}, vars::AbstractVector)
+function _json_schema(::Type{WindowFunctionCard}, ::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => "window_function"),
         "order_by" => json_vars(vars, min = 1),
@@ -56,7 +61,7 @@ const RESCALE_SPEC = CardSpec(
     allows_partition = true
 )
 
-function json_schema(::Type{RescaleCard}, vars::AbstractVector)
+function _json_schema(::Type{RescaleCard}, ::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => "rescale"),
         "method" => json_var(keys(RESCALERS)),
@@ -83,10 +88,11 @@ const CLUSTER_SPEC = CardSpec(
     allows_partition = true
 )
 
-function json_schema(::Type{ClusterCard}, vars::AbstractVector)
+function _json_schema(::Type{ClusterCard}, ::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => "cluster"),
         "method" => json_var(keys(CLUSTERING_METHODS)),
+        "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "inputs" => json_vars(vars, min = 1),
         "weights" => nullable(json_var(vars)),
         "partition" => nullable(json_var(vars)),
@@ -108,7 +114,7 @@ const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
     allows_partition = true
 )
 
-function json_schema(::Type{DimensionalityReductionCard}, vars::AbstractVector)
+function _json_schema(::Type{DimensionalityReductionCard}, ::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => "dimensionality_reduction"),
         "method" => json_var(keys(PROJECTION_METHODS)),
@@ -142,10 +148,10 @@ const MIXED_MODEL_SPEC = CardSpec(
     allows_partition = true
 )
 
-function json_schema(::Type{C}, vars::AbstractVector) where {C <: AbstractGLMCard}
+function _json_schema(::Type{C}, key::AbstractString, vars::AbstractVector) where {C <: AbstractGLMCard}
     required = String["type", "target"]
     properties = Dict{String, Any}(
-        "type" => Dict("const" => "glm"), # FIXME: depends on type!
+        "type" => Dict("const" => key),
         "distribution" => json_var(keys(NOISE_MODELS)),
         "link" => nullable(json_var(keys(LINK_TYPES))),
         "partition" => nullable(json_var(vars)),
@@ -177,6 +183,25 @@ const INTERP_SPEC = CardSpec(
     allows_weights = false,
     allows_partition = true
 )
+
+function _json_schema(::Type{InterpCard}, ::AbstractString, vars::AbstractVector)
+    required = String["type", "method", "input", "targets"]
+    properties = Dict(
+        "type" => Dict("const" => "interp"),
+        "method" => json_var(keys(INTERPOLATION_METHODS)),
+        "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
+        "input" => json_var(vars),
+        "targets" => json_vars(vars, min = 1),
+        "partition" => nullable(json_var(vars)),
+        "suffix" => json_string(min = 1)
+    )
+
+    return Dict(
+        "type" => "object",
+        "properties" => properties,
+        "required" => required
+    )
+end
 
 const GAUSSIAN_ENCODING_SPEC = CardSpec(
     type = GaussianEncodingCard,

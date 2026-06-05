@@ -1,9 +1,9 @@
 function json_schema(key::AbstractString, args...)
     spec = get_spec(key)
-    return spec.schema(key, args...)
+    return spec.schema(spec.settings, key, args...)
 end
 
-function split_card_schema(key::AbstractString, vars::AbstractVector)
+function split_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
@@ -21,7 +21,7 @@ end
 
 const SPLIT_SPEC = CardSpec(split_card_schema, type = SplitCard, label = "Split")
 
-function window_function_card_schema(key::AbstractString, vars::AbstractVector)
+function window_function_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
@@ -42,7 +42,7 @@ const WINDOW_FUNCTION_SPEC = CardSpec(
     label = "Window Function"
 )
 
-function rescale_schema(key::AbstractString, vars::AbstractVector)
+function rescale_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_var(keys(RESCALERS)),
@@ -61,12 +61,12 @@ function rescale_schema(key::AbstractString, vars::AbstractVector)
 end
 
 const RESCALE_SPEC = CardSpec(
-    rescale_schema,
+    rescale_card_schema,
     type = RescaleCard,
     label = "Rescale"
 )
 
-function cluster_card_schema(key::AbstractString, vars::AbstractVector)
+function cluster_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_var(keys(CLUSTERING_METHODS)),
@@ -89,7 +89,7 @@ const CLUSTER_SPEC = CardSpec(
     label = "Cluster"
 )
 
-function dimensionality_reduction_card_schema(key::AbstractString, vars::AbstractVector)
+function dimensionality_reduction_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_var(keys(PROJECTION_METHODS)),
@@ -140,7 +140,7 @@ function abstract_glm_card_schema(
     )
 end
 
-function glm_card_schema(key::AbstractString, vars::AbstractVector)
+function glm_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     return abstract_glm_card_schema(GLMCard, key, vars)
 end
 
@@ -150,7 +150,7 @@ const GLM_SPEC = CardSpec(
     label = "GLM"
 )
 
-function mixed_model_card_schema(key::AbstractString, vars::AbstractVector)
+function mixed_model_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     return abstract_glm_card_schema(MixedModelCard, key, vars)
 end
 
@@ -160,7 +160,7 @@ const MIXED_MODEL_SPEC = CardSpec(
     label = "Mixed Model"
 )
 
-function interp_card_schema(key::AbstractString, vars::AbstractVector)
+function interp_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     required = String["type", "method", "input", "targets"]
     properties = Dict(
         "type" => Dict("const" => key),
@@ -185,7 +185,7 @@ const INTERP_SPEC = CardSpec(
     label = "Interpolation"
 )
 
-function gaussian_encoding_card_schema(key::AbstractString, vars::AbstractVector)
+function gaussian_encoding_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     required = String["type", "input", "n_components"]
     properties = Dict(
         "type" => Dict("const" => key),
@@ -210,7 +210,7 @@ const GAUSSIAN_ENCODING_SPEC = CardSpec(
     label = "Gaussian Encoding"
 )
 
-function streamliner_card_schema(key::AbstractString, vars::AbstractVector)
+function streamliner_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     required = String["type", "model", "training"]
     properties = Dict(
         "type" => Dict("const" => key),

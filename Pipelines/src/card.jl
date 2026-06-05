@@ -278,19 +278,6 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 
 ## Define new cards using a global dictionary
 
-"""
-    struct CardSpec
-        type::DataType
-        label::String
-        schema::Function
-        settings::Any
-    end
-
-Define whether a given wild card requires sorting and / or target variables.
-Define whether it accepts a weights variable and / or a partition variable.
-In all of the above cases, a value of `nothing` means that the sorting / target
-variable requirement or the weights / partition variables support are unknown.
-"""
 struct CardSpec
     type::DataType
     label::String
@@ -298,6 +285,14 @@ struct CardSpec
     settings::Any
 end
 
+"""
+    CardSpec(
+        f::Function = Returns(Dict());
+        type::DataType, label::AbstractString, settings::Any = nothing,
+    )
+
+Specification to register a given card type.
+"""
 function CardSpec(
         f::Function = Returns(Dict());
         type::DataType, label::AbstractString, settings::Any = nothing,

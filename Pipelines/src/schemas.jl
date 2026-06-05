@@ -266,3 +266,49 @@ const STREAMLINER_SPEC = CardSpec(
     type = StreamlinerCard,
     label = "Streamliner"
 )
+
+function wild_card_schema(settings::Any, key::AbstractString, vars::AbstractVector)
+    required = String["type", "inputs"]
+
+    properties = Dict{String, Any}(
+        "type" => Dict("const" => key),
+        "inputs" => json_vars(vars)
+    )
+
+    if settings.needs_order
+        push!(required, "order_by")
+        properties["order_by"] = json_vars(vars, min = 1)
+    end
+
+    if settings.needs_targets
+        push!(required, "targets")
+        push!(required, "suffix")
+        properties["targets"] = json_vars(vars, min = 1)
+        properties["suffix"] = json_string(min = 1)
+    else
+        push!(required, "output")
+        properties["output"] = json_var(vars)
+    end
+
+    if settings.allows_weights
+        properties["weights"] = nullable(json_var(vars))
+    end
+
+    if settings.allows_partition
+        properties["partition"] = nullable(json_var(vars))
+    end
+    weights = get(c, "weights", nothing)
+    partition = get(c, "partition", nothing)
+
+    return Dict(
+        "type" => "object",
+        "properties" => properties,
+        "required" => required,
+    )
+end
+
+function register_wild_card(key::Symbol; label::AbstractString, settings::WildCardSettings)
+    type = WildCard{key}
+    spec = CardSpec(wild_card_schema; type, label, settings)
+    return register_card(string(key) => spec)
+end

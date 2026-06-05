@@ -68,7 +68,7 @@ end
     _pipeline_schema_invalidate(schema, d["no_components"])
 end
 
-@testset "glm" begin
+@testset "glm schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
     schema = Pipelines.json_schema("glm", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["hasPartition"])
@@ -81,7 +81,7 @@ end
     _pipeline_schema_invalidate(schema, d["isMixedNoGrouping"])
 end
 
-@testset "interp" begin
+@testset "interp schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "interp.json"))
     schema = Pipelines.json_schema("interp", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["constant"])
@@ -89,7 +89,7 @@ end
     _pipeline_schema_invalidate(schema, d["wrongMethod"])
 end
 
-@testset "gaussian_encoding" begin
+@testset "gaussian_encoding schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     schema = Pipelines.json_schema("gaussian_encoding", time_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["identity"])
@@ -100,7 +100,7 @@ end
     _pipeline_schema_invalidate(schema, d["zeroLambda"])
 end
 
-@testset "streamliner" begin
+@testset "streamliner schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
     model_dir = joinpath(@__DIR__, "static", "model")
     training_dir = joinpath(@__DIR__, "static", "training")

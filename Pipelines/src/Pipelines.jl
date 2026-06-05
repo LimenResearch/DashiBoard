@@ -15,6 +15,8 @@ export Card,
 
 public get_metadata, register_card, CardSpec, card_widgets
 
+public register_wild_card, WildCardSettings
+
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
 public train!, evaljoin, train_evaljoin!

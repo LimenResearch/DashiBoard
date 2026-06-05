@@ -278,28 +278,28 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 
 ## Define new cards using a global dictionary
 
-"""
-    @kwdef struct CardSpec
-        type::DataType
-        label::String
-        needs_order::Union{Bool, Nothing} = nothing
-        needs_targets::Union{Bool, Nothing} = nothing
-        allows_weights::Union{Bool, Nothing} = nothing
-        allows_partition::Union{Bool, Nothing} = nothing
-    end
-
-Define whether a given wild card requires sorting and / or target variables.
-Define whether it accepts a weights variable and / or a partition variable.
-In all of the above cases, a value of `nothing` means that the sorting / target
-variable requirement or the weights / partition variables support are unknown.
-"""
-@kwdef struct CardSpec
+struct CardSpec
     type::DataType
     label::String
-    needs_order::Union{Bool, Nothing} = nothing
-    needs_targets::Union{Bool, Nothing} = nothing
-    allows_weights::Union{Bool, Nothing} = nothing
-    allows_partition::Union{Bool, Nothing} = nothing
+    schema::Function
+    settings::Any
+end
+
+"""
+    CardSpec(
+        f::Function = Returns(Dict());
+        type::DataType, label::AbstractString, settings::Any = nothing,
+    )
+
+Specification to register a given card type.
+"""
+function CardSpec(
+        f::Function = Returns(Dict());
+        type::DataType, label::AbstractString, settings::Any = nothing,
+        kwargs...
+    )
+    isempty(kwargs) || @warn "Only `type`, `label` and `settings` keyword arguments are allowed in `CardSpec`"
+    return CardSpec(type, label, f, settings)
 end
 
 get_label(spec::CardSpec) = spec.label

@@ -217,15 +217,13 @@ end
         nrows = length(id)
         return Dict(id_var => id, (k => zeros(nrows) for k in wc.outputs)...)
     end
-    spec = Pipelines.CardSpec(
-        type = WildCard{:trivial},
-        label = "Trivial",
+    settings = Pipelines.WildCardSettings(
         needs_order = false,
         needs_targets = false,
         allows_partition = false,
         allows_weights = false
     )
-    Pipelines.register_card("trivial" => spec)
+    Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
 
     config = Dict("type" => "trivial", "inputs" => ["a", "b"], "output" => "c")
     card = Pipelines.Card(config)

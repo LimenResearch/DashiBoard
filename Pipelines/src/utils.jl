@@ -6,11 +6,10 @@ get_options(m) = StringDict(string(k) => getproperty(m, k) for k in propertyname
 
 # JSON schema utils
 
-json_integer(; kwargs...) = _json_number("integer"; kwargs...)
-json_number(; kwargs...) = _json_number("number"; kwargs...)
+json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
-function _json_number(
-        type::AbstractString;
+function json_number(
+        type::AbstractString = "number";
         min::Union{Integer, Nothing} = nothing,
         max::Union{Integer, Nothing} = nothing,
         exclusive_min::Union{Integer, Nothing} = nothing,
@@ -28,14 +27,15 @@ function json_string(; min::Integer = 0)
     return Dict("type" => "string", "minLength" => min)
 end
 
-function json_var(vars)
-    enum::Vector{String} = collect(String, vars)
-    return json_var(enum)
+json_enum(options) = json_enum("string", options)
+
+function json_enum(type::AbstractString, options)
+    _options = options isa AbstractVector ? options : collect(options)
+    return Dict("type" => type, "enum" => options)
 end
 
-function json_var(vars::AbstractVector{<:AbstractString})
-    return Dict("type" => "string", "enum" => vars)
-end
+# TODO: update with dict options
+json_var(vars) = json_enum(vars)
 
 function json_vars(vars; min::Integer = 0)
     return Dict(

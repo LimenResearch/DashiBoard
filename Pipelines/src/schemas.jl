@@ -8,7 +8,7 @@ function split_card_schema(::Any, key::AbstractString, vars::AbstractVector)
         "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
         "group_by" => json_vars(vars),
-        "method" => json_var(keys(SPLITTING_METHODS)),
+        "method" => json_enum(keys(SPLITTING_METHODS)),
         "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "output" => json_string(min = 1),
     )
@@ -26,7 +26,7 @@ function window_function_card_schema(::Any, key::AbstractString, vars::AbstractV
         "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
         "group_by" => json_vars(vars),
-        "method" => json_var(keys(WINDOW_FUNCTIONS)),
+        "method" => json_enum(keys(WINDOW_FUNCTIONS)),
         "output" => json_string(min = 1),
     )
     return Dict(
@@ -45,7 +45,7 @@ const WINDOW_FUNCTION_SPEC = CardSpec(
 function rescale_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
-        "method" => json_var(keys(RESCALERS)),
+        "method" => json_enum(keys(RESCALERS)),
         "group_by" => json_vars(vars),
         "inputs" => json_vars(vars),
         "targets" => json_vars(vars),
@@ -69,7 +69,7 @@ const RESCALE_SPEC = CardSpec(
 function cluster_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
-        "method" => json_var(keys(CLUSTERING_METHODS)),
+        "method" => json_enum(keys(CLUSTERING_METHODS)),
         "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "inputs" => json_vars(vars, min = 1),
         "weights" => nullable(json_var(vars)),
@@ -92,7 +92,7 @@ const CLUSTER_SPEC = CardSpec(
 function dimensionality_reduction_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
-        "method" => json_var(keys(PROJECTION_METHODS)),
+        "method" => json_enum(keys(PROJECTION_METHODS)),
         "inputs" => json_vars(vars, min = 1),
         "partition" => nullable(json_var(vars)),
         "n_components" => json_integer(min = 1),
@@ -117,8 +117,8 @@ function abstract_glm_card_schema(
     required = String["type", "target"]
     properties = Dict{String, Any}(
         "type" => Dict("const" => key),
-        "distribution" => json_var(keys(NOISE_MODELS)),
-        "link" => nullable(json_var(keys(LINK_TYPES))),
+        "distribution" => json_enum(keys(NOISE_MODELS)),
+        "link" => nullable(json_enum(keys(LINK_TYPES))),
         "partition" => nullable(json_var(vars)),
         "target" => json_var(vars),
         "suffix" => json_string(min = 1)
@@ -164,7 +164,7 @@ function interp_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     required = String["type", "method", "input", "targets"]
     properties = Dict(
         "type" => Dict("const" => key),
-        "method" => json_var(keys(INTERPOLATION_METHODS)),
+        "method" => json_enum(keys(INTERPOLATION_METHODS)),
         "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "input" => json_var(vars),
         "targets" => json_vars(vars, min = 1),
@@ -189,7 +189,7 @@ function gaussian_encoding_card_schema(::Any, key::AbstractString, vars::Abstrac
     required = String["type", "input", "n_components"]
     properties = Dict(
         "type" => Dict("const" => key),
-        "method" => json_var(keys(TEMPORAL_PREPROCESSING_METHODS)),
+        "method" => json_enum(keys(TEMPORAL_PREPROCESSING_METHODS)),
         "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "input" => json_var(vars),
         "n_components" => json_integer(min = 1),
@@ -216,11 +216,12 @@ function streamliner_card_schema(::Any, key::AbstractString, vars::AbstractVecto
         "type" => Dict("const" => key),
         "model_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "training_options" => Dict("type" => "object"), # TODO: validate correct keywords
-        "funnel" => json_var(keys(PARSER[].funnels)), # TODO: implement json schema for funnels too
+        "funnel" => json_enum(keys(PARSER[].funnels)), # TODO: implement json schema for funnels too
         "partition" => nullable(json_var(vars)),
         "suffix" => json_string(min = 1)
     )
 
+    model_configs = available_streamliner_model_configs()
     model_schema = Dict(
         "anyOf" => [
             Dict(
@@ -231,12 +232,13 @@ function streamliner_card_schema(::Any, key::AbstractString, vars::AbstractVecto
             ),
             Dict(
                 "properties" => Dict(
-                    "model" => json_var(available_streamliner_model_configs())
+                    "model" => json_enum(model_configs)
                 )
             ),
         ]
     )
 
+    training_configs = available_streamliner_training_configs()
     training_schema = Dict(
         "anyOf" => [
             Dict(
@@ -247,7 +249,7 @@ function streamliner_card_schema(::Any, key::AbstractString, vars::AbstractVecto
             ),
             Dict(
                 "properties" => Dict(
-                    "training" => json_var(available_streamliner_training_configs())
+                    "training" => json_enum(training_configs)
                 )
             ),
         ]
@@ -285,9 +287,18 @@ function wild_card_schema(settings::Any, key::AbstractString, vars::AbstractVect
         push!(required, "suffix")
         properties["targets"] = json_vars(vars, min = 1)
         properties["suffix"] = json_string(min = 1)
+        anyOf = Any[]
     else
-        push!(required, "output")
-        properties["output"] = json_var(vars)
+        anyOf = Any[
+            Dict(
+                "required" => ["output"],
+                "properties" => Dict("output" => json_var(vars))
+            ),
+            Dict(
+                "required" => ["outputs"],
+                "properties" => Dict("outputs" => json_vars(vars, min = 1))
+            ),
+        ]
     end
 
     if settings.allows_weights
@@ -297,13 +308,12 @@ function wild_card_schema(settings::Any, key::AbstractString, vars::AbstractVect
     if settings.allows_partition
         properties["partition"] = nullable(json_var(vars))
     end
-    weights = get(c, "weights", nothing)
-    partition = get(c, "partition", nothing)
 
     return Dict(
         "type" => "object",
         "properties" => properties,
         "required" => required,
+        "anyOf" => anyOf
     )
 end
 

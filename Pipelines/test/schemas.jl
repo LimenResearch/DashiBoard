@@ -129,3 +129,14 @@ end
     _pipeline_schema_invalidate(schema, m_basic)
     _pipeline_schema_invalidate(schema, m_classifier)
 end
+
+@testset "wild schema" begin
+    schema = Pipelines.json_schema("trivial", vars) |> JSONSchema.Schema
+
+    single_output = Dict("type" => "trivial", "inputs" => ["month"], "output" => "TEMP")
+    multi_outputs = Dict("type" => "trivial", "inputs" => ["month"], "outputs" => ["TEMP", "PRES"])
+    no_output = Dict("type" => "trivial", "inputs" => ["month"], "outputs" => [])
+    _pipeline_schema_validate(schema, single_output)
+    _pipeline_schema_validate(schema, multi_outputs)
+    _pipeline_schema_invalidate(schema, no_output)
+end

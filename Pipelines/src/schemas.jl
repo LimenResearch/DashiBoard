@@ -1,18 +1,9 @@
 function json_schema(key::AbstractString, args...)
-    type = get_spec(key).type
-    return _json_schema(type, key, args...)
+    spec = get_spec(key)
+    return spec.schema(key, args...)
 end
 
-const SPLIT_SPEC = CardSpec(
-    type = SplitCard,
-    label = "Split",
-    needs_order = true,
-    needs_targets = false,
-    allows_weights = false,
-    allows_partition = false
-)
-
-function _json_schema(::Type{SplitCard}, key::AbstractString, vars::AbstractVector)
+function split_card_schema(key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
@@ -28,16 +19,9 @@ function _json_schema(::Type{SplitCard}, key::AbstractString, vars::AbstractVect
     )
 end
 
-const WINDOW_FUNCTION_SPEC = CardSpec(
-    type = WindowFunctionCard,
-    label = "Window Function",
-    needs_order = true,
-    needs_targets = false,
-    allows_weights = false,
-    allows_partition = false
-)
+const SPLIT_SPEC = CardSpec(split_card_schema, type = SplitCard, label = "Split")
 
-function _json_schema(::Type{WindowFunctionCard}, key::AbstractString, vars::AbstractVector)
+function window_function_card_schema(key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "order_by" => json_vars(vars, min = 1),
@@ -52,16 +36,13 @@ function _json_schema(::Type{WindowFunctionCard}, key::AbstractString, vars::Abs
     )
 end
 
-const RESCALE_SPEC = CardSpec(
-    type = RescaleCard,
-    label = "Rescale",
-    needs_order = false,
-    needs_targets = false,
-    allows_weights = false,
-    allows_partition = true
+const WINDOW_FUNCTION_SPEC = CardSpec(
+    window_function_card_schema,
+    type = WindowFunctionCard,
+    label = "Window Function"
 )
 
-function _json_schema(::Type{RescaleCard}, key::AbstractString, vars::AbstractVector)
+function rescale_schema(key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_var(keys(RESCALERS)),
@@ -79,16 +60,13 @@ function _json_schema(::Type{RescaleCard}, key::AbstractString, vars::AbstractVe
     )
 end
 
-const CLUSTER_SPEC = CardSpec(
-    type = ClusterCard,
-    label = "Cluster",
-    needs_order = false,
-    needs_targets = false,
-    allows_weights = true,
-    allows_partition = true
+const RESCALE_SPEC = CardSpec(
+    rescale_schema,
+    type = RescaleCard,
+    label = "Rescale"
 )
 
-function _json_schema(::Type{ClusterCard}, key::AbstractString, vars::AbstractVector)
+function cluster_card_schema(key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_var(keys(CLUSTERING_METHODS)),
@@ -105,16 +83,13 @@ function _json_schema(::Type{ClusterCard}, key::AbstractString, vars::AbstractVe
     )
 end
 
-const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
-    type = DimensionalityReductionCard,
-    label = "Dimensionality Reduction",
-    needs_order = false,
-    needs_targets = false,
-    allows_weights = false,
-    allows_partition = true
+const CLUSTER_SPEC = CardSpec(
+    cluster_card_schema,
+    type = ClusterCard,
+    label = "Cluster"
 )
 
-function _json_schema(::Type{DimensionalityReductionCard}, key::AbstractString, vars::AbstractVector)
+function dimensionality_reduction_card_schema(key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_var(keys(PROJECTION_METHODS)),
@@ -130,25 +105,15 @@ function _json_schema(::Type{DimensionalityReductionCard}, key::AbstractString, 
     )
 end
 
-const GLM_SPEC = CardSpec(
-    type = GLMCard,
-    label = "GLM",
-    needs_order = false,
-    needs_targets = true,
-    allows_weights = true,
-    allows_partition = true
+const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
+    dimensionality_reduction_card_schema,
+    type = DimensionalityReductionCard,
+    label = "Dimensionality Reduction"
 )
 
-const MIXED_MODEL_SPEC = CardSpec(
-    type = MixedModelCard,
-    label = "Mixed Model",
-    needs_order = false,
-    needs_targets = true,
-    allows_weights = true,
-    allows_partition = true
-)
-
-function _json_schema(::Type{C}, key::AbstractString, vars::AbstractVector) where {C <: AbstractGLMCard}
+function abstract_glm_card_schema(
+        ::Type{C}, key::AbstractString, vars::AbstractVector
+    ) where {C <: AbstractGLMCard}
     required = String["type", "target"]
     properties = Dict{String, Any}(
         "type" => Dict("const" => key),
@@ -175,16 +140,27 @@ function _json_schema(::Type{C}, key::AbstractString, vars::AbstractVector) wher
     )
 end
 
-const INTERP_SPEC = CardSpec(
-    type = InterpCard,
-    label = "Interpolation",
-    needs_order = false,
-    needs_targets = true,
-    allows_weights = false,
-    allows_partition = true
+function glm_card_schema(key::AbstractString, vars::AbstractVector)
+    return abstract_glm_card_schema(GLMCard, key, vars)
+end
+
+const GLM_SPEC = CardSpec(
+    glm_card_schema,
+    type = GLMCard,
+    label = "GLM"
 )
 
-function _json_schema(::Type{InterpCard}, key::AbstractString, vars::AbstractVector)
+function mixed_model_card_schema(key::AbstractString, vars::AbstractVector)
+    return abstract_glm_card_schema(MixedModelCard, key, vars)
+end
+
+const MIXED_MODEL_SPEC = CardSpec(
+    mixed_model_card_schema,
+    type = MixedModelCard,
+    label = "Mixed Model"
+)
+
+function interp_card_schema(key::AbstractString, vars::AbstractVector)
     required = String["type", "method", "input", "targets"]
     properties = Dict(
         "type" => Dict("const" => key),
@@ -203,16 +179,13 @@ function _json_schema(::Type{InterpCard}, key::AbstractString, vars::AbstractVec
     )
 end
 
-const GAUSSIAN_ENCODING_SPEC = CardSpec(
-    type = GaussianEncodingCard,
-    label = "Gaussian Encoding",
-    needs_order = false,
-    needs_targets = false,
-    allows_weights = false,
-    allows_partition = false
+const INTERP_SPEC = CardSpec(
+    interp_card_schema,
+    type = InterpCard,
+    label = "Interpolation"
 )
 
-function _json_schema(::Type{GaussianEncodingCard}, key::AbstractString, vars::AbstractVector)
+function gaussian_encoding_card_schema(key::AbstractString, vars::AbstractVector)
     required = String["type", "input", "n_components"]
     properties = Dict(
         "type" => Dict("const" => key),
@@ -231,16 +204,13 @@ function _json_schema(::Type{GaussianEncodingCard}, key::AbstractString, vars::A
     )
 end
 
-const STREAMLINER_SPEC = CardSpec(
-    type = StreamlinerCard,
-    label = "Streamliner",
-    needs_order = true,
-    needs_targets = true,
-    allows_weights = false,
-    allows_partition = true
+const GAUSSIAN_ENCODING_SPEC = CardSpec(
+    gaussian_encoding_card_schema,
+    type = GaussianEncodingCard,
+    label = "Gaussian Encoding"
 )
 
-function _json_schema(::Type{StreamlinerCard}, key::AbstractString, vars::AbstractVector)
+function streamliner_card_schema(key::AbstractString, vars::AbstractVector)
     required = String["type", "model", "training"]
     properties = Dict(
         "type" => Dict("const" => key),
@@ -290,3 +260,9 @@ function _json_schema(::Type{StreamlinerCard}, key::AbstractString, vars::Abstra
         "allOf" => [model_schema, training_schema]
     )
 end
+
+const STREAMLINER_SPEC = CardSpec(
+    streamliner_card_schema,
+    type = StreamlinerCard,
+    label = "Streamliner"
+)

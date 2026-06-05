@@ -1,3 +1,10 @@
+@kwdef struct WildCardSettings
+    needs_order::Bool
+    needs_targets::Bool
+    allows_weights::Bool
+    allows_partition::Bool
+end
+
 """
     struct WildCard{T} <: Card
         type::String
@@ -39,10 +46,12 @@ end
 spec = Pipelines.CardSpec(
     type = WildCard{:trivial},
     label = "Trivial",
-    needs_order = false,
-    needs_targets = false,
-    allows_partition = false,
-    allows_weights = false
+    settings = Pipelines.WildCardSettings(
+        needs_order = false,
+        needs_targets = false,
+        allows_partition = false,
+        allows_weights = false
+    )
 )
 Pipelines.register_card("trivial" => spec)
 ```
@@ -71,15 +80,15 @@ end
 
 function WildCard{T}(c::AbstractDict) where {T}
     type::String = c["type"]
-    spec = get_spec(type)
+    settings = get_spec(type).settings
 
     # TODO: allow a `group_by` field as well?
-    order_by::Vector{String} = spec.needs_order ? c["order_by"] : String[]
+    order_by::Vector{String} = settings.needs_order ? c["order_by"] : String[]
     inputs::Vector{String} = c["inputs"]
-    targets::Vector{String} = spec.needs_targets ? c["targets"] : String[]
+    targets::Vector{String} = settings.needs_targets ? c["targets"] : String[]
 
     outputs::Vector{String} = get(c, "outputs") do
-        if spec.needs_targets
+        if settings.needs_targets
             suffix::String = c["suffix"]
             join_names(targets, suffix)
         else
@@ -126,17 +135,18 @@ function CardWidget(
     c = combine_options(StringDict(); global_options, user_options)
 
     spec = get_spec(key)
+    settings = spec.settings
     conditional_fields = Tuple{Widget, Bool}[
-        (Widget("order_by", c), spec.needs_order),
+        (Widget("order_by", c), settings.needs_order),
         (Widget("inputs", c), true),
-        (Widget("targets", c), spec.needs_targets),
-        (Widget("weights", c), spec.allows_weights),
-        (Widget("partition", c), spec.allows_partition),
-        (Widget("output", c), !spec.needs_targets),
-        (Widget("suffix", c), spec.needs_targets),
+        (Widget("targets", c), settings.needs_targets),
+        (Widget("weights", c), settings.allows_weights),
+        (Widget("partition", c), settings.allows_partition),
+        (Widget("output", c), !settings.needs_targets),
+        (Widget("suffix", c), settings.needs_targets),
     ]
 
     fields = map(first, filter(last, conditional_fields))
-    output = spec.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
+    output = settings.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
     return CardWidget(key, get_label(spec), fields, output)
 end

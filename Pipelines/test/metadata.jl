@@ -220,10 +220,12 @@ end
     spec = Pipelines.CardSpec(
         type = WildCard{:trivial},
         label = "Trivial",
-        needs_order = false,
-        needs_targets = false,
-        allows_partition = false,
-        allows_weights = false
+        settings = Pipelines.WildCardSettings(
+            needs_order = false,
+            needs_targets = false,
+            allows_partition = false,
+            allows_weights = false
+        )
     )
     Pipelines.register_card("trivial" => spec)
 

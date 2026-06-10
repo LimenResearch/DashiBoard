@@ -10,14 +10,37 @@ struct Node
     train::Bool
     invert::Bool
     label::String
+    groups::StringDict
     state::StateRef
-    function Node(card::Card, update::Bool, train::Bool, invert::Bool, label::AbstractString, state::StateRef)
+    function Node(
+            card::Card,
+            update::Bool,
+            train::Bool,
+            invert::Bool,
+            label::AbstractString,
+            groups::AbstractDict,
+            state::StateRef,
+        )
         if invert
             invertible(card) || throw(ArgumentError("Card `$(card)` is not invertible"))
             train && throw(ArgumentError("Cannot train an inverted node"))
         end
-        return new(card, update, train, invert, label, state)
+        return new(card, update, train, invert, label, groups, state)
     end
+end
+
+function update_node(
+        n::Node;
+        card::Card = n.card,
+        update::Bool = n.update,
+        train::Bool = n.train,
+        invert::Bool = n.invert,
+        label::AbstractString = n.label,
+        groups::AbstractDict = n.groups,
+        state::StateRef = n.state
+    )
+
+    return Node(card, update, train, invert, label, groups, state)
 end
 
 """
@@ -32,9 +55,10 @@ Generate a `Node` object from a [`Card`](@ref).
 function Node(
         card::Card, state::CardState = CardState();
         update::Bool = true, train::Bool = true,
-        label::AbstractString = get_default_label(card)
+        label::AbstractString = get_default_label(card),
+        groups::AbstractDict = StringDict()
     )
-    return Node(card, update, train, false, label, StateRef(state))
+    return Node(card, update, train, false, label, groups, StateRef(state))
 end
 
 function Node(c::AbstractDict; update::Bool = true)
@@ -43,6 +67,7 @@ function Node(c::AbstractDict; update::Bool = true)
         get_default_label(card)
     end
     train::Bool = get(c, "train", true)
+    groups::StringDict = get(c, "groups", StringDict())
     state_config = get(c, "state", nothing)
     state = if isnothing(state_config)
         CardState()
@@ -52,7 +77,7 @@ function Node(c::AbstractDict; update::Bool = true)
             metadata = c["state"]["metadata"]
         )
     end
-    return Node(card, state; update, train, label)
+    return Node(card, state; update, train, label, groups)
 end
 
 get_card(node::Node) = node.card
@@ -104,10 +129,11 @@ invertible(n::Node) = invertible(get_card(n))
 # set `invert = true`, in which case training is disabled
 function invert(n::Node)
     n.invert && throw(ArgumentError("Node is already inverted"))
-    return Node(n.card, n.update, false, true, n.label, n.state)
+    # TODO: consider how to handle groups when inverting?
+    return update_node(n; train = false, invert = true, groups = StringDict())
 end
 
-unlink(n::Node) = Node(n.card, n.update, n.train, n.invert, n.label, StateRef(get_state(n)))
+unlink(n::Node) = update_node(n; state = StateRef(get_state(n)))
 
 """
     train!(

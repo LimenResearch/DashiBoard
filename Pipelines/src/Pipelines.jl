@@ -170,6 +170,7 @@ include("cards/wild.jl")
 include("schemas.jl")
 include("node.jl")
 include("dag.jl")
+include("groups.jl")
 include("pipeline.jl")
 
 function __init__()

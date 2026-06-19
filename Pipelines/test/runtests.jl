@@ -1,6 +1,6 @@
 using Pipelines: Node, invert, get_card, get_state
 using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
-using Graphs: topological_sort, nv
+using Graphs: topological_sort, nv, edges
 using DBInterface, DataFrames, Graphs, JSON, Downloads
 using JSONSchema: JSONSchema
 using StatsBase: fweights, denserank
@@ -11,6 +11,7 @@ using TOML: TOML
 using Base.ScopedValues: @with
 using Test
 
+include("groups.jl")
 include("evaluation.jl")
 include("options.jl")
 include("schemas.jl")

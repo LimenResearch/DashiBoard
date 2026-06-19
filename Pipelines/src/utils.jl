@@ -1,6 +1,7 @@
 # General utils
 
 to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]
+to_stringlist(s::AbstractVector) = convert(Vector{String}, s)
 
 get_options(m) = StringDict(string(k) => getproperty(m, k) for k in propertynames(m))
 

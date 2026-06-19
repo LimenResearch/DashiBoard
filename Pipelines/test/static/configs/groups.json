@@ -1,0 +1,36 @@
+{
+  "nodes": [
+    {
+      "label": "rescale",
+      "card": {
+        "type": "rescale",
+        "method": "zscore",
+        "group_by": { "cols": "cbwd" },
+        "inputs": [{ "groups": "weather" }, { "cols": "No" }]
+      }
+    },
+    {
+      "label": "log",
+      "card": {
+        "type": "rescale",
+        "method": "log",
+        "inputs": { "cols": "No" },
+        "suffix": "log"
+      }
+    },
+    {
+      "label": "pca",
+      "card": {
+        "type": "dimres",
+        "method": "pca",
+        "inputs": [
+          { "nodes": "log" },
+          { "groups": "weather", "through": "rescale" }
+        ]
+      }
+    }
+  ],
+  "groups": {
+    "weather": { "cols": ["PRES", "TEMP"] }
+  }
+}

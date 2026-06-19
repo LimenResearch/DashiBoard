@@ -11,13 +11,33 @@ struct Node
     invert::Bool
     label::String
     state::StateRef
-    function Node(card::Card, update::Bool, train::Bool, invert::Bool, label::AbstractString, state::StateRef)
+    function Node(
+            card::Card,
+            update::Bool,
+            train::Bool,
+            invert::Bool,
+            label::AbstractString,
+            state::StateRef,
+        )
         if invert
             invertible(card) || throw(ArgumentError("Card `$(card)` is not invertible"))
             train && throw(ArgumentError("Cannot train an inverted node"))
         end
         return new(card, update, train, invert, label, state)
     end
+end
+
+function update_node(
+        n::Node;
+        card::Card = n.card,
+        update::Bool = n.update,
+        train::Bool = n.train,
+        invert::Bool = n.invert,
+        label::AbstractString = n.label,
+        state::StateRef = n.state
+    )
+
+    return Node(card, update, train, invert, label, state)
 end
 
 """
@@ -104,10 +124,10 @@ invertible(n::Node) = invertible(get_card(n))
 # set `invert = true`, in which case training is disabled
 function invert(n::Node)
     n.invert && throw(ArgumentError("Node is already inverted"))
-    return Node(n.card, n.update, false, true, n.label, n.state)
+    return update_node(n; train = false, invert = true)
 end
 
-unlink(n::Node) = Node(n.card, n.update, n.train, n.invert, n.label, StateRef(get_state(n)))
+unlink(n::Node) = update_node(n; state = StateRef(get_state(n)))
 
 """
     train!(

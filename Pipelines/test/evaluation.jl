@@ -242,7 +242,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["zscore"])
         _update, _train, _invert = true, true, true
         state = Pipelines.StateRef(Pipelines.CardState())
-        @test_throws ArgumentError Node(card, _update, _train, _invert, "zscore", Dict(), state)
+        @test_throws ArgumentError Node(card, _update, _train, _invert, "zscore", state)
 
         node = Node(card)
         inv_node = invert(node)

@@ -1,7 +1,7 @@
 # Generate `node_idxs` and `var_idxs` pairings for digraph as well as a list of variable names corresponding to the indices.
 # A buffer dict `d` containing `var => var_idx` mappings is updated in place.
 # It is assumed that all entries in `d` have distinct values within `length(nodes) + 1` and `length(nodes) + length(d)`.
-function node_var_pairings!(f::F, d::AbstractDict{K}, nodes::AbstractVector) where {F, K}
+function node_var_pairings!(f::F, d::AbstractDict{K}, nodes::AbstractVector{Node}) where {F, K}
     node_idxs, var_idxs, vars = Int[], Int[], K[]
     for (node_idx, node) in enumerate(nodes), var in f(node)
         def = length(nodes) + length(d) + 1
@@ -22,18 +22,18 @@ end
 # We generate a graph whose vertices are: `nodes`, `output_vars`, `source_vars`, in this order.
 # Source vars in the enriched graph are input vars of some node
 # that are not included in the output of any node.
-function EnrichedDiGraph(get_inputs::I, get_outputs::O, nodes::AbstractVector) where {I, O}
+function EnrichedDiGraph(nodes::AbstractVector{Node})
     # generate variable to index dictionary
     d = Dict{String, Int}()
     # process `node => output_var` edges
-    src_out, tgt_out, output_vars = node_var_pairings!(get_outputs, d, nodes)
+    src_out, tgt_out, output_vars = node_var_pairings!(get_node_outputs, d, nodes)
     # process `input_var => node` edges
-    tgt_in, src_in, source_vars = node_var_pairings!(get_inputs, d, nodes)
+    tgt_in, src_in, source_vars = node_var_pairings!(get_node_inputs, d, nodes)
 
     # validate result (`tgt_out .- length(nodes)` should be equal to `1:length(tgt_out)`)
     idxs = Iterators.map(x -> x - length(nodes), tgt_out)
     repetead = unique(output_vars[idx] for (i, idx) in enumerate(idxs) if idx ≠ i)
-    isempty(repetead) || throw(ArgumentError("Outputs $(repetead) would be overwritten"))
+    isempty(repetead) || throw(ArgumentError("Columns $(repetead) would be overwritten"))
 
     # `sortperm` here is fast (it uses counting sort for `Vector` of integers)
     # and makes digraph generation more efficient (see `DiGraph` docs).
@@ -45,10 +45,6 @@ function EnrichedDiGraph(get_inputs::I, get_outputs::O, nodes::AbstractVector) w
 
     # return enriched graph
     return EnrichedDiGraph(g, source_vars, output_vars)
-end
-
-function EnrichedDiGraph(nodes::AbstractVector{Node})
-    return EnrichedDiGraph(get_node_inputs, get_node_outputs, nodes)
 end
 
 digraph(nodes::AbstractVector{Node}) = EnrichedDiGraph(nodes).g

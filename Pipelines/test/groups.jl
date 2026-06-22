@@ -1,9 +1,11 @@
 @testset "groups" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "groups.json"))
-    g, grps, cols = Pipelines.generate_dag(d["nodes"], d["groups"])
+    g, (grp_keys, grp_vals), cols = Pipelines.generate_dag(d["nodes"], d["groups"])
     es = sort(collect(edges(g)))
 
-    @test grps == ["weather"]
+    @test grp_keys == ["weather"]
+    @test grp_vals == [Dict("cols" => ["PRES", "TEMP"])]
+
     @test length(es) == 3
     @test Pair(es[1]) == (2 => 3)
     @test Pair(es[2]) == (4 => 1)

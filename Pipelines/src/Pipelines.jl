@@ -36,7 +36,7 @@ using RelocatableFolders: @path
 using JLD2: jldopen
 using StructUtils: make
 
-using OrderedCollections: OrderedDict, OrderedSet, isordered
+using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
 using DBInterface: DBInterface
 
@@ -74,7 +74,7 @@ using FunSQL:
     Join
 
 using Graphs: SimpleDiGraphFromIterator, DiGraph, Edge,
-    inneighbors, outneighbors, nv, add_edge!, topological_sort
+    inneighbors, outneighbors, nv, add_vertices!, topological_sort
 
 using StatsModels: term, terms, termnames, Term, FormulaTerm, AbstractTerm
 

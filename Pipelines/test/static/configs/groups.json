@@ -21,8 +21,9 @@
     {
       "label": "pca",
       "card": {
-        "type": "dimres",
+        "type": "dimensionality_reduction",
         "method": "pca",
+        "n_components": 2,
         "inputs": [
           { "nodes": "log" },
           { "groups": "weather", "through": "rescale" }

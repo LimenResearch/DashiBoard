@@ -6,10 +6,16 @@
     @test grp_keys == ["weather"]
     @test grp_vals == [Dict("cols" => ["PRES", "TEMP"])]
 
-    @test length(es) == 3
-    @test Pair(es[1]) == (2 => 3)
-    @test Pair(es[2]) == (4 => 1)
-    @test Pair(es[3]) == (4 => 3)
+    @test length(es) == 4
+    @test Pair(es[1]) == (1 => 3)
+    @test Pair(es[2]) == (2 => 3)
+    @test Pair(es[3]) == (4 => 1)
+    @test Pair(es[4]) == (4 => 3)
 
     @test cols == ["cbwd", "No", "PRES", "TEMP"] # TODO: consider keeping them grouped
+end
+
+@testset "node_digraph" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "groups.json"))
+    Pipelines.NodeDiGraph(d["nodes"], d["groups"])
 end

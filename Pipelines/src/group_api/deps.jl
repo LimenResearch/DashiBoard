@@ -15,9 +15,7 @@ function is_special_dict(d::AbstractDict, k::AbstractString)
     return issetequal(keys(d), (k,)) || issetequal(keys(d), (k, "through"))
 end
 
-# types of structures
-
-# `Deps` struct
+# Compute dependencies
 
 @kwdef struct Deps
     nodes::Vector{String} = String[]
@@ -61,7 +59,7 @@ end
 
 direct_deps(d::AbstractDict) = try_structures(direct_deps, d)
 
-# Nested deps computations
+# Nested dependency computations
 
 function iterator_deps(iter; recur::Bool = false)
     res = Deps()
@@ -115,7 +113,7 @@ end
 
 to_columns(d::AbstractDict, ps::Params) = try_structures(to_columns, d, ps)
 
-# Replace placeholders
+# Nested column computations
 
 function replace_placeholders(config::AbstractDict, ps::Params; recur::Bool = false)
     x = to_columns(config, ps)

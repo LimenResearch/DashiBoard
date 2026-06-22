@@ -171,7 +171,9 @@ include("schemas.jl")
 include("node.jl")
 include("dag.jl")
 include("pipeline.jl")
-include("groups.jl")
+
+include("group_api/deps.jl")
+include("group_api/dag.jl")
 
 function __init__()
     register_card("split" => SPLIT_SPEC)

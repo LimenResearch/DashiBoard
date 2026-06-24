@@ -6,14 +6,20 @@ order_error() = throw(ArgumentError("At least one sorter is required."))
 
 struct PercentileMethod <: SplittingMethod
     percentile::Float64
+    repeat::Float64
 end
 
-get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)
+function get_sql(m::PercentileMethod)
+    ε = eps(m.repeat)
+    rk = Fun.fmod(m.repeat .* Agg.cume_dist() .- ε, 1) .+ ε
+    return Fun.case(rk .≤ m.percentile, 1, 2)
+end
 
 function PercentileMethod(c::AbstractDict, has_order::Bool)
     has_order || order_error()
     percentile::Float64 = c["percentile"]
-    return PercentileMethod(percentile)
+    repeat::Float64 = get(c, "repeat", 1.0)
+    return PercentileMethod(percentile, repeat)
 end
 
 struct TilesMethod <: SplittingMethod

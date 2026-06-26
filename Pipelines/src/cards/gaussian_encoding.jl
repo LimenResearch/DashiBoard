@@ -76,7 +76,7 @@ Methods:
   - `"minuteofday"`: Computes the minute within the day.
 
 Train:
-- Returns: SimpleTable (Dict{String, AbstractVector}) with Gaussian parameters:
+- Returns: `SimpleTable` (`OrderedDict{String, AbstractVector}`) with Gaussian parameters:
   - `σ`: Standard deviation for Gaussian transformations.
   - `d`: Normalization value.
   - `μ_1, μ_2, ..., μ_n`: Gaussian means.
@@ -154,12 +154,11 @@ function train(
     )
     μs = range(start = 0, step = 1 / gec.n_components, length = gec.n_components)
     σ = step(μs) * gec.lambda
-    params = Dict("σ" => [σ], "d" => [gec.temporal_preprocessor.max])
+    params = SimpleTable("σ" => [σ], "d" => [gec.temporal_preprocessor.max])
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
     end
-    tbl = SimpleTable(params)
-    return CardState(content = jldserialize(tbl))
+    return CardState(content = jldserialize(params))
 end
 
 function gaussian_transform(x, μ, σ, d)

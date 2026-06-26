@@ -17,6 +17,23 @@
 end
 
 @testset "node_digraph" begin
+    spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
+    repo = Repository()
+
+    mktempdir() do dir
+        Downloads.download(
+            "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
+            joinpath(dir, "pollution.csv")
+        )
+        DataIngestion.load_files(repo, dir, spec["data"])
+    end
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "groups.json"))
-    Pipelines.NodeDiGraph(d["nodes"], d["groups"])
+    pipeline = Pipelines.Pipeline(d["nodes"], d["groups"])
+    Pipelines.train_evaljoin!(repo, pipeline, "source", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM source")
+    @test names(df) == [
+        "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "No_log", "partition",
+        "PRES_rescaled", "TEMP_rescaled", "No_rescaled", "component_1", "component_2",
+    ]
 end

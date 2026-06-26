@@ -49,28 +49,35 @@ function generate_dag(nodes::AbstractVector, groups::AbstractDict)
     return G, group_keys => group_vals, collect(String, cols)
 end
 
-struct NodeDiGraph{I <: Integer}
-    nodes::Vector{Node}
+struct GroupDiGraph{I <: Integer} <: AbstractEnrichedDiGraph{I}
     g::DiGraph{I}
+    source_vars::Vector{String}
+    groups::Vector{Vector{String}}
 end
 
-function NodeDiGraph(nodes::AbstractVector, groups::AbstractDict)
+function Pipeline(nodes::AbstractVector, groups::AbstractDict)
     G, (group_keys, group_vals), cols = generate_dag(nodes, groups)
 
-    n_nodes = length(nodes)
+    n_nodes, n_groups = length(nodes), length(groups)
+    parsed_nodes = Vector{Node}(undef, n_nodes)
+    computed_groups = Vector{Vector{String}}(undef, n_groups)
+
     ps = Params()
 
     for v in topological_sort(G)
         if v ≤ n_nodes
             config = replace_placeholders(nodes[v], ps; recur = true)
             node = Node(config, adjust = true)
-            ps.nodes[get_label(node)] = node
+            node_key = get_label(node)
+            ps.nodes[node_key] = parsed_nodes[v] = node
         else
             j = v - n_nodes
             group_key = group_keys[j]
             group_val = group_vals[j]
-            ps.groups[group_key] = replace_placeholders(group_val, ps)
+            grp = replace_placeholders(group_val, ps)
+            ps.groups[group_key] = computed_groups[j] = grp
         end
     end
-    return G
+    eg = GroupDiGraph(G, cols, computed_groups)
+    return Pipeline(parsed_nodes, eg)
 end

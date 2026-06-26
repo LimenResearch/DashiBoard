@@ -1,3 +1,11 @@
+abstract type AbstractEnrichedDiGraph{I <: Integer} end
+
+struct EnrichedDiGraph{I <: Integer} <: AbstractEnrichedDiGraph{I}
+    g::DiGraph{I}
+    source_vars::Vector{String}
+    output_vars::Vector{String}
+end
+
 # Generate `node_idxs` and `var_idxs` pairings for digraph as well as a list of variable names corresponding to the indices.
 # A buffer dict `d` containing `var => var_idx` mappings is updated in place.
 # It is assumed that all entries in `d` have distinct values within `length(nodes) + 1` and `length(nodes) + length(d)`.
@@ -11,12 +19,6 @@ function node_var_pairings!(f::F, d::AbstractDict{K}, nodes::AbstractVector{Node
         (var_idx == def) && push!(vars, var)
     end
     return node_idxs, var_idxs, vars
-end
-
-struct EnrichedDiGraph{I <: Integer}
-    g::DiGraph{I}
-    source_vars::Vector{String}
-    output_vars::Vector{String}
 end
 
 # We generate a graph whose vertices are: `nodes`, `output_vars`, `source_vars`, in this order.

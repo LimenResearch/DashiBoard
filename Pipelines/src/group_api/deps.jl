@@ -6,6 +6,7 @@ get_through(d::AbstractDict) = get_list(d, "through")
 
 # TODO: more general definition
 function pass_through(x::AbstractVector, ks, node_params)
+    isempty(ks) && return x
     nodes = Node[node_params[k] for k in ks]
     suffix = join([node.card.suffix for node in nodes], "_")
     return join_names.(x, suffix)

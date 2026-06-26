@@ -1,23 +1,31 @@
 ## Pipeline API
 
-struct Pipeline
+struct Pipeline{EG <: AbstractEnrichedDiGraph}
     nodes::Vector{Node}
-    enriched_digraph::EnrichedDiGraph{Int}
+    enriched_digraph::EG
     precomputed_nodes::Vector{Int}
     layers::Vector{Vector{Int}}
 end
 
-function Pipeline(node_iter; train::Bool = true)
-    nodes::Vector{Node} = collect(Node, node_iter)
-    enriched_digraph = EnrichedDiGraph(nodes)
+function Pipeline(
+        nodes::AbstractVector{Node},
+        enriched_digraph::EG
+    ) where {EG <: AbstractEnrichedDiGraph}
+
     hs = compute_height(enriched_digraph.g, get_update.(nodes))
     precomputed_nodes = findall(==(-1), hs)
-    return Pipeline(
+    return Pipeline{EG}(
         nodes,
         enriched_digraph,
         precomputed_nodes,
         layers(hs)
     )
+end
+
+function Pipeline(node_iter)
+    nodes::Vector{Node} = collect(Node, node_iter)
+    enriched_digraph = EnrichedDiGraph(nodes)
+    return Pipeline(nodes, enriched_digraph)
 end
 
 graphviz(io::IO, p::Pipeline) = graphviz(io, p.enriched_digraph, p.nodes)
@@ -185,7 +193,7 @@ function evaljoin(
         table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     )
-    p = Pipeline(nodes, train = false)
+    p = Pipeline(nodes)
     return evaljoin(repository, p, table, id_var; schema, options...)
 end
 
@@ -213,7 +221,7 @@ function train_evaljoin!(
         table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     )
-    p = Pipeline(nodes, train = true)
+    p = Pipeline(nodes)
     return train_evaljoin!(repository, p, table, id_var; schema, options...)
 end
 

@@ -99,10 +99,10 @@ julia> card.inputs
  "humidity"
 ```
 """
-function Card(d::AbstractDict)
+function Card(d::AbstractDict; adjust::Bool = false)
     type::String = d["type"]
-    card_type = CARD_SPECS[type].type
-    return card_type(d)
+    C = CARD_SPECS[type].type
+    return adjust ? C(adjust_config(C, d)) : C(d)
 end
 
 """
@@ -170,8 +170,11 @@ inputs = [
 ]
 ```
 """
-function Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
-    return Card(apply_helpers(d, params; recursive))
+function Card(
+        d::AbstractDict, params::AbstractDict;
+        recursive::Integer = 1, adjust::Bool = false
+    )
+    return Card(apply_helpers(d, params; recursive); adjust)
 end
 
 get_default_label(c::Card) = get_label(get_spec(c.type))

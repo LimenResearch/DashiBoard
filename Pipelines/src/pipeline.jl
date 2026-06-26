@@ -221,7 +221,7 @@ function train_evaljoin!(
         table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing, options...
     )
-    p = Pipeline(nodes, train = true)
+    p = Pipeline(nodes)
     return train_evaljoin!(repository, p, table, id_var; schema, options...)
 end
 

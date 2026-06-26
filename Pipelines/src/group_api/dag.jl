@@ -63,7 +63,7 @@ function NodeDiGraph(nodes::AbstractVector, groups::AbstractDict)
     for v in topological_sort(G)
         if v ≤ n_nodes
             config = replace_placeholders(nodes[v], ps; recur = true)
-            node = Node(config)
+            node = Node(config, adjust = true)
             ps.nodes[get_label(node)] = node
         else
             j = v - n_nodes

@@ -6,6 +6,7 @@
         "type": "rescale",
         "method": "zscore",
         "group_by": { "cols": "cbwd" },
+        "partition": {"nodes": "partition"},
         "inputs": [{ "groups": "weather" }, { "cols": "No" }]
       }
     },
@@ -28,6 +29,16 @@
           { "nodes": "log" },
           { "groups": "weather", "through": "rescale" }
         ]
+      }
+    },
+    {
+      "label": "partition",
+      "card": {
+        "type": "split",
+        "method": "percentile",
+        "method_options": { "percentile": 0.9 },
+        "order_by": { "cols": "No" },
+        "output": "partition"
       }
     }
   ],

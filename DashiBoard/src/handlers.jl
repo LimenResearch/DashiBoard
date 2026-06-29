@@ -71,12 +71,10 @@ function fetch_data(stream::HTTP.Stream)
             From(table) |> Group() |> Select("Count" => Agg.count())
         )
 
-        HTTP.setheader(stream, "Content-Type" => "application/json")
-        startwrite(stream)
-
-        print(stream, "{\"values\": ")
-        stream_file(stream, path)
-        print(stream, " , \"length\": ", nrows, "}")
+        stream_file(
+            stream, path, "application/json";
+            pre = "{\"values\": ", post = string(", \"length\": ", nrows, "}")
+        )
     end
     return
 end
@@ -85,13 +83,7 @@ function get_processed_data(stream::HTTP.Stream)
     mktempdir() do dir
         path = joinpath(dir, "processed-data.csv")
         export_table(REPOSITORY[], From("selection"), path)
-
-        HTTP.setheader(stream, "Content-Type" => "text/csv")
-        HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
-        HTTP.setheader(stream, "Content-Length" => string(filesize(path)))
-
-        startwrite(stream)
-        stream_file(stream, path)
+        stream_file(stream, path, "text/csv")
     end
     return
 end

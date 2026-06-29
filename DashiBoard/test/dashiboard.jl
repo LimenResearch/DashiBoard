@@ -47,17 +47,19 @@ mktempdir() do data_dir
     model_directory = joinpath(static_directory, "model")
     training_directory = joinpath(static_directory, "training")
 
+    port = rand(8000:9000)
     server = DashiBoard.launch(
         data_dir;
-        port = 8080,
+        port = port,
         async = true,
         model_directory,
         training_directory
     )
 
     @testset "request" begin
-        url = "http://127.0.0.1:8080/"
+        url = "http://127.0.0.1:$(port)/"
 
+        # FIXME: cleanup content-length over chunked!!
         body = read(joinpath(@__DIR__, "static", "card-widgets.json"), String)
         resp = HTTP.post(url * "get-card-widgets", body = body)
         configs = JSON.parse(resp.body)
@@ -66,12 +68,12 @@ mktempdir() do data_dir
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",
-            "Transfer-Encoding" => "chunked",
+            "Content-Length" => string(length(resp.body)),
         ]
         resp = HTTP.request("OPTIONS", url * "get-card-widgets")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
-            "Transfer-Encoding" => "chunked",
+            "Content-Length" => "0",
         ]
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
@@ -81,7 +83,7 @@ mktempdir() do data_dir
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",
-            "Transfer-Encoding" => "chunked",
+            "Content-Length" => string(length(resp.body)),
         ]
 
         body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
@@ -91,7 +93,7 @@ mktempdir() do data_dir
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",
-            "Transfer-Encoding" => "chunked",
+            "Content-Length" => string(length(resp.body)),
         ]
 
         body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
@@ -103,22 +105,22 @@ mktempdir() do data_dir
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",
-            "Transfer-Encoding" => "chunked",
+            "Content-Length" => string(length(resp.body)),
         ]
 
         HTTP.open("GET", url * "get-processed-data") do stream
             r = startread(stream)
-            io = IOBuffer()
-            write(io, stream)
-            data = take!(io)
-
-            @test length(data) == 394870
             @test r.headers == [
                 DashiBoard.CORS_RES_HEADERS...,
                 "Content-Type" => "text/csv",
-                "Transfer-Encoding" => "chunked",
                 "Content-Length" => "394870",
             ]
+
+            io = IOBuffer()
+            write(io, stream)
+            data = take!(io)
+            @test length(data) == 394870
+
             s = String(data)
             l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
             @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_name,_id,_percentile_partition,_tiled_partition"
@@ -127,7 +129,7 @@ mktempdir() do data_dir
         resp = HTTP.request("OPTIONS", url * "get-processed-data")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
-            "Transfer-Encoding" => "chunked",
+            "Content-Length" => "0",
         ]
 
     end

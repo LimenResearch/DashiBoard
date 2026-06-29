@@ -72,11 +72,15 @@ function fetch_data(stream::HTTP.Stream)
         )
 
         HTTP.setheader(stream, "Content-Type" => "application/json")
+        len = filesize(path) + length()
+        HTTP.setheader(stream, "Content-Length" => "application/json")
         startwrite(stream)
 
         print(stream, "{\"values\": ")
         stream_file(stream, path)
-        print(stream, " , \"length\": ", nrows, "}")
+        print(stream, ", \"length\": ", nrows, "}")
+        closewrite(stream)
+        HTTP.closeread(stream)
     end
     return
 end
@@ -87,11 +91,12 @@ function get_processed_data(stream::HTTP.Stream)
         export_table(REPOSITORY[], From("selection"), path)
 
         HTTP.setheader(stream, "Content-Type" => "text/csv")
-        HTTP.setheader(stream, "Transfer-Encoding" => "chunked")
         HTTP.setheader(stream, "Content-Length" => string(filesize(path)))
 
         startwrite(stream)
         stream_file(stream, path)
+        closewrite(stream)
+        HTTP.closeread(stream)
     end
     return
 end

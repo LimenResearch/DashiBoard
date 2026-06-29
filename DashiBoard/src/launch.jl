@@ -5,12 +5,18 @@ stream_file(stream::HTTP.Stream, path::AbstractString) = open(Fix1(write, stream
 
 # TODO: consider reading / writing directly from the stream
 
-json_read(stream::HTTP.Stream) = JSON.parse(read(stream, String))
+function json_read(stream::HTTP.Stream)
+    return JSON.parse(read(stream, String))
+end
 
 function json_write(stream::HTTP.Stream, data)
+    str = JSON.json(data)
     HTTP.setheader(stream, "Content-Type" => "application/json")
+    HTTP.setheader(stream, "Content-Length" => string(sizeof(str)))
     startwrite(stream)
-    write(stream, JSON.json(data))
+    write(stream, str)
+    closewrite(stream)
+    HTTP.closeread(stream)
     return
 end
 
@@ -39,8 +45,8 @@ function launch(
     _register!(router, "GET", "/get-processed-data", get_processed_data, settings)
 
     return if async
-        HTTP.serve!(router, host, port, stream = true)
+        HTTP.listen!(router, host, port)
     else
-        HTTP.serve(router, host, port, stream = true)
+        HTTP.listen(router, host, port)
     end
 end

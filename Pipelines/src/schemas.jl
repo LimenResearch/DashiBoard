@@ -69,8 +69,6 @@ const RESCALE_SPEC = CardSpec(
 function cluster_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
-        "method" => json_enum(keys(CLUSTERING_METHODS)),
-        "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "inputs" => json_vars(vars, min = 1),
         "weights" => nullable(json_var(vars)),
         "partition" => nullable(json_var(vars)),
@@ -79,6 +77,7 @@ function cluster_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     return Dict(
         "type" => "object",
         "properties" => properties,
+        "anyOf" => CLUSTERING_METHOD_OPTIONS,
         "required" => ["type", "method", "inputs"]
     )
 end

@@ -13,6 +13,13 @@ get_options(m) = StringDict(string(k) => getproperty(m, k) for k in propertyname
 
 # JSON schema utils
 
+function add_options!(d::AbstractDict, options)
+    for (k, v) in options
+        isnothing(v) || (d[string(k)] = v)
+    end
+    return d
+end
+
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
 function json_number(
@@ -20,13 +27,15 @@ function json_number(
         min::Union{Integer, Nothing} = nothing,
         max::Union{Integer, Nothing} = nothing,
         exclusive_min::Union{Integer, Nothing} = nothing,
-        exclusive_max::Union{Integer, Nothing} = nothing
+        exclusive_max::Union{Integer, Nothing} = nothing,
+        kwargs...
     )
     sch = Dict{String, Any}("type" => type)
     isnothing(min) || (sch["minimum"] = min)
     isnothing(max) || (sch["maximum"] = max)
     isnothing(exclusive_min) || (sch["exclusiveMinimum"] = exclusive_min)
     isnothing(exclusive_max) || (sch["exclusiveMaximum"] = exclusive_max)
+    add_options!(sch, pairs(kwargs))
     return sch
 end
 

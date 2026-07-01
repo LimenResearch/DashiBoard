@@ -1,7 +1,7 @@
 function test_equal_splitters(s1::S1, s2::S2) where {S1, S2}
     @test S1 === S2
     for k in fieldnames(S1)
-        # why does `make(StructType, c::AbstractDict)` make a copy?
+        # `make(StructType, c::AbstractDict)` copies the field
         @test getfield(s1, k) == getfield(s2, k)
     end
     return

@@ -17,7 +17,12 @@ PercentileMethod(c::AbstractDict) = StructUtils.make(PercentileMethod, c, DashiS
 get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)
 
 @kwarg struct TilesMethod <: OrderedSplittingMethod
-    tiles::Vector{Int}
+    tiles::Vector{Int} & (
+        dashi = StringDict(
+            "items" => Dict("enum" => [1, 2], "type" => "integer"),
+            "minItems" => 1,
+        ),
+    )
     repeat::Int = 1 & (dashi = StringDict("minimum" => 1),)
     tail::Int = 0 & (dashi = StringDict("minimum" => 0),)
 end

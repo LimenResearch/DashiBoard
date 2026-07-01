@@ -8,6 +8,12 @@ function get_options(m::InterpolationMethod)
     return options
 end
 
+function StructUtils.lift(::DashiStyle, ::Type{ExtrapolationType.T}, s::AbstractString)
+    return EXTRAPOLATION_OPTIONS[s], nothing
+end
+
+enum_instances(::Type{ExtrapolationType.T}) = collect(String, keys(EXTRAPOLATION_OPTIONS))
+
 function get_extrapolation_options(c::AbstractDict)
     left::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_left", "none")]
     right::ExtrapolationType.T = EXTRAPOLATION_OPTIONS[get(c, "extrapolation_right", "none")]
@@ -16,10 +22,10 @@ end
 
 ## Constant interpolation
 
-struct ConstantInterpolationMethod <: InterpolationMethod
+@kwarg struct ConstantInterpolationMethod <: InterpolationMethod
     dir::Symbol
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
+    extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
+    extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
 function ConstantInterpolationMethod(c::AbstractDict)
@@ -36,34 +42,34 @@ end
 
 ## Non-constant interpolation
 
-struct LinearInterpolationMethod <: InterpolationMethod
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
+@kwarg struct LinearInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
+    extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
-struct QuadraticInterpolationMethod <: InterpolationMethod
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
+@kwarg struct QuadraticInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
+    extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
-struct QuadraticSplineMethod <: InterpolationMethod
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
+@kwarg struct QuadraticSplineMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
+    extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
-struct CubicSplineMethod <: InterpolationMethod
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
+@kwarg struct CubicSplineMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
+    extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
-struct AkimaInterpolationMethod <: InterpolationMethod
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
+@kwarg struct AkimaInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
+    extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
-struct PCHIPInterpolationMethod <: InterpolationMethod
-    extrapolation_left::ExtrapolationType.T
-    extrapolation_right::ExtrapolationType.T
+@kwarg struct PCHIPInterpolationMethod <: InterpolationMethod
+    extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
+    extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
 for sym in [
@@ -72,7 +78,7 @@ for sym in [
     ]
     method = Symbol(sym, :Method)
     @eval begin
-        $(method)(c::AbstractDict) = $(method)(get_extrapolation_options(c)...)
+        $(method)(c::AbstractDict) = StructUtils.make($(method), c, DashiStyle())
         (m::$(method))(y, x) = $sym(y, x; m.extrapolation_left, m.extrapolation_right)
     end
 end

@@ -34,7 +34,7 @@ using TOML: parsefile
 using RelocatableFolders: @path
 
 using JLD2: jldopen
-using StructUtils: @kwarg, make, fieldtags, fielddefaults, DefaultStyle
+using StructUtils: @kwarg, fieldtags, fielddefaults, StructUtils
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables

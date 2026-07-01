@@ -9,7 +9,7 @@ end
 
 to_maybestring(s::Union{AbstractString, Nothing})::Union{String, Nothing} = s
 
-get_options(m) = StringDict(string(k) => getproperty(m, k) for k in propertynames(m))
+get_options(m) = StructUtils.make(StringDict, m, DashiStyle())
 
 # Card computation utils
 

@@ -1,3 +1,5 @@
+struct DashiStyle <: StructUtils.StructStyle end
+
 function get_dashi(nt::NamedTuple, sym::Symbol)
     s = get(nt, sym, nothing)
     return isnothing(s) ? nothing : get(s, :dashi, nothing)
@@ -24,8 +26,8 @@ end
 function options_schema(::Type{T}) where {T}
     properties = StringDict()
     required = String[]
-    tags = fieldtags(DefaultStyle(), T)
-    defaults = fielddefaults(DefaultStyle(), T)
+    tags = fieldtags(DashiStyle(), T)
+    defaults = fielddefaults(DashiStyle(), T)
 
     for k in fieldnames(T)
         sk = string(k)
@@ -63,13 +65,6 @@ function auto_json(T::Type, config::Union{AbstractDict, Nothing}, default)
     return (Nothing <: T) ? (nullable(schema), false) : (schema, isnothing(default))
 end
 
-function add_options!(d::AbstractDict, options)
-    for (k, v) in options
-        isnothing(v) || (d[string(k)] = v)
-    end
-    return d
-end
-
 # JSON schema utils
 
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
@@ -80,14 +75,12 @@ function json_number(
         max::Union{Integer, Nothing} = nothing,
         exclusive_min::Union{Integer, Nothing} = nothing,
         exclusive_max::Union{Integer, Nothing} = nothing,
-        kwargs...
     )
     sch = Dict{String, Any}("type" => type)
     isnothing(min) || (sch["minimum"] = min)
     isnothing(max) || (sch["maximum"] = max)
     isnothing(exclusive_min) || (sch["exclusiveMinimum"] = exclusive_min)
     isnothing(exclusive_max) || (sch["exclusiveMaximum"] = exclusive_max)
-    add_options!(sch, pairs(kwargs))
     return sch
 end
 

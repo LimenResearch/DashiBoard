@@ -12,6 +12,8 @@ struct PercentileMethod <: OrderedSplittingMethod
     percentile::Float64
 end
 
+PercentileMethod(c::AbstractDict) = StructUtils.make(PercentileMethod, c, DashiStyle())
+
 get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)
 
 @kwarg struct TilesMethod <: OrderedSplittingMethod
@@ -19,6 +21,8 @@ get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1,
     repeat::Int = 1 & (dashi = StringDict("minimum" => 1),)
     tail::Int = 0 & (dashi = StringDict("minimum" => 0),)
 end
+
+TilesMethod(c::AbstractDict) = StructUtils.make(TilesMethod, c, DashiStyle())
 
 function get_sql(m::TilesMethod)
     n = length(m.tiles)
@@ -76,7 +80,7 @@ function SplitCard(c::AbstractDict)
     group_by::Vector{String} = get(c, "group_by", String[])
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
-    splitter::SplittingMethod = make(SPLITTING_METHODS[method], method_options)
+    splitter::SplittingMethod = SPLITTING_METHODS[method](method_options)
     output::String = c["output"]
     (splitter isa OrderedSplittingMethod) && isempty(order_by) && order_error()
     return SplitCard(type, method, splitter, order_by, group_by, output)

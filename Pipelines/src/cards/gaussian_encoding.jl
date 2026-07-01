@@ -1,32 +1,32 @@
 abstract type TemporalProcessingMethod end
 
 @kwarg struct IdentityMethod <: TemporalProcessingMethod
-    max::Float64 = 1
+    max::Float64 = 1.0
 end
 (::IdentityMethod)(x::SQLNode) = x
 
 @kwarg struct DayOfWeekMethod <: TemporalProcessingMethod
-    max::Float64 = 7
+    max::Float64 = 7.0
 end
 (::DayOfWeekMethod)(x::SQLNode) = Fun.dayofweek(x)
 
 @kwarg struct DayOfYearMethod <: TemporalProcessingMethod
-    max::Float64 = 366
+    max::Float64 = 366.0
 end
 (::DayOfYearMethod)(x::SQLNode) = Fun.dayofyear(x)
 
 @kwarg struct HourOfDayMethod <: TemporalProcessingMethod
-    max::Float64 = 24
+    max::Float64 = 24.0
 end
 (::HourOfDayMethod)(x::SQLNode) = Fun.hour(x)
 
 @kwarg struct MinuteOfDayMethod <: TemporalProcessingMethod
-    max::Float64 = 1440
+    max::Float64 = 1440.0
 end
 (::MinuteOfDayMethod)(x::SQLNode) = @. hour(x) * 60 + minute(x)
 
 @kwarg struct MinuteOfHourMethod <: TemporalProcessingMethod
-    max::Float64 = 60
+    max::Float64 = 60.0
 end
 (::MinuteOfHourMethod)(x::SQLNode) = @. minute(x)
 

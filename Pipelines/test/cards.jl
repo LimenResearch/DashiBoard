@@ -586,143 +586,143 @@ end
     @test ips[2](float.(df.No)) == df.PRES_hat
 end
 
-# @testset "gaussian encoding" begin
-#     selection = DBInterface.execute(DataFrame, repo, "FROM selection")
-#     origin = transform(
-#         selection,
-#         [:year, :month, :day] => ByRow((y, m, d) -> Date(y, m, d)) => :date,
-#         :hour => ByRow(x -> Time(x, 0)) => :time
-#     )
+@testset "gaussian encoding" begin
+    selection = DBInterface.execute(DataFrame, repo, "FROM selection")
+    origin = transform(
+        selection,
+        [:year, :month, :day] => ByRow((y, m, d) -> Date(y, m, d)) => :date,
+        :hour => ByRow(x -> Time(x, 0)) => :time
+    )
 
-#     DuckDBUtils.load_table(repo, origin, "origin")
+    DuckDBUtils.load_table(repo, origin, "origin")
 
-#     @testset "GaussianEncodingCard construction" begin
-#         base_fields = Dict(
-#             "type" => "gaussian_encoding",
-#             "input" => "date",
-#             "n_components" => 3,
-#             "method_options" => Dict("max" => 365.0),
-#             "lambda" => 0.5,
-#             "suffix" => "gaussian"
-#         )
+    @testset "GaussianEncodingCard construction" begin
+        base_fields = Dict(
+            "type" => "gaussian_encoding",
+            "input" => "date",
+            "n_components" => 3,
+            "method_options" => Dict("max" => 365.0),
+            "lambda" => 0.5,
+            "suffix" => "gaussian"
+        )
 
-#         for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
-#             c = merge(base_fields, Dict("method" => k))
-#             card = GaussianEncodingCard(c)
-#             _max = base_fields["method_options"]["max"]
-#             @test card.temporal_preprocessor == v(_max)
-#         end
+        for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
+            c = merge(base_fields, Dict("method" => k))
+            card = GaussianEncodingCard(c)
+            _max = base_fields["method_options"]["max"]
+            @test card.temporal_preprocessor == v(_max)
+        end
 
-#         invalid_method = "nonexistent_method"
-#         invalid_config = merge(base_fields, Dict("method" => invalid_method))
-#         @test_throws ArgumentError GaussianEncodingCard(invalid_config)
+        invalid_method = "nonexistent_method"
+        invalid_config = merge(base_fields, Dict("method" => invalid_method))
+        @test_throws ArgumentError GaussianEncodingCard(invalid_config)
 
-#         invalid_config = Dict(
-#             "type" => "gaussian_encoding",
-#             "input" => "date",
-#             "n_components" => 0,
-#             "max" => 365.0,
-#             "lambda" => 0.5,
-#             "method" => "identity"
-#         )
-#         @test_throws ArgumentError GaussianEncodingCard(invalid_config)
-#     end
+        invalid_config = Dict(
+            "type" => "gaussian_encoding",
+            "input" => "date",
+            "n_components" => 0,
+            "max" => 365.0,
+            "lambda" => 0.5,
+            "method" => "identity"
+        )
+        @test_throws ArgumentError GaussianEncodingCard(invalid_config)
+    end
 
-#     function gauss_train_test(node::Node)
-#         card, state = get_card(node), get_state(node)
-#         expected_means = range(0, step = 1 / card.n_components, length = card.n_components)
-#         expected_sigma = step(expected_means) * card.lambda
-#         expected_d = card.temporal_preprocessor.max
-#         expected_keys = vcat(["μ_$i" for i in 1:card.n_components], ["σ", "d"])
+    function gauss_train_test(node::Node)
+        card, state = get_card(node), get_state(node)
+        expected_means = range(0, step = 1 / card.n_components, length = card.n_components)
+        expected_sigma = step(expected_means) * card.lambda
+        expected_d = card.temporal_preprocessor.max
+        expected_keys = vcat(["μ_$i" for i in 1:card.n_components], ["σ", "d"])
 
-#         params = Pipelines.jlddeserialize(state.content)
-#         @test isempty(setdiff(expected_keys, keys(params)))
-#         @test all([params["μ_$i"] == [v] for (i, v) in enumerate(expected_means)])
-#         @test params["σ"][1] ≈ expected_sigma
-#         @test params["d"][1] ≈ expected_d
-#     end
+        params = Pipelines.jlddeserialize(state.content)
+        @test isempty(setdiff(expected_keys, keys(params)))
+        @test all([params["μ_$i"] == [v] for (i, v) in enumerate(expected_means)])
+        @test params["σ"][1] ≈ expected_sigma
+        @test params["d"][1] ≈ expected_d
+    end
 
-#     _rem(x) = rem(x, 1, RoundNearest)
-#     function gauss_evaluate_test(result, node::Node, origin; processing)
-#         card = get_card(node)
-#         @test names(result) == union(names(origin), Pipelines.get_node_outputs(node))
+    _rem(x) = rem(x, 1, RoundNearest)
+    function gauss_evaluate_test(result, node::Node, origin; processing)
+        card = get_card(node)
+        @test names(result) == union(names(origin), Pipelines.get_node_outputs(node))
 
-#         origin_column = origin[:, card.input]
-#         max_value = card.temporal_preprocessor.max
-#         preprocessed_values = processing.(origin_column)
-#         μs = range(0, step = 1 / card.n_components, length = card.n_components)
-#         σ = step(μs) * card.lambda
-#         for (i, μ) in enumerate(μs)
-#             expected_values = pdf.(Normal(0, σ), _rem.(preprocessed_values ./ max_value .- μ)) .* σ
-#             @test result[:, "$(card.input)_gaussian_$i"] ≈ expected_values
-#         end
-#     end
+        origin_column = origin[:, card.input]
+        max_value = card.temporal_preprocessor.max
+        preprocessed_values = processing.(origin_column)
+        μs = range(0, step = 1 / card.n_components, length = card.n_components)
+        σ = step(μs) * card.lambda
+        for (i, μ) in enumerate(μs)
+            expected_values = pdf.(Normal(0, σ), _rem.(preprocessed_values ./ max_value .- μ)) .* σ
+            @test result[:, "$(card.input)_gaussian_$i"] ≈ expected_values
+        end
+    end
 
-#     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
-#     card = Pipelines.Card(d["identity"])
-#     node = Node(card)
-#     @test !Pipelines.invertible(node)
-#     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
-#     gauss_train_test(node)
-#     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-#     gauss_evaluate_test(result, node, origin; processing = identity)
-#     @test Pipelines.get_node_outputs(node) == [
-#         "month_gaussian_1",
-#         "month_gaussian_2",
-#         "month_gaussian_3",
-#         "month_gaussian_4",
-#     ]
-#     @test Pipelines.get_node_inputs(node) == ["month"]
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    card = Pipelines.Card(d["identity"])
+    node = Node(card)
+    @test !Pipelines.invertible(node)
+    Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
+    gauss_train_test(node)
+    result = DBInterface.execute(DataFrame, repo, "FROM encoded")
+    gauss_evaluate_test(result, node, origin; processing = identity)
+    @test Pipelines.get_node_outputs(node) == [
+        "month_gaussian_1",
+        "month_gaussian_2",
+        "month_gaussian_3",
+        "month_gaussian_4",
+    ]
+    @test Pipelines.get_node_inputs(node) == ["month"]
 
-#     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
-#     card = Pipelines.Card(d["dayofweek"])
-#     node = Node(card)
-#     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
-#     gauss_train_test(node)
-#     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-#     gauss_evaluate_test(result, node, origin; processing = x -> dayofweek(x) % 7) # SQL starts from Sunday = 0
-#     @test Pipelines.get_node_outputs(node) == ["date_gaussian_1", "date_gaussian_2", "date_gaussian_3"]
-#     @test Pipelines.get_node_inputs(node) == ["date"]
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    card = Pipelines.Card(d["dayofweek"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
+    gauss_train_test(node)
+    result = DBInterface.execute(DataFrame, repo, "FROM encoded")
+    gauss_evaluate_test(result, node, origin; processing = x -> dayofweek(x) % 7) # SQL starts from Sunday = 0
+    @test Pipelines.get_node_outputs(node) == ["date_gaussian_1", "date_gaussian_2", "date_gaussian_3"]
+    @test Pipelines.get_node_inputs(node) == ["date"]
 
-#     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
-#     card = Pipelines.Card(d["dayofyear"])
-#     node = Node(card)
-#     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
-#     gauss_train_test(node)
-#     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-#     gauss_evaluate_test(result, node, origin; processing = dayofyear)
-#     @test Pipelines.get_node_outputs(node) == [
-#         "date_gaussian_1", "date_gaussian_2", "date_gaussian_3", "date_gaussian_4",
-#         "date_gaussian_5", "date_gaussian_6", "date_gaussian_7", "date_gaussian_8",
-#         "date_gaussian_9", "date_gaussian_10", "date_gaussian_11", "date_gaussian_12",
-#     ]
-#     @test Pipelines.get_node_inputs(node) == ["date"]
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    card = Pipelines.Card(d["dayofyear"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
+    gauss_train_test(node)
+    result = DBInterface.execute(DataFrame, repo, "FROM encoded")
+    gauss_evaluate_test(result, node, origin; processing = dayofyear)
+    @test Pipelines.get_node_outputs(node) == [
+        "date_gaussian_1", "date_gaussian_2", "date_gaussian_3", "date_gaussian_4",
+        "date_gaussian_5", "date_gaussian_6", "date_gaussian_7", "date_gaussian_8",
+        "date_gaussian_9", "date_gaussian_10", "date_gaussian_11", "date_gaussian_12",
+    ]
+    @test Pipelines.get_node_inputs(node) == ["date"]
 
-#     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
-#     card = Pipelines.Card(d["hour"])
-#     node = Node(card)
-#     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
-#     gauss_train_test(node)
-#     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-#     gauss_evaluate_test(result, node, origin; processing = hour)
-#     @test Pipelines.get_node_outputs(node) == [
-#         "time_gaussian_1",
-#         "time_gaussian_2",
-#         "time_gaussian_3",
-#         "time_gaussian_4",
-#     ]
-#     @test only(Pipelines.get_node_inputs(node)) == "time"
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    card = Pipelines.Card(d["hour"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
+    gauss_train_test(node)
+    result = DBInterface.execute(DataFrame, repo, "FROM encoded")
+    gauss_evaluate_test(result, node, origin; processing = hour)
+    @test Pipelines.get_node_outputs(node) == [
+        "time_gaussian_1",
+        "time_gaussian_2",
+        "time_gaussian_3",
+        "time_gaussian_4",
+    ]
+    @test only(Pipelines.get_node_inputs(node)) == "time"
 
-#     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
-#     card = Pipelines.Card(d["minute"])
-#     node = Node(card)
-#     Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
-#     gauss_train_test(node)
-#     result = DBInterface.execute(DataFrame, repo, "FROM encoded")
-#     gauss_evaluate_test(result, node, origin; processing = minute)
-#     @test Pipelines.get_node_outputs(node) == ["time_gaussian_1"]
-#     @test only(Pipelines.get_node_inputs(node)) == "time"
-# end
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    card = Pipelines.Card(d["minute"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "origin" => "encoded", "No")
+    gauss_train_test(node)
+    result = DBInterface.execute(DataFrame, repo, "FROM encoded")
+    gauss_evaluate_test(result, node, origin; processing = minute)
+    @test Pipelines.get_node_outputs(node) == ["time_gaussian_1"]
+    @test only(Pipelines.get_node_inputs(node)) == "time"
+end
 
 @testset "streamliner" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))

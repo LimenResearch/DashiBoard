@@ -11,58 +11,6 @@ to_maybestring(s::Union{AbstractString, Nothing})::Union{String, Nothing} = s
 
 get_options(m) = StringDict(string(k) => getproperty(m, k) for k in propertynames(m))
 
-# JSON schema utils
-
-function add_options!(d::AbstractDict, options)
-    for (k, v) in options
-        isnothing(v) || (d[string(k)] = v)
-    end
-    return d
-end
-
-json_integer(; kwargs...) = json_number("integer"; kwargs...)
-
-function json_number(
-        type::AbstractString = "number";
-        min::Union{Integer, Nothing} = nothing,
-        max::Union{Integer, Nothing} = nothing,
-        exclusive_min::Union{Integer, Nothing} = nothing,
-        exclusive_max::Union{Integer, Nothing} = nothing,
-        kwargs...
-    )
-    sch = Dict{String, Any}("type" => type)
-    isnothing(min) || (sch["minimum"] = min)
-    isnothing(max) || (sch["maximum"] = max)
-    isnothing(exclusive_min) || (sch["exclusiveMinimum"] = exclusive_min)
-    isnothing(exclusive_max) || (sch["exclusiveMaximum"] = exclusive_max)
-    add_options!(sch, pairs(kwargs))
-    return sch
-end
-
-function json_string(; min::Integer = 0)
-    return Dict("type" => "string", "minLength" => min)
-end
-
-json_enum(options) = json_enum("string", options)
-
-function json_enum(type::AbstractString, options)
-    _options = options isa AbstractVector ? options : collect(options)
-    return Dict("type" => type, "enum" => options)
-end
-
-# TODO: update with dict options
-json_var(vars) = json_enum(vars)
-
-function json_vars(vars; min::Integer = 0)
-    return Dict(
-        "type" => "array",
-        "items" => json_var(vars),
-        "minItems" => min
-    )
-end
-
-nullable(s) = Dict("anyOf" => [s, Dict("type" => "null")])
-
 # Card computation utils
 
 select_columns(args...) = Select(args = Get.(union(args...)))

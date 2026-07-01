@@ -1,29 +1,13 @@
 abstract type ClusteringMethod end
 
 @kwarg struct KMeansMethod <: ClusteringMethod
-    classes::Int & (pipelines = (min = 1,),)
-    iterations::Int = 100 & (pipelines = (min = 1,),)
-    tol::Float64 = 1.0e-6 & (pipelines = (min = 1,),)
-    seed::Union{Int, Nothing} = nothing
+    classes::Int & (dashi = StringDict("minimum" => 1),)
+    iterations::Int = 100 & (dashi = StringDict("minimum" => 1),)
+    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
 end
 
 KMeansMethod(c::AbstractDict) = make(KMeansMethod, c)
-
-const KMEANS_SCHEMA = Dict(
-    "properties" => Dict(
-        "method" => Dict("const" => "kmeans"),
-        "method_options" => Dict(
-            "properties" => [
-                "classes" => json_integer(min = 1),
-                "iterations" => json_integer(min = 0, default = 100),
-                "tol" => json_number(exclusive_min = 0, default = 1.0e-6),
-                "seed" => nullable(json_integer(min = 0)),
-            ],
-            "required" => ["classes"]
-        ),
-        "required" => ["method", "method_options"]
-    )
-)
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
@@ -31,28 +15,12 @@ function (m::KMeansMethod)(X; weights)
 end
 
 @kwarg struct DBSCANMethod <: ClusteringMethod
-    radius::Float64 & (pipelines = (exclusive_min = 0,),)
-    min_neighbors::Int = 1 & (pipelines = (min = 1,),)
-    min_cluster_size::Int = 1 & (pipelines = (min = 1,),)
+    radius::Float64 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    min_neighbors::Int = 1 & (dashi = StringDict("minimum" => 1),)
+    min_cluster_size::Int = 1 & (dashi = StringDict("minimum" => 1),)
 end
 
 DBSCANMethod(c::AbstractDict) = make(DBSCANMethod, c)
-
-const DBSCAN_SCHEMA = Dict(
-    "properties" => Dict(
-        "method" => Dict("const" => "dbscan"),
-        "method_options" => Dict(
-            "type" => "object",
-            "properties" => Dict(
-                "radius" => json_number(exclusive_min = 0),
-                "min_neighbors" => json_integer(min = 1, default = 1),
-                "min_cluster_size" => json_integer(min = 1, default = 1),
-            ),
-            "required" => ["radius"]
-        )
-    ),
-    "required" => ["method", "method_options"]
-)
 
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
@@ -65,9 +33,9 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "dbscan" => DBSCANMethod,
 )
 
-const CLUSTERING_METHOD_OPTIONS = Dict{String, Any}[
-    KMEANS_SCHEMA,
-    DBSCAN_SCHEMA,
+clustering_options_schema() = Dict{String, Any}[
+    auto_options_schema(KMeansMethod, "kmeans"),
+    auto_options_schema(DBSCANMethod, "dbscan"),
 ]
 
 # TODO: support custom metrics

@@ -4,6 +4,8 @@ StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
 
 StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))
 
+construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
+
 function get_dashi(nt::NamedTuple, sym::Symbol)
     s = get(nt, sym, nothing)
     return isnothing(s) ? nothing : get(s, :dashi, nothing)

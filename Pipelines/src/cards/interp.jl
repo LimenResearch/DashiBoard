@@ -16,10 +16,6 @@ end
     extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
 
-function ConstantInterpolationMethod(c::AbstractDict)
-    return StructUtils.make(ConstantInterpolationMethod, c, DashiStyle())
-end
-
 function (m::ConstantInterpolationMethod)(y, x)
     return ConstantInterpolation(y, x; m.dir, m.extrapolation_left, m.extrapolation_right)
 end
@@ -62,12 +58,11 @@ for sym in [
     ]
     method = Symbol(sym, :Method)
     @eval begin
-        $(method)(c::AbstractDict) = StructUtils.make($(method), c, DashiStyle())
         (m::$(method))(y, x) = $sym(y, x; m.extrapolation_left, m.extrapolation_right)
     end
 end
 
-# Global dictionary on interpolation methods
+# Global dictionary of interpolation methods
 
 const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
     "constant" => ConstantInterpolationMethod,
@@ -118,7 +113,7 @@ function InterpCard(c::AbstractDict)
     type::String = c["type"]
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
-    interpolator::InterpolationMethod = INTERPOLATION_METHODS[method](method_options)
+    interpolator::InterpolationMethod = construct(INTERPOLATION_METHODS[method], method_options)
     input::String = c["input"]
     targets::Vector{String} = c["targets"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)

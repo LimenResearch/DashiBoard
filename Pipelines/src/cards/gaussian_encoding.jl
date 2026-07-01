@@ -30,13 +30,6 @@ end
 end
 (::MinuteOfHourMethod)(x::SQLNode) = @. minute(x)
 
-for method in [
-        :IdentityMethod, :DayOfWeekMethod, :DayOfYearMethod,
-        :HourOfDayMethod, :MinuteOfDayMethod, :MinuteOfHourMethod,
-    ]
-    @eval $(method)(c::AbstractDict) = StructUtils.make($(method), c, DashiStyle())
-end
-
 const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "identity" => IdentityMethod,
     "dayofweek" => DayOfWeekMethod,
@@ -122,7 +115,7 @@ function GaussianEncodingCard(c::AbstractDict)
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
     method_options::StringDict = extract_options(c, "method", method)
-    temporal_preprocessor = TEMPORAL_PREPROCESSING_METHODS[method](method_options)
+    temporal_preprocessor = construct(TEMPORAL_PREPROCESSING_METHODS[method], method_options)
 
     n_components::Int = c["n_components"]
     if n_components ≤ 0

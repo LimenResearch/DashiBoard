@@ -13,44 +13,7 @@ function enum_instances(::Type{T}) where {T}
     return [StructUtils.lower(DashiStyle(), x) for x in instances(T)]
 end
 
-function conditional_options_schemas(d)
-    return [conditional_options_schema(v, k) for (k, v) in pairs(d)]
-end
-
-function conditional_options_schema(::Type{T}, k::AbstractString) where {T}
-    method_options = options_schema(T)
-    options_required = isempty(method_options["required"])
-    return Dict(
-        "if" => Dict("properties" => Dict("method" => Dict("const" => k))),
-        "then" => Dict(
-            "properties" => Dict("method_options" => method_options),
-            "required" => options_required ? String[] : String["method_options"]
-        )
-    )
-end
-
-function options_schema(::Type{T}) where {T}
-    properties = StringDict()
-    required = String[]
-    tags = fieldtags(DashiStyle(), T)
-    defaults = fielddefaults(DashiStyle(), T)
-
-    for k in fieldnames(T)
-        sk = string(k)
-        config = get_dashi(tags, k)
-        default = get(defaults, k, nothing)
-        sch, is_req = auto_schema(fieldtype(T, k), config, default)
-        properties[sk] = sch
-        is_req && push!(required, sk)
-    end
-    return Dict(
-        "type" => "object",
-        "properties" => properties,
-        "required" => required
-    )
-end
-
-function auto_schema(T::Type, config::Union{AbstractDict, Nothing}, default)
+function schema_from_tags(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = StringDict()
 
     if T <: Union{Integer, Nothing}
@@ -77,6 +40,43 @@ function auto_schema(T::Type, config::Union{AbstractDict, Nothing}, default)
     end
 
     return (Nothing <: T) ? (nullable(schema), false) : (schema, isnothing(default))
+end
+
+function options_schema(::Type{T}) where {T}
+    properties = StringDict()
+    required = String[]
+    tags = fieldtags(DashiStyle(), T)
+    defaults = fielddefaults(DashiStyle(), T)
+
+    for k in fieldnames(T)
+        sk = string(k)
+        config = get_dashi(tags, k)
+        default = get(defaults, k, nothing)
+        sch, is_req = schema_from_tags(fieldtype(T, k), config, default)
+        properties[sk] = sch
+        is_req && push!(required, sk)
+    end
+    return Dict(
+        "type" => "object",
+        "properties" => properties,
+        "required" => required
+    )
+end
+
+function conditional_options_schema(::Type{T}, k::AbstractString) where {T}
+    method_options = options_schema(T)
+    is_required = !isempty(method_options["required"])
+    return Dict(
+        "if" => Dict("properties" => Dict("method" => Dict("const" => k))),
+        "then" => Dict(
+            "properties" => Dict("method_options" => method_options),
+            "required" => is_required ? String["method_options"] : String[]
+        )
+    )
+end
+
+function conditional_options_schemas(d)
+    return [conditional_options_schema(v, k) for (k, v) in pairs(d)]
 end
 
 # JSON schema utils

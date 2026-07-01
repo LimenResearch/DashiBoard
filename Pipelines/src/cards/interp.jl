@@ -67,6 +67,8 @@ for sym in [
     end
 end
 
+# Global dictionary on interpolation methods
+
 const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
     "constant" => ConstantInterpolationMethod,
     "linear" => LinearInterpolationMethod,

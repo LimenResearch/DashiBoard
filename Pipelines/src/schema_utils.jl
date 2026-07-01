@@ -39,7 +39,7 @@ function options_schema(::Type{T}) where {T}
         sk = string(k)
         config = get_dashi(tags, k)
         default = get(defaults, k, nothing)
-        sch, is_req = auto_json(fieldtype(T, k), config, default)
+        sch, is_req = auto_schema(fieldtype(T, k), config, default)
         properties[sk] = sch
         is_req && push!(required, sk)
     end
@@ -50,7 +50,7 @@ function options_schema(::Type{T}) where {T}
     )
 end
 
-function auto_json(T::Type, config::Union{AbstractDict, Nothing}, default)
+function auto_schema(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = StringDict()
 
     if T <: Union{Integer, Nothing}

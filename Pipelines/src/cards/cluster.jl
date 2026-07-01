@@ -7,8 +7,6 @@ abstract type ClusteringMethod end
     seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
 end
 
-KMeansMethod(c::AbstractDict) = make(KMeansMethod, c)
-
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
     return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights)
@@ -20,8 +18,6 @@ end
     min_cluster_size::Int = 1 & (dashi = StringDict("minimum" => 1),)
 end
 
-DBSCANMethod(c::AbstractDict) = make(DBSCANMethod, c)
-
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
@@ -32,11 +28,6 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "kmeans" => KMeansMethod,
     "dbscan" => DBSCANMethod,
 )
-
-clustering_options_schema() = Dict{String, Any}[
-    auto_options_schema(KMeansMethod, "kmeans"),
-    auto_options_schema(DBSCANMethod, "dbscan"),
-]
 
 # TODO: support custom metrics
 """
@@ -79,7 +70,7 @@ function ClusterCard(c::AbstractDict)
     type::String = c["type"]
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
-    clusterer::ClusteringMethod = CLUSTERING_METHODS[method](method_options)
+    clusterer::ClusteringMethod = make(CLUSTERING_METHODS[method], method_options)
     inputs::Vector{String} = c["inputs"]
     weights::Union{String, Nothing} = get(c, "weights", nothing)
     partition::Union{String, Nothing} = get(c, "partition", nothing)

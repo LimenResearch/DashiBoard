@@ -3,8 +3,14 @@ function get_dashi(nt::NamedTuple, sym::Symbol)
     return isnothing(s) ? nothing : get(s, :dashi, nothing)
 end
 
-function auto_options_schema(::Type{T}, k::AbstractString) where {T}
-    method_options = auto_options_schema(T)
+enum_instances(::Type{T}) where {T} = string.(collect(instances(T)))
+
+function conditional_options_schemas(d)
+    return [conditional_options_schema(v, k) for (k, v) in pairs(d)]
+end
+
+function conditional_options_schema(::Type{T}, k::AbstractString) where {T}
+    method_options = options_schema(T)
     options_required = isempty(method_options["required"])
     return Dict(
         "if" => Dict("properties" => Dict("method" => Dict("const" => k))),
@@ -15,7 +21,7 @@ function auto_options_schema(::Type{T}, k::AbstractString) where {T}
     )
 end
 
-function auto_options_schema(::Type{T}) where {T}
+function options_schema(::Type{T}) where {T}
     properties = StringDict()
     required = String[]
     tags = fieldtags(DefaultStyle(), T)
@@ -38,12 +44,17 @@ end
 
 function auto_json(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = StringDict()
-    schema["type"] = if T <: Union{Integer, Nothing}
-        "integer"
+    if T <: Union{Integer, Nothing}
+        schema["type"] = "integer"
     elseif T <: Union{Number, Nothing}
-        "number"
-    elseif T <: Union{AbstractString, Nothing}
-        "string"
+        schema["type"] = "number"
+    elseif T <: Union{AbstractString, Symbol, Nothing}
+        schema["type"] = "string"
+    elseif T <: Union{AbstractVector, Nothing}
+        schema["type"] = "array"
+    elseif T <: Union{Enum, Nothing}
+        schema["type"] = "string"
+        schema["enum"] = enum_instances(T)
     else
         throw(ArgumentError("Type $T not supported in json schema generation."))
     end

@@ -9,12 +9,12 @@ function split_card_schema(::Any, key::AbstractString, vars::AbstractVector)
         "order_by" => json_vars(vars, min = 1),
         "group_by" => json_vars(vars),
         "method" => json_enum(keys(SPLITTING_METHODS)),
-        "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "output" => json_string(min = 1),
     )
     return Dict(
         "type" => "object",
         "properties" => properties,
+        "allOf" => conditional_options_schemas(SPLITTING_METHODS),
         "required" => ["type", "order_by", "method", "output"]
     )
 end
@@ -78,7 +78,7 @@ function cluster_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     return Dict(
         "type" => "object",
         "properties" => properties,
-        "allOf" => clustering_options_schema(),
+        "allOf" => conditional_options_schemas(CLUSTERING_METHODS),
         "required" => ["type", "method", "inputs"]
     )
 end
@@ -165,7 +165,6 @@ function interp_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_enum(keys(INTERPOLATION_METHODS)),
-        "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "input" => json_var(vars),
         "targets" => json_vars(vars, min = 1),
         "partition" => nullable(json_var(vars)),
@@ -175,6 +174,7 @@ function interp_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     return Dict(
         "type" => "object",
         "properties" => properties,
+        "allOf" => conditional_options_schemas(INTERPOLATION_METHODS),
         "required" => required
     )
 end
@@ -190,7 +190,6 @@ function gaussian_encoding_card_schema(::Any, key::AbstractString, vars::Abstrac
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_enum(keys(TEMPORAL_PREPROCESSING_METHODS)),
-        "method_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "input" => json_var(vars),
         "n_components" => json_integer(min = 1),
         "lambda" => json_number(exclusive_min = 0),
@@ -200,6 +199,7 @@ function gaussian_encoding_card_schema(::Any, key::AbstractString, vars::Abstrac
     return Dict(
         "type" => "object",
         "properties" => properties,
+        "allOf" => conditional_options_schemas(TEMPORAL_PREPROCESSING_METHODS),
         "required" => required
     )
 end

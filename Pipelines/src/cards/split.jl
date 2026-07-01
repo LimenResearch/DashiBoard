@@ -16,10 +16,10 @@ function PercentileMethod(c::AbstractDict, has_order::Bool)
     return PercentileMethod(percentile)
 end
 
-struct TilesMethod <: SplittingMethod
+@kwarg struct TilesMethod <: SplittingMethod
     tiles::Vector{Int}
-    repeat::Int
-    tail::Int
+    repeat::Int = 1 & (dashi = StringDict("minimum" => 1),)
+    tail::Int = 0 & (dashi = StringDict("minimum" => 0),)
 end
 
 function get_sql(m::TilesMethod)

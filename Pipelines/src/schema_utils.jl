@@ -1,11 +1,17 @@
 struct DashiStyle <: StructUtils.StructStyle end
 
+StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
+
+StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))
+
 function get_dashi(nt::NamedTuple, sym::Symbol)
     s = get(nt, sym, nothing)
     return isnothing(s) ? nothing : get(s, :dashi, nothing)
 end
 
-enum_instances(::Type{T}) where {T} = string.(collect(instances(T)))
+function enum_instances(::Type{T}) where {T}
+    return [StructUtils.lower(DashiStyle(), x) for x in instances(T)]
+end
 
 function conditional_options_schemas(d)
     return [conditional_options_schema(v, k) for (k, v) in pairs(d)]
@@ -46,6 +52,7 @@ end
 
 function auto_json(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = StringDict()
+
     if T <: Union{Integer, Nothing}
         schema["type"] = "integer"
     elseif T <: Union{Number, Nothing}
@@ -60,8 +67,15 @@ function auto_json(T::Type, config::Union{AbstractDict, Nothing}, default)
     else
         throw(ArgumentError("Type $T not supported in json schema generation."))
     end
-    isnothing(default) || (schema["default"] = default)
-    isnothing(config) || merge!(schema, config)
+
+    if !isnothing(default)
+        schema["default"] = StructUtils.lower(DashiStyle(), default)
+    end
+
+    if !isnothing(config)
+        merge!(schema, config)
+    end
+
     return (Nothing <: T) ? (nullable(schema), false) : (schema, isnothing(default))
 end
 

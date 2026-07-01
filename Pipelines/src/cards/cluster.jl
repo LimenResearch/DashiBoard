@@ -1,37 +1,26 @@
 abstract type ClusteringMethod end
 
-struct KMeansMethod <: ClusteringMethod
-    classes::Int
-    iterations::Int
-    tol::Float64
-    seed::Union{Int, Nothing}
+@kwarg struct KMeansMethod <: ClusteringMethod
+    classes::Int & (dashi = StringDict("minimum" => 1),)
+    iterations::Int = 100 & (dashi = StringDict("minimum" => 1),)
+    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
 end
 
-function KMeansMethod(c::AbstractDict)
-    classes::Int = c["classes"]
-    iterations::Int = get(c, "iterations", 100)
-    tol::Float64 = get(c, "tol", 1.0e-6)
-    seed::Union{Int, Nothing} = get(c, "seed", nothing)
-    return KMeansMethod(classes, iterations, tol, seed)
-end
+KMeansMethod(c::AbstractDict) = StructUtils.make(KMeansMethod, c, DashiStyle())
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
     return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights)
 end
 
-struct DBSCANMethod <: ClusteringMethod
-    radius::Float64
-    min_neighbors::Int
-    min_cluster_size::Int
+@kwarg struct DBSCANMethod <: ClusteringMethod
+    radius::Float64 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    min_neighbors::Int = 1 & (dashi = StringDict("minimum" => 1),)
+    min_cluster_size::Int = 1 & (dashi = StringDict("minimum" => 1),)
 end
 
-function DBSCANMethod(c::AbstractDict)
-    radius::Float64 = c["radius"]
-    min_neighbors::Int = get(c, "min_neighbors", 1)
-    min_cluster_size::Int = get(c, "min_cluster_size", 1)
-    return DBSCANMethod(radius, min_neighbors, min_cluster_size)
-end
+DBSCANMethod(c::AbstractDict) = StructUtils.make(DBSCANMethod, c, DashiStyle())
 
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m

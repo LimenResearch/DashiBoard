@@ -34,7 +34,7 @@ using TOML: parsefile
 using RelocatableFolders: @path
 
 using JLD2: jldopen
-using StructUtils: make
+using StructUtils: @kwarg, fieldtags, fielddefaults, StructUtils
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
@@ -152,6 +152,7 @@ end
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
+include("schema_utils.jl")
 include("dict_helpers.jl")
 include("card.jl")
 

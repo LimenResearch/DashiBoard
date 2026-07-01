@@ -1,40 +1,41 @@
 abstract type TemporalProcessingMethod end
 
-struct IdentityMethod <: TemporalProcessingMethod
-    max::Float64
+@kwarg struct IdentityMethod <: TemporalProcessingMethod
+    max::Float64 = 1.0
 end
-IdentityMethod(c::AbstractDict) = IdentityMethod(Float64(get(c, "max", 1)))
 (::IdentityMethod)(x::SQLNode) = x
 
-struct DayOfWeekMethod <: TemporalProcessingMethod
-    max::Float64
+@kwarg struct DayOfWeekMethod <: TemporalProcessingMethod
+    max::Float64 = 7.0
 end
-DayOfWeekMethod(c::AbstractDict) = DayOfWeekMethod(Float64(get(c, "max", 7)))
 (::DayOfWeekMethod)(x::SQLNode) = Fun.dayofweek(x)
 
-struct DayOfYearMethod <: TemporalProcessingMethod
-    max::Float64
+@kwarg struct DayOfYearMethod <: TemporalProcessingMethod
+    max::Float64 = 366.0
 end
-DayOfYearMethod(c::AbstractDict) = DayOfYearMethod(Float64(get(c, "max", 366)))
 (::DayOfYearMethod)(x::SQLNode) = Fun.dayofyear(x)
 
-struct HourOfDayMethod <: TemporalProcessingMethod
-    max::Float64
+@kwarg struct HourOfDayMethod <: TemporalProcessingMethod
+    max::Float64 = 24.0
 end
-HourOfDayMethod(c::AbstractDict) = HourOfDayMethod(Float64(get(c, "max", 24)))
 (::HourOfDayMethod)(x::SQLNode) = Fun.hour(x)
 
-struct MinuteOfDayMethod <: TemporalProcessingMethod
-    max::Float64
+@kwarg struct MinuteOfDayMethod <: TemporalProcessingMethod
+    max::Float64 = 1440.0
 end
-MinuteOfDayMethod(c::AbstractDict) = MinuteOfDayMethod(Float64(get(c, "max", 1440)))
 (::MinuteOfDayMethod)(x::SQLNode) = @. hour(x) * 60 + minute(x)
 
-struct MinuteOfHourMethod <: TemporalProcessingMethod
-    max::Float64
+@kwarg struct MinuteOfHourMethod <: TemporalProcessingMethod
+    max::Float64 = 60.0
 end
-MinuteOfHourMethod(c::AbstractDict) = MinuteOfHourMethod(Float64(get(c, "max", 60)))
 (::MinuteOfHourMethod)(x::SQLNode) = @. minute(x)
+
+for method in [
+        :IdentityMethod, :DayOfWeekMethod, :DayOfYearMethod,
+        :HourOfDayMethod, :MinuteOfDayMethod, :MinuteOfHourMethod,
+    ]
+    @eval $(method)(c::AbstractDict) = StructUtils.make($(method), c, DashiStyle())
+end
 
 const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "identity" => IdentityMethod,

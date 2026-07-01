@@ -1,26 +1,33 @@
 abstract type SplittingMethod end
 
+abstract type OrderedSplittingMethod <: SplittingMethod end
+
+abstract type UnorderedSplittingMethod <: SplittingMethod end
+
 order_error() = throw(ArgumentError("At least one sorter is required."))
 
-# TODO: add randomized methods
+# TODO: add unordered methods
 
-struct PercentileMethod <: SplittingMethod
+struct PercentileMethod <: OrderedSplittingMethod
     percentile::Float64
 end
 
+PercentileMethod(c::AbstractDict) = StructUtils.make(PercentileMethod, c, DashiStyle())
+
 get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)
 
-function PercentileMethod(c::AbstractDict, has_order::Bool)
-    has_order || order_error()
-    percentile::Float64 = c["percentile"]
-    return PercentileMethod(percentile)
+@kwarg struct TilesMethod <: OrderedSplittingMethod
+    tiles::Vector{Int} & (
+        dashi = StringDict(
+            "items" => Dict("enum" => [1, 2], "type" => "integer"),
+            "minItems" => 1,
+        ),
+    )
+    repeat::Int = 1 & (dashi = StringDict("minimum" => 1),)
+    tail::Int = 0 & (dashi = StringDict("minimum" => 0),)
 end
 
-struct TilesMethod <: SplittingMethod
-    tiles::Vector{Int}
-    repeat::Int
-    tail::Int
-end
+TilesMethod(c::AbstractDict) = StructUtils.make(TilesMethod, c, DashiStyle())
 
 function get_sql(m::TilesMethod)
     n = length(m.tiles)
@@ -28,14 +35,6 @@ function get_sql(m::TilesMethod)
     vals = Fun.list_value(m.tiles...)
     # work around inconsistency in `%` operator and 1-based indexing in DuckDB
     return Fun.list_extract(vals, Fun."%"(Agg.ntile(N) .- 1, n) .+ 1)
-end
-
-function TilesMethod(c::AbstractDict, has_order::Bool)
-    has_order || order_error()
-    tiles::Vector{Int} = c["tiles"]
-    repeat::Int = get(c, "repeat", 1)
-    tail::Int = get(c, "tail", 0)
-    return TilesMethod(tiles, repeat, tail)
 end
 
 const SPLITTING_METHODS = OrderedDict{String, DataType}(
@@ -86,8 +85,9 @@ function SplitCard(c::AbstractDict)
     group_by::Vector{String} = get(c, "group_by", String[])
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
-    splitter::SplittingMethod = SPLITTING_METHODS[method](method_options, has_order)
+    splitter::SplittingMethod = SPLITTING_METHODS[method](method_options)
     output::String = c["output"]
+    (splitter isa OrderedSplittingMethod) && isempty(order_by) && order_error()
     return SplitCard(type, method, splitter, order_by, group_by, output)
 end
 

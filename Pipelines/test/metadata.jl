@@ -1,3 +1,12 @@
+function test_equal_splitters(s1::S1, s2::S2) where {S1, S2}
+    @test S1 === S2
+    for k in fieldnames(S1)
+        # `make(StructType, c::AbstractDict)` copies the field
+        @test getfield(s1, k) == getfield(s2, k)
+    end
+    return
+end
+
 @testset "metadata split" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
 
@@ -9,7 +18,7 @@
     end
     @test metadata["method_options"] == Dict("percentile" => 0.9)
     card2 = Pipelines.Card(metadata)
-    @test card.splitter == card2.splitter
+    test_equal_splitters(card.splitter, card2.splitter)
 
     config = d["tiles"]
     card = Pipelines.Card(config)
@@ -23,7 +32,7 @@
         "tail" => 0
     )
     card2 = Pipelines.Card(metadata)
-    @test card.splitter == card2.splitter
+    test_equal_splitters(card.splitter, card2.splitter)
 
     config = d["tiles2"]
     card = Pipelines.Card(config)
@@ -37,7 +46,7 @@
         "tail" => 1
     )
     card2 = Pipelines.Card(metadata)
-    @test card.splitter == card2.splitter
+    test_equal_splitters(card.splitter, card2.splitter)
 end
 
 @testset "metadata rescale" begin

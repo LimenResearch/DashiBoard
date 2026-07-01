@@ -167,7 +167,7 @@ function train(
             file["unique_values"] = data.unique_values
         end
         content = SC.has_weights(result) ? read(path) : nothing
-        metadata = make(StringDict, result)
+        metadata = StructUtils.make(StringDict, result, DashiStyle())
         return CardState(; content, metadata)
     end
 end

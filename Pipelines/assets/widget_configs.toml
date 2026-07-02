@@ -8,6 +8,13 @@ widget = "input"
 label = "Output"
 placeholder = "Select output name..."
 
+# TODO: implement in the frontend
+[outputs]
+widget = "input"
+label = "Outputs"
+placeholder = "Select output names..."
+multiple = true
+
 [method]
 widget = "select"
 label = "Method"

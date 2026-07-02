@@ -21,6 +21,16 @@
       "radius": 0.02
     }
   },
+  "dbscan_partitioned": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "dbcluster",
+    "method": "dbscan",
+    "method_options": {
+      "radius": 0.02
+    },
+    "partition": "partition"
+  },
   "wrong_input": {
     "type": "cluster",
     "inputs": ["temp", "PRES"],

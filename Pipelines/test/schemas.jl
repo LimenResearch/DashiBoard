@@ -53,9 +53,10 @@ end
 
 @testset "cluster schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
-    schema = Pipelines.json_schema("cluster", vars) |> JSONSchema.Schema
+    schema = Pipelines.json_schema("cluster", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["kmeans"])
     _pipeline_schema_validate(schema, d["dbscan"])
+    _pipeline_schema_validate(schema, d["dbscan_partitioned"])
     _pipeline_schema_invalidate(schema, d["wrong_input"])
 end
 

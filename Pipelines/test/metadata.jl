@@ -234,7 +234,7 @@ end
     )
     Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
 
-    config = Dict("type" => "trivial", "inputs" => ["a", "b"], "output" => "c")
+    config = Dict("type" => "trivial", "inputs" => ["a", "b"], "outputs" => ["c"])
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
     fields = ["type", "inputs"]

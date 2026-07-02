@@ -72,7 +72,8 @@ function options_schema(::Type{T}) where {T}
     return Dict(
         "type" => "object",
         "properties" => properties,
-        "required" => required
+        "required" => required,
+        "additionalProperties" => false
     )
 end
 

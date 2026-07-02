@@ -58,6 +58,7 @@ end
     _pipeline_schema_validate(schema, d["dbscan"])
     _pipeline_schema_validate(schema, d["hasPartition"])
     _pipeline_schema_invalidate(schema, d["wrongInput"])
+    _pipeline_schema_invalidate(schema, d["spuriousProperty"])
 end
 
 @testset "dimensionality reduction schema" begin

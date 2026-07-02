@@ -127,6 +127,13 @@ function conditional_streamliner_schemas(dir, vals, name)
     end
 end
 
+# Definitions
+
+# Note: must keep `valtype::Any` due to a JSONSchema limitation
+const JSON_VARIABLE = StringDict("\$ref" => "#/\$defs/variable")
+const JSON_VARIABLES = StringDict("\$ref" => "#/\$defs/variables")
+const JSON_NONEMPTY_VARIABLES = StringDict("\$ref" => "#/\$defs/nonempty_variables")
+
 # JSON schema utils
 
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
@@ -155,15 +162,4 @@ json_enum(options) = json_enum("string", options)
 function json_enum(type::AbstractString, options)
     _options = options isa AbstractVector ? options : collect(options)
     return Dict("type" => type, "enum" => options)
-end
-
-# TODO: update with dict options
-json_var(vars) = json_enum(vars)
-
-function json_vars(vars; min::Integer = 0)
-    return Dict(
-        "type" => "array",
-        "items" => json_var(vars),
-        "minItems" => min
-    )
 end

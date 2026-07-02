@@ -21,16 +21,6 @@
       "radius": 0.02
     }
   },
-  "dbscan_nullable": {
-    "type": "cluster",
-    "inputs": ["TEMP", "PRES"],
-    "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
-      "radius": 0.02
-    },
-    "partition": null
-  },
   "wrong_input": {
     "type": "cluster",
     "inputs": ["temp", "PRES"],
@@ -38,7 +28,6 @@
     "method": "dbscan",
     "method_options": {
       "radius": 0.02
-    },
-    "partition": null
+    }
   }
 }

@@ -83,14 +83,11 @@ function WildCard{T}(c::AbstractDict) where {T}
     inputs::Vector{String} = c["inputs"]
     targets::Vector{String} = settings.needs_targets ? c["targets"] : String[]
 
-    outputs::Vector{String} = get(c, "outputs") do
-        if settings.needs_targets
-            suffix::String = c["suffix"]
-            join_names(targets, suffix)
-        else
-            output::String = c["output"]
-            [output]
-        end
+    outputs::Vector{String} = if settings.needs_targets
+        suffix::String = c["suffix"]
+        join_names(targets, suffix)
+    else
+        c["outputs"]
     end
 
     weights = get(c, "weights", nothing)
@@ -138,11 +135,11 @@ function CardWidget(
         (Widget("targets", c), settings.needs_targets),
         (Widget("weights", c), settings.allows_weights),
         (Widget("partition", c), settings.allows_partition),
-        (Widget("output", c), !settings.needs_targets),
+        (Widget("outputs", c), !settings.needs_targets),
         (Widget("suffix", c), settings.needs_targets),
     ]
 
     fields = map(first, filter(last, conditional_fields))
-    output = settings.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("output")
+    output = settings.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("outputs")
     return CardWidget(key, get_label(spec), fields, output)
 end

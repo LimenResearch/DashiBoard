@@ -66,9 +66,9 @@ function rescale_card_schema(::Any, key::AbstractString)
         "group_by" => JSON_VARIABLES,
         "inputs" => JSON_VARIABLES,
         "targets" => JSON_VARIABLES,
-        "partition" => nullable(JSON_VARIABLE),
+        "partition" => JSON_VARIABLE,
         "suffix" => json_string(min = 1),
-        "target_suffix" => nullable(json_string(min = 1))
+        "target_suffix" => json_string(min = 1)
     )
     return StringDict(
         "type" => "object",
@@ -88,8 +88,8 @@ function cluster_card_schema(::Any, key::AbstractString)
         "type" => Dict("const" => key),
         "method" => json_enum(keys(CLUSTERING_METHODS)),
         "inputs" => JSON_NONEMPTY_VARIABLES,
-        "weights" => nullable(JSON_VARIABLE),
-        "partition" => nullable(JSON_VARIABLE),
+        "weights" => JSON_VARIABLE,
+        "partition" => JSON_VARIABLE,
         "output" => json_string(min = 1)
     )
     return StringDict(
@@ -111,7 +111,7 @@ function dimensionality_reduction_card_schema(::Any, key::AbstractString)
         "type" => Dict("const" => key),
         "method" => json_enum(keys(PROJECTION_METHODS)),
         "inputs" => JSON_NONEMPTY_VARIABLES,
-        "partition" => nullable(JSON_VARIABLE),
+        "partition" => JSON_VARIABLE,
         "n_components" => json_integer(min = 1),
         "output" => json_string(min = 1)
     )
@@ -135,8 +135,8 @@ function abstract_glm_card_schema(
     properties = Dict{String, Any}(
         "type" => Dict("const" => key),
         "distribution" => json_enum(keys(NOISE_MODELS)),
-        "link" => nullable(json_enum(keys(LINK_TYPES))),
-        "partition" => nullable(JSON_VARIABLE),
+        "link" => json_enum(keys(LINK_TYPES)),
+        "partition" => JSON_VARIABLE,
         "target" => JSON_VARIABLE,
         "suffix" => json_string(min = 1)
     )
@@ -184,7 +184,7 @@ function interp_card_schema(::Any, key::AbstractString)
         "method" => json_enum(keys(INTERPOLATION_METHODS)),
         "input" => JSON_VARIABLE,
         "targets" => JSON_NONEMPTY_VARIABLES,
-        "partition" => nullable(JSON_VARIABLE),
+        "partition" => JSON_VARIABLE,
         "suffix" => json_string(min = 1)
     )
 
@@ -232,7 +232,7 @@ function streamliner_card_schema(::Any, key::AbstractString)
     properties = StringDict(
         "type" => Dict("const" => key),
         "funnel" => json_enum(keys(PARSER[].funnels)), # TODO: implement json schema for funnels too
-        "partition" => nullable(JSON_VARIABLE),
+        "partition" => JSON_VARIABLE,
         "suffix" => json_string(min = 1)
     )
 
@@ -297,33 +297,23 @@ function wild_card_schema(settings::Any, key::AbstractString)
         push!(required, "suffix")
         properties["targets"] = JSON_NONEMPTY_VARIABLES
         properties["suffix"] = json_string(min = 1)
-        anyOf = Any[]
     else
-        anyOf = Any[
-            Dict(
-                "required" => ["output"],
-                "properties" => Dict("output" => JSON_VARIABLE)
-            ),
-            Dict(
-                "required" => ["outputs"],
-                "properties" => Dict("outputs" => JSON_NONEMPTY_VARIABLES)
-            ),
-        ]
+        push!(required, "outputs")
+        properties["outputs"] = JSON_NONEMPTY_VARIABLES
     end
 
     if settings.allows_weights
-        properties["weights"] = nullable(JSON_VARIABLE)
+        properties["weights"] = JSON_VARIABLE
     end
 
     if settings.allows_partition
-        properties["partition"] = nullable(JSON_VARIABLE)
+        properties["partition"] = JSON_VARIABLE
     end
 
     return StringDict(
         "type" => "object",
         "properties" => properties,
-        "required" => required,
-        "anyOf" => anyOf
+        "required" => required
     )
 end
 

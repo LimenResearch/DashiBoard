@@ -8,7 +8,9 @@ time_vars = vcat(vars, ["date", "time"])
 function _pipeline_schema_validate(schema, conf; from_metadata::Bool = true)
     @test JSONSchema.validate(schema, conf) === nothing
     if from_metadata
-        @test JSONSchema.validate(schema, Pipelines.get_metadata(Card(conf))) === nothing
+        # remove nothings as our API requires `nothing` keys to be omitted
+        metadata = filter(!isnothing ∘ last, Pipelines.get_metadata(Card(conf)))
+        @test JSONSchema.validate(schema, metadata) === nothing
     end
     return
 end
@@ -54,7 +56,6 @@ end
     schema = Pipelines.json_schema("cluster", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["kmeans"])
     _pipeline_schema_validate(schema, d["dbscan"])
-    _pipeline_schema_validate(schema, d["dbscan_nullable"])
     _pipeline_schema_invalidate(schema, d["wrong_input"])
 end
 
@@ -135,7 +136,7 @@ end
 @testset "wild schema" begin
     schema = Pipelines.json_schema("trivial", vars) |> JSONSchema.Schema
 
-    single_output = Dict("type" => "trivial", "inputs" => ["month"], "output" => "TEMP")
+    single_output = Dict("type" => "trivial", "inputs" => ["month"], "outputs" => ["TEMP"])
     multi_outputs = Dict("type" => "trivial", "inputs" => ["month"], "outputs" => ["TEMP", "PRES"])
     no_output = Dict("type" => "trivial", "inputs" => ["month"], "outputs" => [])
     _pipeline_schema_validate(schema, single_output)

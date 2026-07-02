@@ -13,21 +13,10 @@
     )
     Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
 
-    function trivialcard(inputs::AbstractVector, output::AbstractString)
-        c = Dict("type" => "trivial", "inputs" => inputs, "output" => output)
+    function trivialcard(inputs::AbstractVector, output::Union{AbstractVector, AbstractString})
+        outputs = isa(output, AbstractVector) ? output : [output]
+        c = Dict("type" => "trivial", "inputs" => inputs, "outputs" => outputs)
         return Pipelines.Card(c)
-    end
-
-    function trivialmultioutputcard(inputs::AbstractVector, outputs::AbstractVector)
-        return WildCard{:trivial}(
-            type = "trivial",
-            order_by = String[],
-            inputs = inputs,
-            targets = String[],
-            weights = nothing,
-            partition = nothing,
-            outputs = outputs
-        )
     end
 
     g = Pipelines.digraph(Pipelines.Node[])
@@ -108,10 +97,10 @@
     @test Pipelines.digraph(Pipelines.Node[]) == DiGraph(0)
 
     nodes = [
-        Pipelines.Node(trivialmultioutputcard(["a", "c", "e"], ["f"]), update = false, label = "No update"),
-        Pipelines.Node(trivialmultioutputcard(["a"], ["c", "d"]), update = true),
-        Pipelines.Node(trivialmultioutputcard(["b"], ["e"]), update = true, label = "Single output"),
-        Pipelines.Node(trivialmultioutputcard(["e", "f"], ["g", "h", "i"]), update = true),
+        Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), update = false, label = "No update"),
+        Pipelines.Node(trivialcard(["a"], ["c", "d"]), update = true),
+        Pipelines.Node(trivialcard(["b"], ["e"]), update = true, label = "Single output"),
+        Pipelines.Node(trivialcard(["e", "f"], ["g", "h", "i"]), update = true),
     ]
 
     enriched_digraph = Pipelines.EnrichedDiGraph(nodes)

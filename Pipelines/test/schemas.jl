@@ -114,6 +114,8 @@ end
             _pipeline_schema_validate(schema, d["classifier"], from_metadata = false)
             m_basic = Pipelines.get_metadata(Card(d["basic"]))
             m_classifier = Pipelines.get_metadata(Card(d["classifier"]))
+            _pipeline_schema_invalidate(schema, d["wrongModel"])
+            _pipeline_schema_invalidate(schema, d["wrongTraining"])
         end
     )
 

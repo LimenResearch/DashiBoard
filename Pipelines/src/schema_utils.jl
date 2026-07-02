@@ -15,25 +15,9 @@ function enum_instances(::Type{T}) where {T <: Enum}
     return [StructUtils.lower(DashiStyle(), x) for x in instances(T)]
 end
 
-nullable(s) = StringDict("anyOf" => [s, Dict("type" => "null")])
-
 # generic schema utils
 
-struct EnrichedSchema
-    schema::StringDict
-    required::Bool
-end
-
-function enrich_schema(schema::AbstractDict; nullable::Bool = false)
-    default = get(schema, "default", nothing)
-    return if nullable
-        EnrichedSchema(Pipelines.nullable(schema), false)
-    else
-        EnrichedSchema(schema, isnothing(default))
-    end
-end
-
-function enrich_schema(T::Type, config::Union{AbstractDict, Nothing}, default)
+function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = StringDict()
 
     # FIXME: this is internal
@@ -51,7 +35,8 @@ function enrich_schema(T::Type, config::Union{AbstractDict, Nothing}, default)
     isnothing(default) || (schema["default"] = StructUtils.lower(DashiStyle(), default))
     isnothing(config) || merge!(schema, config)
 
-    return enrich_schema(schema; nullable = (Nothing <: T))
+    required = isnothing(default) && !(Nothing <: T)
+    return schema, required
 end
 
 function conditional_schema(
@@ -80,9 +65,9 @@ function options_schema(::Type{T}) where {T}
         key = string(field)
         config = get_dashi(tags, field)
         default = get(defaults, field, nothing)
-        es = enrich_schema(fieldtype(T, field), config, default)
-        properties[key] = es.schema
-        es.required && push!(required, key)
+        schema, is_required = schema_from_type(fieldtype(T, field), config, default)
+        properties[key] = schema
+        is_required && push!(required, key)
     end
     return Dict(
         "type" => "object",
@@ -104,12 +89,12 @@ function streamliner_schema(configs::AbstractVector)
     properties = StringDict()
     required = String[]
     for config in configs
-        _config = StringDict(config)
-        key::String = pop!(_config, "key")
-        nullable::Bool = pop!(_config, "nullable", false)
-        es = enrich_schema(_config; nullable)
-        properties[key] = es.schema
-        es.required && push!(required, key)
+        schema = StringDict(config)
+        key::String = pop!(schema, "key")
+        # potentially allow a custom keyword for this
+        is_required = !haskey(schema, "default")
+        properties[key] = schema
+        is_required && push!(required, key)
     end
     return Dict(
         "type" => "object",

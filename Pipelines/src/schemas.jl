@@ -214,8 +214,6 @@ function streamliner_card_schema(::Any, key::AbstractString, vars::AbstractVecto
     required = String["type", "model", "training"]
     properties = StringDict(
         "type" => Dict("const" => key),
-        "model_options" => Dict("type" => "object"), # TODO: validate correct keywords
-        "training_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "funnel" => json_enum(keys(PARSER[].funnels)), # TODO: implement json schema for funnels too
         "partition" => nullable(json_var(vars)),
         "suffix" => json_string(min = 1)

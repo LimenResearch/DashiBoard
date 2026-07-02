@@ -212,54 +212,47 @@ const GAUSSIAN_ENCODING_SPEC = CardSpec(
 
 function streamliner_card_schema(::Any, key::AbstractString, vars::AbstractVector)
     required = String["type", "model", "training"]
-    properties = Dict(
+    properties = StringDict(
         "type" => Dict("const" => key),
-        "model_options" => Dict("type" => "object"), # TODO: validate correct keywords
-        "training_options" => Dict("type" => "object"), # TODO: validate correct keywords
         "funnel" => json_enum(keys(PARSER[].funnels)), # TODO: implement json schema for funnels too
         "partition" => nullable(json_var(vars)),
         "suffix" => json_string(min = 1)
     )
 
-    model_configs = available_streamliner_model_configs()
-    model_schema = Dict(
-        "anyOf" => [
-            Dict(
-                "required" => ["model_metadata"],
-                "properties" => Dict(
-                    "model_metadata" => Dict("type" => "object")
-                )
-            ),
-            Dict(
-                "properties" => Dict(
-                    "model" => json_enum(model_configs)
-                )
-            ),
-        ]
-    )
+    model_dir = isassigned(MODEL_DIR) ? MODEL_DIR[] : nothing
+    training_dir = isassigned(TRAINING_DIR) ? TRAINING_DIR[] : nothing
 
-    training_configs = available_streamliner_training_configs()
-    training_schema = Dict(
-        "anyOf" => [
-            Dict(
-                "required" => ["training_metadata"],
-                "properties" => Dict(
-                    "training_metadata" => Dict("type" => "object")
-                )
-            ),
-            Dict(
-                "properties" => Dict(
-                    "training" => json_enum(training_configs)
-                )
-            ),
-        ]
-    )
+    conditions = StringDict[]
 
-    return Dict(
+    if isnothing(model_dir)
+        properties["model_metadata"] = Dict("type" => "object")
+        push!(required, "model_metadata")
+    else
+        model_configs = available_streamliner_configs(model_dir)
+        conditional_model_schemas = conditional_streamliner_schemas(
+            model_dir, model_configs, "model"
+        )
+        append!(conditions, conditional_model_schemas)
+        properties["model"] = json_enum(model_configs)
+    end
+
+    if isnothing(training_dir)
+        properties["training_metadata"] = Dict("type" => "object")
+        push!(required, "training_metadata")
+    else
+        training_configs = available_streamliner_configs(training_dir)
+        conditional_training_schemas = conditional_streamliner_schemas(
+            training_dir, training_configs, "training"
+        )
+        append!(conditions, conditional_training_schemas)
+        properties["training"] = json_enum(training_configs)
+    end
+
+    return StringDict(
         "type" => "object",
         "properties" => properties,
         "required" => required,
-        "allOf" => [model_schema, training_schema]
+        "allOf" => conditions
     )
 end
 

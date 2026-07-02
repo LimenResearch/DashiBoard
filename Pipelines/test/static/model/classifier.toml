@@ -25,3 +25,10 @@ type = "number"
 min = 1
 step = 1
 value = 5
+
+[[properties]]
+key = "features"
+title = "Features"
+description = "Number of features"
+type = "integer"
+minimum = 1

@@ -8,8 +8,8 @@ order_error() = throw(ArgumentError("At least one sorter is required."))
 
 # TODO: add unordered methods
 
-struct PercentileMethod <: OrderedSplittingMethod
-    percentile::Float64
+@tags struct PercentileMethod <: OrderedSplittingMethod
+    percentile::Float64 & (dashi = StringDict("minimum" => 0, "maximum" => 1),)
 end
 
 get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)

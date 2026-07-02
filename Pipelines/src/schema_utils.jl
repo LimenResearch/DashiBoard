@@ -11,38 +11,64 @@ function get_dashi(nt::NamedTuple, sym::Symbol)
     return isnothing(s) ? nothing : get(s, :dashi, nothing)
 end
 
-function enum_instances(::Type{T}) where {T}
+function enum_instances(::Type{T}) where {T <: Enum}
     return [StructUtils.lower(DashiStyle(), x) for x in instances(T)]
 end
 
-function schema_from_tags(T::Type, config::Union{AbstractDict, Nothing}, default)
+nullable(s) = StringDict("anyOf" => [s, Dict("type" => "null")])
+
+# generic schema utils
+
+struct EnrichedSchema
+    schema::StringDict
+    required::Bool
+end
+
+function enrich_schema(schema::AbstractDict; nullable::Bool = false)
+    default = get(schema, "default", nothing)
+    return if nullable
+        EnrichedSchema(Pipelines.nullable(schema), false)
+    else
+        EnrichedSchema(schema, isnothing(default))
+    end
+end
+
+function enrich_schema(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = StringDict()
 
-    if T <: Union{Integer, Nothing}
-        schema["type"] = "integer"
-    elseif T <: Union{Number, Nothing}
-        schema["type"] = "number"
-    elseif T <: Union{AbstractString, Symbol, Nothing}
-        schema["type"] = "string"
-    elseif T <: Union{AbstractVector, Nothing}
-        schema["type"] = "array"
-    elseif T <: Union{Enum, Nothing}
-        schema["type"] = "string"
-        schema["enum"] = enum_instances(T)
-    else
+    # FIXME: this is internal
+    S = Base.nonnothingtype(T)
+
+    type = (S <: Integer) ? "integer" :
+        (S <: Number) ? "number" :
+        (S <: Union{AbstractString, Symbol}) ? "string" :
+        (S <: AbstractVector) ? "array" :
+        (S <: Enum) ? "string" :
         throw(ArgumentError("Type $T not supported in json schema generation."))
-    end
+    schema["type"] = type
 
-    if !isnothing(default)
-        schema["default"] = StructUtils.lower(DashiStyle(), default)
-    end
+    (S <: Enum) && (schema["enum"] = enum_instances(S))
+    isnothing(default) || (schema["default"] = StructUtils.lower(DashiStyle(), default))
+    isnothing(config) || merge!(schema, config)
 
-    if !isnothing(config)
-        merge!(schema, config)
-    end
-
-    return (Nothing <: T) ? (nullable(schema), false) : (schema, isnothing(default))
+    return enrich_schema(schema; nullable = (Nothing <: T))
 end
+
+function conditional_schema(
+        (options_key, options_schema)::Pair{<:AbstractString, <:AbstractDict},
+        (method_key, method_name)::Pair{<:AbstractString, <:AbstractString}
+    )
+    is_required = !isempty(options_schema["required"])
+    return Dict(
+        "if" => Dict("properties" => Dict(method_key => Dict("const" => method_name))),
+        "then" => Dict(
+            "properties" => Dict(options_key => options_schema),
+            "required" => is_required ? String[options_key] : String[]
+        )
+    )
+end
+
+# schema utils for `method` and `method_options` schemas
 
 function options_schema(::Type{T}) where {T}
     properties = StringDict()
@@ -50,13 +76,13 @@ function options_schema(::Type{T}) where {T}
     tags = fieldtags(DashiStyle(), T)
     defaults = fielddefaults(DashiStyle(), T)
 
-    for k in fieldnames(T)
-        sk = string(k)
-        config = get_dashi(tags, k)
-        default = get(defaults, k, nothing)
-        sch, is_req = schema_from_tags(fieldtype(T, k), config, default)
-        properties[sk] = sch
-        is_req && push!(required, sk)
+    for field in fieldnames(T)
+        key = string(field)
+        config = get_dashi(tags, field)
+        default = get(defaults, field, nothing)
+        es = enrich_schema(fieldtype(T, field), config, default)
+        properties[key] = es.schema
+        es.required && push!(required, key)
     end
     return Dict(
         "type" => "object",
@@ -65,20 +91,40 @@ function options_schema(::Type{T}) where {T}
     )
 end
 
-function conditional_options_schema(::Type{T}, k::AbstractString) where {T}
-    method_options = options_schema(T)
-    is_required = !isempty(method_options["required"])
+function conditional_options_schemas(d)
+    return [
+        conditional_schema("method_options" => options_schema(T), "method" => k)
+            for (k, T) in pairs(d)
+    ]
+end
+
+# schema utils for Streamliner cards
+
+function streamliner_schema(configs::AbstractVector)
+    properties = StringDict()
+    required = String[]
+    for config in configs
+        _config = StringDict(config)
+        key::String = pop!(_config, "key")
+        nullable::Bool = pop!(_config, "nullable", false)
+        es = enrich_schema(_config; nullable)
+        properties[key] = es.schema
+        es.required && push!(required, key)
+    end
     return Dict(
-        "if" => Dict("properties" => Dict("method" => Dict("const" => k))),
-        "then" => Dict(
-            "properties" => Dict("method_options" => method_options),
-            "required" => is_required ? String["method_options"] : String[]
-        )
+        "type" => "object",
+        "properties" => properties,
+        "required" => required
     )
 end
 
-function conditional_options_schemas(d)
-    return [conditional_options_schema(v, k) for (k, v) in pairs(d)]
+# Compute schemas used for model or training in Streamliner,
+# e.g., `conditional_options_schemas(model_dir, model_names, "model")`
+function conditional_streamliner_schemas(dir, vals, name)
+    return map(vals) do x
+        schema = streamliner_schema(parse_properties(dir, x))
+        conditional_schema(string(name, "_", "options") => schema, name => x)
+    end
 end
 
 # JSON schema utils
@@ -92,12 +138,12 @@ function json_number(
         exclusive_min::Union{Integer, Nothing} = nothing,
         exclusive_max::Union{Integer, Nothing} = nothing,
     )
-    sch = Dict{String, Any}("type" => type)
-    isnothing(min) || (sch["minimum"] = min)
-    isnothing(max) || (sch["maximum"] = max)
-    isnothing(exclusive_min) || (sch["exclusiveMinimum"] = exclusive_min)
-    isnothing(exclusive_max) || (sch["exclusiveMaximum"] = exclusive_max)
-    return sch
+    schema = Dict{String, Any}("type" => type)
+    isnothing(min) || (schema["minimum"] = min)
+    isnothing(max) || (schema["maximum"] = max)
+    isnothing(exclusive_min) || (schema["exclusiveMinimum"] = exclusive_min)
+    isnothing(exclusive_max) || (schema["exclusiveMaximum"] = exclusive_max)
+    return schema
 end
 
 function json_string(; min::Integer = 0)
@@ -121,5 +167,3 @@ function json_vars(vars; min::Integer = 0)
         "minItems" => min
     )
 end
-
-nullable(s) = StringDict("anyOf" => [s, Dict("type" => "null")])

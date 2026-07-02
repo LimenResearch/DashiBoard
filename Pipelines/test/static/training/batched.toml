@@ -17,3 +17,10 @@ type = "number"
 min = 1
 step = 1
 value = 10
+
+[[properties]]
+key = "iterations"
+title = "Iterations"
+description = "Number of iterations"
+type = "integer"
+minimum = 1

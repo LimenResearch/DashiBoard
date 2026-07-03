@@ -45,13 +45,6 @@ end
 
 function conditional_schema(
         (method_key, method_name)::Pair{<:AbstractString, <:AbstractString},
-        schema::AbstractDict
-    )
-    return conditional_schema(condition, schema)
-end
-
-function conditional_schema(
-        (method_key, method_name)::Pair{<:AbstractString, <:AbstractString},
         (options_key, options_schema)::Pair{<:AbstractString, <:AbstractDict},
     )
     condition = Dict("properties" => Dict(method_key => Dict("const" => method_name)))
@@ -96,7 +89,7 @@ end
 
 # schema utils for Streamliner cards
 
-function streamliner_schema(configs::AbstractVector)
+function streamliner_schema(configs::AbstractVector; additional_properties::Bool = false)
     properties = StringDict()
     required = String[]
     for config in configs
@@ -110,7 +103,8 @@ function streamliner_schema(configs::AbstractVector)
     return Dict(
         "type" => "object",
         "properties" => properties,
-        "required" => required
+        "required" => required,
+        "additionalProperties" => additional_properties
     )
 end
 

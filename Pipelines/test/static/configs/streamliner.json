@@ -50,6 +50,32 @@
     "training": "batched",
     "training_options": { "iterations": -1 }
   },
+  "spuriousModelProperty": {
+    "type": "streamliner",
+    "funnel": "",
+    "order_by": ["No"],
+    "inputs": ["TEMP", "PRES"],
+    "targets": ["cbwd"],
+    "partition": "partition",
+    "suffix": "hat",
+    "model": "classifier",
+    "model_options": { "features": 5, "channels": 2},
+    "training": "batched",
+    "training_options": { "iterations": 4 }
+  },
+  "spuriousTrainingProperty": {
+    "type": "streamliner",
+    "funnel": "",
+    "order_by": ["No"],
+    "inputs": ["TEMP", "PRES"],
+    "targets": ["cbwd"],
+    "partition": "partition",
+    "suffix": "hat",
+    "model": "classifier",
+    "model_options": { "features": 5 },
+    "training": "batched",
+    "training_options": { "iterations": 4, "tol": 1e-5 }
+  },
   "partition": {
     "type": "split",
     "method": "percentile",

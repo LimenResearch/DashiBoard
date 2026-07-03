@@ -4,6 +4,8 @@ StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
 
 StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))
 
+_lower(x) = StructUtils.lower(DashiStyle(), x)
+
 construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
 
 function get_dashi(nt::NamedTuple, sym::Symbol)
@@ -11,28 +13,31 @@ function get_dashi(nt::NamedTuple, sym::Symbol)
     return isnothing(s) ? nothing : get(s, :dashi, nothing)
 end
 
-function enum_instances(::Type{T}) where {T <: Enum}
-    return [StructUtils.lower(DashiStyle(), x) for x in instances(T)]
-end
+_instances(::Type{T}) where {T <: Enum} = instances(T)
+_instances(::Type{Union{T, Nothing}}) where {T <: Enum} = _instances(T)
+
+enum_instances(T::Type) = collect(Iterators.map(_lower, _instances(T)))
 
 # generic schema utils
 
 function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = StringDict()
 
-    # FIXME: this is internal
-    S = Base.nonnothingtype(T)
+    if T <: Nothing
+        throw(ArgumentError("Type `Nothing` not supported, did you mean `Union{T, Nothing}`?"))
+    end
 
-    type = (S <: Integer) ? "integer" :
-        (S <: Number) ? "number" :
-        (S <: Union{AbstractString, Symbol}) ? "string" :
-        (S <: AbstractVector) ? "array" :
-        (S <: Enum) ? "string" :
+    # we consider nullable types, which correspond to optional fields with no default
+    type = (T <: Union{Integer, Nothing}) ? "integer" :
+        (T <: Union{Number, Nothing}) ? "number" :
+        (T <: Union{AbstractString, Symbol, Nothing}) ? "string" :
+        (T <: Union{AbstractVector, Nothing}) ? "array" :
+        (T <: Union{Enum, Nothing}) ? "string" :
         throw(ArgumentError("Type $T not supported in json schema generation."))
     schema["type"] = type
 
-    (S <: Enum) && (schema["enum"] = enum_instances(S))
-    isnothing(default) || (schema["default"] = StructUtils.lower(DashiStyle(), default))
+    (T <: Union{Enum, Nothing}) && (schema["enum"] = enum_instances(T))
+    isnothing(default) || (schema["default"] = _lower(default))
     isnothing(config) || merge!(schema, config)
 
     required = isnothing(default) && !(Nothing <: T)

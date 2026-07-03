@@ -39,23 +39,26 @@ function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default
     return schema, required
 end
 
+function conditional_schema(condition::AbstractDict, schema::AbstractDict)
+    return Dict("if" => condition, "then" => schema)
+end
+
 function conditional_schema(
+        (method_key, method_name)::Pair{<:AbstractString, <:AbstractString},
         (options_key, options_schema)::Pair{<:AbstractString, <:AbstractDict},
-        (method_key, method_name)::Pair{<:AbstractString, <:AbstractString}
     )
+    condition = Dict("properties" => Dict(method_key => Dict("const" => method_name)))
     is_required = !isempty(options_schema["required"])
-    return Dict(
-        "if" => Dict("properties" => Dict(method_key => Dict("const" => method_name))),
-        "then" => Dict(
-            "properties" => Dict(options_key => options_schema),
-            "required" => is_required ? String[options_key] : String[]
-        )
+    schema = Dict(
+        "properties" => Dict(options_key => options_schema),
+        "required" => is_required ? String[options_key] : String[]
     )
+    return conditional_schema(condition, schema)
 end
 
 # schema utils for `method` and `method_options` schemas
 
-function options_schema(::Type{T}) where {T}
+function options_schema(::Type{T}; additional_properties::Bool = false) where {T}
     properties = StringDict()
     required = String[]
     tags = fieldtags(DashiStyle(), T)
@@ -72,20 +75,21 @@ function options_schema(::Type{T}) where {T}
     return Dict(
         "type" => "object",
         "properties" => properties,
-        "required" => required
+        "required" => required,
+        "additionalProperties" => additional_properties
     )
 end
 
 function conditional_options_schemas(d)
     return [
-        conditional_schema("method_options" => options_schema(T), "method" => k)
+        conditional_schema("method" => k, "method_options" => options_schema(T))
             for (k, T) in pairs(d)
     ]
 end
 
 # schema utils for Streamliner cards
 
-function streamliner_schema(configs::AbstractVector)
+function streamliner_schema(configs::AbstractVector; additional_properties::Bool = false)
     properties = StringDict()
     required = String[]
     for config in configs
@@ -99,7 +103,8 @@ function streamliner_schema(configs::AbstractVector)
     return Dict(
         "type" => "object",
         "properties" => properties,
-        "required" => required
+        "required" => required,
+        "additionalProperties" => additional_properties
     )
 end
 
@@ -108,13 +113,14 @@ end
 function conditional_streamliner_schemas(dir, vals, name)
     return map(vals) do x
         schema = streamliner_schema(parse_properties(dir, x))
-        conditional_schema(string(name, "_", "options") => schema, name => x)
+        conditional_schema(name => x, string(name, "_", "options") => schema)
     end
 end
 
 # Definitions
 
 # Note: must keep `valtype::Any` due to a JSONSchema limitation
+# see https://github.com/JuliaIO/JSONSchema.jl/issues/81
 const JSON_VARIABLE = StringDict("\$ref" => "#/\$defs/variable")
 const JSON_VARIABLES = StringDict("\$ref" => "#/\$defs/variables")
 const JSON_NONEMPTY_VARIABLES = StringDict("\$ref" => "#/\$defs/nonempty_variables")

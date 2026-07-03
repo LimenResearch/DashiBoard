@@ -39,5 +39,15 @@
     "method_options": {
       "radius": 0.02
     }
+  },
+  "spuriousProperty": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "dbcluster",
+    "method": "dbscan",
+    "method_options": {
+      "radius": 0.02,
+      "minneighbors": 10
+    }
   }
 }

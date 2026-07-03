@@ -5,11 +5,15 @@ vars = [
 split_vars = vcat(vars, ["partition"])
 time_vars = vcat(vars, ["date", "time"])
 
+function _filtered_metadata(c::AbstractDict)
+    return filter(!isnothing ∘ last, Pipelines.get_metadata(Card(c)))
+end
+
 function _pipeline_schema_validate(schema, conf; from_metadata::Bool = true)
     @test JSONSchema.validate(schema, conf) === nothing
     if from_metadata
         # remove nothings as our API requires `nothing` keys to be omitted
-        metadata = filter(!isnothing ∘ last, Pipelines.get_metadata(Card(conf)))
+        metadata = _filtered_metadata(conf)
         @test JSONSchema.validate(schema, metadata) === nothing
     end
     return
@@ -28,6 +32,7 @@ end
     _pipeline_schema_validate(schema, d["tiles2"])
     _pipeline_schema_validate(schema, d["tiles3"])
     _pipeline_schema_invalidate(schema, d["unsorted"])
+    _pipeline_schema_invalidate(schema, d["spuriousProperty"])
 end
 
 @testset "window_function schema" begin
@@ -58,6 +63,7 @@ end
     _pipeline_schema_validate(schema, d["dbscan"])
     _pipeline_schema_validate(schema, d["hasPartition"])
     _pipeline_schema_invalidate(schema, d["wrongInput"])
+    _pipeline_schema_invalidate(schema, d["spuriousProperty"])
 end
 
 @testset "dimensionality reduction schema" begin
@@ -114,10 +120,12 @@ end
             schema = Pipelines.json_schema("streamliner", split_vars) |> JSONSchema.Schema
             _pipeline_schema_validate(schema, d["basic"], from_metadata = false)
             _pipeline_schema_validate(schema, d["classifier"], from_metadata = false)
-            m_basic = Pipelines.get_metadata(Card(d["basic"]))
-            m_classifier = Pipelines.get_metadata(Card(d["classifier"]))
+            m_basic = _filtered_metadata(d["basic"])
+            m_classifier = _filtered_metadata(d["classifier"])
             _pipeline_schema_invalidate(schema, d["wrongModel"])
             _pipeline_schema_invalidate(schema, d["wrongTraining"])
+            _pipeline_schema_invalidate(schema, d["spuriousModelProperty"])
+            _pipeline_schema_invalidate(schema, d["spuriousTrainingProperty"])
         end
     )
 

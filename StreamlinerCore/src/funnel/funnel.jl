@@ -72,6 +72,7 @@ initialize_helper_tables(data::FunneledData) = data
 # - `ingest` on `data::FunneledData{FunnelType}`
 # - `initialize_helper_tables` on `data::FunneledData{FunnelType}` (optional)
 
+# TODO: integrate with StructUtils tags to get fully specified schema
 @kwdef struct DBFunnel <: Funnel
     order_by::Vector{String}
     inputs::Vector{RichColumn}
@@ -92,7 +93,7 @@ get_targets(dbf::DBFunnel) = dbf.targets
 get_constant_targets(dbf::DBFunnel) = String[]
 get_target_paths(dbf::DBFunnel) = dbf.target_paths
 
-function db_funnel(c::AbstractDict)
+function DBFunnel(c::AbstractDict)
     order_by::Vector{String} = get(c, "order_by", String[])
     inputs::Vector{RichColumn} = RichColumn.(get(c, "inputs", []))
     input_paths::Union{String, Nothing} = get(c, "input_paths", nothing)

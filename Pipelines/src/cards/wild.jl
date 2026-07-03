@@ -13,6 +13,7 @@ end
         targets::Vector{String}
         weights::Union{String, Nothing}
         partition::Union{String, Nothing}
+        suffix::Union{String, Nothing}
         outputs::Vector{String}
     end
 
@@ -59,6 +60,7 @@ Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
     targets::Vector{String}
     weights::Union{String, Nothing}
     partition::Union{String, Nothing}
+    suffix::Union{String, Nothing}
     outputs::Vector{String}
 end
 
@@ -70,36 +72,44 @@ function get_metadata(wc::WildCard)
         "weights" => wc.weights,
         "partition" => wc.partition,
         "targets" => wc.targets,
+        "suffix" => wc.suffix,
         "outputs" => wc.outputs
     )
 end
 
 function WildCard{T}(c::AbstractDict) where {T}
     type::String = c["type"]
-    settings = get_spec(type).settings
+    (; needs_targets, needs_order) = get_spec(type).settings
 
     # TODO: allow a `group_by` field as well?
-    order_by::Vector{String} = settings.needs_order ? c["order_by"] : String[]
+    order_by::Vector{String} = needs_order ? c["order_by"] : get(c, "order_by", String[])
     inputs::Vector{String} = c["inputs"]
-    targets::Vector{String} = settings.needs_targets ? c["targets"] : String[]
 
-    outputs::Vector{String} = if settings.needs_targets
-        suffix::String = c["suffix"]
-        join_names(targets, suffix)
+    local targets::Vector{String}
+    local suffix::Union{String, Nothing}
+    local outputs::Vector{String}
+
+    if needs_targets
+        targets = c["targets"]
+        suffix = something(c["suffix"])
+        outputs = get(c, "outputs", join_names(targets, suffix))
     else
-        c["outputs"]
+        targets = get(c, "targets", String[])
+        suffix = get(c, "suffix", nothing)
+        outputs = c["outputs"]
     end
 
-    weights = get(c, "weights", nothing)
-    partition = get(c, "partition", nothing)
+    weights::Union{String, Nothing} = get(c, "weights", nothing)
+    partition::Union{String, Nothing} = get(c, "partition", nothing)
 
-    return WildCard{T}(
+    return WildCard{T}(;
         type,
         order_by,
         inputs,
         targets,
         weights,
         partition,
+        suffix,
         outputs,
     )
 end

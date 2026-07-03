@@ -5,11 +5,15 @@ vars = [
 split_vars = vcat(vars, ["partition"])
 time_vars = vcat(vars, ["date", "time"])
 
+function _filtered_metadata(c::AbstractDict)
+    return filter(!isnothing ∘ last, Pipelines.get_metadata(Card(c)))
+end
+
 function _pipeline_schema_validate(schema, conf; from_metadata::Bool = true)
     @test JSONSchema.validate(schema, conf) === nothing
     if from_metadata
         # remove nothings as our API requires `nothing` keys to be omitted
-        metadata = filter(!isnothing ∘ last, Pipelines.get_metadata(Card(conf)))
+        metadata = _filtered_metadata(conf)
         @test JSONSchema.validate(schema, metadata) === nothing
     end
     return
@@ -116,8 +120,8 @@ end
             schema = Pipelines.json_schema("streamliner", split_vars) |> JSONSchema.Schema
             _pipeline_schema_validate(schema, d["basic"], from_metadata = false)
             _pipeline_schema_validate(schema, d["classifier"], from_metadata = false)
-            m_basic = Pipelines.get_metadata(Card(d["basic"]))
-            m_classifier = Pipelines.get_metadata(Card(d["classifier"]))
+            m_basic = _filtered_metadata(d["basic"])
+            m_classifier = _filtered_metadata(d["classifier"])
             _pipeline_schema_invalidate(schema, d["wrongModel"])
             _pipeline_schema_invalidate(schema, d["wrongTraining"])
         end

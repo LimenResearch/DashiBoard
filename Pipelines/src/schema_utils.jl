@@ -120,6 +120,7 @@ end
 # Definitions
 
 # Note: must keep `valtype::Any` due to a JSONSchema limitation
+# see https://github.com/JuliaIO/JSONSchema.jl/issues/81
 const JSON_VARIABLE = StringDict("\$ref" => "#/\$defs/variable")
 const JSON_VARIABLES = StringDict("\$ref" => "#/\$defs/variables")
 const JSON_NONEMPTY_VARIABLES = StringDict("\$ref" => "#/\$defs/nonempty_variables")

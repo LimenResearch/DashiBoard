@@ -72,7 +72,7 @@ initialize_helper_tables(data::FunneledData) = data
 # - `ingest` on `data::FunneledData{FunnelType}`
 # - `initialize_helper_tables` on `data::FunneledData{FunnelType}` (optional)
 
-# TODO: fully integrate with StructUtils tags to get fully specified schema
+# TODO: integrate with StructUtils tags to get fully specified schema
 @kwdef struct DBFunnel <: Funnel
     order_by::Vector{String}
     inputs::Vector{RichColumn}

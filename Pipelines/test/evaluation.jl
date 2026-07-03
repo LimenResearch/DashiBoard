@@ -154,12 +154,14 @@ mktempdir() do dir
         nodes = Node.(cards)
         Pipelines.train_evaljoin!(repo, nodes, "selection", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
-        @test names(df) == [
+        # order-insensitive: `evaljoin_many` appends independent nodes' columns
+        # concurrently, so column order is not deterministic under multithreading.
+        @test sort(names(df)) == sort([
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
             "_percentile_partition", "_tiled_partition",
             "PRES_rescaled", "TEMP_rescaled",
-        ]
+        ])
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
         @test count(==(1), df._percentile_partition) == 39441
@@ -167,12 +169,14 @@ mktempdir() do dir
 
         Pipelines.evaljoin(repo, nodes, "source", "No")
         df = DBInterface.execute(DataFrame, repo, "FROM source")
-        @test names(df) == [
+        # order-insensitive: `evaljoin_many` appends independent nodes' columns
+        # concurrently, so column order is not deterministic under multithreading.
+        @test sort(names(df)) == sort([
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
             "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
             "_percentile_partition", "_tiled_partition",
             "PRES_rescaled", "TEMP_rescaled",
-        ]
+        ])
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
         @test count(==(1), df._percentile_partition) == 39441

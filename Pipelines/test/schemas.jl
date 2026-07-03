@@ -28,6 +28,7 @@ end
     _pipeline_schema_validate(schema, d["tiles2"])
     _pipeline_schema_validate(schema, d["tiles3"])
     _pipeline_schema_invalidate(schema, d["unsorted"])
+    _pipeline_schema_invalidate(schema, d["spuriousProperty"])
 end
 
 @testset "window_function schema" begin

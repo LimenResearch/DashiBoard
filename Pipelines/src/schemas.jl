@@ -1,11 +1,18 @@
 function json_schema(key::AbstractString, variables::AbstractVector)
-    spec = get_spec(key)
-    schema = spec.schema(spec.settings, key)
+    schema = json_schema(key)
 
     # TODO: update variables with dict options
     variable_schema = json_enum(variables)
-    variables_schema = Dict("type" => "array", "items" => variable_schema)
-    nonempty_variables_schema = merge(variables_schema, Dict("minItems" => 1))
+    variables_schema = Dict(
+        "type" => "array",
+        "items" => variable_schema,
+        "default" => String[]
+    )
+    nonempty_variables_schema = Dict(
+        "type" => "array",
+        "items" => variable_schema,
+        "minItems" => 1
+    )
 
     schema["\$defs"] = Dict(
         "variable" => variable_schema,
@@ -17,7 +24,10 @@ end
 
 function json_schema(key::AbstractString)::StringDict
     spec = get_spec(key)
-    return spec.schema(spec.settings, key)
+    schema = spec.schema(spec.settings, key)
+    schema["title"] = spec.label
+    schema["additionalProperties"] = false
+    return schema
 end
 
 function split_card_schema(::Any, key::AbstractString)
@@ -26,6 +36,7 @@ function split_card_schema(::Any, key::AbstractString)
         "order_by" => JSON_NONEMPTY_VARIABLES,
         "group_by" => JSON_VARIABLES,
         "method" => json_enum(keys(SPLITTING_METHODS)),
+        "method_options" => Dict("type" => "object"),
         "output" => json_string(min = 1),
     )
     return StringDict(
@@ -87,6 +98,7 @@ function cluster_card_schema(::Any, key::AbstractString)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_enum(keys(CLUSTERING_METHODS)),
+        "method_options" => Dict("type" => "object"),
         "inputs" => JSON_NONEMPTY_VARIABLES,
         "weights" => JSON_VARIABLE,
         "partition" => JSON_VARIABLE,
@@ -110,6 +122,7 @@ function dimensionality_reduction_card_schema(::Any, key::AbstractString)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_enum(keys(PROJECTION_METHODS)),
+        "method_options" => Dict("type" => "object"),
         "inputs" => JSON_NONEMPTY_VARIABLES,
         "partition" => JSON_VARIABLE,
         "n_components" => json_integer(min = 1),
@@ -118,6 +131,7 @@ function dimensionality_reduction_card_schema(::Any, key::AbstractString)
     return StringDict(
         "type" => "object",
         "properties" => properties,
+        "allOf" => conditional_options_schemas(PROJECTION_METHODS),
         "required" => ["type", "method", "inputs", "n_components"]
     )
 end
@@ -136,6 +150,7 @@ function abstract_glm_card_schema(
         "type" => Dict("const" => key),
         "distribution" => json_enum(keys(NOISE_MODELS)),
         "link" => json_enum(keys(LINK_TYPES)),
+        "weights" => JSON_VARIABLE,
         "partition" => JSON_VARIABLE,
         "target" => JSON_VARIABLE,
         "suffix" => json_string(min = 1)
@@ -182,6 +197,7 @@ function interp_card_schema(::Any, key::AbstractString)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_enum(keys(INTERPOLATION_METHODS)),
+        "method_options" => Dict("type" => "object"),
         "input" => JSON_VARIABLE,
         "targets" => JSON_NONEMPTY_VARIABLES,
         "partition" => JSON_VARIABLE,
@@ -207,6 +223,7 @@ function gaussian_encoding_card_schema(::Any, key::AbstractString)
     properties = Dict(
         "type" => Dict("const" => key),
         "method" => json_enum(keys(TEMPORAL_PREPROCESSING_METHODS)),
+        "method_options" => Dict("type" => "object"),
         "input" => JSON_VARIABLE,
         "n_components" => json_integer(min = 1),
         "lambda" => json_number(exclusive_min = 0),

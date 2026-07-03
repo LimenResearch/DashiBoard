@@ -2,39 +2,23 @@ abstract type ProjectionMethod end
 
 struct PCAMethod <: ProjectionMethod end
 
-PCAMethod(::AbstractDict) = PCAMethod()
-
 (::PCAMethod)(X, n) = fit(PCA, X; maxoutdim = n)
 
-struct PPCAMethod <: ProjectionMethod
-    iterations::Int
-    tol::Float64
-end
-
-function PPCAMethod(c::AbstractDict)
-    iterations::Int = get(c, "iterations", 1000)
-    tol::Float64 = get(c, "tol", 1.0e-6)
-    return PPCAMethod(iterations, tol)
+@kwarg struct PPCAMethod <: ProjectionMethod
+    iterations::Int = 1000 & (dashi = StringDict("minimum" => 1),)
+    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
 end
 
 (m::PPCAMethod)(X, n) = fit(PPCA, X; maxoutdim = n, maxiter = m.iterations, m.tol)
 
-struct FactorAnalysisMethod <: ProjectionMethod
-    iterations::Int
-    tol::Float64
-end
-
-function FactorAnalysisMethod(c::AbstractDict)
-    iterations::Int = get(c, "iterations", 1000)
-    tol::Float64 = get(c, "tol", 1.0e-6)
-    return FactorAnalysisMethod(iterations, tol)
+@kwarg struct FactorAnalysisMethod <: ProjectionMethod
+    iterations::Int = 1000 & (dashi = StringDict("minimum" => 1),)
+    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
 end
 
 (m::FactorAnalysisMethod)(X, n) = fit(FactorAnalysis, X; maxoutdim = n, maxiter = m.iterations, m.tol)
 
 struct MDSMethod <: ProjectionMethod end
-
-MDSMethod(::AbstractDict) = MDSMethod()
 
 (mds::MDSMethod)(X, n) = fit(MDS, X; maxoutdim = n, distances = false)
 
@@ -85,7 +69,7 @@ function DimensionalityReductionCard(c::AbstractDict)
     type::String = c["type"]
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
-    projector::ProjectionMethod = PROJECTION_METHODS[method](method_options)
+    projector::ProjectionMethod = construct(PROJECTION_METHODS[method], method_options)
     inputs::Vector{String} = c["inputs"]
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     n_components::Int = c["n_components"]

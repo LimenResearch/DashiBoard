@@ -38,5 +38,14 @@
     "method": "percentile",
     "method_options": { "percentile": 0.9 },
     "output": "_percentile_partition"
+  },
+  "spuriousProperty": {
+    "type": "split",
+    "order_by": ["No"],
+    "group_by": ["cbwd"],
+    "method": "tiles",
+    "method_options": { "tiles": [1, 1, 2, 1, 1, 2, 1] },
+    "output": "_tiled_partition",
+    "suffix": "hat"
   }
 }

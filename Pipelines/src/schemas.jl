@@ -254,8 +254,6 @@ function streamliner_card_schema(::Any, key::AbstractString)
     default_funnel = ""
     properties = StringDict(
         "type" => Dict("const" => key),
-        "training" => Dict("type" => "string"),
-        "training_options" => Dict("type" => "object"),
         "funnel" => merge(json_enum(keys(funnels)), Dict("default" => default_funnel)),
         "partition" => JSON_VARIABLE,
         "suffix" => json_string(min = 1)

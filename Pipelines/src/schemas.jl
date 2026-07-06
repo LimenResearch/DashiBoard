@@ -1,11 +1,4 @@
-function json_schema(
-        key::AbstractString, variables::AbstractVector;
-        additional_properties::Bool = false
-    )
-
-    schema = json_schema(key; additional_properties)
-
-    # TODO: update variables with dict options
+function schema_definitions(variables::AbstractVector)
     variable_schema = json_enum(variables)
     variables_schema = Dict(
         "type" => "array",
@@ -17,12 +10,19 @@ function json_schema(
         "items" => variable_schema,
         "minItems" => 1
     )
-
-    schema["\$defs"] = Dict(
+    return Dict(
         "variable" => variable_schema,
         "variables" => variables_schema,
         "nonempty_variables" => nonempty_variables_schema,
     )
+end
+
+function json_schema(
+        key::AbstractString, variables::AbstractVector;
+        additional_properties::Bool = false
+    )
+    schema = json_schema(key; additional_properties)
+    schema["\$defs"] = schema_definitions(variables)
     return schema
 end
 

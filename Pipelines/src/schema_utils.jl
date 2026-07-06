@@ -45,20 +45,18 @@ function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default
 end
 
 function match_property(
-        (key, name)::Pair{<:AbstractString, <:AbstractString},
-        default::Union{AbstractString, Nothing} = nothing
+        (key, name)::Pair{<:AbstractString, <:AbstractString}
     )
-    condition = Dict("properties" => Dict(key => Dict("const" => name)))
-    return if name != default
-        condition
-    else
-        Dict(
-            "anyOf" => [
-                condition,
-                Dict("not" => Dict("required" => [key])),
-            ]
-        )
-    end
+    return Dict("properties" => Dict(key => Dict("const" => name)))
+end
+
+function match_property(
+        (key, name)::Pair{<:AbstractString, <:AbstractString},
+        default::AbstractString
+    )
+    schema = match_property(key => name)
+    required = name != default ? String[key] : String[]
+    return merge(schema, Dict("required" => required))
 end
 
 function conditional_schema(condition::AbstractDict, schema::AbstractDict)

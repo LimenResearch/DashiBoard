@@ -159,9 +159,13 @@ function _deps_item_schema(
 
     return Dict(
         "type" => "object",
-        "properties" => StringDict(
+        "properties" => Dict(
             name => _schema,
-            "through" => JSON_NODES
+            "through" => Dict(
+                "type" => "array",
+                "items" => JSON_NODE,
+                "default" => []
+            )
         ),
         "required" => [name],
         "additionalProperties" => false
@@ -169,12 +173,12 @@ function _deps_item_schema(
 end
 
 function deps_item_schema(; singular::Bool = false)
-    conds = StringDict[
+    conds = [
         Dict("required" => ["nodes"]),
         Dict("required" => ["groups"]),
         Dict("required" => ["cols"]),
     ]
-    results = StringDict[
+    results = [
         _deps_item_schema("nodes", JSON_NODE; singular),
         _deps_item_schema("groups", JSON_GROUP; singular),
         _deps_item_schema("cols", JSON_COL; singular),
@@ -189,28 +193,26 @@ const ITEM_SCHEMA = deps_item_schema()
 const SINGULAR_ITEM_SCHEMA = deps_item_schema(singular = true)
 
 function schema_definitions(deps::Deps)
-    nodes_schema = Dict(
-        "type" => "array",
-        "items" => JSON_NODE
-    )
     node_schema = json_enum(deps.nodes)
     group_schema = json_enum(deps.groups)
     col_schema = json_enum(deps.cols)
 
+    item_schema = deps_item_schema()
+    singular_item_schema = deps_item_schema(singular = true)
+
     variable_schema = one_or_many_schema(
-        SINGULAR_ITEM_SCHEMA, Dict("minItems" => 1, "maxItems" => 1)
+        singular_item_schema, Dict("minItems" => 1, "maxItems" => 1)
     )
 
     variables_schema = one_or_many_schema(
-        ITEM_SCHEMA, Dict("default" => [])
+        item_schema, Dict("default" => [])
     )
 
     nonempty_variables_schema = one_or_many_schema(
-        ITEM_SCHEMA, Dict("minItems" => 1)
+        item_schema, Dict("minItems" => 1)
     )
 
     return Dict(
-        "nodes" => nodes_schema,
         "node" => node_schema,
         "group" => group_schema,
         "col" => col_schema,
@@ -227,8 +229,8 @@ function groups_schema(deps::Deps)
 end
 
 function groups_schema(grp_names::AbstractVector)
-    properties = StringDict(name => JSON_VARIABLES for name in grp_names)
-    return StringDict(
+    properties = Dict(name => JSON_VARIABLES for name in grp_names)
+    return Dict(
         "type" => "object",
         "properties" => properties,
         "required" => grp_names,

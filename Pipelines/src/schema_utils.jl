@@ -48,14 +48,14 @@ function match_property(
         (key, name)::Pair{<:AbstractString, <:AbstractString},
         default::Union{AbstractString, Nothing} = nothing
     )
-    condition = StringDict("properties" => Dict(key => Dict("const" => name)))
+    condition = Dict("properties" => Dict(key => Dict("const" => name)))
     return if name != default
         condition
     else
-        StringDict(
+        Dict(
             "anyOf" => [
                 condition,
-                StringDict("not" => Dict("required" => [key])),
+                Dict("not" => Dict("required" => [key])),
             ]
         )
     end
@@ -87,7 +87,7 @@ function one_or_many_schema(schema::AbstractDict, config::AbstractDict)
         Dict("type" => "array"),
         merge(Dict("type" => "array", "items" => schema), config)
     )
-    return StringDict(
+    return Dict(
         "type" => ["object", "array"],
         "allOf" => [obj, arr]
     )
@@ -162,7 +162,6 @@ const JSON_VARIABLE = StringDict("\$ref" => "#/\$defs/variable")
 const JSON_VARIABLES = StringDict("\$ref" => "#/\$defs/variables")
 const JSON_NONEMPTY_VARIABLES = StringDict("\$ref" => "#/\$defs/nonempty_variables")
 
-const JSON_NODES = StringDict("\$ref" => "#/\$defs/nodes")
 const JSON_NODE = StringDict("\$ref" => "#/\$defs/node")
 const JSON_GROUP = StringDict("\$ref" => "#/\$defs/group")
 const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
@@ -178,7 +177,7 @@ function json_number(
         exclusive_min::Union{Integer, Nothing} = nothing,
         exclusive_max::Union{Integer, Nothing} = nothing,
     )
-    schema = Dict{String, Any}("type" => type)
+    schema = StringDict("type" => type)
     isnothing(min) || (schema["minimum"] = min)
     isnothing(max) || (schema["maximum"] = max)
     isnothing(exclusive_min) || (schema["exclusiveMinimum"] = exclusive_min)

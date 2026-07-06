@@ -168,7 +168,7 @@ function _deps_schema_item(
     )
 end
 
-function deps_schema_item(deps::Deps; singular::Bool = false)
+function deps_schema_item(; singular::Bool = false)
     conds = StringDict[
         Dict("required" => ["nodes"]),
         Dict("required" => ["groups"]),
@@ -185,6 +185,9 @@ function deps_schema_item(deps::Deps; singular::Bool = false)
     )
 end
 
+const ITEM_SCHEMA = deps_schema_item()
+const SINGULAR_ITEM_SCHEMA = deps_schema_item(singular = true)
+
 function schema_definitions(deps::Deps)
     nodes_schema = Dict(
         "type" => "array",
@@ -194,16 +197,16 @@ function schema_definitions(deps::Deps)
     group_schema = json_enum(deps.groups)
     col_schema = json_enum(deps.cols)
 
-    variable_schema = deps_schema_item(deps; singular = true)
-    variables_schema = Dict(
-        "type" => "array",
-        "items" => deps_schema_item(deps),
-        "default" => String[]
+    variable_schema = one_or_many_schema(
+        SINGULAR_ITEM_SCHEMA, Dict("minItems" => 1, "maxItems" => 1)
     )
-    nonempty_variables_schema = Dict(
-        "type" => "array",
-        "items" => deps_schema_item(deps),
-        "minItems" => 1
+
+    variables_schema = one_or_many_schema(
+        ITEM_SCHEMA, Dict("default" => [])
+    )
+
+    nonempty_variables_schema = one_or_many_schema(
+        ITEM_SCHEMA, Dict("minItems" => 1)
     )
 
     return Dict(
@@ -214,5 +217,21 @@ function schema_definitions(deps::Deps)
         "variable" => variable_schema,
         "variables" => variables_schema,
         "nonempty_variables" => nonempty_variables_schema,
+    )
+end
+
+function groups_schema(deps::Deps)
+    schema = groups_schema(deps.groups)
+    schema["\$defs"] = schema_definitions(deps)
+    return schema
+end
+
+function groups_schema(grp_names::AbstractVector)
+    properties = StringDict(name => JSON_VARIABLES for name in grp_names)
+    return StringDict(
+        "type" => "object",
+        "properties" => properties,
+        "required" => grp_names,
+        "additionalProperties" => false
     )
 end

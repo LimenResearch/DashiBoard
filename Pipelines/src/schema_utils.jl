@@ -61,6 +61,21 @@ function conditional_schema(
     return conditional_schema(condition, schema)
 end
 
+function one_or_many_schema(schema::AbstractDict, config::AbstractDict)
+    obj = conditional_schema(
+        Dict("type" => "object"),
+        schema
+    )
+    arr = conditional_schema(
+        Dict("type" => "array"),
+        merge(Dict("type" => "array", "items" => schema), config)
+    )
+    return StringDict(
+        "type" => ["object", "array"],
+        "allOf" => [obj, arr]
+    )
+end
+
 # schema utils for `method` and `method_options` schemas
 
 function options_schema(::Type{T}; additional_properties::Bool = false) where {T}

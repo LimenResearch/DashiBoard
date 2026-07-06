@@ -156,12 +156,15 @@ mktempdir() do dir
         df = DBInterface.execute(DataFrame, repo, "FROM selection")
         # order-insensitive: `evaljoin_many` appends independent nodes' columns
         # concurrently, so column order is not deterministic under multithreading.
-        @test sort(names(df)) == sort([
-            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-            "_percentile_partition", "_tiled_partition",
-            "PRES_rescaled", "TEMP_rescaled",
-        ])
+        @test issetequal(
+            names(df),
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "_percentile_partition", "_tiled_partition",
+                "PRES_rescaled", "TEMP_rescaled",
+            ]
+        )
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
         @test count(==(1), df._percentile_partition) == 39441
@@ -171,12 +174,14 @@ mktempdir() do dir
         df = DBInterface.execute(DataFrame, repo, "FROM source")
         # order-insensitive: `evaljoin_many` appends independent nodes' columns
         # concurrently, so column order is not deterministic under multithreading.
-        @test sort(names(df)) == sort([
-            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-            "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
-            "_percentile_partition", "_tiled_partition",
-            "PRES_rescaled", "TEMP_rescaled",
-        ])
+        @test sort(names(df)) == sort(
+            [
+                "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "_percentile_partition", "_tiled_partition",
+                "PRES_rescaled", "TEMP_rescaled",
+            ]
+        )
         @test count(==(1), df._tiled_partition) == 29218
         @test count(==(2), df._tiled_partition) == 14606
         @test count(==(1), df._percentile_partition) == 39441

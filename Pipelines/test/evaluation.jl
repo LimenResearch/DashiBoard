@@ -174,7 +174,8 @@ mktempdir() do dir
         df = DBInterface.execute(DataFrame, repo, "FROM source")
         # order-insensitive: `evaljoin_many` appends independent nodes' columns
         # concurrently, so column order is not deterministic under multithreading.
-        @test sort(names(df)) == sort(
+        @test issetequal(
+            names(df),
             [
                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
                 "PRES", "cbwd", "Iws", "Is", "Ir", "_name",

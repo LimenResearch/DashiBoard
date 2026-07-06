@@ -124,6 +124,7 @@ end
             m_classifier = _filtered_metadata(d["classifier"])
             _pipeline_schema_invalidate(schema, d["wrongModel"])
             _pipeline_schema_invalidate(schema, d["wrongTraining"])
+            _pipeline_schema_invalidate(schema, d["spuriousProperty"])
             _pipeline_schema_invalidate(schema, d["spuriousModelProperty"])
             _pipeline_schema_invalidate(schema, d["spuriousTrainingProperty"])
         end

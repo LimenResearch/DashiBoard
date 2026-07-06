@@ -29,8 +29,9 @@ end
 function json_schema(key::AbstractString; additional_properties::Bool = false)::StringDict
     spec = get_spec(key)
     schema = spec.schema(spec.settings, key)
-    schema["title"] = spec.label
-    schema["additionalProperties"] = additional_properties
+    # set defaults if not provided by card schema implementation
+    get!(schema, "title", spec.label)
+    get!(schema, "additionalProperties", additional_properties)
     return schema
 end
 
@@ -293,10 +294,8 @@ function streamliner_card_schema(::Any, key::AbstractString)
     end
 
     for (k, F) in pairs(funnels)
-        schema = options_schema(F; additional_properties = true)
-        for p in keys(schema["properties"])
-            properties[p] = Dict() # allow these properties to exist in global schema
-        end
+        schema = options_schema(F)
+        merge!(schema["properties"], Dict(keys(properties) .=> true))
         condition = StringDict("properties" => Dict("funnel" => Dict("const" => k)))
         if k == default_funnel
             condition = StringDict(
@@ -310,7 +309,8 @@ function streamliner_card_schema(::Any, key::AbstractString)
         "type" => "object",
         "properties" => properties,
         "required" => required,
-        "allOf" => conditions
+        "allOf" => conditions,
+        "additionalProperties" => true
     )
 end
 

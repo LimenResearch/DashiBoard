@@ -1,17 +1,19 @@
-@testset "schema from type" begin
+module EnumTest
     @enum Fruit apple = 1 orange = 2 kiwi = 3
+end
 
-    instances = Pipelines.enum_instances(Fruit)
+@testset "schema from type" begin
+    instances = Pipelines.enum_instances(EnumTest.Fruit)
     @test instances == ["apple", "orange", "kiwi"]
-    instances = Pipelines.enum_instances(Union{Fruit, Nothing})
+    instances = Pipelines.enum_instances(Union{EnumTest.Fruit, Nothing})
     @test instances == ["apple", "orange", "kiwi"]
 
     @test_throws ArgumentError Pipelines.schema_from_type(Nothing, Dict(), nothing)
 
     schema, is_required = Pipelines.schema_from_type(
-        Union{Fruit, Nothing},
+        Union{EnumTest.Fruit, Nothing},
         Dict("title" => "fruits"),
-        orange
+        EnumTest.orange
     )
     @test schema == Dict{String, Any}(
         "title" => "fruits",
@@ -22,7 +24,7 @@
     @test !is_required
 
     schema, is_required = Pipelines.schema_from_type(
-        Fruit,
+        EnumTest.Fruit,
         Dict("title" => "fruits"),
         nothing
     )
@@ -34,7 +36,7 @@
     @test is_required
 
     _, is_required = Pipelines.schema_from_type(
-        Union{Fruit, Nothing},
+        Union{EnumTest.Fruit, Nothing},
         Dict("title" => "fruits"),
         nothing
     )

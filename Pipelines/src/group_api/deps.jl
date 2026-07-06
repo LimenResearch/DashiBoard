@@ -146,7 +146,7 @@ replace_placeholders(x::Any, ::Params; recur::Bool = false) = x
 
 # schema definitions
 
-function _deps_schema_item(
+function _deps_item_schema(
         name::AbstractString, items::AbstractDict;
         singular::Bool = false
     )
@@ -168,16 +168,16 @@ function _deps_schema_item(
     )
 end
 
-function deps_schema_item(; singular::Bool = false)
+function deps_item_schema(; singular::Bool = false)
     conds = StringDict[
         Dict("required" => ["nodes"]),
         Dict("required" => ["groups"]),
         Dict("required" => ["cols"]),
     ]
     results = StringDict[
-        _deps_schema_item("nodes", JSON_NODE; singular),
-        _deps_schema_item("groups", JSON_GROUP; singular),
-        _deps_schema_item("cols", JSON_COL; singular),
+        _deps_item_schema("nodes", JSON_NODE; singular),
+        _deps_item_schema("groups", JSON_GROUP; singular),
+        _deps_item_schema("cols", JSON_COL; singular),
     ]
     return Dict(
         "anyOf" => conds,
@@ -185,8 +185,8 @@ function deps_schema_item(; singular::Bool = false)
     )
 end
 
-const ITEM_SCHEMA = deps_schema_item()
-const SINGULAR_ITEM_SCHEMA = deps_schema_item(singular = true)
+const ITEM_SCHEMA = deps_item_schema()
+const SINGULAR_ITEM_SCHEMA = deps_item_schema(singular = true)
 
 function schema_definitions(deps::Deps)
     nodes_schema = Dict(

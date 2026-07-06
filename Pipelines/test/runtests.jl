@@ -14,6 +14,7 @@ using Test
 include("groups.jl")
 include("evaluation.jl")
 include("options.jl")
+include("schema_utils.jl")
 include("schemas.jl")
 include("cards.jl")
 include("parametric_cards.jl")

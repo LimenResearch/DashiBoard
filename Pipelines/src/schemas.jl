@@ -298,12 +298,7 @@ function streamliner_card_schema(::Any, key::AbstractString)
     for (k, F) in pairs(funnels)
         schema = options_schema(F)
         merge!(schema["properties"], Dict(keys(properties) .=> true))
-        condition = StringDict("properties" => Dict("funnel" => Dict("const" => k)))
-        if k == default_funnel
-            condition = StringDict(
-                "anyOf" => [condition, Dict("not" => Dict("required" => ["funnel"]))]
-            )
-        end
+        condition = match_property("funnel" => k, default_funnel)
         push!(conditions, conditional_schema(condition, schema))
     end
 

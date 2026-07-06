@@ -303,6 +303,38 @@ end
     R = kmeans([train_df.TEMP train_df.PRES train_df.Iws]', 3; maxiter = 100, tol = 1.0e-6, rng, weights)
     @test assignments(R) == df.cluster
 
+    # k-means predict through the partition split: fit on partition 1, assign ALL rows.
+    # This is what `predict` unlocks — before, held-out (partition 2) rows were unassigned.
+    DBInterface.execute(
+        Returns(nothing), repo,
+        "CREATE OR REPLACE TABLE parted AS \
+         SELECT *, CASE WHEN No % 4 = 0 THEN 2 ELSE 1 END AS partition FROM selection"
+    )
+
+    pnode = Node(Pipelines.Card(merge(d["kmeans"], Dict("partition" => "partition"))))
+    Pipelines.train_evaljoin!(repo, pnode, "parted" => "pclust", "No")
+    pdf = DBInterface.execute(DataFrame, repo, "FROM pclust ORDER BY No")
+    @test all(∈(1:3), pdf.cluster)   # every row assigned, partition-2 rows included
+
+    # reference centroids fit on partition 1 only; every row → its nearest centroid
+    p1 = DBInterface.execute(DataFrame, repo, "FROM parted WHERE partition = 1")
+    R1 = kmeans(
+        [p1.TEMP p1.PRES p1.Iws]', 3;
+        maxiter = 100, tol = 1.0e-6, rng = StreamlinerCore.get_rng(1234), weights = p1.Iws
+    )
+    allrows = DBInterface.execute(DataFrame, repo, "FROM parted ORDER BY No")
+    Xa = permutedims([allrows.TEMP allrows.PRES allrows.Iws])
+    exp_full = [argmin(vec(sum(abs2, Xa[:, j] .- R1.centers; dims = 1))) for j in axes(Xa, 2)]
+    @test pdf.cluster == exp_full
+
+    # `assign_inputs`: same partition-1 fit, but assign on [TEMP, PRES] only (drop Iws)
+    anode = Node(Pipelines.Card(merge(d["kmeansAssign"], Dict("partition" => "partition"))))
+    Pipelines.train_evaljoin!(repo, anode, "parted" => "aclust", "No")
+    adf = DBInterface.execute(DataFrame, repo, "FROM aclust ORDER BY No")
+    Xs = permutedims([allrows.TEMP allrows.PRES])
+    exp_sub = [argmin(vec(sum(abs2, Xs[:, j] .- R1.centers[1:2, :]; dims = 1))) for j in axes(Xs, 2)]
+    @test adf.cluster == exp_sub
+
     card = Pipelines.Card(d["dbscan"])
     @test !Pipelines.invertible(card)
 

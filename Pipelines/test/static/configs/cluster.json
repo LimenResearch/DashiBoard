@@ -12,6 +12,20 @@
       "seed": 1234
     }
   },
+  "kmeansAssign": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES", "Iws"],
+    "assign_inputs": ["TEMP", "PRES"],
+    "weights": "Iws",
+    "output": "cluster",
+    "method": "kmeans",
+    "method_options": {
+      "classes": 3,
+      "iterations": 100,
+      "tol": 1e-6,
+      "seed": 1234
+    }
+  },
   "dbscan": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES"],

@@ -104,6 +104,7 @@ function cluster_card_schema(::Any, key::AbstractString)
         "method" => json_enum(keys(CLUSTERING_METHODS)),
         "method_options" => Dict("type" => "object"),
         "inputs" => JSON_NONEMPTY_VARIABLES,
+        "assign_inputs" => JSON_VARIABLES,
         "weights" => JSON_VARIABLE,
         "partition" => JSON_VARIABLE,
         "output" => json_string(min = 1)

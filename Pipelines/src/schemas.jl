@@ -2,12 +2,12 @@ function schema_definitions(variables::AbstractVector)
     variable_schema = json_enum(variables)
     variables_schema = Dict(
         "type" => "array",
-        "items" => variable_schema,
+        "items" => JSON_VARIABLE,
         "default" => String[]
     )
     nonempty_variables_schema = Dict(
         "type" => "array",
-        "items" => variable_schema,
+        "items" => JSON_VARIABLE,
         "minItems" => 1
     )
     return Dict(
@@ -18,9 +18,9 @@ function schema_definitions(variables::AbstractVector)
 end
 
 function json_schema(
-        key::AbstractString, variables::AbstractVector;
+        key::AbstractString, variables::Union{AbstractVector, Deps};
         additional_properties::Bool = false
-    )
+    )::StringDict
     schema = json_schema(key; additional_properties)
     schema["\$defs"] = schema_definitions(variables)
     return schema
@@ -34,6 +34,8 @@ function json_schema(key::AbstractString; additional_properties::Bool = false)::
     get!(schema, "additionalProperties", additional_properties)
     return schema
 end
+
+# Card implementations
 
 function split_card_schema(::Any, key::AbstractString)
     properties = Dict(

@@ -143,3 +143,76 @@ function replace_placeholders(config::AbstractVector, ps::Params; recur::Bool = 
 end
 
 replace_placeholders(x::Any, ::Params; recur::Bool = false) = x
+
+# schema definitions
+
+function _deps_schema_item(
+        name::AbstractString, items::AbstractDict;
+        singular::Bool = false
+    )
+    _schema = StringDict(
+        "type" => "array",
+        "items" => items,
+        "minItems" => 1
+    )
+    singular && (_schema["maxItems"] = 1)
+
+    return Dict(
+        "type" => "object",
+        "properties" => StringDict(
+            name => _schema,
+            "through" => JSON_NODES
+        ),
+        "required" => [name],
+        "additionalProperties" => false
+    )
+end
+
+function deps_schema_item(deps::Deps; singular::Bool = false)
+    conds = StringDict[
+        Dict("required" => ["nodes"]),
+        Dict("required" => ["groups"]),
+        Dict("required" => ["cols"]),
+    ]
+    results = StringDict[
+        _deps_schema_item("nodes", JSON_NODE; singular),
+        _deps_schema_item("groups", JSON_GROUP; singular),
+        _deps_schema_item("cols", JSON_COL; singular),
+    ]
+    return Dict(
+        "anyOf" => conds,
+        "allOf" => conditional_schema.(conds, results)
+    )
+end
+
+function schema_definitions(deps::Deps)
+    nodes_schema = Dict(
+        "type" => "array",
+        "items" => JSON_NODE
+    )
+    node_schema = json_enum(deps.nodes)
+    group_schema = json_enum(deps.groups)
+    col_schema = json_enum(deps.cols)
+
+    variable_schema = deps_schema_item(deps; singular = true)
+    variables_schema = Dict(
+        "type" => "array",
+        "items" => deps_schema_item(deps),
+        "default" => String[]
+    )
+    nonempty_variables_schema = Dict(
+        "type" => "array",
+        "items" => deps_schema_item(deps),
+        "minItems" => 1
+    )
+
+    return Dict(
+        "nodes" => nodes_schema,
+        "node" => node_schema,
+        "group" => group_schema,
+        "col" => col_schema,
+        "variable" => variable_schema,
+        "variables" => variables_schema,
+        "nonempty_variables" => nonempty_variables_schema,
+    )
+end

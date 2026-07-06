@@ -130,6 +130,11 @@ const JSON_VARIABLE = StringDict("\$ref" => "#/\$defs/variable")
 const JSON_VARIABLES = StringDict("\$ref" => "#/\$defs/variables")
 const JSON_NONEMPTY_VARIABLES = StringDict("\$ref" => "#/\$defs/nonempty_variables")
 
+const JSON_NODES = StringDict("\$ref" => "#/\$defs/nodes")
+const JSON_NODE = StringDict("\$ref" => "#/\$defs/node")
+const JSON_GROUP = StringDict("\$ref" => "#/\$defs/group")
+const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
+
 # JSON schema utils
 
 json_integer(; kwargs...) = json_number("integer"; kwargs...)

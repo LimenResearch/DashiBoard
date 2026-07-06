@@ -5,9 +5,9 @@
       "card": {
         "type": "rescale",
         "method": "zscore",
-        "group_by": { "cols": "cbwd" },
-        "partition": {"nodes": "partition"},
-        "inputs": [{ "groups": "weather" }, { "cols": "No" }]
+        "group_by": { "cols": ["cbwd"] },
+        "partition": { "nodes": ["partition"] },
+        "inputs": [{ "groups": ["weather"] }, { "cols": ["No"] }]
       }
     },
     {
@@ -15,7 +15,7 @@
       "card": {
         "type": "rescale",
         "method": "log",
-        "inputs": { "cols": "No" },
+        "inputs": { "cols": ["No"] },
         "suffix": "log"
       }
     },
@@ -26,8 +26,8 @@
         "method": "pca",
         "n_components": 2,
         "inputs": [
-          { "nodes": "log" },
-          { "groups": "weather", "through": "rescale" }
+          { "nodes": ["log"] },
+          { "groups": ["weather"], "through": ["rescale"] }
         ]
       }
     },
@@ -37,7 +37,7 @@
         "type": "split",
         "method": "percentile",
         "method_options": { "percentile": 0.9 },
-        "order_by": { "cols": "No" },
+        "order_by": { "cols": ["No"] },
         "output": "partition"
       }
     }

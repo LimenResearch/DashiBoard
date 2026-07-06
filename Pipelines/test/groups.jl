@@ -1,5 +1,5 @@
 @testset "groups" begin
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "groups.json"))
+    d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     g, (grp_keys, grp_vals), cols = Pipelines.generate_dag(d["nodes"], d["groups"])
     es = sort(collect(edges(g)))
 
@@ -27,7 +27,7 @@ end
         )
         DataIngestion.load_files(repo, dir, spec["data"])
     end
-    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "groups.json"))
+    d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     pipeline = Pipelines.Pipeline(d["nodes"], d["groups"])
     Pipelines.train_evaljoin!(repo, pipeline, "source", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM source")

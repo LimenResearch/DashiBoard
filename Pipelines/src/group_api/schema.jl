@@ -3,25 +3,18 @@
 function deps_item_schema(; singular::Bool = false)
     minItems, maxItems = 1, singular ? 1 : nothing
 
-    return StringDict(
-        "type" => "object",
-        "properties" => StringDict(
-            "nodes" => json_array(; items = JSON_NODE, minItems, maxItems),
-            "groups" => json_array(; items = JSON_GROUP, minItems, maxItems),
-            "cols" => json_array(; items = JSON_COL, minItems, maxItems),
-            "through" => StringDict(
-                "type" => "array",
-                "items" => JSON_NODE,
-                "default" => []
-            )
-        ),
-        "oneOf" => [
-            StringDict("required" => ["nodes"]),
-            StringDict("required" => ["groups"]),
-            StringDict("required" => ["cols"]),
-        ],
-        "additionalProperties" => false
+    properties = StringDict(
+        "nodes" => json_array(; items = JSON_NODE, minItems, maxItems),
+        "groups" => json_array(; items = JSON_GROUP, minItems, maxItems),
+        "cols" => json_array(; items = JSON_COL, minItems, maxItems),
+        "through" => json_array(; items = JSON_NODE, default = [])
     )
+    oneOf = [
+        json_config(required = ["nodes"]),
+        json_config(required = ["groups"]),
+        json_config(required = ["cols"]),
+    ]
+    return json_object(; properties, additionalProperties = false, oneOf)
 end
 
 function schema_definitions(deps::Deps)
@@ -53,11 +46,9 @@ function groups_schema(deps::Deps)
 end
 
 function groups_schema(grp_names::AbstractVector)
-    properties = StringDict(name => JSON_VARIABLES for name in grp_names)
-    return StringDict(
-        "type" => "object",
-        "properties" => properties,
-        "required" => grp_names,
-        "additionalProperties" => false
-    )
+    properties = StringDict()
+    for name in grp_names
+        properties[name] = JSON_VARIABLES
+    end
+    return json_object(; properties, additionalProperties = false, required = grp_names)
 end

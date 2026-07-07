@@ -48,16 +48,17 @@ end
 function match_property(
         (key, name)::Pair{<:AbstractString, <:AbstractString}
     )
-    return StringDict("properties" => StringDict(key => StringDict("const" => name)))
+    properties = StringDict(key => json_const(name))
+    return json_config(; properties)
 end
 
 function match_property(
         (key, name)::Pair{<:AbstractString, <:AbstractString},
         default::AbstractString
     )
-    schema = match_property(key => name)
-    schema["required"] = name != default ? String[key] : String[]
-    return schema
+    properties = StringDict(key => json_const(name))
+    required = name == default ? String[] : String[key]
+    return json_config(; properties, required)
 end
 
 function conditional_schema(condition::AbstractDict, schema::AbstractDict)
@@ -69,19 +70,19 @@ function conditional_schema(
         (options_key, options_schema)::Pair{<:AbstractString, <:AbstractDict},
     )
     condition = match_property(method_key => method_name)
-    is_required = !isempty(options_schema["required"])
-    schema = StringDict(
-        "properties" => StringDict(options_key => options_schema),
-        "required" => is_required ? String[options_key] : String[]
-    )
+    properties = StringDict(options_key => options_schema)
+    # If at least one property of `options_schema` is required,
+    # then `options_schema` is required
+    required = isempty(options_schema["required"]) ? String[] : String[options_key]
+    schema = json_config(; properties, required)
     return conditional_schema(condition, schema)
 end
 
 function one_or_many_schema(schema::AbstractDict; kwargs...)
     obj_schema::StringDict = schema
     arr_schema = json_array(; items = obj_schema, kwargs...)
-    obj = conditional_schema(StringDict("type" => "object"), obj_schema)
-    arr = conditional_schema(StringDict("type" => "array"), arr_schema)
+    obj = conditional_schema(json_object(), obj_schema)
+    arr = conditional_schema(json_array(), arr_schema)
     return StringDict(
         "type" => ["object", "array"],
         "allOf" => [obj, arr]
@@ -90,7 +91,7 @@ end
 
 # schema utils for `method` and `method_options` schemas
 
-function options_schema(::Type{T}; additional_properties::Bool = false) where {T}
+function options_schema(::Type{T}; additionalProperties::Bool = false) where {T}
     properties = StringDict()
     required = String[]
     tags = fieldtags(DashiStyle(), T)
@@ -104,12 +105,7 @@ function options_schema(::Type{T}; additional_properties::Bool = false) where {T
         properties[key] = schema
         is_required && push!(required, key)
     end
-    return StringDict(
-        "type" => "object",
-        "properties" => properties,
-        "required" => required,
-        "additionalProperties" => additional_properties
-    )
+    return json_object(; properties, additionalProperties, required)
 end
 
 function conditional_options_schemas(d)
@@ -121,7 +117,7 @@ end
 
 # schema utils for Streamliner cards
 
-function streamliner_schema(configs::AbstractVector; additional_properties::Bool = false)
+function streamliner_schema(configs::AbstractVector; additionalProperties::Bool = false)
     properties = StringDict()
     required = String[]
     for config in configs
@@ -132,12 +128,7 @@ function streamliner_schema(configs::AbstractVector; additional_properties::Bool
         properties[key] = schema
         is_required && push!(required, key)
     end
-    return StringDict(
-        "type" => "object",
-        "properties" => properties,
-        "required" => required,
-        "additionalProperties" => additional_properties
-    )
+    return json_object(; properties, additionalProperties, required)
 end
 
 # Compute schemas used for model or training in Streamliner,
@@ -163,12 +154,16 @@ const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
 
 # JSON schema utils
 
+nonnothing_dict(; kwargs...) = set_nonnothing!(StringDict(); kwargs...)
+
 function set_nonnothing!(d::AbstractDict; kwargs...)
     for (k, v) in pairs(kwargs)
         isnothing(v) || (d[string(k)] = v)
     end
     return d
 end
+
+json_const(k) = StringDict("const" => k)
 
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
@@ -182,9 +177,8 @@ function json_number(
         description::Union{AbstractString, Nothing} = nothing,
         default::Union{Number, Nothing} = nothing
     )
-    schema = StringDict("type" => type)
-    return set_nonnothing!(
-        schema;
+    return nonnothing_dict(;
+        type = type,
         minimum, maximum,
         exclusiveMinimum, exclusiveMaximum,
         title, description, default
@@ -199,9 +193,8 @@ function json_string(;
         description::Union{AbstractString, Nothing} = nothing,
         default::Union{AbstractString, Nothing} = nothing
     )
-    schema = StringDict("type" => "string")
-    return set_nonnothing!(
-        schema;
+    return nonnothing_dict(;
+        type = "string",
         minLength, maxLength, enum,
         title, description, default
     )
@@ -215,10 +208,32 @@ function json_array(;
         description::Union{AbstractString, Nothing} = nothing,
         default::Union{AbstractVector, Nothing} = nothing
     )
-    schema = StringDict("type" => "array")
-    return set_nonnothing!(
-        schema;
+    return nonnothing_dict(;
+        type = "array",
         items, minItems, maxItems,
+        title, description, default
+    )
+end
+
+json_object(; kwargs...) = json_config("object"; kwargs...)
+
+function json_config(
+        type::Union{AbstractString, Nothing} = nothing;
+        properties::Union{AbstractDict, Nothing} = nothing,
+        additionalProperties::Union{Bool, Nothing} = nothing,
+        allOf::Union{AbstractVector, Nothing} = nothing,
+        anyOf::Union{AbstractVector, Nothing} = nothing,
+        oneOf::Union{AbstractVector, Nothing} = nothing,
+        required::Union{AbstractVector, Nothing} = nothing,
+        title::Union{AbstractString, Nothing} = nothing,
+        description::Union{AbstractString, Nothing} = nothing,
+        default::Union{AbstractVector, Nothing} = nothing
+    )
+
+    return nonnothing_dict(;
+        type = type,
+        properties, additionalProperties,
+        allOf, anyOf, oneOf, required,
         title, description, default
     )
 end

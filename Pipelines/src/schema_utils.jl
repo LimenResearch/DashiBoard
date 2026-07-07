@@ -79,7 +79,7 @@ end
 
 function one_or_many_schema(schema::AbstractDict; kwargs...)
     obj_schema::StringDict = schema
-    arr_schema = json_array(obj_schema; kwargs...)
+    arr_schema = json_array(; items = obj_schema, kwargs...)
     obj = conditional_schema(StringDict("type" => "object"), obj_schema)
     arr = conditional_schema(StringDict("type" => "array"), arr_schema)
     return StringDict(
@@ -163,62 +163,62 @@ const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
 
 # JSON schema utils
 
-# TODO: add additional descriptive fields (title and description)
+function set_nonnothing!(d::AbstractDict; kwargs...)
+    for (k, v) in pairs(kwargs)
+        isnothing(v) || (d[string(k)] = v)
+    end
+    return d
+end
 
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
 function json_number(
         type::AbstractString = "number";
-        min::Union{Integer, Nothing} = nothing,
-        max::Union{Integer, Nothing} = nothing,
-        exclusive_min::Union{Integer, Nothing} = nothing,
-        exclusive_max::Union{Integer, Nothing} = nothing,
-        default::Union{Integer, Nothing} = nothing
+        minimum::Union{Integer, Nothing} = nothing,
+        maximum::Union{Integer, Nothing} = nothing,
+        exclusiveMinimum::Union{Integer, Nothing} = nothing,
+        exclusiveMaximum::Union{Integer, Nothing} = nothing,
+        title::Union{AbstractString, Nothing} = nothing,
+        description::Union{AbstractString, Nothing} = nothing,
+        default::Union{Number, Nothing} = nothing
     )
     schema = StringDict("type" => type)
-    isnothing(min) || (schema["minimum"] = min)
-    isnothing(max) || (schema["maximum"] = max)
-    isnothing(exclusive_min) || (schema["exclusiveMinimum"] = exclusive_min)
-    isnothing(exclusive_max) || (schema["exclusiveMaximum"] = exclusive_max)
-    isnothing(default) || (schema["default"] = default)
-    return schema
+    return set_nonnothing!(
+        schema;
+        minimum, maximum,
+        exclusiveMinimum, exclusiveMaximum,
+        title, description, default
+    )
 end
 
 function json_string(;
-        min::Union{Integer, Nothing} = nothing,
-        max::Union{Integer, Nothing} = nothing,
+        minLength::Union{Integer, Nothing} = nothing,
+        maxLength::Union{Integer, Nothing} = nothing,
+        enum::Union{AbstractVector, AbstractSet, Nothing} = nothing,
+        title::Union{AbstractString, Nothing} = nothing,
+        description::Union{AbstractString, Nothing} = nothing,
         default::Union{AbstractString, Nothing} = nothing
     )
     schema = StringDict("type" => "string")
-    isnothing(min) || (schema["minLength"] = min)
-    isnothing(max) || (schema["maxLength"] = max)
-    isnothing(default) || (schema["default"] = default)
-    return schema
+    return set_nonnothing!(
+        schema;
+        minLength, maxLength, enum,
+        title, description, default
+    )
 end
 
-function json_enum(options; default::Union{AbstractString, Nothing} = nothing)
-    return json_enum("string", options; default)
-end
-
-function json_enum(type::AbstractString, options; default = nothing)
-    schema = StringDict("type" => type)
-    schema["enum"] = options isa AbstractVector ? options : collect(options)
-    isnothing(default) || (schema["default"] = default)
-    return schema
-end
-
-function json_array(
-        items;
-        min::Union{Integer, Nothing} = nothing,
-        max::Union{Integer, Nothing} = nothing,
+function json_array(;
+        items::Union{AbstractDict, Nothing} = nothing,
+        minItems::Union{Integer, Nothing} = nothing,
+        maxItems::Union{Integer, Nothing} = nothing,
+        title::Union{AbstractString, Nothing} = nothing,
+        description::Union{AbstractString, Nothing} = nothing,
         default::Union{AbstractVector, Nothing} = nothing
     )
-    schema = StringDict(
-        "type" => "array",
-        "items" => items
+    schema = StringDict("type" => "array")
+    return set_nonnothing!(
+        schema;
+        items, minItems, maxItems,
+        title, description, default
     )
-    isnothing(min) || (schema["minItems"] = min)
-    isnothing(max) || (schema["maxItems"] = max)
-    isnothing(default) || (schema["default"] = default)
-    return schema
 end

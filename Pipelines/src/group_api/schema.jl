@@ -1,14 +1,14 @@
 # schema definitions
 
 function deps_item_schema(; singular::Bool = false)
-    min, max = 1, singular ? 1 : nothing
+    minItems, maxItems = 1, singular ? 1 : nothing
 
     return StringDict(
         "type" => "object",
         "properties" => StringDict(
-            "nodes" => json_array(JSON_NODE; min, max),
-            "groups" => json_array(JSON_GROUP; min, max),
-            "cols" => json_array(JSON_COL; min, max),
+            "nodes" => json_array(; items = JSON_NODE, minItems, maxItems),
+            "groups" => json_array(; items = JSON_GROUP, minItems, maxItems),
+            "cols" => json_array(; items = JSON_COL, minItems, maxItems),
             "through" => StringDict(
                 "type" => "array",
                 "items" => JSON_NODE,
@@ -25,16 +25,16 @@ function deps_item_schema(; singular::Bool = false)
 end
 
 function schema_definitions(deps::Deps)
-    node_schema = json_enum(deps.nodes)
-    group_schema = json_enum(deps.groups)
-    col_schema = json_enum(deps.cols)
+    node_schema = json_string(enum = deps.nodes)
+    group_schema = json_string(enum = deps.groups)
+    col_schema = json_string(enum = deps.cols)
 
     item_schema = deps_item_schema()
     singular_item_schema = deps_item_schema(singular = true)
 
-    variable_schema = one_or_many_schema(singular_item_schema, min = 1, max = 1)
+    variable_schema = one_or_many_schema(singular_item_schema, minItems = 1, maxItems = 1)
     variables_schema = one_or_many_schema(item_schema, default = [])
-    nonempty_variables_schema = one_or_many_schema(item_schema, min = 1)
+    nonempty_variables_schema = one_or_many_schema(item_schema, minItems = 1)
 
     return StringDict(
         "node" => node_schema,

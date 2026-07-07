@@ -163,7 +163,8 @@ const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
 
 # JSON schema utils
 
-# TODO: add additional descriptive fields (title, description, default)
+# TODO: add additional descriptive fields (title and description)
+
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
 function json_number(
@@ -172,24 +173,38 @@ function json_number(
         max::Union{Integer, Nothing} = nothing,
         exclusive_min::Union{Integer, Nothing} = nothing,
         exclusive_max::Union{Integer, Nothing} = nothing,
+        default::Union{Integer, Nothing} = nothing
     )
     schema = StringDict("type" => type)
     isnothing(min) || (schema["minimum"] = min)
     isnothing(max) || (schema["maximum"] = max)
     isnothing(exclusive_min) || (schema["exclusiveMinimum"] = exclusive_min)
     isnothing(exclusive_max) || (schema["exclusiveMaximum"] = exclusive_max)
+    isnothing(default) || (schema["default"] = default)
     return schema
 end
 
-function json_string(; min::Integer = 0)
-    return StringDict("type" => "string", "minLength" => min)
+function json_string(;
+        min::Union{Integer, Nothing} = nothing,
+        max::Union{Integer, Nothing} = nothing,
+        default::Union{AbstractString, Nothing} = nothing
+    )
+    schema = StringDict("type" => "string")
+    isnothing(min) || (schema["minLength"] = min)
+    isnothing(max) || (schema["maxLength"] = max)
+    isnothing(default) || (schema["default"] = default)
+    return schema
 end
 
-json_enum(options) = json_enum("string", options)
+function json_enum(options; default::Union{AbstractString, Nothing} = nothing)
+    return json_enum("string", options; default)
+end
 
-function json_enum(type::AbstractString, options)
-    _options = options isa AbstractVector ? options : collect(options)
-    return StringDict("type" => type, "enum" => options)
+function json_enum(type::AbstractString, options; default = nothing)
+    schema = StringDict("type" => type)
+    schema["enum"] = options isa AbstractVector ? options : collect(options)
+    isnothing(default) || (schema["default"] = default)
+    return schema
 end
 
 function json_array(

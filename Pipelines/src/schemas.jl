@@ -154,7 +154,7 @@ function abstract_glm_card_schema(
         ::Type{C}, key::AbstractString
     ) where {C <: AbstractGLMCard}
     required = String["type", "target"]
-    properties = StringDict{String, Any}(
+    properties = StringDict(
         "type" => StringDict("const" => key),
         "distribution" => json_enum(keys(NOISE_MODELS)),
         "link" => json_enum(keys(LINK_TYPES)),
@@ -323,7 +323,7 @@ const STREAMLINER_SPEC = CardSpec(
 function wild_card_schema(settings::Any, key::AbstractString)
     required = String["type", "inputs"]
 
-    properties = StringDict{String, Any}(
+    properties = StringDict(
         "type" => StringDict("const" => key),
         "inputs" => JSON_VARIABLES,
         "suffix" => json_string(min = 1)

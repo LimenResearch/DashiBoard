@@ -18,7 +18,7 @@ function schema_definitions(variables::AbstractVector)
 end
 
 function json_schema(
-        key::AbstractString, variables::Union{AbstractVector, Deps};
+        key::AbstractString, variables::Any;
         additional_properties::Bool = false
     )::StringDict
     schema = json_schema(key; additional_properties)

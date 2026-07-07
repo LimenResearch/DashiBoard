@@ -33,6 +33,18 @@ end
         @test JSONSchema.validate(schema, card) === nothing
     end
 
+    # exactly one between `nodes`, `groups`, and `cols` is allowed
+    card = deepcopy(d["nodes"][1]["card"])
+    card["inputs"] = Dict("groups" => ["weather"], "cols" => ["No"])
+    schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
+    issue = JSONSchema.validate(schema, card)
+    @test issue !== nothing
+    @test occursin("oneOf", string(issue))
+    card["inputs"] = Dict()
+    issue = JSONSchema.validate(schema, card)
+    @test issue !== nothing
+    @test occursin("oneOf", string(issue))
+
     schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
     @test JSONSchema.validate(schema, d["groups"]) === nothing
 

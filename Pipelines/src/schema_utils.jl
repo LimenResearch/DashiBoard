@@ -44,6 +44,7 @@ function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default
     return schema, required
 end
 
+# note: here we assume that the `key` was already given as required
 function match_property(
         (key, name)::Pair{<:AbstractString, <:AbstractString}
     )
@@ -192,4 +193,18 @@ json_enum(options) = json_enum("string", options)
 function json_enum(type::AbstractString, options)
     _options = options isa AbstractVector ? options : collect(options)
     return Dict("type" => type, "enum" => options)
+end
+
+function json_array(
+        items;
+        min::Union{Integer, Nothing} = nothing,
+        max::Union{Integer, Nothing} = nothing
+    )
+    schema = StringDict(
+        "type" => "array",
+        "items" => items
+    )
+    isnothing(min) || (schema["minItems"] = min)
+    isnothing(max) || (schema["maxItems"] = max)
+    return schema
 end

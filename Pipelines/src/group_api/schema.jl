@@ -32,17 +32,9 @@ function schema_definitions(deps::Deps)
     item_schema = deps_item_schema()
     singular_item_schema = deps_item_schema(singular = true)
 
-    variable_schema = one_or_many_schema(
-        singular_item_schema, StringDict("minItems" => 1, "maxItems" => 1)
-    )
-
-    variables_schema = one_or_many_schema(
-        item_schema, StringDict("default" => [])
-    )
-
-    nonempty_variables_schema = one_or_many_schema(
-        item_schema, StringDict("minItems" => 1)
-    )
+    variable_schema = one_or_many_schema(singular_item_schema, min = 1, max = 1)
+    variables_schema = one_or_many_schema(item_schema, default = [])
+    nonempty_variables_schema = one_or_many_schema(item_schema, min = 1)
 
     return StringDict(
         "node" => node_schema,

@@ -77,15 +77,11 @@ function conditional_schema(
     return conditional_schema(condition, schema)
 end
 
-function one_or_many_schema(schema::AbstractDict, config::AbstractDict)
-    obj = conditional_schema(
-        StringDict("type" => "object"),
-        schema
-    )
-    arr = conditional_schema(
-        StringDict("type" => "array"),
-        merge(StringDict("type" => "array", "items" => schema), config)
-    )
+function one_or_many_schema(schema::AbstractDict; kwargs...)
+    obj_schema::StringDict = schema
+    arr_schema = json_array(obj_schema; kwargs...)
+    obj = conditional_schema(StringDict("type" => "object"), obj_schema)
+    arr = conditional_schema(StringDict("type" => "array"), arr_schema)
     return StringDict(
         "type" => ["object", "array"],
         "allOf" => [obj, arr]
@@ -167,6 +163,7 @@ const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
 
 # JSON schema utils
 
+# TODO: add additional descriptive fields (title, description, default)
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
 function json_number(
@@ -198,7 +195,8 @@ end
 function json_array(
         items;
         min::Union{Integer, Nothing} = nothing,
-        max::Union{Integer, Nothing} = nothing
+        max::Union{Integer, Nothing} = nothing,
+        default::Union{AbstractVector, Nothing} = nothing
     )
     schema = StringDict(
         "type" => "array",
@@ -206,5 +204,6 @@ function json_array(
     )
     isnothing(min) || (schema["minItems"] = min)
     isnothing(max) || (schema["maxItems"] = max)
+    isnothing(default) || (schema["default"] = default)
     return schema
 end

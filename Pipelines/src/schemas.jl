@@ -256,9 +256,11 @@ function streamliner_card_schema(::Any, key::AbstractString)
     required = String["type", "model", "training"]
     funnels = PARSER[].funnels
     default_funnel = ""
+    funnel_property = json_enum(keys(funnels))
+    funnel_property["default"] = default_funnel
     properties = StringDict(
         "type" => StringDict("const" => key),
-        "funnel" => merge(json_enum(keys(funnels)), StringDict("default" => default_funnel)),
+        "funnel" => funnel_property,
         "partition" => JSON_VARIABLE,
         "suffix" => json_string(min = 1)
     )

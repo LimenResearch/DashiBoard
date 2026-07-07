@@ -44,6 +44,22 @@ function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default
     return schema, required
 end
 
+# note: here we assume that the `key` was already given as required
+function match_property(
+        (key, name)::Pair{<:AbstractString, <:AbstractString}
+    )
+    return Dict("properties" => Dict(key => Dict("const" => name)))
+end
+
+function match_property(
+        (key, name)::Pair{<:AbstractString, <:AbstractString},
+        default::AbstractString
+    )
+    schema = match_property(key => name)
+    required = name != default ? String[key] : String[]
+    return merge(schema, Dict("required" => required))
+end
+
 function conditional_schema(condition::AbstractDict, schema::AbstractDict)
     return Dict("if" => condition, "then" => schema)
 end
@@ -52,13 +68,28 @@ function conditional_schema(
         (method_key, method_name)::Pair{<:AbstractString, <:AbstractString},
         (options_key, options_schema)::Pair{<:AbstractString, <:AbstractDict},
     )
-    condition = Dict("properties" => Dict(method_key => Dict("const" => method_name)))
+    condition = match_property(method_key => method_name)
     is_required = !isempty(options_schema["required"])
     schema = Dict(
         "properties" => Dict(options_key => options_schema),
         "required" => is_required ? String[options_key] : String[]
     )
     return conditional_schema(condition, schema)
+end
+
+function one_or_many_schema(schema::AbstractDict, config::AbstractDict)
+    obj = conditional_schema(
+        Dict("type" => "object"),
+        schema
+    )
+    arr = conditional_schema(
+        Dict("type" => "array"),
+        merge(Dict("type" => "array", "items" => schema), config)
+    )
+    return Dict(
+        "type" => ["object", "array"],
+        "allOf" => [obj, arr]
+    )
 end
 
 # schema utils for `method` and `method_options` schemas
@@ -130,6 +161,10 @@ const JSON_VARIABLE = StringDict("\$ref" => "#/\$defs/variable")
 const JSON_VARIABLES = StringDict("\$ref" => "#/\$defs/variables")
 const JSON_NONEMPTY_VARIABLES = StringDict("\$ref" => "#/\$defs/nonempty_variables")
 
+const JSON_NODE = StringDict("\$ref" => "#/\$defs/node")
+const JSON_GROUP = StringDict("\$ref" => "#/\$defs/group")
+const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
+
 # JSON schema utils
 
 json_integer(; kwargs...) = json_number("integer"; kwargs...)
@@ -141,7 +176,7 @@ function json_number(
         exclusive_min::Union{Integer, Nothing} = nothing,
         exclusive_max::Union{Integer, Nothing} = nothing,
     )
-    schema = Dict{String, Any}("type" => type)
+    schema = StringDict("type" => type)
     isnothing(min) || (schema["minimum"] = min)
     isnothing(max) || (schema["maximum"] = max)
     isnothing(exclusive_min) || (schema["exclusiveMinimum"] = exclusive_min)
@@ -158,4 +193,18 @@ json_enum(options) = json_enum("string", options)
 function json_enum(type::AbstractString, options)
     _options = options isa AbstractVector ? options : collect(options)
     return Dict("type" => type, "enum" => options)
+end
+
+function json_array(
+        items;
+        min::Union{Integer, Nothing} = nothing,
+        max::Union{Integer, Nothing} = nothing
+    )
+    schema = StringDict(
+        "type" => "array",
+        "items" => items
+    )
+    isnothing(min) || (schema["minItems"] = min)
+    isnothing(max) || (schema["maxItems"] = max)
+    return schema
 end

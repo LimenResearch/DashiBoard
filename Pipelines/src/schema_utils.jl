@@ -48,7 +48,7 @@ end
 function match_property(
         (key, name)::Pair{<:AbstractString, <:AbstractString}
     )
-    return Dict("properties" => Dict(key => Dict("const" => name)))
+    return StringDict("properties" => StringDict(key => StringDict("const" => name)))
 end
 
 function match_property(
@@ -56,12 +56,12 @@ function match_property(
         default::AbstractString
     )
     schema = match_property(key => name)
-    required = name != default ? String[key] : String[]
-    return merge(schema, Dict("required" => required))
+    schema["required"] = name != default ? String[key] : String[]
+    return schema
 end
 
 function conditional_schema(condition::AbstractDict, schema::AbstractDict)
-    return Dict("if" => condition, "then" => schema)
+    return StringDict("if" => condition, "then" => schema)
 end
 
 function conditional_schema(
@@ -70,8 +70,8 @@ function conditional_schema(
     )
     condition = match_property(method_key => method_name)
     is_required = !isempty(options_schema["required"])
-    schema = Dict(
-        "properties" => Dict(options_key => options_schema),
+    schema = StringDict(
+        "properties" => StringDict(options_key => options_schema),
         "required" => is_required ? String[options_key] : String[]
     )
     return conditional_schema(condition, schema)
@@ -79,14 +79,14 @@ end
 
 function one_or_many_schema(schema::AbstractDict, config::AbstractDict)
     obj = conditional_schema(
-        Dict("type" => "object"),
+        StringDict("type" => "object"),
         schema
     )
     arr = conditional_schema(
-        Dict("type" => "array"),
-        merge(Dict("type" => "array", "items" => schema), config)
+        StringDict("type" => "array"),
+        merge(StringDict("type" => "array", "items" => schema), config)
     )
-    return Dict(
+    return StringDict(
         "type" => ["object", "array"],
         "allOf" => [obj, arr]
     )
@@ -108,7 +108,7 @@ function options_schema(::Type{T}; additional_properties::Bool = false) where {T
         properties[key] = schema
         is_required && push!(required, key)
     end
-    return Dict(
+    return StringDict(
         "type" => "object",
         "properties" => properties,
         "required" => required,
@@ -136,7 +136,7 @@ function streamliner_schema(configs::AbstractVector; additional_properties::Bool
         properties[key] = schema
         is_required && push!(required, key)
     end
-    return Dict(
+    return StringDict(
         "type" => "object",
         "properties" => properties,
         "required" => required,
@@ -185,14 +185,14 @@ function json_number(
 end
 
 function json_string(; min::Integer = 0)
-    return Dict("type" => "string", "minLength" => min)
+    return StringDict("type" => "string", "minLength" => min)
 end
 
 json_enum(options) = json_enum("string", options)
 
 function json_enum(type::AbstractString, options)
     _options = options isa AbstractVector ? options : collect(options)
-    return Dict("type" => type, "enum" => options)
+    return StringDict("type" => type, "enum" => options)
 end
 
 function json_array(

@@ -3,22 +3,22 @@
 function deps_item_schema(; singular::Bool = false)
     min, max = 1, singular ? 1 : nothing
 
-    return Dict(
+    return StringDict(
         "type" => "object",
-        "properties" => Dict(
+        "properties" => StringDict(
             "nodes" => json_array(JSON_NODE; min, max),
             "groups" => json_array(JSON_GROUP; min, max),
             "cols" => json_array(JSON_COL; min, max),
-            "through" => Dict(
+            "through" => StringDict(
                 "type" => "array",
                 "items" => JSON_NODE,
                 "default" => []
             )
         ),
         "oneOf" => [
-            Dict("required" => ["nodes"]),
-            Dict("required" => ["groups"]),
-            Dict("required" => ["cols"]),
+            StringDict("required" => ["nodes"]),
+            StringDict("required" => ["groups"]),
+            StringDict("required" => ["cols"]),
         ],
         "additionalProperties" => false
     )
@@ -33,18 +33,18 @@ function schema_definitions(deps::Deps)
     singular_item_schema = deps_item_schema(singular = true)
 
     variable_schema = one_or_many_schema(
-        singular_item_schema, Dict("minItems" => 1, "maxItems" => 1)
+        singular_item_schema, StringDict("minItems" => 1, "maxItems" => 1)
     )
 
     variables_schema = one_or_many_schema(
-        item_schema, Dict("default" => [])
+        item_schema, StringDict("default" => [])
     )
 
     nonempty_variables_schema = one_or_many_schema(
-        item_schema, Dict("minItems" => 1)
+        item_schema, StringDict("minItems" => 1)
     )
 
-    return Dict(
+    return StringDict(
         "node" => node_schema,
         "group" => group_schema,
         "col" => col_schema,
@@ -61,8 +61,8 @@ function groups_schema(deps::Deps)
 end
 
 function groups_schema(grp_names::AbstractVector)
-    properties = Dict(name => JSON_VARIABLES for name in grp_names)
-    return Dict(
+    properties = StringDict(name => JSON_VARIABLES for name in grp_names)
+    return StringDict(
         "type" => "object",
         "properties" => properties,
         "required" => grp_names,

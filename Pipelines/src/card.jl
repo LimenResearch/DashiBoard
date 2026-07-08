@@ -177,8 +177,6 @@ function Card(
     return Card(apply_helpers(d, params; recursive); adjust)
 end
 
-get_default_label(c::Card) = get_label(get_spec(c.type))
-
 ## Encode how a given card uses table variables
 
 @kwdef struct SourceVariables

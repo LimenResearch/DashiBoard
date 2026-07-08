@@ -57,7 +57,6 @@ end
 
 function get_metadata(gc::C) where {C <: AbstractGLMCard}
     metadata = StringDict(
-        "type" => gc.type,
         "target" => gc.target,
         "weights" => gc.weights,
         "distribution" => gc.distribution_name,
@@ -77,7 +76,6 @@ function get_metadata(gc::C) where {C <: AbstractGLMCard}
 end
 
 function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMCard}
-    type::String = c["type"]
     distribution_name::String = get(c, "distribution", "normal")
     link_name::Union{String, Nothing} = get(c, "link", nothing)
     weights::Union{String, Nothing} = get(c, "weights", nothing)
@@ -93,7 +91,7 @@ function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMC
     inputs, target, formula = has_grouping_factor(C) ? compute_mixed_formula(c) : compute_formula(c)
 
     return C(
-        type, distribution_name, distribution, link_name, link,
+        distribution_name, distribution, link_name, link,
         inputs, target, formula, weights, partition, suffix
     )
 end
@@ -132,7 +130,6 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 
 """
     struct GLMCard <: Card
-      type::String
       distribution_name::String
       distribution::Distribution
       link_name::Union{String, Nothing}
@@ -148,7 +145,6 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
 struct GLMCard <: AbstractGLMCard
-    type::String
     distribution_name::String
     distribution::Distribution
     link_name::Union{String, Nothing}
@@ -178,7 +174,6 @@ end
 
 """
     struct MixedModelCard <: AbstractGLMCard
-        type::String
         distribution_name::String
         distribution::Distribution
         link_name::Union{String, Nothing}
@@ -195,7 +190,6 @@ Run a Mixed Model based on `formula`.
 To use this card, you must load the MixedModels.jl package first.
 """
 struct MixedModelCard <: AbstractGLMCard
-    type::String
     distribution_name::String
     distribution::Distribution
     link_name::Union{String, Nothing}

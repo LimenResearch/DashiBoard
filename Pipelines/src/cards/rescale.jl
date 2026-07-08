@@ -82,7 +82,6 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 # TODO: also inv-rescale `target_sigma` for probabilistic models
 """
     struct RescaleCard <: Card
-        type::String
         group_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -103,7 +102,6 @@ The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
 struct RescaleCard <: SQLCard
-    type::String
     method::String
     rescaler::Rescaler
     group_by::Vector{String}
@@ -116,7 +114,6 @@ end
 
 function get_metadata(rc::RescaleCard)
     return StringDict(
-        "type" => rc.type,
         "method" => rc.method,
         "group_by" => rc.group_by,
         "inputs" => rc.inputs,
@@ -128,7 +125,6 @@ function get_metadata(rc::RescaleCard)
 end
 
 function RescaleCard(c::AbstractDict)
-    type::String = c["type"]
     method::String = c["method"]
     rescaler::Rescaler = RESCALERS[method]
     group_by::Vector{String} = get(c, "group_by", String[])
@@ -138,7 +134,6 @@ function RescaleCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "rescaled")
     target_suffix::Union{String, Nothing} = get(c, "target_suffix", nothing)
     return RescaleCard(
-        type,
         method,
         rescaler,
         group_by,

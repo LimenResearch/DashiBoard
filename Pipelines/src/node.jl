@@ -44,7 +44,7 @@ end
     Node(
         card::Card, state = CardState();
         update::Bool = true, train::Bool = true,
-        label::AbstractString = get_default_label(card)
+        label::AbstractString = ""
     )
 
 Generate a `Node` object from a [`Card`](@ref).
@@ -52,16 +52,14 @@ Generate a `Node` object from a [`Card`](@ref).
 function Node(
         card::Card, state::CardState = CardState();
         update::Bool = true, train::Bool = true,
-        label::AbstractString = get_default_label(card)
+        label::AbstractString = ""
     )
     return Node(card, update, train, false, label, StateRef(state))
 end
 
 function Node(c::AbstractDict; update::Bool = true, adjust::Bool = false)
     card = Card(c["card"]; adjust)
-    label::String = get(c, "label") do
-        get_default_label(card)
-    end
+    label::String = get(c, "label", "")
     train::Bool = get(c, "train", true)
     state_config = get(c, "state", nothing)
     state = if isnothing(state_config)

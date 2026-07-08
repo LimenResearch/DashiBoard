@@ -7,7 +7,6 @@ end
 
 """
     struct WildCard{T} <: Card
-        type::String
         order_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -54,7 +53,6 @@ Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
 ```
 """
 @kwdef struct WildCard{T} <: StandardCard
-    type::String
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -66,7 +64,6 @@ end
 
 function get_metadata(wc::WildCard)
     return StringDict(
-        "type" => wc.type,
         "order_by" => wc.order_by,
         "inputs" => wc.inputs,
         "weights" => wc.weights,
@@ -103,7 +100,6 @@ function WildCard{T}(c::AbstractDict) where {T}
     partition::Union{String, Nothing} = get(c, "partition", nothing)
 
     return WildCard{T}(;
-        type,
         order_by,
         inputs,
         targets,

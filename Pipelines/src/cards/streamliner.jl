@@ -39,7 +39,6 @@ end
 
 """
     struct StreamlinerCard <: Card
-        type::String
         model_name::String
         model::Model
         training_name::String
@@ -53,7 +52,6 @@ end
 Run a Streamliner model, predicting `targets` from `inputs`.
 """
 struct StreamlinerCard <: StreamingCard
-    type::String
     model_name::String
     model::Model
     training_name::String
@@ -66,7 +64,6 @@ end
 
 function get_metadata(sc::StreamlinerCard)
     d = StringDict(
-        "type" => sc.type,
         "model" => sc.model_name,
         "model_metadata" => SC.get_metadata(sc.model),
         "training" => sc.training_name,
@@ -80,8 +77,6 @@ function get_metadata(sc::StreamlinerCard)
 end
 
 function StreamlinerCard(c::AbstractDict)
-    type::String = c["type"]
-
     model_name::String = c["model"]
     model = get_streamliner_model(c, model_name)
     training_name::String = c["training"]
@@ -93,7 +88,6 @@ function StreamlinerCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "hat")
 
     return StreamlinerCard(
-        type,
         model_name,
         model,
         training_name,

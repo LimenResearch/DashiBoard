@@ -39,7 +39,7 @@ function split_card_schema(::Any, key::AbstractString)
         "output" => json_string(minLength = 1),
     )
     allOf = conditional_options_schemas(SPLITTING_METHODS)
-    required = ["type", "order_by", "method", "output"]
+    required = ["order_by", "method", "output"]
     return json_object(; properties, allOf, required)
 end
 
@@ -53,7 +53,7 @@ function window_function_card_schema(::Any, key::AbstractString)
         "method" => json_string(enum = keys(WINDOW_FUNCTIONS)),
         "output" => json_string(minLength = 1),
     )
-    required = ["type", "order_by", "method", "output"]
+    required = ["order_by", "method", "output"]
     return json_object(; properties, required)
 end
 
@@ -74,7 +74,7 @@ function rescale_card_schema(::Any, key::AbstractString)
         "suffix" => json_string(minLength = 1),
         "target_suffix" => json_string(minLength = 1)
     )
-    required = ["type", "method", "inputs"]
+    required = ["method", "inputs"]
     return json_object(; properties, required)
 end
 
@@ -95,7 +95,7 @@ function cluster_card_schema(::Any, key::AbstractString)
         "output" => json_string(minLength = 1)
     )
     allOf = conditional_options_schemas(CLUSTERING_METHODS)
-    required = ["type", "method", "inputs"]
+    required = ["method", "inputs"]
     return json_object(; properties, allOf, required)
 end
 
@@ -116,7 +116,7 @@ function dimensionality_reduction_card_schema(::Any, key::AbstractString)
         "output" => json_string(minLength = 1)
     )
     allOf = conditional_options_schemas(PROJECTION_METHODS)
-    required = ["type", "method", "inputs", "n_components"]
+    required = ["method", "inputs", "n_components"]
     return json_object(; properties, allOf, required)
 end
 
@@ -129,7 +129,7 @@ const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
 function abstract_glm_card_schema(
         ::Type{C}, key::AbstractString
     ) where {C <: AbstractGLMCard}
-    required = String["type", "target"]
+    required = String["target"]
     properties = StringDict(
         "type" => json_const(key),
         "distribution" => json_string(enum = keys(NOISE_MODELS)),
@@ -174,7 +174,7 @@ const MIXED_MODEL_SPEC = CardSpec(
 )
 
 function interp_card_schema(::Any, key::AbstractString)
-    required = String["type", "method", "input", "targets"]
+    required = String["method", "input", "targets"]
     properties = StringDict(
         "type" => json_const(key),
         "method" => json_string(enum = keys(INTERPOLATION_METHODS)),
@@ -195,7 +195,7 @@ const INTERP_SPEC = CardSpec(
 )
 
 function gaussian_encoding_card_schema(::Any, key::AbstractString)
-    required = String["type", "input", "n_components"]
+    required = String["input", "n_components"]
     properties = StringDict(
         "type" => json_const(key),
         "method" => json_string(enum = keys(TEMPORAL_PREPROCESSING_METHODS)),
@@ -216,7 +216,7 @@ const GAUSSIAN_ENCODING_SPEC = CardSpec(
 )
 
 function streamliner_card_schema(::Any, key::AbstractString)
-    required = String["type", "model", "training"]
+    required = String["model", "training"]
     funnels = PARSER[].funnels
     default_funnel = ""
     funnel_property = json_string(enum = keys(funnels))
@@ -281,7 +281,7 @@ const STREAMLINER_SPEC = CardSpec(
 )
 
 function wild_card_schema(settings::Any, key::AbstractString)
-    required = String["type", "inputs"]
+    required = String["inputs"]
 
     properties = StringDict(
         "type" => json_const(key),

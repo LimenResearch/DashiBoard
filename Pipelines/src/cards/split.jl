@@ -40,7 +40,6 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
 
 """
     struct SplitCard <: Card
-        type::String
         method::String
         splitter::SplittingMethod
         order_by::Vector{String}
@@ -55,7 +54,6 @@ Currently supported methods are
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
 struct SplitCard <: SQLCard
-    type::String
     method::String
     splitter::SplittingMethod
     order_by::Vector{String}
@@ -65,7 +63,6 @@ end
 
 function get_metadata(sc::SplitCard)
     return StringDict(
-        "type" => sc.type,
         "method" => sc.method,
         "method_options" => get_options(sc.splitter),
         "order_by" => sc.order_by,
@@ -75,7 +72,6 @@ function get_metadata(sc::SplitCard)
 end
 
 function SplitCard(c::AbstractDict)
-    type::String = c["type"]
     order_by::Vector{String} = get(c, "order_by", String[])
     has_order = !isempty(order_by)
     group_by::Vector{String} = get(c, "group_by", String[])
@@ -84,7 +80,7 @@ function SplitCard(c::AbstractDict)
     splitter::SplittingMethod = construct(SPLITTING_METHODS[method], method_options)
     output::String = c["output"]
     (splitter isa OrderedSplittingMethod) && isempty(order_by) && order_error()
-    return SplitCard(type, method, splitter, order_by, group_by, output)
+    return SplitCard(method, splitter, order_by, group_by, output)
 end
 
 ## SQLCard interface

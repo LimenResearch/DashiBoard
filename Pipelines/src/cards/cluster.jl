@@ -63,7 +63,6 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
 # TODO: support custom metrics
 """
     struct ClusterCard <: Card
-        type::String
         method::String
         clusterer::ClusteringMethod
         inputs::Vector{String}
@@ -76,7 +75,6 @@ Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 """
 struct ClusterCard <: StandardCard
-    type::String
     method::String
     clusterer::ClusteringMethod
     inputs::Vector{String}
@@ -87,7 +85,6 @@ end
 
 function get_metadata(cc::ClusterCard)
     return StringDict(
-        "type" => cc.type,
         "method" => cc.method,
         "method_options" => get_options(cc.clusterer),
         "inputs" => cc.inputs,
@@ -98,7 +95,6 @@ function get_metadata(cc::ClusterCard)
 end
 
 function ClusterCard(c::AbstractDict)
-    type::String = c["type"]
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
     clusterer::ClusteringMethod = construct(CLUSTERING_METHODS[method], method_options)
@@ -107,7 +103,6 @@ function ClusterCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
     return ClusterCard(
-        type,
         method,
         clusterer,
         inputs,

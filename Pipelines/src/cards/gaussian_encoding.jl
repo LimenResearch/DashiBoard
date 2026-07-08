@@ -45,7 +45,6 @@ const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
 Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
-- `type::String`: Card type, i.e., `"gaussian_encoding"`.
 - `method::String`: Name of the processing method (see below).
 - `temporal_preprocessor::TemporalProcessingMethod`: Tranformation to process a given column (see below).
 - `input::String`: Name of the column to transform.
@@ -85,7 +84,6 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 struct GaussianEncodingCard <: SQLCard
-    type::String
     method::String
     temporal_preprocessor::TemporalProcessingMethod
     input::String
@@ -96,7 +94,6 @@ end
 
 function get_metadata(gec::GaussianEncodingCard)
     return StringDict(
-        "type" => gec.type,
         "method" => gec.method,
         "method_options" => get_options(gec.temporal_preprocessor),
         "input" => gec.input,
@@ -107,7 +104,6 @@ function get_metadata(gec::GaussianEncodingCard)
 end
 
 function GaussianEncodingCard(c::AbstractDict)
-    type::String = c["type"]
     method::String = get(c, "method", "identity")
     input::String = c["input"]
     if !haskey(TEMPORAL_PREPROCESSING_METHODS, method)
@@ -126,7 +122,6 @@ function GaussianEncodingCard(c::AbstractDict)
     suffix::String = get(c, "suffix", "gaussian")
 
     return GaussianEncodingCard(
-        type,
         method,
         temporal_preprocessor,
         input,

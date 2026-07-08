@@ -76,7 +76,6 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
 
 """
     struct InterpCard <: Card
-        type::String
         method::String
         interpolator::InterpolationMethod
         input::String
@@ -88,7 +87,6 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
 Interpolate `targets` based on `input`.
 """
 struct InterpCard <: StandardCard
-    type::String
     method::String
     interpolator::InterpolationMethod
     input::String
@@ -99,7 +97,6 @@ end
 
 function get_metadata(ic::InterpCard)
     return StringDict(
-        "type" => ic.type,
         "method" => ic.method,
         "method_options" => get_options(ic.interpolator),
         "input" => ic.input,
@@ -110,7 +107,6 @@ function get_metadata(ic::InterpCard)
 end
 
 function InterpCard(c::AbstractDict)
-    type::String = c["type"]
     method::String = c["method"]
     method_options::StringDict = extract_options(c, "method", method)
     interpolator::InterpolationMethod = construct(INTERPOLATION_METHODS[method], method_options)
@@ -119,7 +115,6 @@ function InterpCard(c::AbstractDict)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
     return InterpCard(
-        type,
         method,
         interpolator,
         input,

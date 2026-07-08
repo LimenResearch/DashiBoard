@@ -38,5 +38,5 @@ method_options = {percentile = 0.9}
 output = "partition"
 order_by = {cols = ["No"]}
 
-[groups.weather]
-cols = ["PRES", "TEMP"]
+[groups]
+weather = {cols = ["PRES", "TEMP"]}

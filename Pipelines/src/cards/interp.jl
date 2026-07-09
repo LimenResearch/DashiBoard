@@ -75,9 +75,8 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
 )
 
 """
-    struct InterpCard <: Card
-        method::String
-        interpolator::InterpolationMethod
+    struct InterpCard{M <: InterpolationMethod} <: Card
+        method::M
         input::String
         targets::Vector{String}
         partition::Union{String, Nothing} = nothing
@@ -86,43 +85,17 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
 
 Interpolate `targets` based on `input`.
 """
-struct InterpCard <: StandardCard
-    method::String
-    interpolator::InterpolationMethod
+@kwarg struct InterpCard{M <: InterpolationMethod} <: StandardCard
+    method::M & (name = "method_options",)
     input::String
     targets::Vector{String}
-    partition::Union{String, Nothing}
-    suffix::String
+    partition::Union{String, Nothing} = nothing
+    suffix::String = "hat"
 end
 
-function get_metadata(ic::InterpCard)
-    return StringDict(
-        "method" => ic.method,
-        "method_options" => get_options(ic.interpolator),
-        "input" => ic.input,
-        "targets" => ic.targets,
-        "partition" => ic.partition,
-        "suffix" => ic.suffix,
-    )
-end
+get_metadata(ic::InterpCard) = _get_metadata(ic, INTERPOLATION_METHODS)
 
-function InterpCard(c::AbstractDict)
-    method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method", method)
-    interpolator::InterpolationMethod = construct(INTERPOLATION_METHODS[method], method_options)
-    input::String = c["input"]
-    targets::Vector{String} = c["targets"]
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    suffix::String = get(c, "suffix", "hat")
-    return InterpCard(
-        method,
-        interpolator,
-        input,
-        targets,
-        partition,
-        suffix
-    )
-end
+InterpCard(c::AbstractDict) = _construct(InterpCard, c, INTERPOLATION_METHODS)
 
 ## StandardCard interface
 
@@ -133,10 +106,10 @@ end
 OutputVariables(ic::InterpCard) = OutputVariables(join_names.(ic.targets, ic.suffix))
 
 function _train(ic::InterpCard, t, ::AbstractPrimaryKey)
-    (; interpolator, targets, input, partition) = ic
+    (; method, targets, input, partition) = ic
     return map(targets) do target
         y, x = t[target], t[input]
-        return interpolator(y, x)
+        return method(y, x)
     end
 end
 

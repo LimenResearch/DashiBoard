@@ -52,7 +52,7 @@ settings = Pipelines.WildCardSettings(
 Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
 ```
 """
-@kwdef struct WildCard{T} <: StandardCard
+@kwarg struct WildCard{T} <: StandardCard
     order_by::Vector{String}
     inputs::Vector{String}
     targets::Vector{String}
@@ -62,20 +62,10 @@ Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
     outputs::Vector{String}
 end
 
-function get_metadata(wc::WildCard)
-    return StringDict(
-        "order_by" => wc.order_by,
-        "inputs" => wc.inputs,
-        "weights" => wc.weights,
-        "partition" => wc.partition,
-        "targets" => wc.targets,
-        "suffix" => wc.suffix,
-        "outputs" => wc.outputs
-    )
-end
+get_metadata(wc::WildCard) = construct(StringDict, wc)
 
 function WildCard{T}(c::AbstractDict) where {T}
-    type::String = c["type"]
+    type = card_name(WildCard{T})
     (; needs_targets, needs_order) = get_spec(type).settings
 
     # TODO: allow a `group_by` field as well?

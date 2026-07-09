@@ -66,7 +66,7 @@ const WINDOW_FUNCTION_SPEC = CardSpec(
 function rescale_card_schema(::Any, key::AbstractString)
     properties = StringDict(
         "type" => json_const(key),
-        "method" => json_string(enum = keys(RESCALERS)),
+        "method" => json_string(enum = keys(RESCALING_METHODS)),
         "group_by" => JSON_VARIABLES,
         "inputs" => JSON_VARIABLES,
         "targets" => JSON_VARIABLES,

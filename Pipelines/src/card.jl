@@ -280,7 +280,7 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 ## Define new cards using a global dictionary
 
 struct CardSpec
-    type::DataType
+    type::Type
     label::String
     schema::Function
     settings::Any
@@ -289,14 +289,14 @@ end
 """
     CardSpec(
         f::Function = Returns(Dict());
-        type::DataType, label::AbstractString, settings::Any = nothing,
+        type::Type, label::AbstractString, settings::Any = nothing,
     )
 
 Specification to register a given card type.
 """
 function CardSpec(
         f::Function = Returns(Dict());
-        type::DataType, label::AbstractString, settings::Any = nothing,
+        type::Type, label::AbstractString, settings::Any = nothing,
         kwargs...
     )
     isempty(kwargs) || @warn "Only `type`, `label` and `settings` keyword arguments are allowed in `CardSpec`"
@@ -333,4 +333,29 @@ function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString
         end
         return d
     end
+end
+
+## Construction and metadata helpers
+
+card_name(c::Card) = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
+card_name(T::Type) = findfirst(spec -> (T <: spec.type), CARD_SPECS)
+
+function _get_metadata(c::Card, methods::AbstractDict)
+    d = construct(StringDict, c)
+    d["method_options"] = get_options(d["method_options"])
+    d["method"] = findfirst(Fix1(isa, c.method), methods)
+    return d
+end
+
+function _construct(
+        ::Type{T}, config::AbstractDict, methods::AbstractDict;
+        default::Union{AbstractString, Nothing} = nothing
+    ) where {T <: Card}
+    method::String = isnothing(default) ? config["method"] : get(config, "method", default)
+    M = get(methods, method, nothing)
+    if isnothing(M)
+        valid_methods = join(keys(methods), ", ")
+        throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
+    end
+    return construct(T{M}, c)
 end

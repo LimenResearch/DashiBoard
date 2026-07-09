@@ -62,55 +62,28 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
 
 # TODO: support custom metrics
 """
-    struct ClusterCard <: Card
-        method::String
-        clusterer::ClusteringMethod
+    struct ClusterCard{M <: ClusteringMethod} <: StandardCard
+        method::M
         inputs::Vector{String}
-        weights::Union{String, Nothing}
-        partition::Union{String, Nothing}
+        weights::Union{String, Nothing} = nothing
+        partition::Union{String, Nothing} = nothing
         output::String
     end
 
-Cluster `inputs` based on `clusterer`.
+Cluster `inputs` based on `method`.
 Save resulting column as `output`.
 """
-struct ClusterCard <: StandardCard
-    method::String
-    clusterer::ClusteringMethod
+@kwarg struct ClusterCard{M <: ClusteringMethod} <: StandardCard
+    method::M & (name = "method_options",)
     inputs::Vector{String}
-    weights::Union{String, Nothing}
-    partition::Union{String, Nothing}
+    weights::Union{String, Nothing} = nothing
+    partition::Union{String, Nothing} = nothing
     output::String
 end
 
-function get_metadata(cc::ClusterCard)
-    return StringDict(
-        "method" => cc.method,
-        "method_options" => get_options(cc.clusterer),
-        "inputs" => cc.inputs,
-        "weights" => cc.weights,
-        "partition" => cc.partition,
-        "output" => cc.output,
-    )
-end
+get_metadata(cc::ClusterCard) = _get_metadata(cc, CLUSTERING_METHODS)
 
-function ClusterCard(c::AbstractDict)
-    method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method", method)
-    clusterer::ClusteringMethod = construct(CLUSTERING_METHODS[method], method_options)
-    inputs::Vector{String} = c["inputs"]
-    weights::Union{String, Nothing} = get(c, "weights", nothing)
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    output::String = get(c, "output", "cluster")
-    return ClusterCard(
-        method,
-        clusterer,
-        inputs,
-        weights,
-        partition,
-        output,
-    )
-end
+ClusterCard(c::AbstractDict) = _construct(ClusterCard, c, CLUSTERING_METHODS)
 
 ## StandardCard interface
 
@@ -121,7 +94,7 @@ OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
     weights = isnothing(cc.weights) ? nothing : t[cc.weights]
-    res = cc.clusterer(X; weights)
+    res = cc.method(X; weights)
     label = assignments(res)
     return (; label, id = t[id_var]) # return `label`s and relative `id`s for the evaluation
 end

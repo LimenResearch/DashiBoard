@@ -30,54 +30,29 @@ const PROJECTION_METHODS = OrderedDict{String, DataType}(
 )
 
 """
-    struct DimensionalityReductionCard <: Card
-        method::String
-        projector::ProjectionMethod
+    @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
+        method::M
         inputs::Vector{String}
-        partition::Union{String, Nothing}
+        partition::Union{String, Nothing} = nothing
         n_components::Int
-        output::String
+        output::String = "component"
     end
 
-Project `inputs` based on `projector`.
+Project `inputs` based on `method`.
 Save resulting column as `output`.
 """
-struct DimensionalityReductionCard <: StandardCard
-    method::String
-    projector::ProjectionMethod
+@kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
+    method::M & (name = "method_options",)
     inputs::Vector{String}
-    partition::Union{String, Nothing}
+    partition::Union{String, Nothing} = nothing
     n_components::Int
-    output::String
+    output::String = "component"
 end
 
-function get_metadata(drc::DimensionalityReductionCard)
-    return StringDict(
-        "method" => drc.method,
-        "method_options" => get_options(drc.projector),
-        "inputs" => drc.inputs,
-        "partition" => drc.partition,
-        "n_components" => drc.n_components,
-        "output" => drc.output,
-    )
-end
+get_metadata(drc::DimensionalityReductionCard) = _get_metadata(drc, PROJECTION_METHODS)
 
 function DimensionalityReductionCard(c::AbstractDict)
-    method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method", method)
-    projector::ProjectionMethod = construct(PROJECTION_METHODS[method], method_options)
-    inputs::Vector{String} = c["inputs"]
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    n_components::Int = c["n_components"]
-    output::String = get(c, "output", "component")
-    return DimensionalityReductionCard(
-        method,
-        projector,
-        inputs,
-        partition,
-        n_components,
-        output
-    )
+    return _construct(DimensionalityReductionCard, c, PROJECTION_METHODS)
 end
 
 ## StandardCard interface
@@ -90,7 +65,7 @@ OutputVariables(drc::DimensionalityReductionCard) = OutputVariables(output_vars(
 
 function _train(drc::DimensionalityReductionCard, t, ::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), drc.inputs, dims = 1)
-    return drc.projector(X, drc.n_components)
+    return drc.method(X, drc.n_components)
 end
 
 function (drc::DimensionalityReductionCard)(model, t, id_var::AbstractPrimaryKey)

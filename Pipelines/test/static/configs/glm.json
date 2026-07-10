@@ -1,23 +1,29 @@
 {
   "hasPartition": {
     "type": "glm",
-    "inputs": [1, ["cbwd", "year"], "No"],
-    "target": "TEMP",
+    "formula": {
+      "inputs": [1, ["cbwd", "year"], "No"],
+      "target": "TEMP"
+    },
     "distribution": "normal",
     "partition": "partition",
     "link": "identity"
   },
   "hasWeights": {
     "type": "glm",
-    "inputs": [1, ["cbwd", "year"], "No"],
+    "formula": {
+      "inputs": [1, ["cbwd", "year"], "No"],
+      "target": "PRES"
+    },
     "weights": "Iws",
-    "target": "PRES",
     "distribution": "gamma"
   },
   "noInputs": {
     "type": "glm",
+    "formula": {
+      "target": "PRES"
+    },
     "weights": "Iws",
-    "target": "PRES",
     "distribution": "gamma"
   },
   "partition": {
@@ -28,24 +34,30 @@
   },
   "isMixed": {
     "type": "mixed_model",
-    "fixed_effect_terms": [1, "year"],
-    "random_effect_terms": [1],
-    "grouping_factor": "cbwd",
-    "target": "TEMP"
+    "formula": {
+      "fixed_effect_terms": [1, "year"],
+      "random_effect_terms": [1],
+      "grouping_factor": "cbwd",
+      "target": "TEMP"
+    }
   },
   "isMixedHasWeights": {
     "type": "mixed_model",
-    "fixed_effect_terms": [1, "year"],
-    "random_effect_terms": [1],
-    "grouping_factor": "cbwd",
-    "weights": "Iws",
-    "target": "TEMP"
+    "formula": {
+      "fixed_effect_terms": [1, "year"],
+      "random_effect_terms": [1],
+      "grouping_factor": "cbwd",
+      "target": "TEMP"
+    },
+    "weights": "Iws"
   },
   "isMixedNoGrouping": {
     "type": "mixed_model",
-    "fixed_effect_terms": [1, "year"],
-    "random_effect_terms": [1],
-    "weights": "Iws",
-    "target": "TEMP"
+    "formula": {
+      "fixed_effect_terms": [1, "year"],
+      "random_effect_terms": [1],
+      "target": "TEMP"
+    },
+    "weights": "Iws"
   }
 }

@@ -13,40 +13,42 @@ end
     config = d["percentile"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "group_by", "output"]
+    for k in ["type", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
-    @test metadata["method_options"] == Dict("percentile" => 0.9)
+    @test metadata["method"] == Dict("name" => "percentile", "percentile" => 0.9)
     card2 = Pipelines.Card(metadata)
-    test_equal_splitters(card.splitter, card2.splitter)
+    test_equal_splitters(card.method, card2.method)
 
     config = d["tiles"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "group_by", "output"]
+    for k in ["type", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
-    @test metadata["method_options"] == Dict(
+    @test metadata["method"] == Dict(
+        "name" => "tiles",
         "tiles" => [1, 1, 2, 1, 1, 2],
         "repeat" => 1,
         "tail" => 0
     )
     card2 = Pipelines.Card(metadata)
-    test_equal_splitters(card.splitter, card2.splitter)
+    test_equal_splitters(card.method, card2.method)
 
     config = d["tiles2"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "group_by", "output"]
+    for k in ["type", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
-    @test metadata["method_options"] == Dict(
+    @test metadata["method"] == Dict(
+        "name" => "tiles",
         "tiles" => [1, 1, 2],
         "repeat" => 2,
         "tail" => 1
     )
     card2 = Pipelines.Card(metadata)
-    test_equal_splitters(card.splitter, card2.splitter)
+    test_equal_splitters(card.method, card2.method)
 end
 
 @testset "metadata rescale" begin
@@ -62,7 +64,7 @@ end
     @test metadata["suffix"] == "rescaled"
     @test isnothing(metadata["target_suffix"])
     card2 = Pipelines.Card(metadata)
-    @test card.rescaler == card2.rescaler
+    @test card.method == card2.method
 
     config = d["zscore2"]
     card = Pipelines.Card(config)
@@ -74,7 +76,7 @@ end
     @test isnothing(metadata["partition"])
     @test metadata["suffix"] == "rescaled"
     card2 = Pipelines.Card(metadata)
-    @test card.rescaler == card2.rescaler
+    @test card.method == card2.method
 end
 
 @testset "metadata cluster" begin

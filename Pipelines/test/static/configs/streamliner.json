@@ -11,7 +11,47 @@
   },
   "classifier": {
     "type": "streamliner",
-    "funnel": "",
+    "order_by": ["No"],
+    "inputs": ["TEMP", "PRES"],
+    "targets": ["cbwd"],
+    "partition": "partition",
+    "suffix": "hat",
+    "model": { "name": "classifier", "features": 5 },
+    "training": { "name": "batched", "iterations": 4 }
+  },
+  "classifier2": {
+    "type": "streamliner",
+    "funnel": {
+      "type": "",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"]
+    },
+    "partition": "partition",
+    "suffix": "hat",
+    "model": { "name": "classifier", "features": 5 },
+    "training": { "name": "batched", "iterations": 4 }
+  },
+  "classifier3": {
+    "type": "streamliner",
+    "funnel": {
+      "type": "time_funnel",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"],
+      "dispatcher": { "gap": 2, "step": 3 }
+    },
+    "partition": "partition",
+    "suffix": "hat",
+    "model": { "name": "classifier", "features": 5 },
+    "training": { "name": "batched", "iterations": 4 }
+  },
+  "classifier4": {
+    "type": "streamliner",
+    "funnel": {
+      "type": "time_funnel",
+      "dispatcher": { "gap": 2, "step": 3 }
+    },
     "order_by": ["No"],
     "inputs": ["TEMP", "PRES"],
     "targets": ["cbwd"],
@@ -62,7 +102,7 @@
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",
-    "model": { "name": "classifier", "features": 5, "channels": 2},
+    "model": { "name": "classifier", "features": 5, "channels": 2 },
     "training": { "name": "batched", "iterations": 4 }
   },
   "spuriousTrainingProperty": {

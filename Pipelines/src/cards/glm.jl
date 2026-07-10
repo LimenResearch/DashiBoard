@@ -15,12 +15,13 @@ function compute_mixed_formula(c::AbstractDict)::FormulaTerm
     fixed_effect_terms::Vector{Any} = c["fixed_effect_terms"]
     random_effect_terms::Vector{Any} = c["random_effect_terms"]
     grouping_factor::String = c["grouping_factor"]
-    inputs = MixedInputs(fixed_effect_terms, random_effect_terms, grouping_factor)
     target::String = c["target"]
     lhs = term(target)
     rhs = composite_term(fixed_effect_terms) + (composite_term(random_effect_terms) | term(grouping_factor))
     return lhs ~ rhs
 end
+
+StructUtils.structlike(::DashiStyle, ::Type{<:FormulaTerm}) = false
 
 const NOISE_MODELS = OrderedDict(
     "normal" => Normal(),
@@ -29,6 +30,10 @@ const NOISE_MODELS = OrderedDict(
     "inversegaussian" => InverseGaussian(),
     "poisson" => Poisson(),
 )
+
+function StructUtils.lift(::DashiStyle, ::Type{Distribution}, k::AbstractString)
+    return NOISE_MODELS[k], nothing
+end
 
 const LINK_TYPES = OrderedDict(
     "cauchit" => CauchitLink,
@@ -43,6 +48,10 @@ const LINK_TYPES = OrderedDict(
     "sqrt" => SqrtLink,
 )
 
+function StructUtils.lift(::DashiStyle, ::Type{Link}, k::AbstractString)
+    return LINK_TYPES[k](), nothing
+end
+
 abstract type AbstractGLMCard <: StandardCard end
 
 function has_grouping_factor end
@@ -51,44 +60,6 @@ struct MixedInputs
     fixed_effect_terms::Vector{Any}
     random_effect_terms::Vector{Any}
     grouping_factor::String
-end
-
-function get_metadata(gc::C) where {C <: AbstractGLMCard}
-    metadata = StringDict(
-        "target" => gc.target,
-        "weights" => gc.weights,
-        "distribution" => gc.distribution_name,
-        "link" => gc.link_name,
-        "partition" => gc.partition,
-        "suffix" => gc.suffix,
-    )
-    if has_grouping_factor(C)
-        mi = gc.inputs
-        metadata["fixed_effect_terms"] = mi.fixed_effect_terms
-        metadata["random_effect_terms"] = mi.random_effect_terms
-        metadata["grouping_factor"] = mi.grouping_factor
-    else
-        metadata["inputs"] = gc.inputs
-    end
-    return metadata
-end
-
-function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMCard}
-    distribution_name::String = get(c, "distribution", "normal")
-    link_name::Union{String, Nothing} = get(c, "link", nothing)
-    weights::Union{String, Nothing} = get(c, "weights", nothing)
-    distribution::Distribution = NOISE_MODELS[distribution_name]
-    link::Link = if isnothing(link_name)
-        canonicallink(distribution)
-    else
-        LINK_TYPES[link_name]()
-    end
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    suffix::String = get(c, "suffix", "hat")
-
-    formula = has_grouping_factor(C) ? compute_mixed_formula(c) : compute_formula(c)
-
-    return C(distribution, link, formula, weights, partition, suffix)
 end
 
 is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
@@ -139,7 +110,7 @@ Run a Generalized Linear Model (GLM) based on `formula`.
 @kwarg struct GLMCard <: AbstractGLMCard
     distribution::Distribution = Normal()
     link::Union{Link, Nothing} = nothing
-    formula::FormulaTerm
+    formula::FormulaTerm & (lift = compute_formula,)
     weights::Union{String, Nothing} = nothing
     partition::Union{String, Nothing} = nothing
     suffix::String = "hat"
@@ -147,7 +118,7 @@ end
 
 has_grouping_factor(::Type{GLMCard}) = false
 
-GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
+GLMCard(c::AbstractDict) = construct(GLMCard, c)
 
 function _train(gc::GLMCard, t, ::AbstractPrimaryKey)
     weights = isnothing(gc.weights) ? nothing : fweights(t[gc.weights])
@@ -176,7 +147,7 @@ To use this card, you must load the MixedModels.jl package first.
 @kwarg struct MixedModelCard <: AbstractGLMCard
     distribution::Distribution = Normal()
     link::Union{Link, Nothing} = nothing
-    formula::FormulaTerm
+    formula::FormulaTerm & (lift = compute_mixed_formula,)
     weights::Union{String, Nothing} = nothing
     partition::Union{String, Nothing} = nothing
     suffix::String = "hat"
@@ -184,7 +155,7 @@ end
 
 has_grouping_factor(::Type{MixedModelCard}) = true
 
-MixedModelCard(c::AbstractDict) = construct_glm_card(MixedModelCard, c)
+MixedModelCard(c::AbstractDict) = construct(MixedModelCard, c)
 
 function (gc::MixedModelCard)(model, t, id_var::AbstractPrimaryKey)
     M = modelmatrix(model)

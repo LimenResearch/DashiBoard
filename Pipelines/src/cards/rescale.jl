@@ -122,7 +122,7 @@ end
 
 function get_metadata(rc::RescaleCard)
     d = construct(StringDict, rc)
-    d["method"] = construct(StringDict, rc.method)
+    d["method"] = _lower(rc.method)
     return d
 end
 

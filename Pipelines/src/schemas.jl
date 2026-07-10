@@ -67,36 +67,7 @@ const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
     label = "Dimensionality Reduction"
 )
 
-function abstract_glm_card_schema(
-        ::Type{C}, key::AbstractString
-    ) where {C <: AbstractGLMCard}
-    required = String["target"]
-    properties = StringDict(
-        "type" => json_const(key),
-        "distribution" => json_string(enum = keys(NOISE_MODELS)),
-        "link" => json_string(enum = keys(LINK_TYPES)),
-        "weights" => JSON_VARIABLE,
-        "partition" => JSON_VARIABLE,
-        "target" => JSON_VARIABLE,
-        "suffix" => json_string(minLength = 1)
-    )
-    # TODO: stricter formula schema
-    if has_grouping_factor(C)
-        properties["fixed_effect_terms"] = json_array()
-        properties["random_effect_terms"] = json_array()
-        properties["grouping_factor"] = JSON_VARIABLE
-        append!(required, ["fixed_effect_terms", "random_effect_terms", "grouping_factor"])
-    else
-        properties["inputs"] = json_array()
-        append!(required, ["inputs"])
-    end
-
-    return json_object(; properties, required)
-end
-
-function glm_card_schema(::Any, key::AbstractString)
-    return abstract_glm_card_schema(GLMCard, key)
-end
+glm_card_schema(::Any, key::AbstractString) = options_schema(GLMCard)
 
 const GLM_SPEC = CardSpec(
     glm_card_schema,
@@ -104,9 +75,7 @@ const GLM_SPEC = CardSpec(
     label = "GLM"
 )
 
-function mixed_model_card_schema(::Any, key::AbstractString)
-    return abstract_glm_card_schema(MixedModelCard, key)
-end
+mixed_model_card_schema(::Any, key::AbstractString) = options_schema(MixedModelCard)
 
 const MIXED_MODEL_SPEC = CardSpec(
     mixed_model_card_schema,

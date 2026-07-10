@@ -4,7 +4,9 @@ using Pipelines:
     AbstractPrimaryKey, train_glm,
     MixedModelCard, MIXED_MODEL_SPEC,
     register_card, Pipelines
-using MixedModels: LinearMixedModel, GeneralizedLinearMixedModel
+using MixedModels: LinearMixedModel, GeneralizedLinearMixedModel, RandomEffectsTerm
+
+Pipelines.israndomeffect(t) = t isa RandomEffectsTerm
 
 function Pipelines._train(gc::MixedModelCard, t, ::AbstractPrimaryKey)
     weights = isnothing(gc.weights) ? nothing : t[gc.weights]

@@ -122,7 +122,7 @@ end
 
 function get_metadata(rc::RescaleCard)
     d = construct(StringDict, rc)
-    d["method"] = Dict("name" => findfirst(==(rc.method), RESCALERS))
+    d["method"] = construct(StringDict, rc.method)
     return d
 end
 

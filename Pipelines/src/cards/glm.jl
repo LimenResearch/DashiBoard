@@ -3,16 +3,15 @@ product_term(x::AbstractVector) = mapfoldl(term, *, x)
 
 composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
 
-function compute_formula(c::AbstractDict)
+function compute_formula(c::AbstractDict)::FormulaTerm
     inputs::Vector{Any} = c["inputs"]
     target::String = c["target"]
     lhs = term(target)
     rhs = composite_term(inputs)
-    formula::FormulaTerm = lhs ~ rhs
-    return inputs, target, formula
+    return lhs ~ rhs
 end
 
-function compute_mixed_formula(c::AbstractDict)
+function compute_mixed_formula(c::AbstractDict)::FormulaTerm
     fixed_effect_terms::Vector{Any} = c["fixed_effect_terms"]
     random_effect_terms::Vector{Any} = c["random_effect_terms"]
     grouping_factor::String = c["grouping_factor"]
@@ -20,8 +19,7 @@ function compute_mixed_formula(c::AbstractDict)
     target::String = c["target"]
     lhs = term(target)
     rhs = composite_term(fixed_effect_terms) + (composite_term(random_effect_terms) | term(grouping_factor))
-    formula::FormulaTerm = lhs ~ rhs
-    return inputs, target, formula
+    return lhs ~ rhs
 end
 
 const NOISE_MODELS = OrderedDict(
@@ -88,12 +86,9 @@ function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMC
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
-    inputs, target, formula = has_grouping_factor(C) ? compute_mixed_formula(c) : compute_formula(c)
+    formula = has_grouping_factor(C) ? compute_mixed_formula(c) : compute_formula(c)
 
-    return C(
-        distribution_name, distribution, link_name, link,
-        inputs, target, formula, weights, partition, suffix
-    )
+    return C(distribution, link, formula, weights, partition, suffix)
 end
 
 is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
@@ -130,12 +125,8 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 
 """
     struct GLMCard <: Card
-      distribution_name::String
       distribution::Distribution
-      link_name::Union{String, Nothing}
       link::Link
-      inputs::Vector{Any}
-      target::String
       formula::FormulaTerm
       weights::Union{String, Nothing}
       partition::Union{String, Nothing}
@@ -145,12 +136,8 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
 struct GLMCard <: AbstractGLMCard
-    distribution_name::String
     distribution::Distribution
-    link_name::Union{String, Nothing}
     link::Link
-    inputs::Vector{Any}
-    target::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
     partition::Union{String, Nothing}
@@ -174,12 +161,8 @@ end
 
 """
     struct MixedModelCard <: AbstractGLMCard
-        distribution_name::String
         distribution::Distribution
-        link_name::Union{String, Nothing}
         link::Link
-        inputs::MixedInputs
-        target::String
         formula::FormulaTerm
         weights::Union{String, Nothing}
         partition::Union{String, Nothing}
@@ -190,12 +173,8 @@ Run a Mixed Model based on `formula`.
 To use this card, you must load the MixedModels.jl package first.
 """
 struct MixedModelCard <: AbstractGLMCard
-    distribution_name::String
     distribution::Distribution
-    link_name::Union{String, Nothing}
     link::Link
-    inputs::MixedInputs
-    target::String
     formula::FormulaTerm
     weights::Union{String, Nothing}
     partition::Union{String, Nothing}

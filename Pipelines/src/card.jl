@@ -320,21 +320,6 @@ function register_card((key, spec)::Pair{<:AbstractString, CardSpec})
     return
 end
 
-## Helper (support two modalities to pass method options)
-
-function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
-    option_key = string(key, "_", "options")
-    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
-    return get(c, option_key) do
-        d = StringDict()
-        for (k, v) in pairs(c)
-            m = match(r, k)
-            isnothing(m) || (d[m[:name]] = v)
-        end
-        return d
-    end
-end
-
 ## Construction and metadata helpers
 
 card_name(c::Card) = findfirst(spec -> isa(c, spec.type), CARD_SPECS)

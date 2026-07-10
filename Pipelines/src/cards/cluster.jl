@@ -64,6 +64,8 @@ choose_clusterer(d::AbstractDict) = get_method(d, CLUSTERING_METHODS)
 
 @choosetype DashiStyle ClusteringMethod choose_clusterer
 
+schema_from_type(::Type{ClusteringMethod}) = full_conditional_options_schemas(CLUSTERING_METHODS)
+
 # TODO: support custom metrics
 """
     struct ClusterCard{M <: ClusteringMethod} <: StandardCard
@@ -79,10 +81,10 @@ Save resulting column as `output`.
 """
 @kwarg struct ClusterCard{M <: ClusteringMethod} <: StandardCard
     method::M
-    inputs::Vector{String}
-    weights::Union{String, Nothing} = nothing
-    partition::Union{String, Nothing} = nothing
-    output::String = "cluster"
+    inputs::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
+    weights::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    output::String = "cluster" & (dashi = json_string(minLength = 1),)
 end
 
 get_metadata(cc::ClusterCard) = _get_metadata(cc, CLUSTERING_METHODS)

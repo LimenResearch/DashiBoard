@@ -20,7 +20,7 @@ enum_instances(T::Type) = collect(Iterators.map(_lower, _instances(T)))
 
 # generic schema utils
 
-function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default)
+function schema_from_type(T::Type)
     schema = StringDict()
 
     if T <: Nothing
@@ -37,6 +37,13 @@ function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default
     schema["type"] = type
 
     (T <: Union{Enum, Nothing}) && (schema["enum"] = enum_instances(T))
+
+    return schema
+end
+
+function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default)
+    schema = schema_from_type(T)
+
     isnothing(default) || (schema["default"] = _lower(default))
     isnothing(config) || merge!(schema, config)
 
@@ -113,6 +120,19 @@ function conditional_options_schemas(d)
         conditional_schema("method" => k, "method_options" => options_schema(T))
             for (k, T) in pairs(d)
     ]
+end
+
+function full_conditional_options_schemas(d::AbstractDict, default = nothing)
+    allOf = StringDict[]
+    for (k, T) in pairs(d)
+        schema = options_schema(T)
+        schema["properties"]["type"] = true
+        cond = isnothing(default) ? match_property("type" => k) : match_property("type" => k, default)
+        push!(allOf, conditional_schema(cond, schema))
+    end
+    properties = StringDict("type" => json_string(enum = keys(d)))
+    required = isnothing(default) ? String["type"] : String[]
+    return json_object(; properties, allOf, required)
 end
 
 # schema utils for Streamliner cards

@@ -346,6 +346,6 @@ function _get_metadata(c::Card, methods::AbstractDict)
     d = construct(StringDict, c)
     d["type"] = card_name(c)
     d["method"] = construct(StringDict, c.method)
-    d["method"]["name"] = findfirst(Fix1(isa, c.method), methods)
+    d["method"]["type"] = findfirst(Fix1(isa, c.method), methods)
     return d
 end

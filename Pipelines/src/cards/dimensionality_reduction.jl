@@ -33,6 +33,8 @@ choose_projector(d::AbstractDict) = get_method(d, PROJECTION_METHODS)
 
 @choosetype DashiStyle ProjectionMethod choose_projector
 
+schema_from_type(::Type{ProjectionMethod}) = full_conditional_options_schemas(PROJECTION_METHODS)
+
 """
     @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
         method::M
@@ -47,10 +49,10 @@ Save resulting column as `output`.
 """
 @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
     method::M
-    inputs::Vector{String}
-    partition::Union{String, Nothing} = nothing
-    n_components::Int
-    output::String = "component"
+    inputs::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    n_components::Int & (dashi = json_integer(minimum = 1),)
+    output::String = "component" & (dashi = json_string(minLength = 1),)
 end
 
 get_metadata(drc::DimensionalityReductionCard) = _get_metadata(drc, PROJECTION_METHODS)

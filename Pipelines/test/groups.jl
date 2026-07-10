@@ -16,69 +16,69 @@
     @test cols == ["cbwd", "No", "PRES", "TEMP"] # TODO: consider keeping them grouped
 end
 
-# @testset "groups schema" begin
-#     deps = Pipelines.Deps(
-#         nodes = ["rescale", "log", "pca", "partition"],
-#         groups = ["weather"],
-#         cols = [
-#             "No", "year", "month", "day", "hour",
-#             "pm2.5", "DEWP", "TEMP", "PRES", "cbwd",
-#             "Iws", "Is", "Ir",
-#         ]
-#     )
-#     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
-#     for node in d["nodes"]
-#         card = node["card"]
-#         schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
-#         @test JSONSchema.validate(schema, card) === nothing
-#     end
+@testset "groups schema" begin
+    deps = Pipelines.Deps(
+        nodes = ["rescale", "log", "pca", "partition"],
+        groups = ["weather"],
+        cols = [
+            "No", "year", "month", "day", "hour",
+            "pm2.5", "DEWP", "TEMP", "PRES", "cbwd",
+            "Iws", "Is", "Ir",
+        ]
+    )
+    d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    for node in d["nodes"]
+        card = node["card"]
+        schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
+        @test JSONSchema.validate(schema, card) === nothing
+    end
 
-#     # exactly one between `nodes`, `groups`, and `cols` is allowed
-#     card = deepcopy(d["nodes"][1]["card"])
-#     card["inputs"] = Dict("groups" => ["weather"], "cols" => ["No"])
-#     schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
-#     issue = JSONSchema.validate(schema, card)
-#     @test issue !== nothing
-#     @test occursin("oneOf", string(issue))
-#     card["inputs"] = Dict()
-#     issue = JSONSchema.validate(schema, card)
-#     @test issue !== nothing
-#     @test occursin("oneOf", string(issue))
+    # exactly one between `nodes`, `groups`, and `cols` is allowed
+    card = deepcopy(d["nodes"][1]["card"])
+    card["inputs"] = Dict("groups" => ["weather"], "cols" => ["No"])
+    schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
+    issue = JSONSchema.validate(schema, card)
+    @test issue !== nothing
+    @test occursin("oneOf", string(issue))
+    card["inputs"] = Dict()
+    issue = JSONSchema.validate(schema, card)
+    @test issue !== nothing
+    @test occursin("oneOf", string(issue))
 
-#     schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
-#     @test JSONSchema.validate(schema, d["groups"]) === nothing
+    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    @test JSONSchema.validate(schema, d["groups"]) === nothing
 
-#     empty!(deps.groups)
-#     push!(deps.groups, "wether")
-#     card = d["nodes"][1]["card"]
-#     schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
-#     issue = JSONSchema.validate(schema, card)
-#     @test issue !== nothing
-#     @test occursin("weather", string(issue))
-#     @test occursin("wether", string(issue))
+    empty!(deps.groups)
+    push!(deps.groups, "wether")
+    card = d["nodes"][1]["card"]
+    schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
+    issue = JSONSchema.validate(schema, card)
+    @test issue !== nothing
+    @test occursin("weather", string(issue))
+    @test occursin("wether", string(issue))
 
-#     empty!(deps.groups)
-#     push!(deps.groups, "weather")
-#     push!(deps.groups, "grp_name")
-#     schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
-#     issue = JSONSchema.validate(schema, d["groups"])
-#     @test issue !== nothing
-#     @test occursin("grp_name", string(issue))
+    empty!(deps.groups)
+    push!(deps.groups, "weather")
+    push!(deps.groups, "grp_name")
+    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    issue = JSONSchema.validate(schema, d["groups"])
+    @test issue !== nothing
+    @test occursin("grp_name", string(issue))
 
-#     empty!(deps.groups)
-#     schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
-#     issue = JSONSchema.validate(schema, d["groups"])
-#     @test issue !== nothing
-#     @test occursin("additionalProperties", string(issue))
+    empty!(deps.groups)
+    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    issue = JSONSchema.validate(schema, d["groups"])
+    @test issue !== nothing
+    @test occursin("additionalProperties", string(issue))
 
-#     empty!(deps.groups)
-#     push!(deps.groups, "weather")
-#     empty!(deps.cols)
-#     schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
-#     issue = JSONSchema.validate(schema, d["groups"])
-#     @test issue !== nothing
-#     @test occursin("TEMP", string(issue)) || occursin("PRES", string(issue))
-# end
+    empty!(deps.groups)
+    push!(deps.groups, "weather")
+    empty!(deps.cols)
+    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    issue = JSONSchema.validate(schema, d["groups"])
+    @test issue !== nothing
+    @test occursin("TEMP", string(issue)) || occursin("PRES", string(issue))
+end
 
 @testset "node_digraph" begin
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))

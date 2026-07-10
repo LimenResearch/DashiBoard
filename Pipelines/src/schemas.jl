@@ -22,6 +22,7 @@ function json_schema(key::AbstractString; additionalProperties::Bool = false)::S
     spec = get_spec(key)
     schema::StringDict = spec.schema(spec.settings, key)
     # set defaults if not provided by card schema implementation
+    schema["properties"]["type"] = json_const(key)
     get!(schema, "title", spec.label)
     get!(schema, "additionalProperties", additionalProperties)
     return schema
@@ -29,19 +30,7 @@ end
 
 # Card implementations
 
-function split_card_schema(::Any, key::AbstractString)
-    properties = StringDict(
-        "type" => json_const(key),
-        "order_by" => JSON_NONEMPTY_VARIABLES,
-        "group_by" => JSON_VARIABLES,
-        "method" => json_string(enum = keys(SPLITTING_METHODS)),
-        "method_options" => json_object(),
-        "output" => json_string(minLength = 1),
-    )
-    allOf = conditional_options_schemas(SPLITTING_METHODS)
-    required = ["order_by", "method", "output"]
-    return json_object(; properties, allOf, required)
-end
+split_card_schema(::Any, key::AbstractString) = options_schema(SplitCard)
 
 const SPLIT_SPEC = CardSpec(split_card_schema, type = SplitCard, label = "Split")
 
@@ -84,20 +73,7 @@ const RESCALE_SPEC = CardSpec(
     label = "Rescale"
 )
 
-function cluster_card_schema(::Any, key::AbstractString)
-    properties = StringDict(
-        "type" => json_const(key),
-        "method" => json_string(enum = keys(CLUSTERING_METHODS)),
-        "method_options" => json_object(),
-        "inputs" => JSON_NONEMPTY_VARIABLES,
-        "weights" => JSON_VARIABLE,
-        "partition" => JSON_VARIABLE,
-        "output" => json_string(minLength = 1)
-    )
-    allOf = conditional_options_schemas(CLUSTERING_METHODS)
-    required = ["method", "inputs"]
-    return json_object(; properties, allOf, required)
-end
+cluster_card_schema(::Any, key::AbstractString) = options_schema(ClusterCard)
 
 const CLUSTER_SPEC = CardSpec(
     cluster_card_schema,
@@ -105,20 +81,7 @@ const CLUSTER_SPEC = CardSpec(
     label = "Cluster"
 )
 
-function dimensionality_reduction_card_schema(::Any, key::AbstractString)
-    properties = StringDict(
-        "type" => json_const(key),
-        "method" => json_string(enum = keys(PROJECTION_METHODS)),
-        "method_options" => json_object(),
-        "inputs" => JSON_NONEMPTY_VARIABLES,
-        "partition" => JSON_VARIABLE,
-        "n_components" => json_integer(minimum = 1),
-        "output" => json_string(minLength = 1)
-    )
-    allOf = conditional_options_schemas(PROJECTION_METHODS)
-    required = ["method", "inputs", "n_components"]
-    return json_object(; properties, allOf, required)
-end
+dimensionality_reduction_card_schema(::Any, key::AbstractString) = options_schema(DimensionalityReductionCard)
 
 const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
     dimensionality_reduction_card_schema,

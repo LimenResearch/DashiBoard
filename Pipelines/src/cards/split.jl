@@ -42,6 +42,8 @@ choose_splitter(d::AbstractDict) = get_method(d, SPLITTING_METHODS)
 
 @choosetype DashiStyle SplittingMethod choose_splitter
 
+schema_from_type(::Type{SplittingMethod}) = full_conditional_options_schemas(SPLITTING_METHODS)
+
 """
     struct SplitCard{M <: SplittingMethod} <: SQLCard
         method::M
@@ -58,9 +60,9 @@ Currently supported methods are
 """
 @kwarg struct SplitCard{M <: SplittingMethod} <: SQLCard
     method::M
-    order_by::Vector{String} = String[]
-    group_by::Vector{String} = String[]
-    output::String = "partition"
+    order_by::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,) # TODO: weaken requirement
+    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
+    output::String = "partition" & (dashi = json_string(minLength = 1),)
 end
 
 get_metadata(sc::SplitCard) = _get_metadata(sc, SPLITTING_METHODS)

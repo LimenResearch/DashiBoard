@@ -20,7 +20,7 @@ end
 
 function json_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
     spec = get_spec(key)
-    schema::StringDict = spec.schema(spec.settings, key)
+    schema::StringDict = options_schema(spec.type)
     # set defaults if not provided by card schema implementation
     schema["properties"]["type"] = json_const(key)
     ("type" in schema["required"]) || push!(schema["required"], "type")
@@ -30,74 +30,6 @@ function json_schema(key::AbstractString; additionalProperties::Bool = false)::S
 end
 
 # Card implementations
-
-split_card_schema(::Any, key::AbstractString) = options_schema(SplitCard)
-
-const SPLIT_SPEC = CardSpec(split_card_schema, type = SplitCard, label = "Split")
-
-window_function_card_schema(::Any, key::AbstractString) = options_schema(WindowFunctionCard)
-
-const WINDOW_FUNCTION_SPEC = CardSpec(
-    window_function_card_schema,
-    type = WindowFunctionCard,
-    label = "Window Function"
-)
-
-rescale_card_schema(::Any, key::AbstractString) = options_schema(RescaleCard)
-
-const RESCALE_SPEC = CardSpec(
-    rescale_card_schema,
-    type = RescaleCard,
-    label = "Rescale"
-)
-
-cluster_card_schema(::Any, key::AbstractString) = options_schema(ClusterCard)
-
-const CLUSTER_SPEC = CardSpec(
-    cluster_card_schema,
-    type = ClusterCard,
-    label = "Cluster"
-)
-
-dimensionality_reduction_card_schema(::Any, key::AbstractString) = options_schema(DimensionalityReductionCard)
-
-const DIMENSIONALITY_REDUCTION_SPEC = CardSpec(
-    dimensionality_reduction_card_schema,
-    type = DimensionalityReductionCard,
-    label = "Dimensionality Reduction"
-)
-
-glm_card_schema(::Any, key::AbstractString) = options_schema(GLMCard)
-
-const GLM_SPEC = CardSpec(
-    glm_card_schema,
-    type = GLMCard,
-    label = "GLM"
-)
-
-mixed_model_card_schema(::Any, key::AbstractString) = options_schema(MixedModelCard)
-
-const MIXED_MODEL_SPEC = CardSpec(
-    mixed_model_card_schema,
-    type = MixedModelCard,
-    label = "Mixed Model"
-)
-
-interp_card_schema(::Any, key::AbstractString) = options_schema(InterpCard)
-
-const INTERP_SPEC = CardSpec(
-    interp_card_schema,
-    type = InterpCard,
-    label = "Interpolation"
-)
-
-gaussian_encoding_card_schema(::Any, key::AbstractString) = options_schema(GaussianEncodingCard)
-
-const GAUSSIAN_ENCODING_SPEC = CardSpec(
-    gaussian_encoding_card_schema,
-    type = GaussianEncodingCard,
-    label = "Gaussian Encoding"
-)
 
 function streamliner_card_schema(::Any, key::AbstractString)
     required = String["model", "training"]
@@ -158,12 +90,6 @@ function streamliner_card_schema(::Any, key::AbstractString)
     )
 end
 
-const STREAMLINER_SPEC = CardSpec(
-    streamliner_card_schema,
-    type = StreamlinerCard,
-    label = "Streamliner"
-)
-
 function wild_card_schema(settings::Any, key::AbstractString)
     required = String["inputs"]
 
@@ -202,8 +128,14 @@ function wild_card_schema(settings::Any, key::AbstractString)
     return json_object(; properties, required)
 end
 
-function register_wild_card(key::Symbol; label::AbstractString, settings::WildCardSettings)
+function register_wild_card(key::Symbol, label::AbstractString; settings::WildCardSettings)
     type = WildCard{key}
-    spec = CardSpec(wild_card_schema; type, label, settings)
+    spec = CardSpec(type, label; settings)
     return register_card(string(key) => spec)
 end
+
+@deprecate(
+    register_wild_card(key::Symbol; label::AbstractString, settings::WildCardSettings),
+    register_wild_card(key, label; settings),
+    false
+)

@@ -282,25 +282,16 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 struct CardSpec
     type::Type
     label::String
-    schema::Function
     settings::Any
 end
 
 """
-    CardSpec(
-        f::Function = Returns(Dict());
-        type::Type, label::AbstractString, settings::Any = nothing,
-    )
+    CardSpec(type::Type, label::AbstractString; settings::Any = nothing)
 
 Specification to register a given card type.
 """
-function CardSpec(
-        f::Function = Returns(Dict());
-        type::Type, label::AbstractString, settings::Any = nothing,
-        kwargs...
-    )
-    isempty(kwargs) || @warn "Only `type`, `label` and `settings` keyword arguments are allowed in `CardSpec`"
-    return CardSpec(type, label, f, settings)
+function CardSpec(type::Type, label::AbstractString; settings::Any = nothing)
+    return CardSpec(type, label, settings)
 end
 
 get_label(spec::CardSpec) = spec.label

@@ -634,29 +634,30 @@ end
             "type" => "gaussian_encoding",
             "input" => "date",
             "n_components" => 3,
-            "method_options" => Dict("max" => 365.0),
+            "method" => Dict("name" => "", "max" => 365.0),
             "lambda" => 0.5,
             "suffix" => "gaussian"
         )
 
         for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
-            c = merge(base_fields, Dict("method" => k))
+            c = deepcopy(base_fields)
+            c["method"]["name"] = k
             card = GaussianEncodingCard(c)
-            _max = base_fields["method_options"]["max"]
-            @test card.temporal_preprocessor == v(_max)
+            _max = c["method"]["max"]
+            @test card.method == v(_max)
         end
 
         invalid_method = "nonexistent_method"
-        invalid_config = merge(base_fields, Dict("method" => invalid_method))
+        invalid_config = deepcopy(base_fields)
+        invalid_config["method"]["name"] = invalid_method
         @test_throws ArgumentError GaussianEncodingCard(invalid_config)
 
         invalid_config = Dict(
             "type" => "gaussian_encoding",
             "input" => "date",
             "n_components" => 0,
-            "max" => 365.0,
-            "lambda" => 0.5,
-            "method" => "identity"
+            "method" => Dict("name" => "dayofyear", "max" => 365.0),
+            "lambda" => 0.5
         )
         @test_throws ArgumentError GaussianEncodingCard(invalid_config)
     end
@@ -665,7 +666,7 @@ end
         card, state = get_card(node), get_state(node)
         expected_means = range(0, step = 1 / card.n_components, length = card.n_components)
         expected_sigma = step(expected_means) * card.lambda
-        expected_d = card.temporal_preprocessor.max
+        expected_d = card.method.max
         expected_keys = vcat(["μ_$i" for i in 1:card.n_components], ["σ", "d"])
 
         params = Pipelines.jlddeserialize(state.content)
@@ -681,7 +682,7 @@ end
         @test names(result) == union(names(origin), Pipelines.get_node_outputs(node))
 
         origin_column = origin[:, card.input]
-        max_value = card.temporal_preprocessor.max
+        max_value = card.method.max
         preprocessed_values = processing.(origin_column)
         μs = range(0, step = 1 / card.n_components, length = card.n_components)
         σ = step(μs) * card.lambda

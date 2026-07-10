@@ -5,8 +5,7 @@
     "n_components": 4,
     "lambda": 0.5,
     "suffix": "gaussian",
-    "method": "identity",
-    "method_options": { "max": 12 }
+    "method": { "name": "identity", "max": 12 }
   },
   "dayofweek": {
     "type": "gaussian_encoding",
@@ -14,8 +13,7 @@
     "n_components": 3,
     "lambda": 0.5,
     "suffix": "gaussian",
-    "method": "dayofweek",
-    "method_options": { "max": 7 }
+    "method": { "name": "dayofweek", "max": 7 }
   },
   "dayofyear": {
     "type": "gaussian_encoding",
@@ -23,8 +21,7 @@
     "n_components": 12,
     "lambda": 0.5,
     "suffix": "gaussian",
-    "method": "dayofyear",
-    "method_options": { "max": 365 }
+    "method": { "name": "dayofyear", "max": 365 }
   },
   "hour": {
     "type": "gaussian_encoding",
@@ -32,8 +29,7 @@
     "n_components": 4,
     "lambda": 0.5,
     "suffix": "gaussian",
-    "method": "hourofday",
-    "method_options": { "max": 24 }
+    "method": { "name": "hourofday", "max": 24 }
   },
   "minute": {
     "type": "gaussian_encoding",
@@ -41,8 +37,7 @@
     "n_components": 1,
     "lambda": 0.5,
     "suffix": "gaussian",
-    "method": "minuteofhour",
-    "method_options": { "max": 24 }
+    "method": { "name": "minuteofhour", "max": 24 }
   },
   "zeroLambda": {
     "type": "gaussian_encoding",
@@ -50,7 +45,6 @@
     "n_components": 1,
     "lambda": 0,
     "suffix": "gaussian",
-    "method": "minuteofhour",
-    "method_options": { "max": 24 }
+    "method": { "name": "minuteofhour", "max": 24 }
   }
 }

@@ -74,6 +74,10 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
     "pchip" => PCHIPInterpolationMethod,
 )
 
+choose_interpolator(d::AbstractDict) = get_method(d, INTERPOLATION_METHODS)
+
+@choosetype DashiStyle InterpolationMethod choose_interpolator
+
 """
     struct InterpCard{M <: InterpolationMethod} <: Card
         method::M
@@ -95,7 +99,7 @@ end
 
 get_metadata(ic::InterpCard) = _get_metadata(ic, INTERPOLATION_METHODS)
 
-InterpCard(c::AbstractDict) = _construct(InterpCard, c, INTERPOLATION_METHODS)
+InterpCard(c::AbstractDict) = construct(InterpCard, c)
 
 ## StandardCard interface
 

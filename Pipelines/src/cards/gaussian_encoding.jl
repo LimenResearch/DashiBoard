@@ -39,6 +39,12 @@ const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "minuteofhour" => MinuteOfHourMethod,
 )
 
+function choose_temporal_preprocessor(d::AbstractDict)
+    return get_method(d, TEMPORAL_PREPROCESSING_METHODS, default = "identity")
+end
+
+@choosetype DashiStyle TemporalProcessingMethod choose_temporal_preprocessor
+
 """
     struct GaussianEncodingCard <: Card
 
@@ -83,7 +89,7 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 @kwarg struct GaussianEncodingCard{M <: TemporalProcessingMethod} <: SQLCard
-    method::M
+    method::M = IdentityMethod()
     input::String
     n_components::Int
     lambda::Float64 = 0.5
@@ -93,11 +99,7 @@ end
 get_metadata(gec::GaussianEncodingCard) = _get_metadata(gec, TEMPORAL_PREPROCESSING_METHODS)
 
 function GaussianEncodingCard(c::AbstractDict)
-    gec = _construct(
-        GaussianEncodingCard, c,
-        TEMPORAL_PREPROCESSING_METHODS;
-        default = "identity"
-    )
+    gec = construct(GaussianEncodingCard, c)
     if gec.n_components ≤ 0
         msg = """
         `n_components` must be greater than `0`.

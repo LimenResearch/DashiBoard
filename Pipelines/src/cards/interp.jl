@@ -78,6 +78,8 @@ choose_interpolator(d::AbstractDict) = lift_method(d, INTERPOLATION_METHODS)
 
 @choosetype DashiStyle InterpolationMethod choose_interpolator
 
+schema_from_type(::Type{InterpolationMethod}) = full_conditional_options_schemas(INTERPOLATION_METHODS)
+
 StructUtils.lower(::DashiStyle, c::InterpolationMethod) = get_metadata(c, INTERPOLATION_METHODS)
 
 """
@@ -93,10 +95,10 @@ Interpolate `targets` based on `input`.
 """
 @kwarg struct InterpCard{M <: InterpolationMethod} <: StandardCard
     method::M
-    input::String
-    targets::Vector{String}
-    partition::Union{String, Nothing} = nothing
-    suffix::String = "hat"
+    input::String & (dashi = JSON_VARIABLE,)
+    targets::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
 InterpCard(c::AbstractDict) = construct(InterpCard, c)

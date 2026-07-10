@@ -114,20 +114,7 @@ const MIXED_MODEL_SPEC = CardSpec(
     label = "Mixed Model"
 )
 
-function interp_card_schema(::Any, key::AbstractString)
-    required = String["method", "input", "targets"]
-    properties = StringDict(
-        "type" => json_const(key),
-        "method" => json_string(enum = keys(INTERPOLATION_METHODS)),
-        "method_options" => json_object(),
-        "input" => JSON_VARIABLE,
-        "targets" => JSON_NONEMPTY_VARIABLES,
-        "partition" => JSON_VARIABLE,
-        "suffix" => json_string(minLength = 1)
-    )
-    allOf = conditional_options_schemas(INTERPOLATION_METHODS)
-    return json_object(; properties, allOf, required)
-end
+interp_card_schema(::Any, key::AbstractString) = options_schema(InterpCard)
 
 const INTERP_SPEC = CardSpec(
     interp_card_schema,

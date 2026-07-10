@@ -29,6 +29,10 @@ const PROJECTION_METHODS = OrderedDict{String, DataType}(
     "mds" => MDSMethod,
 )
 
+choose_projector(d::AbstractDict) = get_method(d, PROJECTION_METHODS)
+
+@choosetype DashiStyle ProjectionMethod choose_projector
+
 """
     @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
         method::M
@@ -42,7 +46,7 @@ Project `inputs` based on `method`.
 Save resulting column as `output`.
 """
 @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
-    method::M & (name = "method_options",)
+    method::M
     inputs::Vector{String}
     partition::Union{String, Nothing} = nothing
     n_components::Int
@@ -51,9 +55,7 @@ end
 
 get_metadata(drc::DimensionalityReductionCard) = _get_metadata(drc, PROJECTION_METHODS)
 
-function DimensionalityReductionCard(c::AbstractDict)
-    return _construct(DimensionalityReductionCard, c, PROJECTION_METHODS)
-end
+DimensionalityReductionCard(c::AbstractDict) = construct(DimensionalityReductionCard, c)
 
 ## StandardCard interface
 

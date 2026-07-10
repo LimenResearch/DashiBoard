@@ -1,10 +1,11 @@
 {
   "kmeans": {
+    "type": "cluster",
     "inputs": ["TEMP", "PRES", "Iws"],
     "weights": "Iws",
     "output": "cluster",
-    "method": "kmeans",
-    "method_options": {
+    "method": {
+      "name": "kmeans",
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
@@ -12,35 +13,39 @@
     }
   },
   "dbscan": {
+    "type": "cluster",
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "name": "dbscan",
       "radius": 0.02
     }
   },
   "hasPartition": {
+    "type": "cluster",
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "name": "dbscan",
       "radius": 0.02
     },
     "partition": "partition"
   },
   "wrongInput": {
+    "type": "cluster",
     "inputs": ["temp", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "name": "dbscan",
       "radius": 0.02
     }
   },
   "spuriousProperty": {
+    "type": "cluster",
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "name": "dbscan",
       "radius": 0.02,
       "minneighbors": 10
     }

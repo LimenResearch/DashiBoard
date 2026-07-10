@@ -86,7 +86,7 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
 Interpolate `targets` based on `input`.
 """
 @kwarg struct InterpCard{M <: InterpolationMethod} <: StandardCard
-    method::M & (name = "method_options",)
+    method::M
     input::String
     targets::Vector{String}
     partition::Union{String, Nothing} = nothing

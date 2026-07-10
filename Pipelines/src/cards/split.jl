@@ -38,6 +38,10 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
     "tiles" => TilesMethod,
 )
 
+choose_splitter(d::AbstractDict) = get_method(d, SPLITTING_METHODS)
+
+@choosetype DashiStyle SplittingMethod choose_splitter
+
 """
     struct SplitCard{M <: SplittingMethod} <: SQLCard
         method::M
@@ -61,7 +65,11 @@ end
 
 get_metadata(sc::SplitCard) = _get_metadata(sc, SPLITTING_METHODS)
 
-SplitCard(c::AbstractDict) = _construct(SplitCard, c, SPLITTING_METHODS)
+function SplitCard(c::AbstractDict)
+    sc = construct(SplitCard, c)
+    (sc.method isa OrderedSplittingMethod) && isempty(sc.order_by) && order_error()
+    return sc
+end
 
 ## SQLCard interface
 

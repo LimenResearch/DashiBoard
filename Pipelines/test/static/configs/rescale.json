@@ -1,7 +1,7 @@
 {
   "zscore": {
     "type": "rescale",
-    "method": "zscore",
+    "method": {"name": "zscore"},
     "group_by": ["cbwd"],
     "inputs": [],
     "targets": ["TEMP"],

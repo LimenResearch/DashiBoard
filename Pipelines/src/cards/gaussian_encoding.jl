@@ -83,7 +83,7 @@ Evaluate:
   6. Replaces the target table with the final results.
 """
 @kwarg struct GaussianEncodingCard{M <: TemporalProcessingMethod} <: SQLCard
-    method::M & (name = "method_options",)
+    method::M
     input::String
     n_components::Int
     lambda::Float64 = 0.5

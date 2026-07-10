@@ -60,6 +60,10 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "affinity_propagation" => AffinityPropagationMethod,
 )
 
+choose_clusterer(d::AbstractDict) = get_method(d, CLUSTERING_METHODS)
+
+@choosetype DashiStyle ClusteringMethod choose_clusterer
+
 # TODO: support custom metrics
 """
     struct ClusterCard{M <: ClusteringMethod} <: StandardCard
@@ -74,7 +78,7 @@ Cluster `inputs` based on `method`.
 Save resulting column as `output`.
 """
 @kwarg struct ClusterCard{M <: ClusteringMethod} <: StandardCard
-    method::M & (name = "method_options",)
+    method::M
     inputs::Vector{String}
     weights::Union{String, Nothing} = nothing
     partition::Union{String, Nothing} = nothing
@@ -83,7 +87,7 @@ end
 
 get_metadata(cc::ClusterCard) = _get_metadata(cc, CLUSTERING_METHODS)
 
-ClusterCard(c::AbstractDict) = _construct(ClusterCard, c, CLUSTERING_METHODS)
+ClusterCard(c::AbstractDict) = construct(ClusterCard, c)
 
 ## StandardCard interface
 

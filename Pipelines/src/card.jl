@@ -340,22 +340,27 @@ end
 card_name(c::Card) = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
 card_name(T::Type) = findfirst(spec -> (T <: spec.type), CARD_SPECS)
 
-function _get_metadata(c::Card, methods::AbstractDict)
-    d = construct(StringDict, c)
-    d["method_options"] = get_options(d["method_options"])
-    d["method"] = findfirst(Fix1(isa, c.method), methods)
-    return d
-end
+card_type(config::AbstractDict) = CARD_SPECS[config["type"]].type
 
-function _construct(
-        ::Type{T}, config::AbstractDict, methods::AbstractDict;
+@choosetype DashiStyle Card card_type
+
+function get_method(
+        config::AbstractDict, methods::AbstractDict;
         default::Union{AbstractString, Nothing} = nothing
-    ) where {T <: Card}
-    method::String = isnothing(default) ? config["method"] : get(config, "method", default)
+    )
+    method::String = isnothing(default) ? config["name"] : get(config, "name", default)
     M = get(methods, method, nothing)
     if isnothing(M)
         valid_methods = join(keys(methods), ", ")
         throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
     end
-    return construct(T{M}, c)
+    return M
+end
+
+function _get_metadata(c::Card, methods::AbstractDict)
+    d = construct(StringDict, c)
+    d["type"] = card_name(c)
+    d["method"] = construct(StringDict, c.method)
+    d["method"]["name"] = findfirst(Fix1(isa, c.method), methods)
+    return d
 end

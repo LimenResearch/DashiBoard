@@ -65,13 +65,21 @@ function logistic_invtransform(_, col′)
     return @. ln(y / (1 - y))
 end
 
-struct Rescaler
+@nonstruct struct Rescaler
     stats::Vector{Pair}
     transform::Base.Callable
     invtransform::Union{Base.Callable, Nothing}
 end
 
-const RESCALING_METHODS = OrderedDict{String, Rescaler}(
+function StructUtils.lift(::DashiStyle, ::Type{Rescaler}, s::AbstractDict)
+    return get_method(s, RESCALERS), nothing
+end
+
+function StructUtils.lower(::DashiStyle, r::Rescaler)
+    return StringDict("name" => findfirst(==(r), RESCALERS))
+end
+
+const RESCALERS = OrderedDict{String, Rescaler}(
     "zscore" => Rescaler(Pair["mean" => Agg.mean, "std" => Agg.stddev_pop], zscore_transform, zscore_invtransform),
     "maxabs" => Rescaler(Pair["maxabs" => Agg.max ∘ Fun.abs], maxabs_transform, maxabs_invtransform),
     "minmax" => Rescaler(Pair["max" => Agg.max, "min" => Agg.min], minmax_transform, minmax_invtransform),
@@ -82,7 +90,7 @@ const RESCALING_METHODS = OrderedDict{String, Rescaler}(
 # TODO: also inv-rescale `target_sigma` for probabilistic models
 """
     struct RescaleCard <: Card
-        method::M
+        method::Rescaler
         group_by::Vector{String} = String[]
         inputs::Vector{String}
         targets::Vector{String} = String[]
@@ -102,8 +110,8 @@ The supported methods are
 The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
-@kwarg struct RescaleCard{M <: Rescaler} <: SQLCard
-    method::M
+@kwarg struct RescaleCard <: SQLCard
+    method::Rescaler
     group_by::Vector{String} = String[]
     inputs::Vector{String}
     targets::Vector{String} = String[]
@@ -112,9 +120,13 @@ The resulting rescaled variable is added to the table under the name
     target_suffix::Union{String, Nothing} = nothing
 end
 
-get_metadata(rc::RescaleCard) = _get_metadata(rc, RESCALING_METHODS)
+function get_metadata(rc::RescaleCard)
+    d = construct(StringDict, rc)
+    d["method"] = Dict("name" => findfirst(==(rc.method), RESCALERS))
+    return d
+end
 
-RescaleCard(c::AbstractDict) = _construct(RescaleCard, c, RESCALING_METHODS)
+RescaleCard(c::AbstractDict) = construct(RescaleCard, c)
 
 ## SQLCard interface
 

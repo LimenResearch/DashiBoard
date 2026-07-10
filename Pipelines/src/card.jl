@@ -342,12 +342,25 @@ function lift_method(
     return M
 end
 
-lower_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), RESCALERS))
+lower_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), methods))
 
 function _get_metadata(c::Card, methods::AbstractDict)
     d = construct(StringDict, c)
     d["type"] = card_name(c)
     d["method"] = construct(StringDict, c.method)
     d["method"]["type"] = findfirst(Fix1(isa, c.method), methods)
+    return d
+end
+
+function get_metadata(c::Card)
+    d = construct(StringDict, c)
+    d["type"] = card_name(c)
+    return d
+end
+
+# TODO: use `AbstractMethod` supertype
+function get_metadata(c, methods::AbstractDict)
+    d = construct(StringDict, c)
+    d["type"] = findfirst(Fix1(isa, c), methods)
     return d
 end

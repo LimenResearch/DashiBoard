@@ -45,6 +45,10 @@ end
 
 @choosetype DashiStyle TemporalProcessingMethod choose_temporal_preprocessor
 
+schema_from_type(::Type{TemporalProcessingMethod}) = full_conditional_options_schemas(TEMPORAL_PREPROCESSING_METHODS)
+
+StructUtils.lower(::DashiStyle, c::TemporalProcessingMethod) = get_metadata(c, TEMPORAL_PREPROCESSING_METHODS)
+
 """
     struct GaussianEncodingCard <: Card
 
@@ -90,13 +94,11 @@ Evaluate:
 """
 @kwarg struct GaussianEncodingCard{M <: TemporalProcessingMethod} <: SQLCard
     method::M = IdentityMethod()
-    input::String
-    n_components::Int
-    lambda::Float64 = 0.5
-    suffix::String = "gaussian"
+    input::String & (dashi = JSON_VARIABLE,)
+    n_components::Int & (dashi = json_integer(minimum = 1),)
+    lambda::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0),)
+    suffix::String = "gaussian" & (dashi = json_string(minLength = 1),)
 end
-
-get_metadata(gec::GaussianEncodingCard) = _get_metadata(gec, TEMPORAL_PREPROCESSING_METHODS)
 
 function GaussianEncodingCard(c::AbstractDict)
     gec = construct(GaussianEncodingCard, c)

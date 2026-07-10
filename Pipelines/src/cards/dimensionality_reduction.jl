@@ -35,6 +35,8 @@ choose_projector(d::AbstractDict) = lift_method(d, PROJECTION_METHODS)
 
 schema_from_type(::Type{ProjectionMethod}) = full_conditional_options_schemas(PROJECTION_METHODS)
 
+StructUtils.lower(::DashiStyle, c::ProjectionMethod) = get_metadata(c, PROJECTION_METHODS)
+
 """
     @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
         method::M
@@ -54,8 +56,6 @@ Save resulting column as `output`.
     n_components::Int & (dashi = json_integer(minimum = 1),)
     output::String = "component" & (dashi = json_string(minLength = 1),)
 end
-
-get_metadata(drc::DimensionalityReductionCard) = _get_metadata(drc, PROJECTION_METHODS)
 
 DimensionalityReductionCard(c::AbstractDict) = construct(DimensionalityReductionCard, c)
 

@@ -66,6 +66,8 @@ choose_clusterer(d::AbstractDict) = lift_method(d, CLUSTERING_METHODS)
 
 schema_from_type(::Type{ClusteringMethod}) = full_conditional_options_schemas(CLUSTERING_METHODS)
 
+StructUtils.lower(::DashiStyle, c::ClusteringMethod) = get_metadata(c, CLUSTERING_METHODS)
+
 # TODO: support custom metrics
 """
     struct ClusterCard{M <: ClusteringMethod} <: StandardCard
@@ -86,8 +88,6 @@ Save resulting column as `output`.
     partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
     output::String = "cluster" & (dashi = json_string(minLength = 1),)
 end
-
-get_metadata(cc::ClusterCard) = _get_metadata(cc, CLUSTERING_METHODS)
 
 ClusterCard(c::AbstractDict) = construct(ClusterCard, c)
 

@@ -60,6 +60,7 @@ using FunSQL:
     SQLCatalog,
     Partition,
     Group,
+    AggClosure,
     Agg,
     Fun,
     Lit,

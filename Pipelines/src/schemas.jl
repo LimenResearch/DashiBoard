@@ -23,6 +23,7 @@ function json_schema(key::AbstractString; additionalProperties::Bool = false)::S
     schema::StringDict = spec.schema(spec.settings, key)
     # set defaults if not provided by card schema implementation
     schema["properties"]["type"] = json_const(key)
+    ("type" in schema["required"]) || push!(schema["required"], "type")
     get!(schema, "title", spec.label)
     get!(schema, "additionalProperties", additionalProperties)
     return schema
@@ -134,20 +135,7 @@ const INTERP_SPEC = CardSpec(
     label = "Interpolation"
 )
 
-function gaussian_encoding_card_schema(::Any, key::AbstractString)
-    required = String["input", "n_components"]
-    properties = StringDict(
-        "type" => json_const(key),
-        "method" => json_string(enum = keys(TEMPORAL_PREPROCESSING_METHODS)),
-        "method_options" => json_object(),
-        "input" => JSON_VARIABLE,
-        "n_components" => json_integer(minimum = 1),
-        "lambda" => json_number(exclusiveMinimum = 0),
-        "suffix" => json_string(minLength = 1)
-    )
-    allOf = conditional_options_schemas(TEMPORAL_PREPROCESSING_METHODS)
-    return json_object(; properties, allOf, required)
-end
+gaussian_encoding_card_schema(::Any, key::AbstractString) = options_schema(GaussianEncodingCard)
 
 const GAUSSIAN_ENCODING_SPEC = CardSpec(
     gaussian_encoding_card_schema,

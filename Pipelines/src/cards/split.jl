@@ -44,6 +44,8 @@ choose_splitter(d::AbstractDict) = lift_method(d, SPLITTING_METHODS)
 
 schema_from_type(::Type{SplittingMethod}) = full_conditional_options_schemas(SPLITTING_METHODS)
 
+StructUtils.lower(::DashiStyle, c::SplittingMethod) = get_metadata(c, SPLITTING_METHODS)
+
 """
     struct SplitCard{M <: SplittingMethod} <: SQLCard
         method::M
@@ -64,8 +66,6 @@ Currently supported methods are
     group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
     output::String = "partition" & (dashi = json_string(minLength = 1),)
 end
-
-get_metadata(sc::SplitCard) = _get_metadata(sc, SPLITTING_METHODS)
 
 function SplitCard(c::AbstractDict)
     sc = construct(SplitCard, c)

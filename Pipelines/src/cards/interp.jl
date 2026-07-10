@@ -78,6 +78,8 @@ choose_interpolator(d::AbstractDict) = lift_method(d, INTERPOLATION_METHODS)
 
 @choosetype DashiStyle InterpolationMethod choose_interpolator
 
+StructUtils.lower(::DashiStyle, c::InterpolationMethod) = get_metadata(c, INTERPOLATION_METHODS)
+
 """
     struct InterpCard{M <: InterpolationMethod} <: Card
         method::M
@@ -96,8 +98,6 @@ Interpolate `targets` based on `input`.
     partition::Union{String, Nothing} = nothing
     suffix::String = "hat"
 end
-
-get_metadata(ic::InterpCard) = _get_metadata(ic, INTERPOLATION_METHODS)
 
 InterpCard(c::AbstractDict) = construct(InterpCard, c)
 

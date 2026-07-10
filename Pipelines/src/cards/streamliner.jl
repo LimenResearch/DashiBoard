@@ -21,29 +21,22 @@ function parse_properties(dir, x)::Vector{StringDict}
     return get(c, "properties", StringDict[])
 end
 
-function get_streamliner_model(c::AbstractDict, model_name::AbstractString)
-    model_options = extract_options(c, "model", model_name)
-    model = get(c, "model_metadata") do
-        return parse_without_widgets(MODEL_DIR[], model_name)
-    end
-    return Model(PARSER[], model, model_options)
+function get_streamliner_model(config::AbstractDict)
+    model_name::String = config["name"]
+    model = parse_without_widgets(MODEL_DIR[], model_name)
+    return Model(PARSER[], model, config)
 end
 
-function get_streamliner_training(c::AbstractDict, training_name::AbstractString)
-    training_options = extract_options(c, "training", training_name)
-    training = get(c, "training_metadata") do
-        return parse_without_widgets(TRAINING_DIR[], training_name)
-    end
-    return Training(PARSER[], training, training_options)
+function get_streamliner_training(config::AbstractDict)
+    training_name::String = config["name"]
+    training = parse_without_widgets(TRAINING_DIR[], training_name)
+    return Training(PARSER[], training, config)
 end
 
 """
     struct StreamlinerCard <: Card
-        model_name::String
         model::Model
-        training_name::String
         training::Training
-        funnel_name::String
         funnel::Funnel
         partition::Union{String, Nothing}
         suffix::String = "hat"
@@ -51,15 +44,12 @@ end
 
 Run a Streamliner model, predicting `targets` from `inputs`.
 """
-struct StreamlinerCard <: StreamingCard
-    model_name::String
-    model::Model
-    training_name::String
-    training::Training
-    funnel_name::String
-    funnel::Funnel
-    partition::Union{String, Nothing}
-    suffix::String
+@kwarg struct StreamlinerCard{M <: Model, T <: Training, F <: Funnel} <: StreamingCard
+    model::M
+    training::T
+    funnel::F
+    partition::Union{String, Nothing} = nothing
+    suffix::String = "hat"
 end
 
 function get_metadata(sc::StreamlinerCard)
@@ -77,26 +67,17 @@ function get_metadata(sc::StreamlinerCard)
 end
 
 function StreamlinerCard(c::AbstractDict)
-    model_name::String = c["model"]
-    model = get_streamliner_model(c, model_name)
-    training_name::String = c["training"]
-    training = get_streamliner_training(c, training_name)
+    model_config::StringDict = c["model"]
+    model = get_streamliner_model(model_config)
+    training_config::StringDict = c["training"]
+    training = get_streamliner_training(training_config)
     funnel_name::String = get(c, "funnel", "")
     funnel = PARSER[].funnels[funnel_name](c)
 
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     suffix::String = get(c, "suffix", "hat")
 
-    return StreamlinerCard(
-        model_name,
-        model,
-        training_name,
-        training,
-        funnel_name,
-        funnel,
-        partition,
-        suffix
-    )
+    return StreamlinerCard(model, training, funnel, partition, suffix)
 end
 
 ## StreamingCard interface

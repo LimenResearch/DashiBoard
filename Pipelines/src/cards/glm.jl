@@ -97,6 +97,7 @@ _fit(args...; weights) = isnothing(weights) ? fit(args...) : fit(args...; weight
 
 function train_glm(gc::AbstractGLMCard, t, LinearModelType, GeneralizedLinearModelType; weights)
     (; formula, distribution, link) = gc
+    link = @something link canonicallink(distribution)
     # TODO save slim version of model with no data
     return if is_linear_model(distribution, link)
         _fit(LinearModelType, formula, t; weights)
@@ -125,23 +126,23 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 
 """
     struct GLMCard <: Card
-      distribution::Distribution
-      link::Link
-      formula::FormulaTerm
-      weights::Union{String, Nothing}
-      partition::Union{String, Nothing}
-      suffix::String
+        distribution::Distribution = Normal()
+        link::Union{Link, Nothing} = nothing
+        formula::FormulaTerm
+        weights::Union{String, Nothing} = nothing
+        partition::Union{String, Nothing} = nothing
+        suffix::String = "hat"
     end
 
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
-struct GLMCard <: AbstractGLMCard
-    distribution::Distribution
-    link::Link
+@kwarg struct GLMCard <: AbstractGLMCard
+    distribution::Distribution = Normal()
+    link::Union{Link, Nothing} = nothing
     formula::FormulaTerm
-    weights::Union{String, Nothing}
-    partition::Union{String, Nothing}
-    suffix::String
+    weights::Union{String, Nothing} = nothing
+    partition::Union{String, Nothing} = nothing
+    suffix::String = "hat"
 end
 
 has_grouping_factor(::Type{GLMCard}) = false
@@ -161,24 +162,24 @@ end
 
 """
     struct MixedModelCard <: AbstractGLMCard
-        distribution::Distribution
-        link::Link
+        distribution::Distribution = Normal()
+        link::Union{Link, Nothing} = nothing
         formula::FormulaTerm
-        weights::Union{String, Nothing}
-        partition::Union{String, Nothing}
-        suffix::String
+        weights::Union{String, Nothing} = nothing
+        partition::Union{String, Nothing} = nothing
+        suffix::String = "hat"
     end
 
 Run a Mixed Model based on `formula`.
 To use this card, you must load the MixedModels.jl package first.
 """
-struct MixedModelCard <: AbstractGLMCard
-    distribution::Distribution
-    link::Link
+@kwarg struct MixedModelCard <: AbstractGLMCard
+    distribution::Distribution = Normal()
+    link::Union{Link, Nothing} = nothing
     formula::FormulaTerm
-    weights::Union{String, Nothing}
-    partition::Union{String, Nothing}
-    suffix::String
+    weights::Union{String, Nothing} = nothing
+    partition::Union{String, Nothing} = nothing
+    suffix::String = "hat"
 end
 
 has_grouping_factor(::Type{MixedModelCard}) = true

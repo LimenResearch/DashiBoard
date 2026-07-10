@@ -9,8 +9,6 @@ end
 
 to_maybestring(s::Union{AbstractString, Nothing})::Union{String, Nothing} = s
 
-get_options(m) = construct(StringDict, m)
-
 # Card computation utils
 
 select_columns(args...) = Select(args = Get.(union(args...)))

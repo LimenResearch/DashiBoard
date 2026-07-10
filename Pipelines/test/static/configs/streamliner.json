@@ -6,10 +6,8 @@
     "targets": ["Iws"],
     "partition": "partition",
     "suffix": "hat",
-    "model": "dense",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "model": { "name": "dense", "features": 5 },
+    "training": { "name": "batched", "iterations": 4 }
   },
   "classifier": {
     "type": "streamliner",
@@ -19,10 +17,8 @@
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "model": { "name": "classifier", "features": 5 },
+    "training": { "name": "batched", "iterations": 4 }
   },
   "wrongModel": {
     "type": "streamliner",
@@ -32,10 +28,8 @@
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": -2 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "model": { "name": "classifier", "features": -2 },
+    "training": { "name": "batched", "iterations": 4 }
   },
   "wrongTraining": {
     "type": "streamliner",
@@ -45,10 +39,8 @@
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": -1 }
+    "model": { "name": "classifier", "features": 5 },
+    "training": { "name": "batched", "iterations": -1 }
   },
   "spuriousProperty": {
     "type": "streamliner",
@@ -59,10 +51,8 @@
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "model": { "name": "classifier", "features": 5 },
+    "training": { "name": "batched", "iterations": 4 }
   },
   "spuriousModelProperty": {
     "type": "streamliner",
@@ -72,10 +62,8 @@
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5, "channels": 2},
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "model": { "name": "classifier", "features": 5, "channels": 2},
+    "training": { "name": "batched", "iterations": 4 }
   },
   "spuriousTrainingProperty": {
     "type": "streamliner",
@@ -85,15 +73,12 @@
     "targets": ["cbwd"],
     "partition": "partition",
     "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4, "tol": 1e-5 }
+    "model": { "name": "classifier", "features": 5 },
+    "training": { "name": "batched", "iterations": 4, "tol": 1e-5 }
   },
   "partition": {
     "type": "split",
-    "method": "percentile",
-    "method_options": { "percentile": 0.9 },
+    "method": { "name": "percentile", "percentile": 0.9 },
     "order_by": ["No"],
     "output": "partition"
   }

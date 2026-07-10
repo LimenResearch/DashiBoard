@@ -71,7 +71,7 @@ choose_clusterer(d::AbstractDict) = get_method(d, CLUSTERING_METHODS)
         inputs::Vector{String}
         weights::Union{String, Nothing} = nothing
         partition::Union{String, Nothing} = nothing
-        output::String
+        output::String = "cluster"
     end
 
 Cluster `inputs` based on `method`.
@@ -82,7 +82,7 @@ Save resulting column as `output`.
     inputs::Vector{String}
     weights::Union{String, Nothing} = nothing
     partition::Union{String, Nothing} = nothing
-    output::String
+    output::String = "cluster"
 end
 
 get_metadata(cc::ClusterCard) = _get_metadata(cc, CLUSTERING_METHODS)

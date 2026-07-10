@@ -38,7 +38,7 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
     "tiles" => TilesMethod,
 )
 
-choose_splitter(d::AbstractDict) = get_method(d, SPLITTING_METHODS)
+choose_splitter(d::AbstractDict) = lift_method(d, SPLITTING_METHODS)
 
 @choosetype DashiStyle SplittingMethod choose_splitter
 

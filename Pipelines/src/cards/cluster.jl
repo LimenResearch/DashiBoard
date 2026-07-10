@@ -60,7 +60,7 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "affinity_propagation" => AffinityPropagationMethod,
 )
 
-choose_clusterer(d::AbstractDict) = get_method(d, CLUSTERING_METHODS)
+choose_clusterer(d::AbstractDict) = lift_method(d, CLUSTERING_METHODS)
 
 @choosetype DashiStyle ClusteringMethod choose_clusterer
 

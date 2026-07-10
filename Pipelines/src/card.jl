@@ -329,7 +329,7 @@ card_type(config::AbstractDict) = CARD_SPECS[config["type"]].type
 
 @choosetype DashiStyle Card card_type
 
-function get_method(
+function lift_method(
         config::AbstractDict, methods::AbstractDict;
         default::Union{AbstractString, Nothing} = nothing
     )

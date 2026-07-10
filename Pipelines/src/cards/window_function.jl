@@ -21,7 +21,7 @@ Add new column with output of window function.
 @kwarg struct WindowFunctionCard <: SQLCard
     method::SQLNode & (
         dashi = type_schema(keys(WINDOW_FUNCTIONS), additionalProperties = false),
-        lift = Fix2(get_method, WINDOW_FUNCTIONS),
+        lift = Fix2(lift_method, WINDOW_FUNCTIONS),
         lower = Fix2(lower_method, WINDOW_FUNCTIONS),
     )
     order_by::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)

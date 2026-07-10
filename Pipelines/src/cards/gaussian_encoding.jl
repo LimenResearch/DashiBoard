@@ -40,7 +40,7 @@ const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
 )
 
 function choose_temporal_preprocessor(d::AbstractDict)
-    return get_method(d, TEMPORAL_PREPROCESSING_METHODS, default = "identity")
+    return lift_method(d, TEMPORAL_PREPROCESSING_METHODS, default = "identity")
 end
 
 @choosetype DashiStyle TemporalProcessingMethod choose_temporal_preprocessor

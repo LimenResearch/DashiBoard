@@ -29,7 +29,7 @@ const PROJECTION_METHODS = OrderedDict{String, DataType}(
     "mds" => MDSMethod,
 )
 
-choose_projector(d::AbstractDict) = get_method(d, PROJECTION_METHODS)
+choose_projector(d::AbstractDict) = lift_method(d, PROJECTION_METHODS)
 
 @choosetype DashiStyle ProjectionMethod choose_projector
 

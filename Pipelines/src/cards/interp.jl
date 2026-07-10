@@ -74,7 +74,7 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
     "pchip" => PCHIPInterpolationMethod,
 )
 
-choose_interpolator(d::AbstractDict) = get_method(d, INTERPOLATION_METHODS)
+choose_interpolator(d::AbstractDict) = lift_method(d, INTERPOLATION_METHODS)
 
 @choosetype DashiStyle InterpolationMethod choose_interpolator
 

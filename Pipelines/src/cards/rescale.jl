@@ -105,7 +105,7 @@ The resulting rescaled variable is added to the table under the name
 @kwarg struct RescaleCard <: SQLCard
     method::Rescaler & (
         dashi = type_schema(keys(RESCALERS), additionalProperties = false),
-        lift = Fix2(get_method, RESCALERS),
+        lift = Fix2(lift_method, RESCALERS),
         lower = Fix2(lower_method, RESCALERS),
     )
     group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)

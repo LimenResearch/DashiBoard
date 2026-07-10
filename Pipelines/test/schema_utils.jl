@@ -62,5 +62,6 @@ end
         @test !is_required
     end
 
-    @test_throws ArgumentError  Pipelines.schema_from_type(Matrix, Dict(), nothing)
+    schema, _ = Pipelines.schema_from_type(Matrix, Dict(), nothing)
+    @test isempty(schema) # we do not write anything for unsupported types
 end

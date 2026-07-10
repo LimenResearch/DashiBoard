@@ -342,6 +342,8 @@ function get_method(
     return M
 end
 
+lower_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), RESCALERS))
+
 function _get_metadata(c::Card, methods::AbstractDict)
     d = construct(StringDict, c)
     d["type"] = card_name(c)

@@ -3,27 +3,27 @@
     "type": "window_function",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": "percent_rank",
+    "method": {"type": "percent_rank"},
     "output": "_percent_rank"
   },
   "rank": {
     "type": "window_function",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": "rank",
+    "method": {"type": "rank"},
     "output": "_rank"
   },
   "row_number": {
     "type": "window_function",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": "row_number",
+    "method": {"type": "row_number"},
     "output": "_row_number"
   },
   "no_output": {
     "type": "window_function",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": "row_number"
+    "method": {"type": "row_number"}
   }
 }

@@ -34,17 +34,7 @@ split_card_schema(::Any, key::AbstractString) = options_schema(SplitCard)
 
 const SPLIT_SPEC = CardSpec(split_card_schema, type = SplitCard, label = "Split")
 
-function window_function_card_schema(::Any, key::AbstractString)
-    properties = StringDict(
-        "type" => json_const(key),
-        "order_by" => JSON_NONEMPTY_VARIABLES,
-        "group_by" => JSON_VARIABLES,
-        "method" => json_string(enum = keys(WINDOW_FUNCTIONS)),
-        "output" => json_string(minLength = 1),
-    )
-    required = ["order_by", "method", "output"]
-    return json_object(; properties, required)
-end
+window_function_card_schema(::Any, key::AbstractString) = options_schema(WindowFunctionCard)
 
 const WINDOW_FUNCTION_SPEC = CardSpec(
     window_function_card_schema,
@@ -52,20 +42,7 @@ const WINDOW_FUNCTION_SPEC = CardSpec(
     label = "Window Function"
 )
 
-function rescale_card_schema(::Any, key::AbstractString)
-    properties = StringDict(
-        "type" => json_const(key),
-        "method" => json_string(enum = keys(RESCALERS)),
-        "group_by" => JSON_VARIABLES,
-        "inputs" => JSON_VARIABLES,
-        "targets" => JSON_VARIABLES,
-        "partition" => JSON_VARIABLE,
-        "suffix" => json_string(minLength = 1),
-        "target_suffix" => json_string(minLength = 1)
-    )
-    required = ["method", "inputs"]
-    return json_object(; properties, required)
-end
+rescale_card_schema(::Any, key::AbstractString) = options_schema(RescaleCard)
 
 const RESCALE_SPEC = CardSpec(
     rescale_card_schema,

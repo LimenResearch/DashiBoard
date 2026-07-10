@@ -71,14 +71,6 @@ end
     invtransform::Union{Base.Callable, Nothing}
 end
 
-function StructUtils.lift(::DashiStyle, ::Type{Rescaler}, s::AbstractDict)
-    return get_method(s, RESCALERS), nothing
-end
-
-function StructUtils.lower(::DashiStyle, r::Rescaler)
-    return StringDict("name" => findfirst(==(r), RESCALERS))
-end
-
 const RESCALERS = OrderedDict{String, Rescaler}(
     "zscore" => Rescaler(Pair["mean" => Agg.mean, "std" => Agg.stddev_pop], zscore_transform, zscore_invtransform),
     "maxabs" => Rescaler(Pair["maxabs" => Agg.max ∘ Fun.abs], maxabs_transform, maxabs_invtransform),
@@ -111,20 +103,20 @@ The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
 @kwarg struct RescaleCard <: SQLCard
-    method::Rescaler
-    group_by::Vector{String} = String[]
-    inputs::Vector{String}
-    targets::Vector{String} = String[]
-    partition::Union{String, Nothing} = nothing
-    suffix::String = "rescaled"
-    target_suffix::Union{String, Nothing} = nothing
+    method::Rescaler & (
+        dashi = type_schema(keys(RESCALERS), additionalProperties = false),
+        lift = Fix2(get_method, RESCALERS),
+        lower = Fix2(lower_method, RESCALERS),
+    )
+    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
+    inputs::Vector{String} & (dashi = JSON_VARIABLES,)
+    targets::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    suffix::String = "rescaled" & (dashi = json_string(minLength = 1),)
+    target_suffix::Union{String, Nothing} = nothing & (dashi = json_string(minLength = 1),)
 end
 
-function get_metadata(rc::RescaleCard)
-    d = construct(StringDict, rc)
-    d["method"] = _lower(rc.method)
-    return d
-end
+get_metadata(rc::RescaleCard) = construct(StringDict, rc)
 
 RescaleCard(c::AbstractDict) = construct(RescaleCard, c)
 

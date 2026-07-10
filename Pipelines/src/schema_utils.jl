@@ -33,9 +33,9 @@ function schema_from_type(T::Type)
         (T <: Union{AbstractString, Symbol, Nothing}) ? "string" :
         (T <: Union{AbstractVector, Nothing}) ? "array" :
         (T <: Union{Enum, Nothing}) ? "string" :
-        throw(ArgumentError("Type $T not supported in json schema generation."))
-    schema["type"] = type
+        nothing
 
+    isnothing(type) || (schema["type"] = type)
     (T <: Union{Enum, Nothing}) && (schema["enum"] = enum_instances(T))
 
     return schema
@@ -133,6 +133,14 @@ function full_conditional_options_schemas(d::AbstractDict, default = nothing)
     properties = StringDict("type" => json_string(enum = keys(d)))
     required = isnothing(default) ? String["type"] : String[]
     return json_object(; properties, allOf, required)
+end
+
+function type_schema(ks; kwargs...)
+    return json_object(
+        properties = StringDict("type" => json_string(enum = ks)),
+        required = ["type"];
+        kwargs...
+    )
 end
 
 # schema utils for Streamliner cards

@@ -2,7 +2,7 @@
 label = "rescale"
 [nodes.card]
 type = "rescale"
-method = {"name" = "zscore"}
+method = {type = "zscore"}
 group_by = {cols = ["cbwd"]}
 partition = {nodes = ["partition"]}
 inputs = [
@@ -14,7 +14,7 @@ inputs = [
 label = "log"
 [nodes.card]
 type = "rescale"
-method = {"name" = "log"}
+method = {type = "log"}
 suffix = "log"
 inputs = {cols = ["No"]}
 
@@ -22,7 +22,7 @@ inputs = {cols = ["No"]}
 label = "pca"
 [nodes.card]
 type = "dimensionality_reduction"
-method = {"name" = "pca"}
+method = {type = "pca"}
 n_components = 2
 inputs = [
     {nodes = ["log"]},
@@ -33,7 +33,7 @@ inputs = [
 label = "partition"
 [nodes.card]
 type = "split"
-method = {"name" = "percentile", percentile = 0.9}
+method = {type = "percentile", percentile = 0.9}
 output = "partition"
 order_by = {cols = ["No"]}
 

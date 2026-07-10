@@ -5,7 +5,7 @@
     "weights": "Iws",
     "output": "cluster",
     "method": {
-      "name": "kmeans",
+      "type": "kmeans",
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
@@ -17,7 +17,7 @@
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
     "method": {
-      "name": "dbscan",
+      "type": "dbscan",
       "radius": 0.02
     }
   },
@@ -26,7 +26,7 @@
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
     "method": {
-      "name": "dbscan",
+      "type": "dbscan",
       "radius": 0.02
     },
     "partition": "partition"
@@ -36,7 +36,7 @@
     "inputs": ["temp", "PRES"],
     "output": "dbcluster",
     "method": {
-      "name": "dbscan",
+      "type": "dbscan",
       "radius": 0.02
     }
   },
@@ -45,7 +45,7 @@
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
     "method": {
-      "name": "dbscan",
+      "type": "dbscan",
       "radius": 0.02,
       "minneighbors": 10
     }

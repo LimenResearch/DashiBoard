@@ -333,7 +333,7 @@ function get_method(
         config::AbstractDict, methods::AbstractDict;
         default::Union{AbstractString, Nothing} = nothing
     )
-    method::String = isnothing(default) ? config["name"] : get(config, "name", default)
+    method::String = isnothing(default) ? config["type"] : get(config, "type", default)
     M = get(methods, method, nothing)
     if isnothing(M)
         valid_methods = join(keys(methods), ", ")

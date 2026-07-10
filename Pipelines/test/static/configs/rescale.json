@@ -1,7 +1,7 @@
 {
   "zscore": {
     "type": "rescale",
-    "method": { "name": "zscore" },
+    "method": { "type": "zscore" },
     "group_by": ["cbwd"],
     "inputs": [],
     "targets": ["TEMP"],
@@ -9,7 +9,7 @@
   },
   "zscore2": {
     "type": "rescale",
-    "method": { "name": "zscore" },
+    "method": { "type": "zscore" },
     "inputs": ["TEMP"],
     "targets": ["PRES"],
     "suffix": "rescaled",
@@ -17,7 +17,7 @@
   },
   "maxabs": {
     "type": "rescale",
-    "method": { "name": "maxabs" },
+    "method": { "type": "maxabs" },
     "group_by": ["year", "month", "cbwd"],
     "inputs": [],
     "targets": ["TEMP"],
@@ -25,7 +25,7 @@
   },
   "minmax": {
     "type": "rescale",
-    "method": { "name": "minmax" },
+    "method": { "type": "minmax" },
     "group_by": [],
     "inputs": [],
     "targets": ["TEMP"],
@@ -33,7 +33,7 @@
   },
   "log": {
     "type": "rescale",
-    "method": { "name": "log" },
+    "method": { "type": "log" },
     "group_by": [],
     "inputs": [],
     "targets": ["PRES"],
@@ -41,7 +41,7 @@
   },
   "logistic": {
     "type": "rescale",
-    "method": { "name": "logistic" },
+    "method": { "type": "logistic" },
     "group_by": [],
     "inputs": [],
     "targets": ["hour"],
@@ -49,7 +49,7 @@
   },
   "wrong_method": {
     "type": "rescale",
-    "method": { "name": "loggistic" },
+    "method": { "type": "loggistic" },
     "group_by": [],
     "inputs": [],
     "targets": ["hour"],

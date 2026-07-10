@@ -634,14 +634,14 @@ end
             "type" => "gaussian_encoding",
             "input" => "date",
             "n_components" => 3,
-            "method" => Dict("name" => "", "max" => 365.0),
+            "method" => Dict("type" => "", "max" => 365.0),
             "lambda" => 0.5,
             "suffix" => "gaussian"
         )
 
         for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
             c = deepcopy(base_fields)
-            c["method"]["name"] = k
+            c["method"]["type"] = k
             card = GaussianEncodingCard(c)
             _max = c["method"]["max"]
             @test card.method == v(_max)
@@ -649,14 +649,14 @@ end
 
         invalid_method = "nonexistent_method"
         invalid_config = deepcopy(base_fields)
-        invalid_config["method"]["name"] = invalid_method
+        invalid_config["method"]["type"] = invalid_method
         @test_throws ArgumentError GaussianEncodingCard(invalid_config)
 
         invalid_config = Dict(
             "type" => "gaussian_encoding",
             "input" => "date",
             "n_components" => 0,
-            "method" => Dict("name" => "dayofyear", "max" => 365.0),
+            "method" => Dict("type" => "dayofyear", "max" => 365.0),
             "lambda" => 0.5
         )
         @test_throws ArgumentError GaussianEncodingCard(invalid_config)

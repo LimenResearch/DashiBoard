@@ -2,7 +2,7 @@
   "constant": {
     "type": "interp",
     "method": {
-      "name": "constant",
+      "type": "constant",
       "extrapolation_left": "extension",
       "extrapolation_right": "extension",
       "dir": "right"
@@ -14,7 +14,7 @@
   "quadratic": {
     "type": "interp",
     "method": {
-      "name": "quadratic",
+      "type": "quadratic",
       "extrapolation_left": "linear",
       "extrapolation_right": "linear"
     },
@@ -25,7 +25,7 @@
   "wrongMethod": {
     "type": "interp",
     "method": {
-      "name": "nonsupported",
+      "type": "nonsupported",
       "extrapolation_left": "linear",
       "extrapolation_right": "linear"
     },
@@ -35,7 +35,7 @@
   },
   "partition": {
     "type": "split",
-    "method": { "name": "percentile", "percentile": 0.9 },
+    "method": { "type": "percentile", "percentile": 0.9 },
     "order_by": ["No"],
     "output": "partition"
   }

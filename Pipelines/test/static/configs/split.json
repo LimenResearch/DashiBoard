@@ -3,42 +3,42 @@
     "type": "split",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": { "name": "percentile", "percentile": 0.9 },
+    "method": { "type": "percentile", "percentile": 0.9 },
     "output": "_percentile_partition"
   },
   "tiles": {
     "type": "split",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": { "name": "tiles", "tiles": [1, 1, 2, 1, 1, 2] },
+    "method": { "type": "tiles", "tiles": [1, 1, 2, 1, 1, 2] },
     "output": "_tiled_partition"
   },
   "tiles2": {
     "type": "split",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": { "name": "tiles", "tiles": [1, 1, 2], "repeat": 2, "tail": 1 },
+    "method": { "type": "tiles", "tiles": [1, 1, 2], "repeat": 2, "tail": 1 },
     "output": "_tiled_partition"
   },
   "tiles3": {
     "type": "split",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": { "name": "tiles", "tiles": [1, 1, 2, 1, 1, 2, 1] },
+    "method": { "type": "tiles", "tiles": [1, 1, 2, 1, 1, 2, 1] },
     "output": "_tiled_partition"
   },
   "unsorted": {
     "type": "split",
     "order_by": [],
     "group_by": ["cbwd"],
-    "method": { "name": "percentile", "percentile": 0.9 },
+    "method": { "type": "percentile", "percentile": 0.9 },
     "output": "_percentile_partition"
   },
   "spuriousProperty": {
     "type": "split",
     "order_by": ["No"],
     "group_by": ["cbwd"],
-    "method": { "name": "tiles", "tiles": [1, 1, 2, 1, 1, 2, 1] },
+    "method": { "type": "tiles", "tiles": [1, 1, 2, 1, 1, 2, 1] },
     "output": "_tiled_partition",
     "suffix": "hat"
   }

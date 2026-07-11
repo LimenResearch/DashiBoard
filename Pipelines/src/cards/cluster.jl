@@ -142,26 +142,14 @@ end
     _nearest(X, C)
 
 Assign each column of `X` (d×N) to the nearest of the K centroid columns of
-`C` (d×K) by squared Euclidean distance, ties to the smallest column index.
-Hand-rolled to avoid a Distances dep; brute force is optimal here since `C`
-holds a handful of centroids.
+`C` (d×K) by squared Euclidean distance, ties to the smallest column index
+(`argmin` returns the first minimum). Uses `Distances.pairwise` — the
+predict recommended in Clustering.jl#63, BLAS-backed, and Distances is
+already in the dependency tree via Clustering itself.
 """
 function _nearest(X::AbstractMatrix, C::AbstractMatrix)
-    N, K = size(X, 2), size(C, 2)
-    labels = Vector{Int}(undef, N)
-    @inbounds for j in 1:N
-        best, bestk = Inf, 1
-        for k in 1:K
-            s = 0.0
-            for i in axes(X, 1)
-                δ = X[i, j] - C[i, k]
-                s += δ * δ
-            end
-            s < best && ((best, bestk) = (s, k))
-        end
-        labels[j] = bestk
-    end
-    return labels
+    D = pairwise(SqEuclidean(), C, X, dims = 2)   # K×N
+    return [argmin(view(D, :, j)) for j in axes(D, 2)]
 end
 
 """

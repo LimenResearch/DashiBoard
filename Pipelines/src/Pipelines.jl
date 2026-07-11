@@ -132,6 +132,7 @@ using StreamlinerCore:
 
 using Clustering: assignments, kmeans, dbscan
 using NearestNeighbors: KDTree, inrange
+using Distances: pairwise, SqEuclidean
 
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 

@@ -21,7 +21,16 @@ end
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
-    return dbscan(X, radius; min_neighbors, min_cluster_size)
+    res = dbscan(X, radius; min_neighbors, min_cluster_size)
+    # core points and their clusters, the state DBSCAN's own border rule
+    # needs to label rows at evaluation time
+    cores = [i for c in res.clusters for i in c.core_indices]
+    return (;
+        label = assignments(res),
+        core_points = X[:, cores],
+        core_label = [k for (k, c) in enumerate(res.clusters) for _ in c.core_indices],
+        radius,
+    )
 end
 
 const CLUSTERING_METHODS = OrderedDict{String, DataType}(
@@ -45,11 +54,16 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
 Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 
-For the `kmeans` method, evaluation assigns each row to the nearest fitted
-centroid, so a trained card can label rows outside the training set. `assign_inputs`
-(a subset of `inputs`, defaulting to all of them) selects which dimensions the
-assignment distance uses — e.g. cluster on space and time but assign on space only.
-Ignored by `dbscan`, which has no predict and re-emits the training-row labels.
+Evaluation labels rows with the fitted state, so a trained card can label rows
+outside the training set: `kmeans` assigns each row to the nearest fitted
+centroid; `dbscan` assigns each row to the cluster of the nearest fitted core
+point within `radius` — its own border rule — and to noise (0) beyond it, so
+rows far from every fitted cluster stay visible as noise instead of being
+absorbed. Assignment is single-label: a row equidistant from several
+centroids or core points is deterministically resolved to the
+earliest-fitted one. `assign_inputs` (a subset of `inputs`, defaulting to all of them)
+selects which dimensions the assignment distance uses — e.g. cluster on space
+and time but assign on space only.
 """
 struct ClusterCard <: StandardCard
     type::String
@@ -82,12 +96,8 @@ function ClusterCard(c::AbstractDict)
     clusterer::ClusteringMethod = construct(CLUSTERING_METHODS[method], method_options)
     inputs::Vector{String} = c["inputs"]
     assign_inputs::Union{Vector{String}, Nothing} = get(c, "assign_inputs", nothing)
-    if !isnothing(assign_inputs)
-        issubset(assign_inputs, inputs) ||
-            throw(ArgumentError("`assign_inputs` must be a subset of `inputs`"))
-        clusterer isa KMeansMethod ||
-            @warn "`assign_inputs` is only used by the `kmeans` method; ignored for `$method`"
-    end
+    isnothing(assign_inputs) || issubset(assign_inputs, inputs) ||
+        throw(ArgumentError("`assign_inputs` must be a subset of `inputs`"))
     weights::Union{String, Nothing} = get(c, "weights", nothing)
     partition::Union{String, Nothing} = get(c, "partition", nothing)
     output::String = get(c, "output", "cluster")
@@ -110,10 +120,16 @@ SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.p
 OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 
 # The trained "model" retained (serialized) for evaluation, per method.
-# k-means keeps its centroids so it can assign new rows; dbscan has no predict
-# (Clustering.jl #63) so it keeps the training-row labels to re-emit them.
+# k-means keeps its centroids so it can assign new rows; dbscan keeps its core
+# points (plus the fit labels and ids as the record of the fit).
 _model(::KMeansMethod, res, t, id_var) = (; centers = res.centers)          # features×K
-_model(::DBSCANMethod, res, t, id_var) = (; label = assignments(res), id = t[id_var])
+_model(::DBSCANMethod, res, t, id_var) = (;
+    res.label,
+    id = t[id_var],
+    res.core_points,                                                        # features×n_core
+    res.core_label,
+    res.radius,
+)
 
 function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
@@ -122,8 +138,14 @@ function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     return _model(cc.clusterer, res, t, id_var)
 end
 
-# Assign each column of `X` (d×N) to the nearest of the K centroid columns of
-# `C` (d×K) by squared Euclidean distance. Hand-rolled to avoid a Distances dep.
+"""
+    _nearest(X, C)
+
+Assign each column of `X` (d×N) to the nearest of the K centroid columns of
+`C` (d×K) by squared Euclidean distance, ties to the smallest column index.
+Hand-rolled to avoid a Distances dep; brute force is optimal here since `C`
+holds a handful of centroids.
+"""
 function _nearest(X::AbstractMatrix, C::AbstractMatrix)
     N, K = size(X, 2), size(C, 2)
     labels = Vector{Int}(undef, N)
@@ -142,9 +164,57 @@ function _nearest(X::AbstractMatrix, C::AbstractMatrix)
     return labels
 end
 
-# dbscan: no predict — re-emit the stored training-row labels by id.
-_assign(::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
-    SimpleTable(id_var => model.id, cc.output => model.label)
+"""
+    _nearest_within(X, C, labels, radius)
+
+The cluster of the nearest of the `C` columns within `radius` of each `X`
+column (`labels[k]` is column k's cluster), 0 beyond the radius — DBSCAN's
+own border rule, applied out of sample. A KD-tree shortlists the columns
+within `radius` (the same structure the dbscan fit itself builds), so the
+scan is over neighbors instead of every core point.
+
+Assignment is single-label, so exact distance ties must collapse to one
+winner: the smallest column index (i.e. the earliest-fitted core point)
+wins. The rule matters because the KD-tree returns its shortlist in
+traversal order, which would otherwise decide ties as an implementation
+accident — and ties are common under discrete-valued or single-dimension
+`assign_inputs`. It also keeps results identical to a full left-to-right
+scan. Rows with non-finite coordinates stay 0.
+"""
+function _nearest_within(X::AbstractMatrix, C::AbstractMatrix, labels::Vector{Int}, radius::Real)
+    out = zeros(Int, size(X, 2))
+    isempty(labels) && return out
+    Cf = convert(Matrix{Float64}, C)
+    finite = [j for j in axes(X, 2) if all(isfinite, view(X, :, j))]
+    Xq = convert(Matrix{Float64}, X[:, finite])
+    hits = inrange(KDTree(Cf), Xq, radius)
+    @inbounds for (jf, j) in enumerate(finite)
+        best, bestk = Inf, 0
+        for k in hits[jf]
+            s = 0.0
+            for i in axes(Cf, 1)
+                δ = Xq[i, jf] - Cf[i, k]
+                s += δ * δ
+            end
+            if s < best || (s == best && k < bestk)
+                best, bestk = s, k
+            end
+        end
+        bestk == 0 || (out[j] = labels[bestk])
+    end
+    return out
+end
+
+# dbscan: assign each row to the cluster of the nearest fitted core point
+# within `radius`, over `assign_inputs`; rows with no core point in reach are
+# noise (0).
+function _assign(::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+    ai = something(cc.assign_inputs, cc.inputs)
+    idx = Vector{Int}(indexin(ai, cc.inputs))        # core rows for the assign dims
+    X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
+    labels = _nearest_within(X, model.core_points[idx, :], model.core_label, model.radius)
+    return SimpleTable(id_var => t[id_var], cc.output => labels)
+end
 
 # k-means: assign each row to the nearest fitted centroid, over `assign_inputs`.
 function _assign(::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
@@ -179,7 +249,7 @@ function CardWidget(
         method_dependent_widgets(c, "method", config.methods),
         [
             Widget("weights", c, visible = "method" => support_weights, required = false),
-            Widget("assign_inputs", c, visible = "method" => support_weights, required = false),
+            Widget("assign_inputs", c, visible = "method" => methods, required = false),
             Widget("partition", c, required = false),
             Widget("output", c),
         ]

@@ -352,6 +352,36 @@ end
     train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
     R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
     @test assignments(R) == df.dbcluster
+
+    # dbscan predict: the nearest fitted core point within `radius` labels
+    # rows out of sample (DBSCAN's own border rule); no core in reach → noise
+    st = Pipelines.jlddeserialize(get_state(node).content)
+    @test st.label == assignments(R)
+    probes = DataFrame(
+        "No" => [1, 2],
+        "TEMP" => [st.core_points[1, 1], 999.0],
+        "PRES" => [st.core_points[2, 1], 999.0],
+    )
+    DuckDBUtils.load_table(repo, probes, "dbprobes")
+    Pipelines.evaljoin(repo, node, "dbprobes" => "dbprobes_out", "No")
+    pdf = DBInterface.execute(DataFrame, repo, "FROM dbprobes_out ORDER BY No")
+    @test pdf.dbcluster == [st.core_label[1], 0]
+
+    # `assign_inputs`: same fit, but assign on TEMP only
+    anode = Node(Pipelines.Card(merge(d["dbscan"], Dict("assign_inputs" => ["TEMP"]))))
+    Pipelines.train_evaljoin!(repo, anode, "selection" => "dbclust_temp", "No")
+    ast = Pipelines.jlddeserialize(get_state(anode).content)
+    adf = DBInterface.execute(DataFrame, repo, "FROM dbclust_temp ORDER BY No")
+    sel = DBInterface.execute(DataFrame, repo, "FROM selection ORDER BY No")
+    exp_temp = [
+        begin
+            ds = abs.(sel.TEMP[j] .- ast.core_points[1, :])
+            k = argmin(ds)
+            ds[k] <= ast.radius ? ast.core_label[k] : 0
+        end
+            for j in eachindex(sel.TEMP)
+    ]
+    @test adf.dbcluster == exp_temp
 end
 
 @testset "dimensionality reduction" begin

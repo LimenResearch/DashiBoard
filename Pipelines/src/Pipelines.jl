@@ -131,6 +131,7 @@ using StreamlinerCore:
     StreamlinerCore as SC
 
 using Clustering: assignments, kmeans, dbscan
+using NearestNeighbors: KDTree, inrange
 
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 

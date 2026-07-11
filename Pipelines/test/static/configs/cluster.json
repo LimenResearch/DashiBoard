@@ -1,4 +1,20 @@
 {
+  "affinity": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "apcluster",
+    "method": "affinity_propagation",
+    "method_options": {}
+  },
+  "affinityAll": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "apcluster",
+    "method": "affinity_propagation",
+    "method_options": {
+      "preference": 0.0
+    }
+  },
   "kmeans": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES", "Iws"],

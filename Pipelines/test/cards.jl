@@ -382,6 +382,51 @@ end
             for j in eachindex(sel.TEMP)
     ]
     @test adf.dbcluster == exp_temp
+
+    # affinity propagation: exemplars are fitted points, assignment is
+    # nearest exemplar (the method's own rule; Clustering.jl ships no
+    # predict — see JuliaStats/Clustering.jl#63). O(N²) fit, so a small table.
+    DBInterface.execute(
+        Returns(nothing), repo,
+        "CREATE OR REPLACE TABLE ap_small AS (FROM selection LIMIT 200)",
+    )
+    apnode = Node(Pipelines.Card(d["affinity"]))
+    Pipelines.train_evaljoin!(repo, apnode, "ap_small" => "ap_clust", "No")
+    apst = Pipelines.jlddeserialize(get_state(apnode).content)
+    K = size(apst.centers, 2)
+    @test K >= 2
+    apdf = DBInterface.execute(DataFrame, repo, "FROM ap_clust ORDER BY No")
+    smalldf = DBInterface.execute(DataFrame, repo, "FROM ap_small ORDER BY No")
+    Xap = permutedims([smalldf.TEMP smalldf.PRES])
+    exp_ap = [argmin(vec(sum(abs2, Xap[:, j] .- apst.centers; dims = 1))) for j in axes(Xap, 2)]
+    @test apdf.apcluster == exp_ap
+
+    # the preference knob's direction: preference 0 (≥ every pairwise
+    # similarity) splits down to roughly one exemplar per distinct point —
+    # far more than the median default. Exact counts and the converged flag
+    # are data traits, not invariants: this dataset's duplicate (TEMP, PRES)
+    # rows make the messages oscillate at default damping (converged stays
+    # false in the state, and the card warns), without perturbing the
+    # exemplar set the assertions above validate.
+    @test apst.converged isa Bool
+    @test K < 200
+    fnode = Node(Pipelines.Card(d["affinityAll"]))
+    Pipelines.train_evaljoin!(repo, fnode, "ap_small" => "ap_all", "No")
+    fst = Pipelines.jlddeserialize(get_state(fnode).content)
+    @test size(fst.centers, 2) > K
+
+    # exemplars label themselves; far rows are still assigned (nearest
+    # exemplar has no noise channel)
+    approbes = DataFrame(
+        "No" => [1, 2],
+        "TEMP" => [apst.centers[1, 1], 999.0],
+        "PRES" => [apst.centers[2, 1], 999.0],
+    )
+    DuckDBUtils.load_table(repo, approbes, "approbes")
+    Pipelines.evaljoin(repo, apnode, "approbes" => "approbes_out", "No")
+    apo = DBInterface.execute(DataFrame, repo, "FROM approbes_out ORDER BY No")
+    @test apo.apcluster[1] == 1
+    @test apo.apcluster[2] in 1:K
 end
 
 @testset "dimensionality reduction" begin

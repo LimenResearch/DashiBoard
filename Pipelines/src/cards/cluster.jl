@@ -33,9 +33,47 @@ function (m::DBSCANMethod)(X; weights)
     )
 end
 
+"""
+    AffinityPropagationMethod <: ClusteringMethod
+
+Affinity propagation (`"method" => "affinity_propagation"`): points exchange
+messages until a set of exemplars — actual fitted points — emerges, so the
+number of clusters comes from the data instead of being predeclared.
+`preference` (each point's self-similarity; more negative → fewer clusters)
+defaults to the median of the pairwise similarities; `damp`, `maxiter` and
+`tol` control the message passing. The similarity matrix is the negative
+squared Euclidean distance over the card's `inputs`, built densely: the fit
+is O(N²) in the training rows. Evaluation assigns each row to the nearest
+exemplar — affinity propagation's own assignment rule, so training rows
+reproduce their fit labels.
+"""
+@kwarg struct AffinityPropagationMethod <: ClusteringMethod
+    damp::Float64 = 0.5 & (dashi = StringDict("minimum" => 0, "exclusiveMaximum" => 1),)
+    maxiter::Int = 200 & (dashi = StringDict("minimum" => 1),)
+    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    preference::Union{Float64, Nothing} = nothing
+end
+
+function (m::AffinityPropagationMethod)(X; weights)
+    (; damp, maxiter, tol, preference) = m
+    isnothing(weights) || @warn "Weights not supported in affinity propagation"
+    S = -pairwise(SqEuclidean(), X, dims = 2)
+    # median of the similarities (the zero diagonal included, matching the
+    # convention popularized by sklearn) gives a moderate number of clusters
+    pref = something(preference, median(vec(S)))
+    for i in axes(S, 1)
+        S[i, i] = pref
+    end
+    res = affinityprop(S; maxiter, tol, damp)
+    res.converged ||
+        @warn "Affinity propagation did not converge; increase `maxiter` or adjust `damp`"
+    return (; centers = X[:, res.exemplars], res.converged)
+end
+
 const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "kmeans" => KMeansMethod,
     "dbscan" => DBSCANMethod,
+    "affinity_propagation" => AffinityPropagationMethod,
 )
 
 # TODO: support custom metrics
@@ -55,15 +93,16 @@ Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 
 Evaluation labels rows with the fitted state, so a trained card can label rows
-outside the training set: `kmeans` assigns each row to the nearest fitted
-centroid; `dbscan` assigns each row to the cluster of the nearest fitted core
-point within `radius` — its own border rule — and to noise (0) beyond it, so
-rows far from every fitted cluster stay visible as noise instead of being
-absorbed. Assignment is single-label: a row equidistant from several
-centroids or core points is deterministically resolved to the
-earliest-fitted one. `assign_inputs` (a subset of `inputs`, defaulting to all of them)
-selects which dimensions the assignment distance uses — e.g. cluster on space
-and time but assign on space only.
+outside the training set: `kmeans` and `affinity_propagation` assign each row
+to the nearest fitted center (centroid / exemplar); `dbscan` assigns each row
+to the cluster of the nearest fitted core point within `radius` — its own
+border rule — and to noise (0) beyond it, so rows far from every fitted
+cluster stay visible as noise instead of being absorbed. Assignment is
+single-label: a row equidistant from several centers or core points is
+deterministically resolved to the earliest-fitted one. `assign_inputs` (a
+subset of `inputs`, defaulting to all of them) selects which dimensions the
+assignment distance uses — e.g. cluster on space and time but assign on space
+only.
 """
 struct ClusterCard <: StandardCard
     type::String
@@ -120,9 +159,11 @@ SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.p
 OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 
 # The trained "model" retained (serialized) for evaluation, per method.
-# k-means keeps its centroids so it can assign new rows; dbscan keeps its core
-# points (plus the fit labels and ids as the record of the fit).
+# k-means keeps its centroids and affinity propagation its exemplar points —
+# both centers-shaped; dbscan keeps its core points (plus the fit labels and
+# ids as the record of the fit).
 _model(::KMeansMethod, res, t, id_var) = (; centers = res.centers)          # features×K
+_model(::AffinityPropagationMethod, res, t, id_var) = (; res.centers, res.converged)  # features×K
 _model(::DBSCANMethod, res, t, id_var) = (;
     res.label,
     id = t[id_var],
@@ -204,14 +245,26 @@ function _assign(::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPrim
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
 
-# k-means: assign each row to the nearest fitted centroid, over `assign_inputs`.
-function _assign(::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+"""
+    _assign_nearest(cc, model, t, id_var)
+
+Label each row with the nearest of the fitted centers (`model.centers`,
+features×K) over `assign_inputs` — the shared predict of the centers-shaped
+methods (k-means centroids, affinity-propagation exemplars).
+"""
+function _assign_nearest(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
     ai = something(cc.assign_inputs, cc.inputs)
-    idx = Vector{Int}(indexin(ai, cc.inputs))        # centroid rows for the assign dims
+    idx = Vector{Int}(indexin(ai, cc.inputs))        # center rows for the assign dims
     X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
     labels = _nearest(X, model.centers[idx, :])
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
+
+_assign(::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
+    _assign_nearest(cc, model, t, id_var)
+
+_assign(::AffinityPropagationMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
+    _assign_nearest(cc, model, t, id_var)
 
 (cc::ClusterCard)(model, t, id_var::AbstractPrimaryKey) =
     _assign(cc.clusterer, cc, model, t, id_var)

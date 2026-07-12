@@ -1,4 +1,4 @@
-abstract type ClusteringMethod end
+abstract type ClusteringMethod <: AbstractMethod end
 
 @kwarg struct KMeansMethod <: ClusteringMethod
     classes::Int & (dashi = StringDict("minimum" => 1),)
@@ -60,13 +60,7 @@ const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "affinity_propagation" => AffinityPropagationMethod,
 )
 
-choose_clusterer(d::AbstractDict) = lift_method(d, CLUSTERING_METHODS)
-
-@choosetype DashiStyle ClusteringMethod choose_clusterer
-
-schema_from_type(::Type{ClusteringMethod}) = full_conditional_options_schemas(CLUSTERING_METHODS)
-
-StructUtils.lower(::DashiStyle, c::ClusteringMethod) = get_metadata(c, CLUSTERING_METHODS)
+@options ClusteringMethod CLUSTERING_METHODS
 
 # TODO: support custom metrics
 """

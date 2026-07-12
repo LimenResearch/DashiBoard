@@ -160,6 +160,7 @@ include("utils.jl")
 include("schema_utils.jl")
 include("dict_helpers.jl")
 include("card.jl")
+include("method.jl")
 
 include("cards/standard.jl")
 include("cards/split.jl")

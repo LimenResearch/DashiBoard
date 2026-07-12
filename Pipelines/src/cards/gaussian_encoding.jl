@@ -1,4 +1,4 @@
-abstract type TemporalProcessingMethod end
+abstract type TemporalProcessingMethod <: AbstractMethod end
 
 @kwarg struct IdentityMethod <: TemporalProcessingMethod
     max::Float64 = 1.0
@@ -39,15 +39,7 @@ const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "minuteofhour" => MinuteOfHourMethod,
 )
 
-function choose_temporal_preprocessor(d::AbstractDict)
-    return lift_method(d, TEMPORAL_PREPROCESSING_METHODS, default = "identity")
-end
-
-@choosetype DashiStyle TemporalProcessingMethod choose_temporal_preprocessor
-
-schema_from_type(::Type{TemporalProcessingMethod}) = full_conditional_options_schemas(TEMPORAL_PREPROCESSING_METHODS)
-
-StructUtils.lower(::DashiStyle, c::TemporalProcessingMethod) = get_metadata(c, TEMPORAL_PREPROCESSING_METHODS)
+@options TemporalProcessingMethod TEMPORAL_PREPROCESSING_METHODS ""
 
 """
     struct GaussianEncodingCard <: Card

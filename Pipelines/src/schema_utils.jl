@@ -115,14 +115,7 @@ function options_schema(::Type{T}; additionalProperties::Bool = false) where {T}
     return json_object(; properties, additionalProperties, required)
 end
 
-function conditional_options_schemas(d)
-    return [
-        conditional_schema("method" => k, "method_options" => options_schema(T))
-            for (k, T) in pairs(d)
-    ]
-end
-
-function full_conditional_options_schemas(d::AbstractDict, default = nothing)
+function full_conditional_options_schemas(d::AbstractDict; default = nothing)
     allOf = StringDict[]
     for (k, T) in pairs(d)
         schema = options_schema(T)
@@ -130,7 +123,7 @@ function full_conditional_options_schemas(d::AbstractDict, default = nothing)
         cond = isnothing(default) ? match_property("type" => k) : match_property("type" => k, default)
         push!(allOf, conditional_schema(cond, schema))
     end
-    properties = StringDict("type" => json_string(enum = keys(d)))
+    properties = StringDict("type" => json_string(; enum = keys(d), default))
     required = isnothing(default) ? String["type"] : String[]
     return json_object(; properties, allOf, required)
 end
@@ -160,7 +153,7 @@ function streamliner_schema(configs::AbstractVector; additionalProperties::Bool 
 end
 
 # Compute schemas used for model or training in Streamliner,
-# e.g., `conditional_options_schemas(model_dir, model_names, "model")`
+# e.g., `conditional_streamliner_schemas(model_dir, model_names, "model")`
 function conditional_streamliner_schemas(dir, vals, name)
     return map(vals) do x
         schema = streamliner_schema(parse_properties(dir, x))

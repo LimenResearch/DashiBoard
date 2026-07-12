@@ -1,4 +1,4 @@
-abstract type SplittingMethod end
+abstract type SplittingMethod <: AbstractMethod end
 
 abstract type OrderedSplittingMethod <: SplittingMethod end
 
@@ -38,13 +38,7 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
     "tiles" => TilesMethod,
 )
 
-choose_splitter(d::AbstractDict) = lift_method(d, SPLITTING_METHODS)
-
-@choosetype DashiStyle SplittingMethod choose_splitter
-
-schema_from_type(::Type{SplittingMethod}) = full_conditional_options_schemas(SPLITTING_METHODS)
-
-StructUtils.lower(::DashiStyle, c::SplittingMethod) = get_metadata(c, SPLITTING_METHODS)
+@options SplittingMethod SPLITTING_METHODS
 
 """
     struct SplitCard{M <: SplittingMethod} <: SQLCard

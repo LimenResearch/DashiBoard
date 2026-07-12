@@ -1,4 +1,4 @@
-abstract type InterpolationMethod end
+abstract type InterpolationMethod <: AbstractMethod end
 
 function StructUtils.lift(::DashiStyle, ::Type{ExtrapolationType.T}, s::AbstractString)
     return StructUtils.lift(ExtrapolationType.T, uppercasefirst(s)), nothing
@@ -74,13 +74,7 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
     "pchip" => PCHIPInterpolationMethod,
 )
 
-choose_interpolator(d::AbstractDict) = lift_method(d, INTERPOLATION_METHODS)
-
-@choosetype DashiStyle InterpolationMethod choose_interpolator
-
-schema_from_type(::Type{InterpolationMethod}) = full_conditional_options_schemas(INTERPOLATION_METHODS)
-
-StructUtils.lower(::DashiStyle, c::InterpolationMethod) = get_metadata(c, INTERPOLATION_METHODS)
+@options InterpolationMethod INTERPOLATION_METHODS
 
 """
     struct InterpCard{M <: InterpolationMethod} <: Card

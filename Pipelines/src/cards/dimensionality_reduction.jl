@@ -1,4 +1,4 @@
-abstract type ProjectionMethod end
+abstract type ProjectionMethod <: AbstractMethod end
 
 struct PCAMethod <: ProjectionMethod end
 
@@ -29,13 +29,7 @@ const PROJECTION_METHODS = OrderedDict{String, DataType}(
     "mds" => MDSMethod,
 )
 
-choose_projector(d::AbstractDict) = lift_method(d, PROJECTION_METHODS)
-
-@choosetype DashiStyle ProjectionMethod choose_projector
-
-schema_from_type(::Type{ProjectionMethod}) = full_conditional_options_schemas(PROJECTION_METHODS)
-
-StructUtils.lower(::DashiStyle, c::ProjectionMethod) = get_metadata(c, PROJECTION_METHODS)
+@options ProjectionMethod PROJECTION_METHODS
 
 """
     @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard

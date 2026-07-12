@@ -128,7 +128,6 @@ _fit(args...; weights) = isnothing(weights) ? fit(args...) : fit(args...; weight
 
 function train_glm(gc::AbstractGLMCard, t, LinearModelType, GeneralizedLinearModelType; weights)
     (; formula, distribution, link) = gc
-    link = @something link canonicallink(distribution)
     # TODO save slim version of model with no data
     return if is_linear_model(distribution, link)
         _fit(LinearModelType, formula, t; weights)
@@ -156,9 +155,9 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 ## GLMCard
 
 """
-    struct GLMCard <: Card
-        distribution::Distribution = Normal()
-        link::Union{Link, Nothing} = nothing
+    struct GLMCard{D <: Distribution, L <: Link} <: Card
+        distribution::D = Normal()
+        link::L = canonicallink(distribution)
         formula::FormulaTerm
         weights::Union{String, Nothing} = nothing
         partition::Union{String, Nothing} = nothing
@@ -167,9 +166,9 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
-@kwarg struct GLMCard <: AbstractGLMCard
-    distribution::Distribution = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
-    link::Union{Link, Nothing} = nothing & (dashi = json_string(enum = keys(LINK_TYPES)),)
+@kwarg struct GLMCard{D <: Distribution, L <: Link} <: AbstractGLMCard
+    distribution::D = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
+    link::L = canonicallink(distribution) & (dashi = json_string(enum = keys(LINK_TYPES), default = nothing),)
     formula::FormulaTerm & (
         dashi = formula_schema(),
         lift = lift_formula,
@@ -196,9 +195,9 @@ end
 ## MixedModelCard
 
 """
-    struct MixedModelCard <: AbstractGLMCard
-        distribution::Distribution = Normal()
-        link::Union{Link, Nothing} = nothing
+    struct MixedModelCard{D <: Distribution, L <: Link} <: Card
+        distribution::D = Normal()
+        link::L = canonicallink(distribution)
         formula::FormulaTerm
         weights::Union{String, Nothing} = nothing
         partition::Union{String, Nothing} = nothing
@@ -208,9 +207,9 @@ end
 Run a Mixed Model based on `formula`.
 To use this card, you must load the MixedModels.jl package first.
 """
-@kwarg struct MixedModelCard <: AbstractGLMCard
-    distribution::Distribution = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
-    link::Union{Link, Nothing} = nothing & (dashi = json_string(enum = keys(LINK_TYPES)),)
+@kwarg struct MixedModelCard{D <: Distribution, L <: Link} <: AbstractGLMCard
+    distribution::D = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
+    link::L = canonicallink(distribution) & (dashi = json_string(enum = keys(LINK_TYPES), default = nothing),)
     formula::FormulaTerm & (
         dashi = mixed_formula_schema(),
         lift = lift_mixed_formula,

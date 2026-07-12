@@ -1,10 +1,10 @@
 abstract type ClusteringMethod <: AbstractMethod end
 
 @kwarg struct KMeansMethod <: ClusteringMethod
-    classes::Int & (dashi = StringDict("minimum" => 1),)
-    iterations::Int = 100 & (dashi = StringDict("minimum" => 1),)
-    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
-    seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
+    classes::Int & (dashi = json_integer(minimum = 1),)
+    iterations::Int = 100 & (dashi = json_integer(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
+    seed::Union{Int, Nothing} = nothing & (dashi = json_integer(minimum = 0),)
 end
 
 function (m::KMeansMethod)(X; weights)
@@ -13,9 +13,9 @@ function (m::KMeansMethod)(X; weights)
 end
 
 @kwarg struct DBSCANMethod <: ClusteringMethod
-    radius::Float64 & (dashi = StringDict("exclusiveMinimum" => 0),)
-    min_neighbors::Int = 1 & (dashi = StringDict("minimum" => 1),)
-    min_cluster_size::Int = 1 & (dashi = StringDict("minimum" => 1),)
+    radius::Float64 & (dashi = json_number(exclusiveMinimum = 0),)
+    min_neighbors::Int = 1 & (dashi = json_integer(minimum = 1),)
+    min_cluster_size::Int = 1 & (dashi = json_integer(minimum = 1),)
 end
 
 function (m::DBSCANMethod)(X; weights)

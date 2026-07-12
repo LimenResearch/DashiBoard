@@ -11,7 +11,7 @@ end
 ## Constant interpolation
 
 @kwarg struct ConstantInterpolationMethod <: InterpolationMethod
-    dir::Symbol & (dashi = StringDict("enum" => ["left", "right"]),)
+    dir::Symbol & (dashi = json_string(enum = ["left", "right"]),)
     extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
     extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end

@@ -39,7 +39,7 @@ const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "minuteofhour" => MinuteOfHourMethod,
 )
 
-@options TemporalProcessingMethod TEMPORAL_PREPROCESSING_METHODS ""
+@options TemporalProcessingMethod TEMPORAL_PREPROCESSING_METHODS "identity"
 
 """
     struct GaussianEncodingCard <: Card

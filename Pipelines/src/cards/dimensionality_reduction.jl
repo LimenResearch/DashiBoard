@@ -5,15 +5,15 @@ struct PCAMethod <: ProjectionMethod end
 (::PCAMethod)(X, n) = fit(PCA, X; maxoutdim = n)
 
 @kwarg struct PPCAMethod <: ProjectionMethod
-    iterations::Int = 1000 & (dashi = StringDict("minimum" => 1),)
-    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    iterations::Int = 1000 & (dashi = json_integer(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
 end
 
 (m::PPCAMethod)(X, n) = fit(PPCA, X; maxoutdim = n, maxiter = m.iterations, m.tol)
 
 @kwarg struct FactorAnalysisMethod <: ProjectionMethod
-    iterations::Int = 1000 & (dashi = StringDict("minimum" => 1),)
-    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    iterations::Int = 1000 & (dashi = json_integer(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
 end
 
 (m::FactorAnalysisMethod)(X, n) = fit(FactorAnalysis, X; maxoutdim = n, maxiter = m.iterations, m.tol)

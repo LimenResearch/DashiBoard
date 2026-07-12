@@ -282,6 +282,7 @@ json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
 function json_number(
         type::AbstractString = "number";
+        enum::Union{AbstractVector, Nothing} = nothing,
         minimum::Union{Integer, Nothing} = nothing,
         maximum::Union{Integer, Nothing} = nothing,
         exclusiveMinimum::Union{Integer, Nothing} = nothing,
@@ -292,7 +293,7 @@ function json_number(
     )
     return nonnothing_dict(;
         type = type,
-        minimum, maximum,
+        enum, minimum, maximum,
         exclusiveMinimum, exclusiveMaximum,
         title, description, default
     )

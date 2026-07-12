@@ -20,7 +20,7 @@ Add new column with output of window function.
 """
 @kwarg struct WindowFunctionCard <: SQLCard
     method::AggClosure & (
-        dashi = type_schema(keys(WINDOW_FUNCTIONS), additionalProperties = false),
+        dashi = type_schema(WINDOW_FUNCTIONS),
         lift = Fix2(lift_method, WINDOW_FUNCTIONS),
         lower = Fix2(lower_method, WINDOW_FUNCTIONS),
     )

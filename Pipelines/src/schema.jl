@@ -113,25 +113,25 @@ function options_schema(::Type{T}; additionalProperties::Bool = false) where {T}
     return json_object(; properties, additionalProperties, required)
 end
 
-function conditional_options_schema(d::AbstractDict; default = nothing)
-    allOf = StringDict[]
-    for (k, T) in pairs(d)
-        schema = options_schema(T)
-        schema["properties"]["type"] = true
-        cond = isnothing(default) ? match_property("type" => k) : match_property("type" => k, default)
-        push!(allOf, conditional_schema(cond, schema))
-    end
+function type_schema(d::AbstractDict; default = nothing, additionalProperties::Bool = false)
     properties = StringDict("type" => json_string(; enum = keys(d), default))
     required = isnothing(default) ? String["type"] : String[]
-    return json_object(; properties, allOf, required)
+    return json_object(; properties, additionalProperties, required)
 end
 
-function type_schema(ks; kwargs...)
-    return json_object(
-        properties = StringDict("type" => json_string(enum = ks)),
-        required = ["type"];
-        kwargs...
-    )
+function conditional_options_schema(d::AbstractDict; default = nothing)
+    schema = type_schema(d; default, additionalProperties = true)
+
+    allOf = StringDict[]
+    for (k, T) in pairs(d)
+        option_schema = options_schema(T)
+        option_schema["properties"]["type"] = true
+        cond = isnothing(default) ? match_property("type" => k) : match_property("type" => k, default)
+        push!(allOf, conditional_schema(cond, option_schema))
+    end
+    schema["allOf"] = allOf
+
+    return schema
 end
 
 # schema utils for Streamliner cards
@@ -157,6 +157,100 @@ function conditional_streamliner_schemas(dir, vals, name)
         schema = streamliner_schema(parse_properties(dir, x))
         conditional_schema(name => x, string(name, "_", "options") => schema)
     end
+end
+
+# Card schema
+
+function schema_definitions(variables::AbstractVector)
+    variable_schema = json_string(enum = variables)
+    variables_schema = json_array(items = JSON_VARIABLE, default = [])
+    nonempty_variables_schema = json_array(items = JSON_VARIABLE, minItems = 1)
+    return StringDict(
+        "variable" => variable_schema,
+        "variables" => variables_schema,
+        "nonempty_variables" => nonempty_variables_schema,
+    )
+end
+
+function json_schema(
+        key::AbstractString, variables::Any;
+        additionalProperties::Bool = false
+    )::StringDict
+    schema = json_schema(key; additionalProperties)
+    schema["\$defs"] = schema_definitions(variables)
+    return schema
+end
+
+function json_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
+    spec = get_spec(key)
+    schema::StringDict = options_schema(spec.type)
+    # set defaults if not provided by card schema implementation
+    schema["properties"]["type"] = json_const(key)
+    ("type" in schema["required"]) || push!(schema["required"], "type")
+    get!(schema, "title", spec.label)
+    get!(schema, "additionalProperties", additionalProperties)
+    return schema
+end
+
+# Card implementations
+
+function streamliner_card_schema(::Any, key::AbstractString)
+    required = String["model", "training"]
+    funnels = PARSER[].funnels
+    default_funnel = ""
+    funnel_property = json_string(enum = keys(funnels))
+    funnel_property["default"] = default_funnel
+    properties = StringDict(
+        "type" => json_const(key),
+        "funnel" => funnel_property,
+        "partition" => JSON_VARIABLE,
+        "suffix" => json_string(minLength = 1)
+    )
+
+    model_dir = isassigned(MODEL_DIR) ? MODEL_DIR[] : nothing
+    training_dir = isassigned(TRAINING_DIR) ? TRAINING_DIR[] : nothing
+
+    conditions = StringDict[]
+
+    if isnothing(model_dir)
+        properties["model"] = json_string()
+        properties["model_metadata"] = json_object()
+        push!(required, "model_metadata")
+    else
+        model_configs = available_streamliner_configs(model_dir)
+        conditional_model_schemas = conditional_streamliner_schemas(
+            model_dir, model_configs, "model"
+        )
+        append!(conditions, conditional_model_schemas)
+        properties["model"] = json_string(enum = model_configs)
+        properties["model_options"] = json_object()
+    end
+
+    if isnothing(training_dir)
+        properties["training"] = json_string()
+        properties["training_metadata"] = json_object()
+        push!(required, "training_metadata")
+    else
+        training_configs = available_streamliner_configs(training_dir)
+        conditional_training_schemas = conditional_streamliner_schemas(
+            training_dir, training_configs, "training"
+        )
+        append!(conditions, conditional_training_schemas)
+        properties["training"] = json_string(enum = training_configs)
+        properties["training_options"] = json_object()
+    end
+
+    for (k, F) in pairs(funnels)
+        schema = options_schema(F)
+        merge!(schema["properties"], StringDict(keys(properties) .=> true))
+        condition = match_property("funnel" => k, default_funnel)
+        push!(conditions, conditional_schema(condition, schema))
+    end
+
+    return json_object(;
+        properties, additionalProperties = true,
+        allOf = conditions, required
+    )
 end
 
 # Definitions

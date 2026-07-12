@@ -114,6 +114,60 @@ end
 
 OutputVariables(wc::WildCard) = OutputVariables(wc.outputs)
 
+## Card registration
+
+function register_wild_card(key::Symbol, label::AbstractString; settings::WildCardSettings)
+    type = WildCard{key}
+    spec = CardSpec(type, label; settings)
+    return register_card(string(key) => spec)
+end
+
+@deprecate(
+    register_wild_card(key::Symbol; label::AbstractString, settings::WildCardSettings),
+    register_wild_card(key, label; settings),
+    false
+)
+
+## Card schema
+
+function wild_card_schema(settings::Any, key::AbstractString)
+    required = String["inputs"]
+
+    properties = StringDict(
+        "type" => json_const(key),
+        "inputs" => JSON_VARIABLES,
+        "suffix" => json_string(minLength = 1)
+    )
+
+    if settings.needs_order
+        push!(required, "order_by")
+        properties["order_by"] = JSON_NONEMPTY_VARIABLES
+    else
+        properties["order_by"] = JSON_VARIABLES
+    end
+
+    if settings.needs_targets
+        push!(required, "targets")
+        push!(required, "suffix")
+        properties["targets"] = JSON_NONEMPTY_VARIABLES
+        properties["outputs"] = json_array(items = json_string(minLength = 1))
+    else
+        push!(required, "outputs")
+        properties["targets"] = JSON_VARIABLES
+        properties["outputs"] = JSON_NONEMPTY_VARIABLES
+    end
+
+    if settings.allows_weights
+        properties["weights"] = JSON_VARIABLE
+    end
+
+    if settings.allows_partition
+        properties["partition"] = JSON_VARIABLE
+    end
+
+    return json_object(; properties, required)
+end
+
 ## UI representation
 
 function CardWidget(

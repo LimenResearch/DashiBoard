@@ -283,263 +283,272 @@ end
 @testset "cluster" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
 
-    card = Pipelines.Card(d["kmeans"])
-    @test !Pipelines.invertible(card)
-
-    node = Node(card)
-    @test Pipelines.get_node_inputs(node) == ["TEMP", "PRES", "Iws"]
-    @test Pipelines.get_node_outputs(node) == ["cluster"]
-
-    Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
-    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
-    @test names(df) == [
-        "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "cluster",
-    ]
-
-    train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
-    rng = StreamlinerCore.get_rng(1234)
-    weights = train_df.Iws
-    R = kmeans([train_df.TEMP train_df.PRES train_df.Iws]', 3; maxiter = 100, tol = 1.0e-6, rng, weights)
-    @test assignments(R) == df.cluster
-
-    # k-means predict through the partition split: fit on partition 1, assign ALL rows.
-    # This is what `predict` unlocks — before, held-out (partition 2) rows were unassigned.
+    # 200-row table shared by the O(N²) methods and the option variants
     DBInterface.execute(
         Returns(nothing), repo,
-        "CREATE OR REPLACE TABLE parted AS \
-         SELECT *, CASE WHEN No % 4 = 0 THEN 2 ELSE 1 END AS partition FROM selection"
+        "CREATE OR REPLACE TABLE cl_small AS (FROM selection LIMIT 200)",
     )
+    smalldf = DBInterface.execute(DataFrame, repo, "FROM cl_small ORDER BY No")
+    Xsmall = permutedims([smalldf.TEMP smalldf.PRES])
 
-    pnode = Node(Pipelines.Card(merge(d["kmeans"], Dict("partition" => "partition"))))
-    Pipelines.train_evaljoin!(repo, pnode, "parted" => "pclust", "No")
-    pdf = DBInterface.execute(DataFrame, repo, "FROM pclust ORDER BY No")
-    @test all(∈(1:3), pdf.cluster)   # every row assigned, partition-2 rows included
-
-    # reference centroids fit on partition 1 only; every row → its nearest centroid
-    p1 = DBInterface.execute(DataFrame, repo, "FROM parted WHERE partition = 1")
-    R1 = kmeans(
-        [p1.TEMP p1.PRES p1.Iws]', 3;
-        maxiter = 100, tol = 1.0e-6, rng = StreamlinerCore.get_rng(1234), weights = p1.Iws
-    )
-    allrows = DBInterface.execute(DataFrame, repo, "FROM parted ORDER BY No")
-    Xa = permutedims([allrows.TEMP allrows.PRES allrows.Iws])
-    exp_full = [argmin(vec(sum(abs2, Xa[:, j] .- R1.centers; dims = 1))) for j in axes(Xa, 2)]
-    @test pdf.cluster == exp_full
-
-    # `assign_inputs`: same partition-1 fit, but assign on [TEMP, PRES] only (drop Iws)
-    anode = Node(Pipelines.Card(merge(d["kmeansAssign"], Dict("partition" => "partition"))))
-    Pipelines.train_evaljoin!(repo, anode, "parted" => "aclust", "No")
-    adf = DBInterface.execute(DataFrame, repo, "FROM aclust ORDER BY No")
-    Xs = permutedims([allrows.TEMP allrows.PRES])
-    exp_sub = [argmin(vec(sum(abs2, Xs[:, j] .- R1.centers[1:2, :]; dims = 1))) for j in axes(Xs, 2)]
-    @test adf.cluster == exp_sub
-
-    card = Pipelines.Card(d["dbscan"])
-    @test !Pipelines.invertible(card)
-
-    node = Node(card)
-    @test Pipelines.get_node_inputs(node) == ["TEMP", "PRES"]
-    @test Pipelines.get_node_outputs(node) == ["dbcluster"]
-
-    Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
-    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
-    @test names(df) == [
-        "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "dbcluster",
-    ]
-
-    train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
-    R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
-    @test assignments(R) == df.dbcluster
-
-    # dbscan predict: the nearest fitted core point within `radius` labels
-    # rows out of sample (DBSCAN's own border rule); no core in reach → noise
-    st = Pipelines.jlddeserialize(get_state(node).content)
-    @test st.label == assignments(R)
-    probes = DataFrame(
-        "No" => [1, 2],
-        "TEMP" => [st.core_points[1, 1], 999.0],
-        "PRES" => [st.core_points[2, 1], 999.0],
-    )
-    DuckDBUtils.load_table(repo, probes, "dbprobes")
-    Pipelines.evaljoin(repo, node, "dbprobes" => "dbprobes_out", "No")
-    pdf = DBInterface.execute(DataFrame, repo, "FROM dbprobes_out ORDER BY No")
-    @test pdf.dbcluster == [st.core_label[1], 0]
-
-    # `assign_inputs`: same fit, but assign on TEMP only
-    anode = Node(Pipelines.Card(merge(d["dbscan"], Dict("assign_inputs" => ["TEMP"]))))
-    Pipelines.train_evaljoin!(repo, anode, "selection" => "dbclust_temp", "No")
-    ast = Pipelines.jlddeserialize(get_state(anode).content)
-    adf = DBInterface.execute(DataFrame, repo, "FROM dbclust_temp ORDER BY No")
-    sel = DBInterface.execute(DataFrame, repo, "FROM selection ORDER BY No")
-    exp_temp = [
+    # hand-computed predict expectations: every method assigns each column
+    # of X to the nearest of the fitted columns C under its metric (ties to
+    # the earliest-fitted, matching argmin); dbscan additionally requires
+    # the winner within `radius`, else noise 0
+    sqeuclid(u, v) = sum(abs2, u .- v)
+    euclid(u, v) = sqrt(sum(abs2, u .- v))
+    cityblock(u, v) = sum(abs.(u .- v))
+    chebyshev(u, v) = maximum(abs.(u .- v))
+    nearest_center(X, C, dist) =
+        [argmin([dist(X[:, j], C[:, k]) for k in axes(C, 2)]) for j in axes(X, 2)]
+    nearest_core(X, cores, labels, radius, dist) = [
         begin
-            ds = abs.(sel.TEMP[j] .- ast.core_points[1, :])
-            k = argmin(ds)
-            ds[k] <= ast.radius ? ast.core_label[k] : 0
-        end
-            for j in eachindex(sel.TEMP)
-    ]
-    @test adf.dbcluster == exp_temp
-
-    # affinity propagation: exemplars are fitted points, assignment is
-    # nearest exemplar (the method's own rule; Clustering.jl ships no
-    # predict — see JuliaStats/Clustering.jl#63). O(N²) fit, so a small table.
-    DBInterface.execute(
-        Returns(nothing), repo,
-        "CREATE OR REPLACE TABLE ap_small AS (FROM selection LIMIT 200)",
-    )
-    apnode = Node(Pipelines.Card(d["affinity"]))
-    Pipelines.train_evaljoin!(repo, apnode, "ap_small" => "ap_clust", "No")
-    apst = Pipelines.jlddeserialize(get_state(apnode).content)
-    K = size(apst.centers, 2)
-    @test K >= 2
-    apdf = DBInterface.execute(DataFrame, repo, "FROM ap_clust ORDER BY No")
-    smalldf = DBInterface.execute(DataFrame, repo, "FROM ap_small ORDER BY No")
-    Xap = permutedims([smalldf.TEMP smalldf.PRES])
-    exp_ap = [argmin(vec(sum(abs2, Xap[:, j] .- apst.centers; dims = 1))) for j in axes(Xap, 2)]
-    @test apdf.apcluster == exp_ap
-
-    # the preference knob's direction: preference 0 (≥ every pairwise
-    # similarity) splits down to roughly one exemplar per distinct point —
-    # far more than the median default. Exact counts and the converged flag
-    # are data traits, not invariants: this dataset's duplicate (TEMP, PRES)
-    # rows make the messages oscillate at default damping (converged stays
-    # false in the state, and the card warns), without perturbing the
-    # exemplar set the assertions above validate.
-    @test apst.converged isa Bool
-    @test K < 200
-    fnode = Node(Pipelines.Card(d["affinityAll"]))
-    Pipelines.train_evaljoin!(repo, fnode, "ap_small" => "ap_all", "No")
-    fst = Pipelines.jlddeserialize(get_state(fnode).content)
-    @test size(fst.centers, 2) > K
-
-    # exemplars label themselves; far rows are still assigned (nearest
-    # exemplar has no noise channel)
-    approbes = DataFrame(
-        "No" => [1, 2],
-        "TEMP" => [apst.centers[1, 1], 999.0],
-        "PRES" => [apst.centers[2, 1], 999.0],
-    )
-    DuckDBUtils.load_table(repo, approbes, "approbes")
-    Pipelines.evaljoin(repo, apnode, "approbes" => "approbes_out", "No")
-    apo = DBInterface.execute(DataFrame, repo, "FROM approbes_out ORDER BY No")
-    @test apo.apcluster[1] == 1
-    @test apo.apcluster[2] in 1:K
-
-    # k-medoids: medoids are fitted points; assignment is nearest medoid
-    # under the card's metric (the CLUSTER_METRICS registry)
-    kmnode = Node(Pipelines.Card(d["kmedoids"]))
-    Pipelines.train_evaljoin!(repo, kmnode, "ap_small" => "km_clust", "No")
-    kmst = Pipelines.jlddeserialize(get_state(kmnode).content)
-    @test size(kmst.centers, 2) == 3
-    @test kmst.converged isa Bool
-    @test all(k -> any(j -> kmst.centers[:, k] == Xap[:, j], axes(Xap, 2)), axes(kmst.centers, 2))
-    kmdf = DBInterface.execute(DataFrame, repo, "FROM km_clust ORDER BY No")
-    exp_km = [argmin(vec(sum(abs2, Xap[:, j] .- kmst.centers; dims = 1))) for j in axes(Xap, 2)]
-    @test kmdf.kmcluster == exp_km
-
-    # the chosen metric drives both the fit and the assignment
-    chnode = Node(Pipelines.Card(d["kmedoidsChebyshev"]))
-    Pipelines.train_evaljoin!(repo, chnode, "ap_small" => "km_cheb", "No")
-    chst = Pipelines.jlddeserialize(get_state(chnode).content)
-    chdf = DBInterface.execute(DataFrame, repo, "FROM km_cheb ORDER BY No")
-    exp_ch = [
-        argmin([maximum(abs.(Xap[:, j] .- chst.centers[:, k])) for k in axes(chst.centers, 2)])
-            for j in axes(Xap, 2)
-    ]
-    @test chdf.kmcluster == exp_ch
-
-    # the registry is open to plain functions, e.g. halving TEMP's weight
-    Pipelines.CLUSTER_METRICS["halftemp"] = _ -> (u, v) -> abs(u[1] - v[1]) / 2 + abs(u[2] - v[2])
-    hd = Dict(
-        "type" => "cluster", "method" => "kmedoids", "inputs" => ["TEMP", "PRES"],
-        "output" => "kmcluster",
-        "method_options" => Dict("classes" => 3, "seed" => 1234, "metric" => "halftemp"),
-    )
-    hnode = Node(Pipelines.Card(hd))
-    Pipelines.train_evaljoin!(repo, hnode, "ap_small" => "km_half", "No")
-    hst = Pipelines.jlddeserialize(get_state(hnode).content)
-    hdf = DBInterface.execute(DataFrame, repo, "FROM km_half ORDER BY No")
-    exp_h = [
-        argmin([abs(Xap[1, j] - hst.centers[1, k]) / 2 + abs(Xap[2, j] - hst.centers[2, k]) for k in axes(hst.centers, 2)])
-            for j in axes(Xap, 2)
-    ]
-    @test hdf.kmcluster == exp_h
-    # a custom metric defines its own use of the inputs: assign_inputs is refused
-    bad = Node(Pipelines.Card(merge(hd, Dict("assign_inputs" => ["TEMP"]))))
-    @test_throws ArgumentError Pipelines.train_evaljoin!(repo, bad, "ap_small" => "km_bad", "No")
-    # kmeans requires a Distances.jl semimetric: plain-function entries refused
-    kbad = Node(Pipelines.Card(Dict(
-        "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
-        "output" => "kvcluster",
-        "method_options" => Dict("classes" => 3, "seed" => 1234, "metric" => "halftemp"),
-    )))
-    @test_throws ArgumentError Pipelines.train_evaljoin!(repo, kbad, "ap_small" => "kv_bad", "No")
-    delete!(Pipelines.CLUSTER_METRICS, "halftemp")
-
-    # kmeans triaged options: init algorithm + distance by registry name,
-    # fit and predict under the SAME distance
-    kvnode = Node(Pipelines.Card(Dict(
-        "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
-        "output" => "kvcluster",
-        "method_options" => Dict(
-            "classes" => 3, "seed" => 1234, "init" => "rand", "metric" => "cityblock",
-        ),
-    )))
-    Pipelines.train_evaljoin!(repo, kvnode, "ap_small" => "kv_clust", "No")
-    kvst = Pipelines.jlddeserialize(get_state(kvnode).content)
-    @test size(kvst.centers, 2) == 3
-    kvdf = DBInterface.execute(DataFrame, repo, "FROM kv_clust ORDER BY No")
-    exp_kv = [
-        argmin([sum(abs.(Xap[:, j] .- kvst.centers[:, k])) for k in axes(kvst.centers, 2)])
-            for j in axes(Xap, 2)
-    ]
-    @test kvdf.kvcluster == exp_kv
-
-    # kmedoids mirrored init enum
-    krnode = Node(Pipelines.Card(merge(d["kmedoids"], Dict(
-        "method_options" => Dict("classes" => 3, "seed" => 1234, "init" => "rand"),
-    ))))
-    Pipelines.train_evaljoin!(repo, krnode, "ap_small" => "km_rand", "No")
-    krst = Pipelines.jlddeserialize(get_state(krnode).content)
-    @test size(krst.centers, 2) == 3
-    @test all(k -> any(j -> krst.centers[:, k] == Xap[:, j], axes(Xap, 2)), axes(krst.centers, 2))
-
-    # dbscan metric: fit and nearest-core predict under the same metric;
-    # non-true metrics are refused (the KD-trees need the triangle inequality)
-    dcnode = Node(Pipelines.Card(merge(d["dbscan"], Dict(
-        "method_options" => Dict("radius" => 0.02, "metric" => "cityblock"),
-        "output" => "dbcb",
-    ))))
-    Pipelines.train_evaljoin!(repo, dcnode, "ap_small" => "db_cb", "No")
-    dcst = Pipelines.jlddeserialize(get_state(dcnode).content)
-    dcdf = DBInterface.execute(DataFrame, repo, "FROM db_cb ORDER BY No")
-    exp_dc = [
-        begin
-            ds = [sum(abs.(Xap[:, j] .- dcst.core_points[:, k])) for k in axes(dcst.core_points, 2)]
+            ds = [dist(X[:, j], cores[:, k]) for k in axes(cores, 2)]
             k = isempty(ds) ? 0 : argmin(ds)
-            (k != 0 && ds[k] <= dcst.radius) ? dcst.core_label[k] : 0
+            (k != 0 && ds[k] <= radius) ? labels[k] : 0
         end
-            for j in axes(Xap, 2)
+            for j in axes(X, 2)
     ]
-    @test dcdf.dbcb == exp_dc
-    dbad = Node(Pipelines.Card(merge(d["dbscan"], Dict(
-        "method_options" => Dict("radius" => 0.02, "metric" => "sqeuclidean"),
-    ))))
-    @test_throws ArgumentError Pipelines.train_evaljoin!(repo, dbad, "ap_small" => "db_bad", "No")
+    fitted(node) = Pipelines.jlddeserialize(get_state(node).content)
 
-    # affinity propagation preference_rule: the resolved preference is kept
-    # in the state — exact plumbing check, convergence-independent
-    svals = vec([-sum(abs2, Xap[:, i] .- Xap[:, j]) for i in axes(Xap, 2), j in axes(Xap, 2)])
-    @test apst.preference ≈ median(svals)
-    mnode = Node(Pipelines.Card(merge(d["affinity"], Dict(
-        "method_options" => Dict("preference_rule" => "min"),
-    ))))
-    Pipelines.train_evaljoin!(repo, mnode, "ap_small" => "ap_min", "No")
-    mst = Pipelines.jlddeserialize(get_state(mnode).content)
-    @test mst.preference ≈ minimum(svals)
+    @testset "kmeans" begin
+        card = Pipelines.Card(d["kmeans"])
+        @test !Pipelines.invertible(card)
+
+        node = Node(card)
+        @test Pipelines.get_node_inputs(node) == ["TEMP", "PRES", "Iws"]
+        @test Pipelines.get_node_outputs(node) == ["cluster"]
+
+        Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
+        df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "cluster",
+        ]
+
+        # reference fit with every option of the JSON card spelled out
+        train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+        R = kmeans(
+            [train_df.TEMP train_df.PRES train_df.Iws]', 3;
+            maxiter = 100, tol = 1.0e-6, rng = StreamlinerCore.get_rng(1234),
+            weights = train_df.Iws, init = :kmpp, distance = Pipelines.SqEuclidean(),
+        )
+        @test assignments(R) == df.cluster
+
+        # k-means predict through the partition split: fit on partition 1, assign ALL rows.
+        # This is what `predict` unlocks — before, held-out (partition 2) rows were unassigned.
+        DBInterface.execute(
+            Returns(nothing), repo,
+            "CREATE OR REPLACE TABLE parted AS \
+             SELECT *, CASE WHEN No % 4 = 0 THEN 2 ELSE 1 END AS partition FROM selection"
+        )
+
+        pnode = Node(Pipelines.Card(merge(d["kmeans"], Dict("partition" => "partition"))))
+        Pipelines.train_evaljoin!(repo, pnode, "parted" => "pclust", "No")
+        pdf = DBInterface.execute(DataFrame, repo, "FROM pclust ORDER BY No")
+        @test all(∈(1:3), pdf.cluster)   # every row assigned, partition-2 rows included
+
+        # reference centroids fit on partition 1 only (same config as the
+        # card, restricted to partition 1); every row → its nearest centroid
+        p1 = DBInterface.execute(DataFrame, repo, "FROM parted WHERE partition = 1")
+        R1 = kmeans(
+            [p1.TEMP p1.PRES p1.Iws]', 3;
+            maxiter = 100, tol = 1.0e-6, rng = StreamlinerCore.get_rng(1234),
+            weights = p1.Iws, init = :kmpp, distance = Pipelines.SqEuclidean(),
+        )
+        allrows = DBInterface.execute(DataFrame, repo, "FROM parted ORDER BY No")
+        Xa = permutedims([allrows.TEMP allrows.PRES allrows.Iws])
+        @test pdf.cluster == nearest_center(Xa, R1.centers, sqeuclid)
+
+        # `assign_inputs` (the kmeansAssign config differs from kmeans only
+        # by it): same partition-1 fit, assign on [TEMP, PRES] only
+        anode = Node(Pipelines.Card(merge(d["kmeansAssign"], Dict("partition" => "partition"))))
+        Pipelines.train_evaljoin!(repo, anode, "parted" => "aclust", "No")
+        adf = DBInterface.execute(DataFrame, repo, "FROM aclust ORDER BY No")
+        Xs = permutedims([allrows.TEMP allrows.PRES])
+        @test adf.cluster == nearest_center(Xs, R1.centers[1:2, :], sqeuclid)
+
+        # options: seeding enum + metric by registry name, fit and predict
+        # under the SAME metric (inline card: the JSON base carries weights
+        # and a third input that this variant deliberately drops)
+        kvnode = Node(Pipelines.Card(Dict(
+            "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
+            "output" => "kvcluster",
+            "method_options" => Dict(
+                "classes" => 3, "seed" => 1234, "init" => "rand", "metric" => "cityblock",
+            ),
+        )))
+        Pipelines.train_evaljoin!(repo, kvnode, "cl_small" => "kv_clust", "No")
+        kvst = fitted(kvnode)
+        @test size(kvst.centers, 2) == 3
+        kvdf = DBInterface.execute(DataFrame, repo, "FROM kv_clust ORDER BY No")
+        @test kvdf.kvcluster == nearest_center(Xsmall, kvst.centers, cityblock)
+    end
+
+    @testset "dbscan" begin
+        card = Pipelines.Card(d["dbscan"])
+        @test !Pipelines.invertible(card)
+
+        node = Node(card)
+        @test Pipelines.get_node_inputs(node) == ["TEMP", "PRES"]
+        @test Pipelines.get_node_outputs(node) == ["dbcluster"]
+
+        Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
+        df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+        @test names(df) == [
+            "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "dbcluster",
+        ]
+
+        train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+        R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
+        @test assignments(R) == df.dbcluster
+
+        # predict: the nearest fitted core point within `radius` labels rows
+        # out of sample (DBSCAN's own border rule); no core in reach → noise
+        st = fitted(node)
+        @test st.label == assignments(R)
+        probes = DataFrame(
+            "No" => [1, 2],
+            "TEMP" => [st.core_points[1, 1], 999.0],
+            "PRES" => [st.core_points[2, 1], 999.0],
+        )
+        DuckDBUtils.load_table(repo, probes, "dbprobes")
+        Pipelines.evaljoin(repo, node, "dbprobes" => "dbprobes_out", "No")
+        pdf = DBInterface.execute(DataFrame, repo, "FROM dbprobes_out ORDER BY No")
+        @test pdf.dbcluster == [st.core_label[1], 0]
+
+        # `assign_inputs`: same fit, but assign on TEMP only
+        anode = Node(Pipelines.Card(merge(d["dbscan"], Dict("assign_inputs" => ["TEMP"]))))
+        Pipelines.train_evaljoin!(repo, anode, "selection" => "dbclust_temp", "No")
+        ast = fitted(anode)
+        adf = DBInterface.execute(DataFrame, repo, "FROM dbclust_temp ORDER BY No")
+        sel = DBInterface.execute(DataFrame, repo, "FROM selection ORDER BY No")
+        Xtemp = permutedims(sel.TEMP)
+        @test adf.dbcluster == nearest_core(Xtemp, ast.core_points[1:1, :], ast.core_label, ast.radius, euclid)
+
+        # options: metric drives fit and nearest-core predict together;
+        # non-true metrics are refused (the KD-trees need the triangle inequality)
+        dcnode = Node(Pipelines.Card(merge(d["dbscan"], Dict(
+            "method_options" => Dict("radius" => 0.02, "metric" => "cityblock"),
+            "output" => "dbcb",
+        ))))
+        Pipelines.train_evaljoin!(repo, dcnode, "cl_small" => "db_cb", "No")
+        dcst = fitted(dcnode)
+        dcdf = DBInterface.execute(DataFrame, repo, "FROM db_cb ORDER BY No")
+        @test dcdf.dbcb == nearest_core(Xsmall, dcst.core_points, dcst.core_label, dcst.radius, cityblock)
+        dbad = Node(Pipelines.Card(merge(d["dbscan"], Dict(
+            "method_options" => Dict("radius" => 0.02, "metric" => "sqeuclidean"),
+        ))))
+        @test_throws ArgumentError Pipelines.train_evaljoin!(repo, dbad, "cl_small" => "db_bad", "No")
+    end
+
+    @testset "affinity propagation" begin
+        # exemplars are fitted points, assignment is nearest exemplar (the
+        # method's own rule; Clustering.jl ships no predict — see
+        # JuliaStats/Clustering.jl#63); O(N²) fit, hence the small table
+        apnode = Node(Pipelines.Card(d["affinity"]))
+        Pipelines.train_evaljoin!(repo, apnode, "cl_small" => "ap_clust", "No")
+        apst = fitted(apnode)
+        K = size(apst.centers, 2)
+        @test K >= 2
+        apdf = DBInterface.execute(DataFrame, repo, "FROM ap_clust ORDER BY No")
+        @test apdf.apcluster == nearest_center(Xsmall, apst.centers, sqeuclid)
+
+        # the preference knob's direction: preference 0 (≥ every pairwise
+        # similarity) splits down to roughly one exemplar per distinct point —
+        # far more than the median default. Exact counts and the converged
+        # flag are data traits, not invariants: this dataset's duplicate
+        # (TEMP, PRES) rows make the messages oscillate at default damping
+        # (converged stays false in the state, and the card warns), without
+        # perturbing the exemplar set the assertions above validate.
+        @test apst.converged isa Bool
+        @test K < 200
+        fnode = Node(Pipelines.Card(d["affinityPreferenceZero"]))
+        Pipelines.train_evaljoin!(repo, fnode, "cl_small" => "ap_all", "No")
+        @test size(fitted(fnode).centers, 2) > K
+
+        # exemplars label themselves; far rows are still assigned (nearest
+        # exemplar has no noise channel)
+        approbes = DataFrame(
+            "No" => [1, 2],
+            "TEMP" => [apst.centers[1, 1], 999.0],
+            "PRES" => [apst.centers[2, 1], 999.0],
+        )
+        DuckDBUtils.load_table(repo, approbes, "approbes")
+        Pipelines.evaljoin(repo, apnode, "approbes" => "approbes_out", "No")
+        apo = DBInterface.execute(DataFrame, repo, "FROM approbes_out ORDER BY No")
+        @test apo.apcluster[1] == 1
+        @test apo.apcluster[2] in 1:K
+
+        # preference_rule: the resolved preference is kept in the state —
+        # exact plumbing check, convergence-independent
+        svals = vec([-sqeuclid(Xsmall[:, i], Xsmall[:, j]) for i in axes(Xsmall, 2), j in axes(Xsmall, 2)])
+        @test apst.preference ≈ median(svals)
+        mnode = Node(Pipelines.Card(merge(d["affinity"], Dict(
+            "method_options" => Dict("preference_rule" => "min"),
+        ))))
+        Pipelines.train_evaljoin!(repo, mnode, "cl_small" => "ap_min", "No")
+        @test fitted(mnode).preference ≈ minimum(svals)
+    end
+
+    @testset "kmedoids" begin
+        # medoids are fitted points; assignment is nearest medoid under the
+        # card's metric (the CLUSTER_METRICS registry)
+        kmnode = Node(Pipelines.Card(d["kmedoids"]))
+        Pipelines.train_evaljoin!(repo, kmnode, "cl_small" => "km_clust", "No")
+        kmst = fitted(kmnode)
+        @test size(kmst.centers, 2) == 3
+        @test kmst.converged isa Bool
+        @test all(k -> any(j -> kmst.centers[:, k] == Xsmall[:, j], axes(Xsmall, 2)), axes(kmst.centers, 2))
+        kmdf = DBInterface.execute(DataFrame, repo, "FROM km_clust ORDER BY No")
+        @test kmdf.kmcluster == nearest_center(Xsmall, kmst.centers, sqeuclid)
+
+        # the chosen metric drives both the fit and the assignment
+        chnode = Node(Pipelines.Card(d["kmedoidsChebyshev"]))
+        Pipelines.train_evaljoin!(repo, chnode, "cl_small" => "km_cheb", "No")
+        chst = fitted(chnode)
+        chdf = DBInterface.execute(DataFrame, repo, "FROM km_cheb ORDER BY No")
+        @test chdf.kmcluster == nearest_center(Xsmall, chst.centers, chebyshev)
+
+        # seeding enum mirrored from kmeans
+        krnode = Node(Pipelines.Card(merge(d["kmedoids"], Dict(
+            "method_options" => Dict("classes" => 3, "seed" => 1234, "init" => "rand"),
+        ))))
+        Pipelines.train_evaljoin!(repo, krnode, "cl_small" => "km_rand", "No")
+        krst = fitted(krnode)
+        @test size(krst.centers, 2) == 3
+        @test all(k -> any(j -> krst.centers[:, k] == Xsmall[:, j], axes(Xsmall, 2)), axes(krst.centers, 2))
+
+        # the registry is open to plain functions, e.g. halving TEMP's
+        # weight. finally (without catch) swallows nothing: it only
+        # guarantees the test-only entry leaves the global registry, so a
+        # failure here cannot contaminate later testsets.
+        halftemp(u, v) = abs(u[1] - v[1]) / 2 + abs(u[2] - v[2])
+        Pipelines.CLUSTER_METRICS["halftemp"] = _ -> halftemp
+        try
+            hd = merge(d["kmedoids"], Dict(
+                "method_options" => Dict("classes" => 3, "seed" => 1234, "metric" => "halftemp"),
+            ))
+            hnode = Node(Pipelines.Card(hd))
+            Pipelines.train_evaljoin!(repo, hnode, "cl_small" => "km_half", "No")
+            hst = fitted(hnode)
+            hdf = DBInterface.execute(DataFrame, repo, "FROM km_half ORDER BY No")
+            @test hdf.kmcluster == nearest_center(Xsmall, hst.centers, halftemp)
+            # a custom metric defines its own use of the inputs: assign_inputs is refused
+            bad = Node(Pipelines.Card(merge(hd, Dict("assign_inputs" => ["TEMP"]))))
+            @test_throws ArgumentError Pipelines.train_evaljoin!(repo, bad, "cl_small" => "km_bad", "No")
+            # kmeans requires a Distances.jl semimetric: plain functions refused
+            kbad = Node(Pipelines.Card(Dict(
+                "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
+                "output" => "kvcluster",
+                "method_options" => Dict("classes" => 3, "seed" => 1234, "metric" => "halftemp"),
+            )))
+            @test_throws ArgumentError Pipelines.train_evaljoin!(repo, kbad, "cl_small" => "kv_bad", "No")
+        finally
+            delete!(Pipelines.CLUSTER_METRICS, "halftemp")
+        end
+    end
 end
 
 @testset "dimensionality reduction" begin

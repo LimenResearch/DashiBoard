@@ -6,7 +6,7 @@
     "method": "affinity_propagation",
     "method_options": {}
   },
-  "affinityAll": {
+  "affinityPreferenceZero": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES"],
     "output": "apcluster",

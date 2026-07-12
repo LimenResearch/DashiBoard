@@ -383,6 +383,31 @@ function _nearest_within(
     return out
 end
 
+"""
+    _assign(cc::ClusterCard, model, t, id_var, metric)
+
+Label each row with the nearest of the fitted centers (`model.centers`,
+features×K) under `metric` over `assign_inputs` — the shared predict of the
+centers-shaped methods: k-means centroids, affinity-propagation exemplars,
+k-medoids medoids. Ties go to the earliest-fitted center (see `_nearest`).
+"""
+function _assign(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey, metric)
+    ai = something(cc.assign_inputs, cc.inputs)
+    idx = Vector{Int}(indexin(ai, cc.inputs))        # center rows for the assign dims
+    X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
+    labels = _nearest(X, model.centers[idx, :], metric)
+    return SimpleTable(id_var => t[id_var], cc.output => labels)
+end
+
+# k-means and k-medoids: nearest center under the SAME metric the fit used.
+function _assign(m::Union{KMeansMethod, KMedoidsMethod}, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+    _check_restrictable(cc.assign_inputs, m.metric)
+    return _assign(cc, model, t, id_var, _cluster_metric(m.metric))
+end
+
+_assign(::AffinityPropagationMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
+    _assign(cc, model, t, id_var, SqEuclidean())
+
 # dbscan: assign each row to the cluster of the nearest fitted core point
 # within `radius`, over `assign_inputs`, under the card's metric; rows with
 # no core point in reach are noise (0).
@@ -394,36 +419,6 @@ function _assign(m::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPri
     labels = _nearest_within(X, model.core_points[idx, :], model.core_label, model.radius, metric)
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
-
-"""
-    _assign_nearest(cc, model, t, id_var; metric = SqEuclidean())
-
-Label each row with the nearest of the fitted centers (`model.centers`,
-features×K) under `metric` over `assign_inputs` — the shared predict of the
-centers-shaped methods: k-means centroids, affinity-propagation exemplars,
-k-medoids medoids. Ties go to the earliest-fitted center (see `_nearest`).
-"""
-function _assign_nearest(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey; metric = SqEuclidean())
-    ai = something(cc.assign_inputs, cc.inputs)
-    idx = Vector{Int}(indexin(ai, cc.inputs))        # center rows for the assign dims
-    X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
-    labels = _nearest(X, model.centers[idx, :], metric)
-    return SimpleTable(id_var => t[id_var], cc.output => labels)
-end
-
-# k-means and k-medoids: nearest center under the SAME metric the fit used.
-function _assign(m::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
-    _check_restrictable(cc.assign_inputs, m.metric)
-    return _assign_nearest(cc, model, t, id_var; metric = _cluster_metric(m.metric))
-end
-
-function _assign(m::KMedoidsMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
-    _check_restrictable(cc.assign_inputs, m.metric)
-    return _assign_nearest(cc, model, t, id_var; metric = _cluster_metric(m.metric))
-end
-
-_assign(::AffinityPropagationMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
-    _assign_nearest(cc, model, t, id_var)
 
 (cc::ClusterCard)(model, t, id_var::AbstractPrimaryKey) =
     _assign(cc.clusterer, cc, model, t, id_var)

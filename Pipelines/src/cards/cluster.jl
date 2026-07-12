@@ -1,27 +1,67 @@
 abstract type ClusteringMethod end
 
+"""
+    KMeansMethod <: ClusteringMethod
+
+k-means (`"method" => "kmeans"`). `init` picks the seeding algorithm and
+`distance` the semimetric by [`CLUSTER_METRICS`](@ref) name (a Distances.jl
+semimetric is required; plain-function registry entries are for `kmedoids`).
+The default, squared Euclidean, is the canonical k-means objective — with
+any other semimetric the center update remains the arithmetic mean, which is
+only the true minimizer under squared Euclidean, so the fit becomes a
+reasonable heuristic without the usual convergence guarantee. Evaluation
+assigns each row to the nearest fitted centroid under the SAME distance.
+"""
 @kwarg struct KMeansMethod <: ClusteringMethod
     classes::Int & (dashi = StringDict("minimum" => 1),)
     iterations::Int = 100 & (dashi = StringDict("minimum" => 1),)
     tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
     seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
+    init::String = "kmpp" & (dashi = StringDict("enum" => ["kmpp", "rand", "kmcen"]),)
+    distance::String = "sqeuclidean"
 end
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
-    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights)
+    # TODO: pass the card's `metric_options` once the schema system can
+    # express object-valued fields (see CLUSTER_METRICS)
+    metric = CLUSTER_METRICS[m.distance](StringDict())
+    metric isa SemiMetric || throw(ArgumentError(
+        "kmeans requires a Distances.jl semimetric; \"$(m.distance)\" is a plain-function metric (usable by kmedoids)"
+    ))
+    return kmeans(
+        X, classes;
+        maxiter = iterations, tol, rng = get_rng(seed), weights,
+        init = Symbol(m.init), distance = metric,
+    )
 end
 
+"""
+    DBSCANMethod <: ClusteringMethod
+
+DBSCAN (`"method" => "dbscan"`). `metric` is a [`CLUSTER_METRICS`](@ref)
+name restricted to true metrics — the KD-trees behind both the fit and the
+nearest-core predict require the triangle inequality, so `sqeuclidean` and
+plain-function entries are refused. Fit and predict use the SAME metric.
+"""
 @kwarg struct DBSCANMethod <: ClusteringMethod
     radius::Float64 & (dashi = StringDict("exclusiveMinimum" => 0),)
     min_neighbors::Int = 1 & (dashi = StringDict("minimum" => 1),)
     min_cluster_size::Int = 1 & (dashi = StringDict("minimum" => 1),)
+    metric::String = "euclidean" & (dashi = StringDict("enum" => ["euclidean", "cityblock", "chebyshev"]),)
 end
+
+# true metrics only: KD-trees (Clustering's dbscan fit and our
+# _nearest_within predict) rely on the triangle inequality
+const DBSCAN_METRICS = Set(["euclidean", "cityblock", "chebyshev"])
 
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
-    res = dbscan(X, radius; min_neighbors, min_cluster_size)
+    m.metric in DBSCAN_METRICS ||
+        throw(ArgumentError("dbscan requires a true metric ($(join(sort!(collect(DBSCAN_METRICS)), ", "))); got \"$(m.metric)\""))
+    metric = CLUSTER_METRICS[m.metric](StringDict())
+    res = dbscan(X, radius; metric, min_neighbors, min_cluster_size)
     # core points and their clusters, the state DBSCAN's own border rule
     # needs to label rows at evaluation time
     cores = [i for c in res.clusters for i in c.core_indices]
@@ -52,22 +92,30 @@ reproduce their fit labels.
     maxiter::Int = 200 & (dashi = StringDict("minimum" => 1),)
     tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
     preference::Union{Float64, Nothing} = nothing
+    preference_rule::String = "median" & (dashi = StringDict("enum" => ["median", "min"]),)
 end
 
 function (m::AffinityPropagationMethod)(X; weights)
-    (; damp, maxiter, tol, preference) = m
+    (; damp, maxiter, tol, preference, preference_rule) = m
     isnothing(weights) || @warn "Weights not supported in affinity propagation"
+    preference_rule in ("median", "min") ||
+        throw(ArgumentError("`preference_rule` must be \"median\" or \"min\", got \"$preference_rule\""))
     S = -pairwise(SqEuclidean(), X, dims = 2)
-    # median of the similarities (the zero diagonal included, matching the
-    # convention popularized by sklearn) gives a moderate number of clusters
-    pref = something(preference, median(vec(S)))
+    # when `preference` is not given, `preference_rule` picks the classic
+    # default: the median of the similarities (zero diagonal included,
+    # matching the convention popularized by sklearn) for a moderate number
+    # of clusters, or their minimum for fewer
+    pref = something(
+        preference,
+        preference_rule == "min" ? minimum(vec(S)) : median(vec(S)),
+    )
     for i in axes(S, 1)
         S[i, i] = pref
     end
     res = affinityprop(S; maxiter, tol, damp)
     res.converged ||
         @warn "Affinity propagation did not converge; increase `maxiter` or adjust `damp`"
-    return (; centers = X[:, res.exemplars], res.converged)
+    return (; centers = X[:, res.exemplars], res.converged, preference = pref)
 end
 
 """
@@ -128,6 +176,7 @@ earliest-fitted medoid.
     iterations::Int = 200 & (dashi = StringDict("minimum" => 1),)
     tol::Float64 = 1.0e-8 & (dashi = StringDict("exclusiveMinimum" => 0),)
     seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
+    init::String = "kmpp" & (dashi = StringDict("enum" => ["kmpp", "rand", "kmcen"]),)
     metric::String = "euclidean"
 end
 
@@ -138,8 +187,8 @@ function (m::KMedoidsMethod)(X; weights)
     # express object-valued fields (see CLUSTER_METRICS)
     metric = CLUSTER_METRICS[m.metric](StringDict())
     D = _dissimilarities(metric, X, X)
-    init = isnothing(seed) ? :kmpp :
-        initseeds_by_costs(:kmpp, D, classes; rng = get_rng(seed))
+    init = isnothing(seed) ? Symbol(m.init) :
+        initseeds_by_costs(Symbol(m.init), D, classes; rng = get_rng(seed))
     res = kmedoids(D, classes; maxiter = iterations, tol, init)
     res.converged || @warn "k-medoids did not converge; increase `iterations`"
     return (; centers = X[:, res.medoids], res.converged)
@@ -238,7 +287,7 @@ OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 # exemplar points / medoid points); dbscan keeps its core points (plus the
 # fit labels and ids as the record of the fit).
 _model(::KMeansMethod, res, t, id_var) = (; centers = res.centers)          # features×K
-_model(::AffinityPropagationMethod, res, t, id_var) = (; res.centers, res.converged)  # features×K
+_model(::AffinityPropagationMethod, res, t, id_var) = (; res.centers, res.converged, res.preference)  # features×K
 _model(::KMedoidsMethod, res, t, id_var) = (; res.centers, res.converged)   # features×K
 _model(::DBSCANMethod, res, t, id_var) = (;
     res.label,
@@ -256,16 +305,16 @@ function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
 end
 
 """
-    _nearest(X, C)
+    _nearest(X, C, metric = SqEuclidean())
 
 Assign each column of `X` (d×N) to the nearest of the K centroid columns of
-`C` (d×K) by squared Euclidean distance, ties to the smallest column index
-(`argmin` returns the first minimum). Uses `Distances.pairwise` — the
-predict recommended in Clustering.jl#63, BLAS-backed, and Distances is
-already in the dependency tree via Clustering itself.
+`C` (d×K) under `metric`, ties to the smallest column index (`argmin`
+returns the first minimum). Uses `Distances.pairwise` — the predict
+recommended in Clustering.jl#63, BLAS-backed for the default, and Distances
+is already in the dependency tree via Clustering itself.
 """
-function _nearest(X::AbstractMatrix, C::AbstractMatrix)
-    D = pairwise(SqEuclidean(), C, X, dims = 2)   # K×N
+function _nearest(X::AbstractMatrix, C::AbstractMatrix, metric::PreMetric = SqEuclidean())
+    D = pairwise(metric, C, X, dims = 2)   # K×N
     return [argmin(view(D, :, j)) for j in axes(D, 2)]
 end
 
@@ -286,21 +335,20 @@ accident — and ties are common under discrete-valued or single-dimension
 `assign_inputs`. It also keeps results identical to a full left-to-right
 scan. Rows with non-finite coordinates stay 0.
 """
-function _nearest_within(X::AbstractMatrix, C::AbstractMatrix, labels::Vector{Int}, radius::Real)
+function _nearest_within(
+        X::AbstractMatrix, C::AbstractMatrix, labels::Vector{Int}, radius::Real,
+        metric::Metric = Euclidean(),
+    )
     out = zeros(Int, size(X, 2))
     isempty(labels) && return out
     Cf = convert(Matrix{Float64}, C)
     finite = [j for j in axes(X, 2) if all(isfinite, view(X, :, j))]
     Xq = convert(Matrix{Float64}, X[:, finite])
-    hits = inrange(KDTree(Cf), Xq, radius)
+    hits = inrange(KDTree(Cf, metric), Xq, radius)
     @inbounds for (jf, j) in enumerate(finite)
         best, bestk = Inf, 0
         for k in hits[jf]
-            s = 0.0
-            for i in axes(Cf, 1)
-                δ = Xq[i, jf] - Cf[i, k]
-                s += δ * δ
-            end
+            s = metric(view(Xq, :, jf), view(Cf, :, k))
             if s < best || (s == best && k < bestk)
                 best, bestk = s, k
             end
@@ -311,33 +359,39 @@ function _nearest_within(X::AbstractMatrix, C::AbstractMatrix, labels::Vector{In
 end
 
 # dbscan: assign each row to the cluster of the nearest fitted core point
-# within `radius`, over `assign_inputs`; rows with no core point in reach are
-# noise (0).
-function _assign(::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+# within `radius`, over `assign_inputs`, under the card's metric; rows with
+# no core point in reach are noise (0).
+function _assign(m::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
     ai = something(cc.assign_inputs, cc.inputs)
     idx = Vector{Int}(indexin(ai, cc.inputs))        # core rows for the assign dims
     X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
-    labels = _nearest_within(X, model.core_points[idx, :], model.core_label, model.radius)
+    metric = CLUSTER_METRICS[m.metric](StringDict())
+    labels = _nearest_within(X, model.core_points[idx, :], model.core_label, model.radius, metric)
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
 
 """
-    _assign_nearest(cc, model, t, id_var)
+    _assign_nearest(cc, model, t, id_var; metric = SqEuclidean())
 
 Label each row with the nearest of the fitted centers (`model.centers`,
-features×K) over `assign_inputs` — the shared predict of the centers-shaped
-methods (k-means centroids, affinity-propagation exemplars).
+features×K) under `metric` over `assign_inputs` — the shared predict of the
+centers-shaped methods (k-means centroids, affinity-propagation exemplars).
 """
-function _assign_nearest(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+function _assign_nearest(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey; metric::PreMetric = SqEuclidean())
     ai = something(cc.assign_inputs, cc.inputs)
     idx = Vector{Int}(indexin(ai, cc.inputs))        # center rows for the assign dims
     X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
-    labels = _nearest(X, model.centers[idx, :])
+    labels = _nearest(X, model.centers[idx, :], metric)
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
 
-_assign(::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
-    _assign_nearest(cc, model, t, id_var)
+# k-means: nearest centroid under the SAME distance the fit used;
+# `assign_inputs` restriction is only meaningful for componentwise metrics.
+function _assign(m::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+    isnothing(cc.assign_inputs) || m.distance in RESTRICTABLE_METRICS ||
+        throw(ArgumentError("`assign_inputs` requires a componentwise metric ($(join(sort!(collect(RESTRICTABLE_METRICS)), ", "))); \"$(m.distance)\" defines its own use of the inputs"))
+    return _assign_nearest(cc, model, t, id_var; metric = CLUSTER_METRICS[m.distance](StringDict()))
+end
 
 _assign(::AffinityPropagationMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
     _assign_nearest(cc, model, t, id_var)

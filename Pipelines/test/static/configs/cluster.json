@@ -46,7 +46,9 @@
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
-      "seed": 1234
+      "seed": 1234,
+      "init": "kmpp",
+      "distance": "sqeuclidean"
     }
   },
   "kmeansAssign": {

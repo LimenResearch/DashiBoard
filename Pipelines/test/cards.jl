@@ -470,7 +470,76 @@ end
     # a custom metric defines its own use of the inputs: assign_inputs is refused
     bad = Node(Pipelines.Card(merge(hd, Dict("assign_inputs" => ["TEMP"]))))
     @test_throws ArgumentError Pipelines.train_evaljoin!(repo, bad, "ap_small" => "km_bad", "No")
+    # kmeans requires a Distances.jl semimetric: plain-function entries refused
+    kbad = Node(Pipelines.Card(Dict(
+        "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
+        "output" => "kvcluster",
+        "method_options" => Dict("classes" => 3, "seed" => 1234, "distance" => "halftemp"),
+    )))
+    @test_throws ArgumentError Pipelines.train_evaljoin!(repo, kbad, "ap_small" => "kv_bad", "No")
     delete!(Pipelines.CLUSTER_METRICS, "halftemp")
+
+    # kmeans triaged options: init algorithm + distance by registry name,
+    # fit and predict under the SAME distance
+    kvnode = Node(Pipelines.Card(Dict(
+        "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
+        "output" => "kvcluster",
+        "method_options" => Dict(
+            "classes" => 3, "seed" => 1234, "init" => "rand", "distance" => "cityblock",
+        ),
+    )))
+    Pipelines.train_evaljoin!(repo, kvnode, "ap_small" => "kv_clust", "No")
+    kvst = Pipelines.jlddeserialize(get_state(kvnode).content)
+    @test size(kvst.centers, 2) == 3
+    kvdf = DBInterface.execute(DataFrame, repo, "FROM kv_clust ORDER BY No")
+    exp_kv = [
+        argmin([sum(abs.(Xap[:, j] .- kvst.centers[:, k])) for k in axes(kvst.centers, 2)])
+            for j in axes(Xap, 2)
+    ]
+    @test kvdf.kvcluster == exp_kv
+
+    # kmedoids mirrored init enum
+    krnode = Node(Pipelines.Card(merge(d["kmedoids"], Dict(
+        "method_options" => Dict("classes" => 3, "seed" => 1234, "init" => "rand"),
+    ))))
+    Pipelines.train_evaljoin!(repo, krnode, "ap_small" => "km_rand", "No")
+    krst = Pipelines.jlddeserialize(get_state(krnode).content)
+    @test size(krst.centers, 2) == 3
+    @test all(k -> any(j -> krst.centers[:, k] == Xap[:, j], axes(Xap, 2)), axes(krst.centers, 2))
+
+    # dbscan metric: fit and nearest-core predict under the same metric;
+    # non-true metrics are refused (the KD-trees need the triangle inequality)
+    dcnode = Node(Pipelines.Card(merge(d["dbscan"], Dict(
+        "method_options" => Dict("radius" => 0.02, "metric" => "cityblock"),
+        "output" => "dbcb",
+    ))))
+    Pipelines.train_evaljoin!(repo, dcnode, "ap_small" => "db_cb", "No")
+    dcst = Pipelines.jlddeserialize(get_state(dcnode).content)
+    dcdf = DBInterface.execute(DataFrame, repo, "FROM db_cb ORDER BY No")
+    exp_dc = [
+        begin
+            ds = [sum(abs.(Xap[:, j] .- dcst.core_points[:, k])) for k in axes(dcst.core_points, 2)]
+            k = isempty(ds) ? 0 : argmin(ds)
+            (k != 0 && ds[k] <= dcst.radius) ? dcst.core_label[k] : 0
+        end
+            for j in axes(Xap, 2)
+    ]
+    @test dcdf.dbcb == exp_dc
+    dbad = Node(Pipelines.Card(merge(d["dbscan"], Dict(
+        "method_options" => Dict("radius" => 0.02, "metric" => "sqeuclidean"),
+    ))))
+    @test_throws ArgumentError Pipelines.train_evaljoin!(repo, dbad, "ap_small" => "db_bad", "No")
+
+    # affinity propagation preference_rule: the resolved preference is kept
+    # in the state — exact plumbing check, convergence-independent
+    svals = vec([-sum(abs2, Xap[:, i] .- Xap[:, j]) for i in axes(Xap, 2), j in axes(Xap, 2)])
+    @test apst.preference ≈ median(svals)
+    mnode = Node(Pipelines.Card(merge(d["affinity"], Dict(
+        "method_options" => Dict("preference_rule" => "min"),
+    ))))
+    Pipelines.train_evaljoin!(repo, mnode, "ap_small" => "ap_min", "No")
+    mst = Pipelines.jlddeserialize(get_state(mnode).content)
+    @test mst.preference ≈ minimum(svals)
 end
 
 @testset "dimensionality reduction" begin

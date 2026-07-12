@@ -4,8 +4,6 @@ StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
 
 StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))
 
-_lower(x) = StructUtils.lower(DashiStyle(), x)
-
 construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
 
 function get_dashi(nt::NamedTuple, sym::Symbol)
@@ -14,9 +12,9 @@ function get_dashi(nt::NamedTuple, sym::Symbol)
 end
 
 _instances(::Type{T}) where {T <: Enum} = instances(T)
-_instances(::Type{Union{T, Nothing}}) where {T <: Enum} = _instances(T)
+_instances(::Type{Union{T, Nothing}}) where {T <: Enum} = instances(T)
 
-enum_instances(T::Type) = collect(Iterators.map(_lower, _instances(T)))
+enum_instances(T::Type) = String[StructUtils.lower(DashiStyle(), x) for x in _instances(T)]
 
 # generic schema utils
 
@@ -34,8 +32,8 @@ function schema_from_type(T::Type)
         (T <: Union{AbstractVector, Nothing}) ? "array" :
         (T <: Union{Enum, Nothing}) ? "string" :
         nothing
-
     isnothing(type) || (schema["type"] = type)
+
     (T <: Union{Enum, Nothing}) && (schema["enum"] = enum_instances(T))
 
     return schema
@@ -44,7 +42,7 @@ end
 function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default)
     schema = schema_from_type(T)
 
-    isnothing(default) || (schema["default"] = _lower(default))
+    isnothing(default) || (schema["default"] = StructUtils.lower(DashiStyle(), default))
     isnothing(config) || merge!(schema, config)
 
     required = isnothing(default) && !(Nothing <: T)
@@ -115,7 +113,7 @@ function options_schema(::Type{T}; additionalProperties::Bool = false) where {T}
     return json_object(; properties, additionalProperties, required)
 end
 
-function full_conditional_options_schemas(d::AbstractDict; default = nothing)
+function conditional_options_schema(d::AbstractDict; default = nothing)
     allOf = StringDict[]
     for (k, T) in pairs(d)
         schema = options_schema(T)

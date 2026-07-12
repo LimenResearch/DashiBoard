@@ -1,9 +1,4 @@
-function israndomeffect end
-
-product_term(x::Union{String, Number}) = term(x)
-product_term(x::AbstractVector) = mapfoldl(term, *, x)
-
-composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
+# Formula schema
 
 function formula_schema()
     properties = StringDict(
@@ -12,28 +7,6 @@ function formula_schema()
     )
     required = ["target", "inputs"]
     return json_object(; properties, additionalProperties = false, required)
-end
-
-function to_term_list(t::AbstractTerm)
-    return t isa ConstantTerm ? t.n :
-        t isa Term ? termnames(term) :
-        t isa InteractionTerm ? termnames(term.terms) :
-        throw(ArgumentError("Unsupported term type $(typeof(t))"))
-end
-
-function lower_formula(f::FormulaTerm)::StringDict
-    rhs = f.rhs isa AbstractTerm ? (f.rhs,) : f.rhs
-    target::String = termnames(f.lhs)
-    inputs = Any[to_term_list(t) for t in f.rhs]
-    return StringDict("inputs" => inputs, "target" => target)
-end
-
-function lift_formula(c::AbstractDict)::FormulaTerm
-    inputs::Vector{Any} = c["inputs"]
-    target::String = c["target"]
-    lhs = term(target)
-    rhs = composite_term(inputs)
-    return lhs ~ rhs
 end
 
 function mixed_formula_schema()
@@ -47,14 +20,42 @@ function mixed_formula_schema()
     return json_object(; properties, additionalProperties = false, required)
 end
 
-# TODO: fix for multiple terms in one random effect term
-function lower_mixed_formula(f::FormulaTerm)::StringDict
-    rhs = f.rhs isa AbstractTerm ? (f.rhs,) : f.rhs
+# Lower formula
+
+function israndomeffect end
+
+function flatten_terms(f, filter, ts)
+    return Iterators.flatmap(
+        Base.broadcastable ∘ f,
+        Iterators.filter(filter, Base.broadcastable(ts))
+    )
+end
+
+get_all_terms(ts) = flatten_terms(identity, Returns(true), ts)
+
+get_fixed_effect_terms(ts) = flatten_terms(identity, !israndomeffect, ts)
+get_random_effect_terms(ts) = flatten_terms(t -> t.lhs, israndomeffect, ts)
+get_grouping_factors(ts) = flatten_terms(t -> t.rhs, israndomeffect, ts)
+
+function to_term_list(t::AbstractTerm)
+    return t isa ConstantTerm ? t.n :
+        t isa Term ? termnames(t) :
+        t isa InteractionTerm ? termnames(t.terms) :
+        throw(ArgumentError("Unsupported term type $(typeof(t))"))
+end
+
+function lower_formula(f::FormulaTerm)::StringDict
     target::String = termnames(f.lhs)
-    fixed_effect_terms = Any[to_term_list(t.lhs) for t in rhs if !israndomeffect(t)]
-    random_effect_terms = Any[to_term_list(t.lhs) for t in rhs if israndomeffect(t)]
-    grouping_factors = Any[termnames(t.rhs) for t in rhs if israndomeffect(t)]
-    isempty(grouping_factor) && throw(ArgumentError("No grouping factor found"))
+    inputs = to_term_list.(get_all_terms(f.rhs))
+    return StringDict("inputs" => inputs, "target" => target)
+end
+
+function lower_mixed_formula(f::FormulaTerm)::StringDict
+    target::String = termnames(f.lhs)
+    fixed_effect_terms = to_term_list.(get_fixed_effect_terms(f.rhs))
+    random_effect_terms = to_term_list.(get_random_effect_terms(f.rhs))
+    grouping_factors = termnames.(get_grouping_factors(f.rhs))
+    isempty(grouping_factors) && throw(ArgumentError("No grouping factor found"))
     allequal(grouping_factors) || throw(ArgumentError("Multiple grouping factor found"))
     grouping_factor = first(grouping_factors)
     return StringDict(
@@ -63,6 +64,21 @@ function lower_mixed_formula(f::FormulaTerm)::StringDict
         "grouping_factor" => grouping_factor,
         "target" => target,
     )
+end
+
+# Lift formula
+
+product_term(x::Union{String, Number}) = term(x)
+product_term(x::AbstractVector) = mapfoldl(term, *, x)
+
+composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
+
+function lift_formula(c::AbstractDict)::FormulaTerm
+    inputs::Vector{Any} = c["inputs"]
+    target::String = c["target"]
+    lhs = term(target)
+    rhs = composite_term(inputs)
+    return lhs ~ rhs
 end
 
 function lift_mixed_formula(c::AbstractDict)::FormulaTerm
@@ -77,6 +93,8 @@ end
 
 StructUtils.structlike(::DashiStyle, ::Type{<:FormulaTerm}) = false
 
+# Distribution
+
 const NOISE_MODELS = OrderedDict(
     "normal" => Normal(),
     "binomial" => Binomial(),
@@ -90,6 +108,8 @@ function StructUtils.lift(::DashiStyle, ::Type{Distribution}, k::AbstractString)
 end
 
 StructUtils.lower(::DashiStyle, d::Distribution) = findfirst(==(d), NOISE_MODELS)
+
+# Link
 
 const LINK_TYPES = OrderedDict(
     "cauchit" => CauchitLink,
@@ -112,15 +132,11 @@ function StructUtils.lower(::DashiStyle, l::Link)
     return findfirst(Fix1(isa, l), LINK_TYPES)
 end
 
+# GLM cards
+
 abstract type AbstractGLMCard <: StandardCard end
 
 function has_grouping_factor end
-
-struct MixedInputs
-    fixed_effect_terms::Vector{Any}
-    random_effect_terms::Vector{Any}
-    grouping_factor::String
-end
 
 is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
 
@@ -143,8 +159,9 @@ target_var(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
 output_var(gc::AbstractGLMCard) = join_names(target_var(gc), gc.suffix)
 
 function SourceVariables(gc::AbstractGLMCard)
+    input_terms = union(flatten_terms(terms, Returns(true), gc.formula.rhs))
     return SourceVariables(;
-        inputs = termnames.(filter(isterm, terms(gc.formula.rhs))),
+        inputs = termnames.(filter(isterm, input_terms)),
         targets = [target_var(gc)],
         gc.weights, gc.partition
     )

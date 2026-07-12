@@ -23,7 +23,7 @@ macro options(T, methods, default = nothing)
         end
 
         function Pipelines.schema_from_type(::Type{$(esc(T))})
-            return full_conditional_options_schemas($(esc(methods)), default = $(esc(default)))
+            return conditional_options_schema($(esc(methods)), default = $(esc(default)))
         end
 
         StructUtils.lower(::DashiStyle, c::$(esc(T))) = get_metadata(c, $(esc(methods)))

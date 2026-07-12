@@ -15,6 +15,27 @@
       "preference": 0.0
     }
   },
+  "kmedoids": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "kmcluster",
+    "method": "kmedoids",
+    "method_options": {
+      "classes": 3,
+      "seed": 1234
+    }
+  },
+  "kmedoidsChebyshev": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "kmcluster",
+    "method": "kmedoids",
+    "method_options": {
+      "classes": 3,
+      "seed": 1234,
+      "metric": "chebyshev"
+    }
+  },
   "kmeans": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES", "Iws"],

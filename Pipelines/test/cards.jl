@@ -427,6 +427,50 @@ end
     apo = DBInterface.execute(DataFrame, repo, "FROM approbes_out ORDER BY No")
     @test apo.apcluster[1] == 1
     @test apo.apcluster[2] in 1:K
+
+    # k-medoids: medoids are fitted points; assignment is nearest medoid
+    # under the card's metric (the CLUSTER_METRICS registry)
+    kmnode = Node(Pipelines.Card(d["kmedoids"]))
+    Pipelines.train_evaljoin!(repo, kmnode, "ap_small" => "km_clust", "No")
+    kmst = Pipelines.jlddeserialize(get_state(kmnode).content)
+    @test size(kmst.centers, 2) == 3
+    @test kmst.converged isa Bool
+    @test all(k -> any(j -> kmst.centers[:, k] == Xap[:, j], axes(Xap, 2)), axes(kmst.centers, 2))
+    kmdf = DBInterface.execute(DataFrame, repo, "FROM km_clust ORDER BY No")
+    exp_km = [argmin(vec(sum(abs2, Xap[:, j] .- kmst.centers; dims = 1))) for j in axes(Xap, 2)]
+    @test kmdf.kmcluster == exp_km
+
+    # the chosen metric drives both the fit and the assignment
+    chnode = Node(Pipelines.Card(d["kmedoidsChebyshev"]))
+    Pipelines.train_evaljoin!(repo, chnode, "ap_small" => "km_cheb", "No")
+    chst = Pipelines.jlddeserialize(get_state(chnode).content)
+    chdf = DBInterface.execute(DataFrame, repo, "FROM km_cheb ORDER BY No")
+    exp_ch = [
+        argmin([maximum(abs.(Xap[:, j] .- chst.centers[:, k])) for k in axes(chst.centers, 2)])
+            for j in axes(Xap, 2)
+    ]
+    @test chdf.kmcluster == exp_ch
+
+    # the registry is open to plain functions, e.g. halving TEMP's weight
+    Pipelines.CLUSTER_METRICS["halftemp"] = _ -> (u, v) -> abs(u[1] - v[1]) / 2 + abs(u[2] - v[2])
+    hd = Dict(
+        "type" => "cluster", "method" => "kmedoids", "inputs" => ["TEMP", "PRES"],
+        "output" => "kmcluster",
+        "method_options" => Dict("classes" => 3, "seed" => 1234, "metric" => "halftemp"),
+    )
+    hnode = Node(Pipelines.Card(hd))
+    Pipelines.train_evaljoin!(repo, hnode, "ap_small" => "km_half", "No")
+    hst = Pipelines.jlddeserialize(get_state(hnode).content)
+    hdf = DBInterface.execute(DataFrame, repo, "FROM km_half ORDER BY No")
+    exp_h = [
+        argmin([abs(Xap[1, j] - hst.centers[1, k]) / 2 + abs(Xap[2, j] - hst.centers[2, k]) for k in axes(hst.centers, 2)])
+            for j in axes(Xap, 2)
+    ]
+    @test hdf.kmcluster == exp_h
+    # a custom metric defines its own use of the inputs: assign_inputs is refused
+    bad = Node(Pipelines.Card(merge(hd, Dict("assign_inputs" => ["TEMP"]))))
+    @test_throws ArgumentError Pipelines.train_evaljoin!(repo, bad, "ap_small" => "km_bad", "No")
+    delete!(Pipelines.CLUSTER_METRICS, "halftemp")
 end
 
 @testset "dimensionality reduction" begin

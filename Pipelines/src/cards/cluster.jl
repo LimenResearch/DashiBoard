@@ -70,13 +70,88 @@ function (m::AffinityPropagationMethod)(X; weights)
     return (; centers = X[:, res.exemplars], res.converged)
 end
 
+"""
+    CLUSTER_METRICS
+
+Open lookup table of dissimilarity metrics for the matrix-based clustering
+methods (currently `kmedoids`): maps a name to a constructor
+`options::AbstractDict -> metric`, where the metric is any callable
+`(u, v) -> Real` (Distances.jl metrics are callable and get the fast
+`pairwise` path). Register custom metrics the same way methods are
+registered — configuration lives behind the name, as it does for
+streamliner's model configs and the window-function closures. A suggested
+convention for parameterized metrics, until options can travel in the card,
+is a name stating the configuration:
+
+    CLUSTER_METRICS["space_time_k60"] = _ -> SpaceTimeMetric(60.0)
+
+The card selects it with `"metric": "space_time_k60"`. Constructors are
+currently always called with the default (empty) options — TODO: once the
+schema system can express object-valued fields (schema rework in progress;
+window_function.jl carries the same limitation as a TODO), add
+`metric_options` to the metric-based method structs and pass it here, so
+parameters move from the registered name into the card.
+"""
+const CLUSTER_METRICS = OrderedDict{String, Any}(
+    "euclidean" => _ -> Euclidean(),
+    "sqeuclidean" => _ -> SqEuclidean(),
+    "cityblock" => _ -> Cityblock(),
+    "chebyshev" => _ -> Chebyshev(),
+)
+
+# componentwise metrics, the only ones `assign_inputs` can restrict
+# meaningfully — a custom metric defines its own use of the inputs
+const RESTRICTABLE_METRICS = Set(["euclidean", "sqeuclidean", "cityblock", "chebyshev"])
+
+_dissimilarities(metric::PreMetric, X::AbstractMatrix, C::AbstractMatrix) =
+    pairwise(metric, C, X, dims = 2)                                        # K×N
+_dissimilarities(metric, X::AbstractMatrix, C::AbstractMatrix) =
+    [metric(view(C, :, k), view(X, :, j)) for k in axes(C, 2), j in axes(X, 2)]
+
+"""
+    KMedoidsMethod <: ClusteringMethod
+
+k-medoids (`"method" => "kmedoids"`, Clustering.jl `kmedoids`): like k-means
+with `classes` predeclared, but the cluster centers are medoids — actual
+fitted points minimizing the total dissimilarity to their cluster's members —
+and the dissimilarity is pluggable: `metric` names an entry of
+[`CLUSTER_METRICS`](@ref), so custom coupling functions (e.g. space–time)
+can drive the clustering. The pairwise
+dissimilarity matrix is built densely: the fit is O(N²) in the training
+rows. With a `seed` the k-means++ seeding is drawn from a seeded generator,
+making the fit reproducible. Evaluation assigns each row to the nearest
+medoid under the SAME metric — the method's own rule; ties go to the
+earliest-fitted medoid.
+"""
+@kwarg struct KMedoidsMethod <: ClusteringMethod
+    classes::Int & (dashi = StringDict("minimum" => 1),)
+    iterations::Int = 200 & (dashi = StringDict("minimum" => 1),)
+    tol::Float64 = 1.0e-8 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
+    metric::String = "euclidean"
+end
+
+function (m::KMedoidsMethod)(X; weights)
+    (; classes, iterations, tol, seed) = m
+    isnothing(weights) || @warn "Weights not supported in k-medoids"
+    # TODO: pass the card's `metric_options` once the schema system can
+    # express object-valued fields (see CLUSTER_METRICS)
+    metric = CLUSTER_METRICS[m.metric](StringDict())
+    D = _dissimilarities(metric, X, X)
+    init = isnothing(seed) ? :kmpp :
+        initseeds_by_costs(:kmpp, D, classes; rng = get_rng(seed))
+    res = kmedoids(D, classes; maxiter = iterations, tol, init)
+    res.converged || @warn "k-medoids did not converge; increase `iterations`"
+    return (; centers = X[:, res.medoids], res.converged)
+end
+
 const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "kmeans" => KMeansMethod,
     "dbscan" => DBSCANMethod,
     "affinity_propagation" => AffinityPropagationMethod,
+    "kmedoids" => KMedoidsMethod,
 )
 
-# TODO: support custom metrics
 """
     struct ClusterCard <: Card
         type::String
@@ -159,11 +234,12 @@ SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.p
 OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 
 # The trained "model" retained (serialized) for evaluation, per method.
-# k-means keeps its centroids and affinity propagation its exemplar points —
-# both centers-shaped; dbscan keeps its core points (plus the fit labels and
-# ids as the record of the fit).
+# k-means, affinity propagation and k-medoids keep their centers (centroids /
+# exemplar points / medoid points); dbscan keeps its core points (plus the
+# fit labels and ids as the record of the fit).
 _model(::KMeansMethod, res, t, id_var) = (; centers = res.centers)          # features×K
 _model(::AffinityPropagationMethod, res, t, id_var) = (; res.centers, res.converged)  # features×K
+_model(::KMedoidsMethod, res, t, id_var) = (; res.centers, res.converged)   # features×K
 _model(::DBSCANMethod, res, t, id_var) = (;
     res.label,
     id = t[id_var],
@@ -265,6 +341,22 @@ _assign(::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
 
 _assign(::AffinityPropagationMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
     _assign_nearest(cc, model, t, id_var)
+
+# k-medoids: nearest medoid under the SAME metric the fit used (ties to the
+# earliest-fitted medoid). Restricting dimensions is only meaningful for the
+# componentwise built-in metrics; a custom metric defines its own use of the
+# inputs, so `assign_inputs` is rejected there.
+function _assign(m::KMedoidsMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+    isnothing(cc.assign_inputs) || m.metric in RESTRICTABLE_METRICS ||
+        throw(ArgumentError("`assign_inputs` requires a componentwise metric ($(join(sort!(collect(RESTRICTABLE_METRICS)), ", "))); \"$(m.metric)\" defines its own use of the inputs"))
+    ai = something(cc.assign_inputs, cc.inputs)
+    idx = Vector{Int}(indexin(ai, cc.inputs))        # medoid rows for the assign dims
+    X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
+    metric = CLUSTER_METRICS[m.metric](StringDict())
+    D = _dissimilarities(metric, X, model.centers[idx, :])
+    labels = [argmin(view(D, :, j)) for j in axes(D, 2)]
+    return SimpleTable(id_var => t[id_var], cc.output => labels)
+end
 
 (cc::ClusterCard)(model, t, id_var::AbstractPrimaryKey) =
     _assign(cc.clusterer, cc, model, t, id_var)

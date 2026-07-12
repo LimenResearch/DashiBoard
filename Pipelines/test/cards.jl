@@ -474,7 +474,7 @@ end
     kbad = Node(Pipelines.Card(Dict(
         "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
         "output" => "kvcluster",
-        "method_options" => Dict("classes" => 3, "seed" => 1234, "distance" => "halftemp"),
+        "method_options" => Dict("classes" => 3, "seed" => 1234, "metric" => "halftemp"),
     )))
     @test_throws ArgumentError Pipelines.train_evaljoin!(repo, kbad, "ap_small" => "kv_bad", "No")
     delete!(Pipelines.CLUSTER_METRICS, "halftemp")
@@ -485,7 +485,7 @@ end
         "type" => "cluster", "method" => "kmeans", "inputs" => ["TEMP", "PRES"],
         "output" => "kvcluster",
         "method_options" => Dict(
-            "classes" => 3, "seed" => 1234, "init" => "rand", "distance" => "cityblock",
+            "classes" => 3, "seed" => 1234, "init" => "rand", "metric" => "cityblock",
         ),
     )))
     Pipelines.train_evaljoin!(repo, kvnode, "ap_small" => "kv_clust", "No")

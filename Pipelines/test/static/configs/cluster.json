@@ -48,7 +48,7 @@
       "tol": 1e-6,
       "seed": 1234,
       "init": "kmpp",
-      "distance": "sqeuclidean"
+      "metric": "sqeuclidean"
     }
   },
   "kmeansAssign": {

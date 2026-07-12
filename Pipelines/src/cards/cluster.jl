@@ -4,13 +4,13 @@ abstract type ClusteringMethod end
     KMeansMethod <: ClusteringMethod
 
 k-means (`"method" => "kmeans"`). `init` picks the seeding algorithm and
-`distance` the semimetric by [`CLUSTER_METRICS`](@ref) name (a Distances.jl
+`metric` the semimetric by [`CLUSTER_METRICS`](@ref) name (a Distances.jl
 semimetric is required; plain-function registry entries are for `kmedoids`).
 The default, squared Euclidean, is the canonical k-means objective — with
 any other semimetric the center update remains the arithmetic mean, which is
 only the true minimizer under squared Euclidean, so the fit becomes a
 reasonable heuristic without the usual convergence guarantee. Evaluation
-assigns each row to the nearest fitted centroid under the SAME distance.
+assigns each row to the nearest fitted centroid under the SAME metric.
 """
 @kwarg struct KMeansMethod <: ClusteringMethod
     classes::Int & (dashi = StringDict("minimum" => 1),)
@@ -18,16 +18,14 @@ assigns each row to the nearest fitted centroid under the SAME distance.
     tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
     seed::Union{Int, Nothing} = nothing & (dashi = StringDict("minimum" => 0),)
     init::String = "kmpp" & (dashi = StringDict("enum" => ["kmpp", "rand", "kmcen"]),)
-    distance::String = "sqeuclidean"
+    metric::String = "sqeuclidean"
 end
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
-    # TODO: pass the card's `metric_options` once the schema system can
-    # express object-valued fields (see CLUSTER_METRICS)
-    metric = CLUSTER_METRICS[m.distance](StringDict())
+    metric = _cluster_metric(m.metric)
     metric isa SemiMetric || throw(ArgumentError(
-        "kmeans requires a Distances.jl semimetric; \"$(m.distance)\" is a plain-function metric (usable by kmedoids)"
+        "kmeans requires a Distances.jl semimetric; \"$(m.metric)\" is a plain-function metric (usable by kmedoids)"
     ))
     return kmeans(
         X, classes;
@@ -44,23 +42,23 @@ name restricted to true metrics — the KD-trees behind both the fit and the
 nearest-core predict require the triangle inequality, so `sqeuclidean` and
 plain-function entries are refused. Fit and predict use the SAME metric.
 """
+# true metrics only: KD-trees (Clustering's dbscan fit and our
+# _nearest_within predict) rely on the triangle inequality
+const DBSCAN_METRICS = ["euclidean", "cityblock", "chebyshev"]
+
 @kwarg struct DBSCANMethod <: ClusteringMethod
     radius::Float64 & (dashi = StringDict("exclusiveMinimum" => 0),)
     min_neighbors::Int = 1 & (dashi = StringDict("minimum" => 1),)
     min_cluster_size::Int = 1 & (dashi = StringDict("minimum" => 1),)
-    metric::String = "euclidean" & (dashi = StringDict("enum" => ["euclidean", "cityblock", "chebyshev"]),)
+    metric::String = "euclidean" & (dashi = StringDict("enum" => DBSCAN_METRICS),)
 end
-
-# true metrics only: KD-trees (Clustering's dbscan fit and our
-# _nearest_within predict) rely on the triangle inequality
-const DBSCAN_METRICS = Set(["euclidean", "cityblock", "chebyshev"])
 
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
     m.metric in DBSCAN_METRICS ||
-        throw(ArgumentError("dbscan requires a true metric ($(join(sort!(collect(DBSCAN_METRICS)), ", "))); got \"$(m.metric)\""))
-    metric = CLUSTER_METRICS[m.metric](StringDict())
+        throw(ArgumentError("dbscan requires a true metric ($(join(DBSCAN_METRICS, ", "))); got \"$(m.metric)\""))
+    metric = _cluster_metric(m.metric)
     res = dbscan(X, radius; metric, min_neighbors, min_cluster_size)
     # core points and their clusters, the state DBSCAN's own border rule
     # needs to label rows at evaluation time
@@ -80,8 +78,10 @@ Affinity propagation (`"method" => "affinity_propagation"`): points exchange
 messages until a set of exemplars — actual fitted points — emerges, so the
 number of clusters comes from the data instead of being predeclared.
 `preference` (each point's self-similarity; more negative → fewer clusters)
-defaults to the median of the pairwise similarities; `damp`, `maxiter` and
-`tol` control the message passing. The similarity matrix is the negative
+defaults to the value `preference_rule` picks from the pairwise
+similarities — their `"median"` (moderate number of clusters, the sklearn
+convention) or their `"min"` (fewer); `damp`, `maxiter` and `tol` control
+the message passing. The similarity matrix is the negative
 squared Euclidean distance over the card's `inputs`, built densely: the fit
 is O(N²) in the training rows. Evaluation assigns each row to the nearest
 exemplar — affinity propagation's own assignment rule, so training rows
@@ -121,24 +121,20 @@ end
 """
     CLUSTER_METRICS
 
-Open lookup table of dissimilarity metrics for the matrix-based clustering
-methods (currently `kmedoids`): maps a name to a constructor
-`options::AbstractDict -> metric`, where the metric is any callable
-`(u, v) -> Real` (Distances.jl metrics are callable and get the fast
-`pairwise` path). Register custom metrics the same way methods are
-registered — configuration lives behind the name, as it does for
+Open lookup table behind every method's metric option: maps a name to a
+constructor `options::AbstractDict -> metric`. It is the single source —
+each method then narrows what it accepts: `kmedoids` takes any callable
+`(u, v) -> Real`, `kmeans` requires a Distances.jl semimetric, `dbscan` a
+true metric (see `DBSCAN_METRICS`). Distances.jl metrics are callable and
+get the fast `pairwise` path. Register custom metrics the same way methods
+are registered — configuration lives behind the name, as it does for
 streamliner's model configs and the window-function closures. A suggested
 convention for parameterized metrics, until options can travel in the card,
 is a name stating the configuration:
 
     CLUSTER_METRICS["space_time_k60"] = _ -> SpaceTimeMetric(60.0)
 
-The card selects it with `"metric": "space_time_k60"`. Constructors are
-currently always called with the default (empty) options — TODO: once the
-schema system can express object-valued fields (schema rework in progress;
-window_function.jl carries the same limitation as a TODO), add
-`metric_options` to the metric-based method structs and pass it here, so
-parameters move from the registered name into the card.
+The card selects it with `"metric": "space_time_k60"`.
 """
 const CLUSTER_METRICS = OrderedDict{String, Any}(
     "euclidean" => _ -> Euclidean(),
@@ -147,10 +143,37 @@ const CLUSTER_METRICS = OrderedDict{String, Any}(
     "chebyshev" => _ -> Chebyshev(),
 )
 
+# TODO: pass the card's `metric_options` once the schema system can express
+# object-valued fields (schema rework in progress; window_function.jl
+# carries the same limitation as a TODO) — until then constructors always
+# receive the default (empty) options and parameters live in the registered
+# name.
+function _cluster_metric(name::AbstractString)
+    haskey(CLUSTER_METRICS, name) || throw(ArgumentError(
+        "unknown cluster metric \"$name\"; available: $(join(keys(CLUSTER_METRICS), ", ")) — register custom metrics in `Pipelines.CLUSTER_METRICS`"
+    ))
+    return CLUSTER_METRICS[name](StringDict())
+end
+
 # componentwise metrics, the only ones `assign_inputs` can restrict
 # meaningfully — a custom metric defines its own use of the inputs
 const RESTRICTABLE_METRICS = Set(["euclidean", "sqeuclidean", "cityblock", "chebyshev"])
 
+function _check_restrictable(assign_inputs, name::AbstractString)
+    isnothing(assign_inputs) || name in RESTRICTABLE_METRICS || throw(ArgumentError(
+        "`assign_inputs` requires a componentwise metric ($(join(sort!(collect(RESTRICTABLE_METRICS)), ", "))); \"$name\" defines its own use of the inputs"
+    ))
+    return
+end
+
+"""
+    _dissimilarities(metric, X, C)
+
+The dense dissimilarity matrix between the columns of `C` (d×K) and the
+columns of `X` (d×N), oriented K×N — one row per `C` column. Distances.jl
+metrics take the BLAS-backed `pairwise` path; any other callable
+`(u, v) -> Real` is applied pairwise.
+"""
 _dissimilarities(metric::PreMetric, X::AbstractMatrix, C::AbstractMatrix) =
     pairwise(metric, C, X, dims = 2)                                        # K×N
 _dissimilarities(metric, X::AbstractMatrix, C::AbstractMatrix) =
@@ -164,9 +187,9 @@ with `classes` predeclared, but the cluster centers are medoids — actual
 fitted points minimizing the total dissimilarity to their cluster's members —
 and the dissimilarity is pluggable: `metric` names an entry of
 [`CLUSTER_METRICS`](@ref), so custom coupling functions (e.g. space–time)
-can drive the clustering. The pairwise
-dissimilarity matrix is built densely: the fit is O(N²) in the training
-rows. With a `seed` the k-means++ seeding is drawn from a seeded generator,
+can drive the clustering. The pairwise dissimilarity matrix is built
+densely: the fit is O(N²) in the training rows. With a `seed`, the chosen
+`init` seeding is drawn from a seeded generator (`initseeds_by_costs`),
 making the fit reproducible. Evaluation assigns each row to the nearest
 medoid under the SAME metric — the method's own rule; ties go to the
 earliest-fitted medoid.
@@ -183,9 +206,7 @@ end
 function (m::KMedoidsMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
     isnothing(weights) || @warn "Weights not supported in k-medoids"
-    # TODO: pass the card's `metric_options` once the schema system can
-    # express object-valued fields (see CLUSTER_METRICS)
-    metric = CLUSTER_METRICS[m.metric](StringDict())
+    metric = _cluster_metric(m.metric)
     D = _dissimilarities(metric, X, X)
     init = isnothing(seed) ? Symbol(m.init) :
         initseeds_by_costs(Symbol(m.init), D, classes; rng = get_rng(seed))
@@ -217,16 +238,18 @@ Cluster `inputs` based on `clusterer`.
 Save resulting column as `output`.
 
 Evaluation labels rows with the fitted state, so a trained card can label rows
-outside the training set: `kmeans` and `affinity_propagation` assign each row
-to the nearest fitted center (centroid / exemplar); `dbscan` assigns each row
-to the cluster of the nearest fitted core point within `radius` — its own
-border rule — and to noise (0) beyond it, so rows far from every fitted
-cluster stay visible as noise instead of being absorbed. Assignment is
+outside the training set: `kmeans`, `affinity_propagation` and `kmedoids`
+assign each row to the nearest fitted center (centroid / exemplar / medoid),
+`kmeans` and `kmedoids` under the SAME metric as their fit; `dbscan` assigns
+each row to the cluster of the nearest fitted core point within `radius` —
+its own border rule — and to noise (0) beyond it, so rows far from every
+fitted cluster stay visible as noise instead of being absorbed. Assignment is
 single-label: a row equidistant from several centers or core points is
 deterministically resolved to the earliest-fitted one. `assign_inputs` (a
 subset of `inputs`, defaulting to all of them) selects which dimensions the
 assignment distance uses — e.g. cluster on space and time but assign on space
-only.
+only; it is only allowed with componentwise metrics — a custom metric defines
+its own use of the inputs and rejects it.
 """
 struct ClusterCard <: StandardCard
     type::String
@@ -290,8 +313,8 @@ _model(::KMeansMethod, res, t, id_var) = (; centers = res.centers)          # fe
 _model(::AffinityPropagationMethod, res, t, id_var) = (; res.centers, res.converged, res.preference)  # features×K
 _model(::KMedoidsMethod, res, t, id_var) = (; res.centers, res.converged)   # features×K
 _model(::DBSCANMethod, res, t, id_var) = (;
-    res.label,
-    id = t[id_var],
+    res.label,           # fit labels: unread by evaluation, retained with the
+    id = t[id_var],      # ids as the provenance record of the fit
     res.core_points,                                                        # features×n_core
     res.core_label,
     res.radius,
@@ -307,25 +330,27 @@ end
 """
     _nearest(X, C, metric = SqEuclidean())
 
-Assign each column of `X` (d×N) to the nearest of the K centroid columns of
-`C` (d×K) under `metric`, ties to the smallest column index (`argmin`
-returns the first minimum). Uses `Distances.pairwise` — the predict
-recommended in Clustering.jl#63, BLAS-backed for the default, and Distances
-is already in the dependency tree via Clustering itself.
+Assign each column of `X` (d×N) to the nearest of the K center columns of
+`C` (d×K) under `metric` — any [`CLUSTER_METRICS`](@ref) entry — with ties
+to the smallest column index (`argmin` returns the first minimum).
+Distances.jl metrics take the BLAS-backed `pairwise` path (the predict
+recommended in Clustering.jl#63; Distances is already in the dependency
+tree via Clustering itself).
 """
-function _nearest(X::AbstractMatrix, C::AbstractMatrix, metric::PreMetric = SqEuclidean())
-    D = pairwise(metric, C, X, dims = 2)   # K×N
+function _nearest(X::AbstractMatrix, C::AbstractMatrix, metric = SqEuclidean())
+    D = _dissimilarities(metric, X, C)   # K×N
     return [argmin(view(D, :, j)) for j in axes(D, 2)]
 end
 
 """
-    _nearest_within(X, C, labels, radius)
+    _nearest_within(X, C, labels, radius, metric = Euclidean())
 
 The cluster of the nearest of the `C` columns within `radius` of each `X`
 column (`labels[k]` is column k's cluster), 0 beyond the radius — DBSCAN's
-own border rule, applied out of sample. A KD-tree shortlists the columns
-within `radius` (the same structure the dbscan fit itself builds), so the
-scan is over neighbors instead of every core point.
+own border rule, applied out of sample under the same `metric` as the fit.
+A KD-tree shortlists the columns within `radius` (the same structure the
+dbscan fit itself builds), so the scan is over neighbors instead of every
+core point.
 
 Assignment is single-label, so exact distance ties must collapse to one
 winner: the smallest column index (i.e. the earliest-fitted core point)
@@ -365,7 +390,7 @@ function _assign(m::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPri
     ai = something(cc.assign_inputs, cc.inputs)
     idx = Vector{Int}(indexin(ai, cc.inputs))        # core rows for the assign dims
     X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
-    metric = CLUSTER_METRICS[m.metric](StringDict())
+    metric = _cluster_metric(m.metric)
     labels = _nearest_within(X, model.core_points[idx, :], model.core_label, model.radius, metric)
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
@@ -375,9 +400,10 @@ end
 
 Label each row with the nearest of the fitted centers (`model.centers`,
 features×K) under `metric` over `assign_inputs` — the shared predict of the
-centers-shaped methods (k-means centroids, affinity-propagation exemplars).
+centers-shaped methods: k-means centroids, affinity-propagation exemplars,
+k-medoids medoids. Ties go to the earliest-fitted center (see `_nearest`).
 """
-function _assign_nearest(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey; metric::PreMetric = SqEuclidean())
+function _assign_nearest(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey; metric = SqEuclidean())
     ai = something(cc.assign_inputs, cc.inputs)
     idx = Vector{Int}(indexin(ai, cc.inputs))        # center rows for the assign dims
     X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
@@ -385,32 +411,19 @@ function _assign_nearest(cc::ClusterCard, model, t, id_var::AbstractPrimaryKey; 
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
 
-# k-means: nearest centroid under the SAME distance the fit used;
-# `assign_inputs` restriction is only meaningful for componentwise metrics.
+# k-means and k-medoids: nearest center under the SAME metric the fit used.
 function _assign(m::KMeansMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
-    isnothing(cc.assign_inputs) || m.distance in RESTRICTABLE_METRICS ||
-        throw(ArgumentError("`assign_inputs` requires a componentwise metric ($(join(sort!(collect(RESTRICTABLE_METRICS)), ", "))); \"$(m.distance)\" defines its own use of the inputs"))
-    return _assign_nearest(cc, model, t, id_var; metric = CLUSTER_METRICS[m.distance](StringDict()))
+    _check_restrictable(cc.assign_inputs, m.metric)
+    return _assign_nearest(cc, model, t, id_var; metric = _cluster_metric(m.metric))
+end
+
+function _assign(m::KMedoidsMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
+    _check_restrictable(cc.assign_inputs, m.metric)
+    return _assign_nearest(cc, model, t, id_var; metric = _cluster_metric(m.metric))
 end
 
 _assign(::AffinityPropagationMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey) =
     _assign_nearest(cc, model, t, id_var)
-
-# k-medoids: nearest medoid under the SAME metric the fit used (ties to the
-# earliest-fitted medoid). Restricting dimensions is only meaningful for the
-# componentwise built-in metrics; a custom metric defines its own use of the
-# inputs, so `assign_inputs` is rejected there.
-function _assign(m::KMedoidsMethod, cc::ClusterCard, model, t, id_var::AbstractPrimaryKey)
-    isnothing(cc.assign_inputs) || m.metric in RESTRICTABLE_METRICS ||
-        throw(ArgumentError("`assign_inputs` requires a componentwise metric ($(join(sort!(collect(RESTRICTABLE_METRICS)), ", "))); \"$(m.metric)\" defines its own use of the inputs"))
-    ai = something(cc.assign_inputs, cc.inputs)
-    idx = Vector{Int}(indexin(ai, cc.inputs))        # medoid rows for the assign dims
-    X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
-    metric = CLUSTER_METRICS[m.metric](StringDict())
-    D = _dissimilarities(metric, X, model.centers[idx, :])
-    labels = [argmin(view(D, :, j)) for j in axes(D, 2)]
-    return SimpleTable(id_var => t[id_var], cc.output => labels)
-end
 
 (cc::ClusterCard)(model, t, id_var::AbstractPrimaryKey) =
     _assign(cc.clusterer, cc, model, t, id_var)
@@ -436,6 +449,8 @@ function CardWidget(
         method_dependent_widgets(c, "method", config.methods),
         [
             Widget("weights", c, visible = "method" => support_weights, required = false),
+            # every method honors assign_inputs; the visible kwarg only
+            # hides the field until a method is picked
             Widget("assign_inputs", c, visible = "method" => methods, required = false),
             Widget("partition", c, required = false),
             Widget("output", c),

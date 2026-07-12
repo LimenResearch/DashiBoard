@@ -330,12 +330,12 @@ end
 """
     _nearest(X, C, metric = SqEuclidean())
 
-Assign each column of `X` (d×N) to the nearest of the K center columns of
-`C` (d×K) under `metric` — any [`CLUSTER_METRICS`](@ref) entry — with ties
-to the smallest column index (`argmin` returns the first minimum).
-Distances.jl metrics take the BLAS-backed `pairwise` path (the predict
-recommended in Clustering.jl#63; Distances is already in the dependency
-tree via Clustering itself).
+Index of the nearest of the K columns of `C` (d×K) for each column of `X`
+(d×N) under `metric` — any [`CLUSTER_METRICS`](@ref) entry — with exact
+distance ties going to the smallest column index (`argmin` returns the
+first minimum). Distances.jl metrics take the BLAS-backed `pairwise` path
+(the predict recommended in Clustering.jl#63; Distances is already in the
+dependency tree via Clustering itself).
 """
 function _nearest(X::AbstractMatrix, C::AbstractMatrix, metric = SqEuclidean())
     D = _dissimilarities(metric, X, C)   # K×N
@@ -343,29 +343,29 @@ function _nearest(X::AbstractMatrix, C::AbstractMatrix, metric = SqEuclidean())
 end
 
 """
-    _nearest_within(X, C, labels, radius, metric = Euclidean())
+    _nearest_within_radius(X, C, radius, metric::Metric = Euclidean())
 
-The cluster of the nearest of the `C` columns within `radius` of each `X`
-column (`labels[k]` is column k's cluster), 0 beyond the radius — DBSCAN's
-own border rule, applied out of sample under the same `metric` as the fit.
-A KD-tree shortlists the columns within `radius` (the same structure the
-dbscan fit itself builds), so the scan is over neighbors instead of every
-core point.
+Like [`_nearest`](@ref), but only columns of `C` within `radius` are
+admissible: points with none in reach get index 0 — DBSCAN's own border
+rule, applied out of sample. A KD-tree shortlists the columns within
+`radius` (the same structure the dbscan fit itself builds), so the scan is
+over neighbors instead of every reference point; KD-trees need the
+triangle inequality, hence the `Metric` restriction.
 
 Assignment is single-label, so exact distance ties must collapse to one
-winner: the smallest column index (i.e. the earliest-fitted core point)
-wins. The rule matters because the KD-tree returns its shortlist in
-traversal order, which would otherwise decide ties as an implementation
-accident — and ties are common under discrete-valued or single-dimension
-`assign_inputs`. It also keeps results identical to a full left-to-right
-scan. Rows with non-finite coordinates stay 0.
+winner: the smallest column index (i.e. the earliest-fitted reference
+point) wins. The explicit rule matters because the KD-tree returns its
+shortlist in traversal order, which would otherwise decide ties as an
+implementation accident — and ties are common under discrete-valued or
+single-dimension `assign_inputs`. It also keeps results identical to a
+full left-to-right scan. Rows with non-finite coordinates stay 0.
 """
-function _nearest_within(
-        X::AbstractMatrix, C::AbstractMatrix, labels::Vector{Int}, radius::Real,
+function _nearest_within_radius(
+        X::AbstractMatrix, C::AbstractMatrix, radius::Real,
         metric::Metric = Euclidean(),
     )
     out = zeros(Int, size(X, 2))
-    isempty(labels) && return out
+    size(C, 2) == 0 && return out
     Cf = convert(Matrix{Float64}, C)
     finite = [j for j in axes(X, 2) if all(isfinite, view(X, :, j))]
     Xq = convert(Matrix{Float64}, X[:, finite])
@@ -378,7 +378,7 @@ function _nearest_within(
                 best, bestk = s, k
             end
         end
-        bestk == 0 || (out[j] = labels[bestk])
+        out[j] = bestk
     end
     return out
 end
@@ -416,7 +416,8 @@ function _assign(m::DBSCANMethod, cc::ClusterCard, model, t, id_var::AbstractPri
     idx = Vector{Int}(indexin(ai, cc.inputs))        # core rows for the assign dims
     X = stack(Fix1(getindex, t), ai, dims = 1)       # d×N in `ai` order
     metric = _cluster_metric(m.metric)
-    labels = _nearest_within(X, model.core_points[idx, :], model.core_label, model.radius, metric)
+    ks = _nearest_within_radius(X, model.core_points[idx, :], model.radius, metric)
+    labels = [k == 0 ? 0 : model.core_label[k] for k in ks]
     return SimpleTable(id_var => t[id_var], cc.output => labels)
 end
 

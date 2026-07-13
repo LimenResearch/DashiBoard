@@ -32,7 +32,11 @@ end
 StructUtils.structlike(::DashiStyle, ::Type{<:Model}) = false
 
 function StructUtils.lift(::DashiStyle, ::Type{Model}, d::AbstractDict)
-    return get_streamliner_model(d), nothing
+    return if isassigned(MODEL_DIR)
+        get_streamliner_model(d), nothing
+    else
+        Model(PARSER[], d), nothing
+    end
 end
 
 StructUtils.lower(::DashiStyle, model::Model) = SC.get_metadata(model)
@@ -54,7 +58,11 @@ end
 StructUtils.structlike(::DashiStyle, ::Type{<:Training}) = false
 
 function StructUtils.lift(::DashiStyle, ::Type{Training}, d::AbstractDict)
-    return get_streamliner_training(d), nothing
+    return if isassigned(TRAINING_DIR)
+        get_streamliner_training(d), nothing
+    else
+        Training(PARSER[], d), nothing
+    end
 end
 
 StructUtils.lower(::DashiStyle, training::Training) = SC.get_metadata(training)
@@ -78,7 +86,11 @@ function StructUtils.lift(::DashiStyle, ::Type{Funnel}, d::AbstractDict)
     return get_streamliner_funnel(d), nothing
 end
 
-StructUtils.lower(::DashiStyle, funnel::Funnel) = SC.get_metadata(funnel)
+function StructUtils.lower(::DashiStyle, funnel::Funnel)
+    d = SC.get_metadata(funnel)
+    d["type"] = findfirst(Fix1(isa, funnel), PARSER[].funnels)
+    return d
+end
 
 ## Streamliner Card
 

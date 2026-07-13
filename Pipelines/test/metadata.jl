@@ -126,9 +126,8 @@ end
     for k in ["type", "partition", "distribution", "link"]
         @test metadata[k] == config[k]
     end
-    for k in ["inputs", "target"]
-        @test metadata["formula"][k] == config["formula"][k]
-    end
+    @test metadata["formula"]["target"] == "TEMP"
+    @test metadata["formula"]["inputs"] == [1, "cbwd", "year", "No", ["cbwd", "year"]]
     @test metadata["suffix"] == "hat"
     @test isnothing(metadata["weights"])
     card2 = Pipelines.Card(metadata)
@@ -140,12 +139,13 @@ end
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
     @test metadata["type"] == config["type"]
-    for k in ["fixed_effect_terms", "random_effect_terms", "grouping_factor", "target"]
-        @test metadata["formula"][k] == config["formula"][k]
-    end
+    @test metadata["formula"]["fixed_effect_terms"] == [1, "year"]
+    @test metadata["formula"]["random_effect_terms"] == [1]
+    @test metadata["formula"]["grouping_factor"] == "cbwd"
+    @test metadata["formula"]["target"] == "TEMP"
     @test metadata["distribution"] == "normal"
+    @test metadata["link"] == "identity"
     @test metadata["suffix"] == "hat"
-    @test isnothing(metadata["link"])
     @test isnothing(metadata["weights"])
     @test isnothing(metadata["partition"])
     card2 = Pipelines.Card(metadata)
@@ -168,7 +168,7 @@ end
     end
     @test metadata["suffix"] == "hat"
     card2 = Pipelines.Card(metadata)
-    @test card.interpolator == card2.interpolator
+    @test card.method == card2.method
 end
 
 @testset "metadata gaussian encoding" begin
@@ -185,7 +185,7 @@ end
         @test metadata[k] == config[k]
     end
     card2 = Pipelines.Card(metadata)
-    @test card.temporal_preprocessor == card2.temporal_preprocessor
+    @test card.method == card2.method
 end
 
 @testset "metadata streamliner" begin
@@ -193,7 +193,7 @@ end
 
     config = d["basic"]
     config["group_by"] = String[]
-    config["funnel"] = ""
+    config["funnel"]["type"] = ""
 
     model_dir = joinpath(@__DIR__, "static", "model")
     training_dir = joinpath(@__DIR__, "static", "training")
@@ -202,25 +202,24 @@ end
         card = Pipelines.Card(config)
 
         metadata = Pipelines.get_metadata(card)
-        fields = [
-            "type", "order_by", "partition", "suffix",
-            "model", "training", "funnel",
-        ]
-        for k in fields
+        for k in ["type", "partition", "suffix"]
             @test metadata[k] == config[k]
         end
-        @test metadata["model_metadata"] == StreamlinerCore.get_metadata(card.model)
-        @test metadata["training_metadata"] == StreamlinerCore.get_metadata(card.training)
-        @test metadata["order_by"] == ["No"]
-        @test metadata["inputs"] == [
-            Dict("colname" => "TEMP", "transform" => ""),
-            Dict("colname" => "PRES", "transform" => ""),
-        ]
-        @test isnothing(metadata["input_paths"])
-        @test metadata["targets"] == [Dict("colname" => "Iws", "transform" => "")]
-        @test isnothing(metadata["target_paths"])
-        card2 = Pipelines.Card(metadata)
+        @test metadata["model"] == StreamlinerCore.get_metadata(card.model)
+        @test metadata["training"] == StreamlinerCore.get_metadata(card.training)
+        @test metadata["funnel"] == Dict(
+            "type" => "",
+            "order_by" => ["No"],
+            "inputs" => [
+                Dict("colname" => "TEMP", "transform" => ""),
+                Dict("colname" => "PRES", "transform" => ""),
+            ],
+            "input_paths" => nothing,
+            "targets" => [Dict("colname" => "Iws", "transform" => "")],
+            "target_paths" => nothing
+        )
     end
+    card2 = Pipelines.Card(metadata)
     @test metadata == Pipelines.get_metadata(card2)
 end
 

@@ -44,6 +44,9 @@ function to_term_list(t::AbstractTerm)
         throw(ArgumentError("Unsupported term type $(typeof(t))"))
 end
 
+# Note: a round-trip will add individual terms in presence
+# of an interaction term
+# TODO: decide on a correct serialization format
 function lower_formula(f::FormulaTerm)::StringDict
     target::String = termnames(f.lhs)
     inputs = to_term_list.(get_all_terms(f.rhs))

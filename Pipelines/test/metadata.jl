@@ -16,7 +16,7 @@ end
     for k in ["type", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
-    @test metadata["method"] == Dict("name" => "percentile", "percentile" => 0.9)
+    @test metadata["method"] == Dict("type" => "percentile", "percentile" => 0.9)
     card2 = Pipelines.Card(metadata)
     test_equal_splitters(card.method, card2.method)
 
@@ -27,7 +27,7 @@ end
         @test metadata[k] == config[k]
     end
     @test metadata["method"] == Dict(
-        "name" => "tiles",
+        "type" => "tiles",
         "tiles" => [1, 1, 2, 1, 1, 2],
         "repeat" => 1,
         "tail" => 0
@@ -42,7 +42,7 @@ end
         @test metadata[k] == config[k]
     end
     @test metadata["method"] == Dict(
-        "name" => "tiles",
+        "type" => "tiles",
         "tiles" => [1, 1, 2],
         "repeat" => 2,
         "tail" => 1
@@ -85,12 +85,12 @@ end
     config = d["kmeans"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "inputs", "output", "method_options"]
+    for k in ["type", "method", "inputs", "output"]
         @test metadata[k] == config[k]
     end
     @test isnothing(metadata["partition"])
     card2 = Pipelines.Card(metadata)
-    @test card.clusterer == card2.clusterer
+    @test card.method == card2.method
 end
 
 @testset "metadata dimensionality reduction" begin
@@ -103,19 +103,18 @@ end
         @test metadata[k] == config[k]
     end
     @test metadata["output"] == "component"
-    @test isempty(metadata["method_options"])
     card2 = Pipelines.Card(metadata)
-    @test card.projector == card2.projector
+    @test card.method == card2.method
 
     config = d["ppca"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "inputs", "n_components", "method_options", "partition"]
+    for k in ["type", "method", "inputs", "n_components", "partition"]
         @test metadata[k] == config[k]
     end
     @test metadata["output"] == "component"
     card2 = Pipelines.Card(metadata)
-    @test card.projector == card2.projector
+    @test card.method == card2.method
 end
 
 @testset "metadata glm" begin
@@ -124,8 +123,11 @@ end
     config = d["hasPartition"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "inputs", "target", "partition", "distribution", "link"]
+    for k in ["type", "partition", "distribution", "link"]
         @test metadata[k] == config[k]
+    end
+    for k in ["inputs", "target"]
+        @test metadata["formula"][k] == config["formula"][k]
     end
     @test metadata["suffix"] == "hat"
     @test isnothing(metadata["weights"])
@@ -137,8 +139,9 @@ end
     config = d["isMixed"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "fixed_effect_terms", "random_effect_terms", "grouping_factor", "target"]
-        @test metadata[k] == config[k]
+    @test metadata["type"] == config["type"]
+    for k in ["fixed_effect_terms", "random_effect_terms", "grouping_factor", "target"]
+        @test metadata["formula"][k] == config["formula"][k]
     end
     @test metadata["distribution"] == "normal"
     @test metadata["suffix"] == "hat"
@@ -158,7 +161,7 @@ end
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
     fields = [
-        "type", "method", "input", "targets", "partition", "method_options",
+        "type", "method", "input", "targets", "partition",
     ]
     for k in fields
         @test metadata[k] == config[k]

@@ -5,7 +5,7 @@
         "inputs" => [Dict("-s" => "vars"), Dict("-j" => ["component", Dict("-r" => 3)]), "TEMP"],
         "output" => "cluster",
         "method" => Dict(
-            "name" => "kmeans",
+            "type" => "kmeans",
             "classes" => Dict("-v" => "nc"),
             "iterations" => 100,
             "tol" => 1.0e-6,
@@ -19,7 +19,7 @@
     d = TOML.parse(
         """
         type = "cluster"
-        method = {name = "kmeans", classes = {"-v" = "nclasses"}}
+        method = {type = "kmeans", classes = {"-v" = "nclasses"}}
         inputs = [
             {"-j" = ["component", {"-r" = 3}]},
             {"-j" = [["wind", "temperature"], ["10m", "20m"]]},

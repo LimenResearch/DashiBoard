@@ -136,8 +136,8 @@ end
     _pipeline_schema_validate(schema, m_basic, from_metadata = false)
     _pipeline_schema_validate(schema, m_classifier, from_metadata = false)
 
-    pop!(m_basic, "model_metadata")
-    pop!(m_classifier, "training_metadata")
+    pop!(m_basic, "model")
+    pop!(m_classifier, "training")
 
     _pipeline_schema_invalidate(schema, m_basic)
     _pipeline_schema_invalidate(schema, m_classifier)

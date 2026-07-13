@@ -21,17 +21,66 @@ function parse_properties(dir, x)::Vector{StringDict}
     return get(c, "properties", StringDict[])
 end
 
+## Model, Training, and Funnel implementations
+
 function get_streamliner_model(config::AbstractDict)
-    model_name::String = config["name"]
+    model_name::String = config["type"]
     model = parse_without_widgets(MODEL_DIR[], model_name)
     return Model(PARSER[], model, config)
 end
 
+StructUtils.structlike(::DashiStyle, ::Type{<:Model}) = false
+
+function StructUtils.lift(::DashiStyle, ::Type{Model}, d::AbstractDict)
+    return get_streamliner_model(d), nothing
+end
+
+StructUtils.lower(::DashiStyle, model::Model) = SC.get_metadata(model)
+
+function schema_from_type(::Type{Model})
+    return if isassigned(MODEL_DIR)
+        conditional_streamliner_schema(MODEL_DIR[], "model")
+    else
+        json_object() # TODO: here and in `Training` decide more carefull how to distinguish between the two cases
+    end
+end
+
 function get_streamliner_training(config::AbstractDict)
-    training_name::String = config["name"]
+    training_name::String = config["type"]
     training = parse_without_widgets(TRAINING_DIR[], training_name)
     return Training(PARSER[], training, config)
 end
+
+StructUtils.structlike(::DashiStyle, ::Type{<:Training}) = false
+
+function StructUtils.lift(::DashiStyle, ::Type{Training}, d::AbstractDict)
+    return get_streamliner_training(d), nothing
+end
+
+StructUtils.lower(::DashiStyle, training::Training) = SC.get_metadata(training)
+
+function schema_from_type(::Type{Training})
+    return if isassigned(TRAINING_DIR)
+        conditional_streamliner_schema(TRAINING_DIR[], "training")
+    else
+        json_object()
+    end
+end
+
+function get_streamliner_funnel(config::AbstractDict)
+    funnel_name::String = get(config, "type", "")
+    return PARSER[].funnels[funnel_name](config)
+end
+
+StructUtils.structlike(::DashiStyle, ::Type{<:Funnel}) = false
+
+function StructUtils.lift(::DashiStyle, ::Type{Funnel}, d::AbstractDict)
+    return get_streamliner_funnel(d), nothing
+end
+
+StructUtils.lower(::DashiStyle, funnel::Funnel) = SC.get_metadata(funnel)
+
+## Streamliner Card
 
 """
     struct StreamlinerCard <: Card
@@ -47,38 +96,12 @@ Run a Streamliner model, predicting `targets` from `inputs`.
 @kwarg struct StreamlinerCard{M <: Model, T <: Training, F <: Funnel} <: StreamingCard
     model::M
     training::T
-    funnel::F
-    partition::Union{String, Nothing} = nothing
-    suffix::String = "hat"
+    funnel::F & (dashi = type_schema(PARSER[].funnels, additionalProperties = true, default = ""),) # TODO: make more specific
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
-function get_metadata(sc::StreamlinerCard)
-    d = StringDict(
-        "model" => sc.model_name,
-        "model_metadata" => SC.get_metadata(sc.model),
-        "training" => sc.training_name,
-        "training_metadata" => SC.get_metadata(sc.training),
-        "partition" => sc.partition,
-        "suffix" => sc.suffix,
-    )
-    d["funnel"] = sc.funnel_name
-    merge!(d, SC.get_metadata(sc.funnel))
-    return d
-end
-
-function StreamlinerCard(c::AbstractDict)
-    model_config::StringDict = c["model"]
-    model = get_streamliner_model(model_config)
-    training_config::StringDict = c["training"]
-    training = get_streamliner_training(training_config)
-    funnel_name::String = get(c, "funnel", "")
-    funnel = PARSER[].funnels[funnel_name](c)
-
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    suffix::String = get(c, "suffix", "hat")
-
-    return StreamlinerCard(model, training, funnel, partition, suffix)
-end
+StreamlinerCard(c::AbstractDict) = construct(StreamlinerCard, c)
 
 ## StreamingCard interface
 

@@ -1,15 +1,15 @@
 struct DashiStyle <: StructUtils.StructStyle end
 
-StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
-
-StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))
-
-construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
-
 function get_dashi(nt::NamedTuple, sym::Symbol)
     s = get(nt, sym, nothing)
     return isnothing(s) ? nothing : get(s, :dashi, nothing)
 end
+
+construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
+
+StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
+
+StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))
 
 _instances(::Type{T}) where {T <: Enum} = instances(T)
 _instances(::Type{Union{T, Nothing}}) where {T <: Enum} = instances(T)
@@ -68,19 +68,6 @@ end
 
 function conditional_schema(condition::AbstractDict, schema::AbstractDict)
     return StringDict("if" => condition, "then" => schema)
-end
-
-function conditional_schema(
-        (method_key, method_name)::Pair{<:AbstractString, <:AbstractString},
-        (options_key, options_schema)::Pair{<:AbstractString, <:AbstractDict},
-    )
-    condition = match_property(method_key => method_name)
-    properties = StringDict(options_key => options_schema)
-    # If at least one property of `options_schema` is required,
-    # then `options_schema` is required
-    required = isempty(options_schema["required"]) ? String[] : String[options_key]
-    schema = json_config(; properties, required)
-    return conditional_schema(condition, schema)
 end
 
 function one_or_many_schema(schema::AbstractDict; kwargs...)
@@ -155,7 +142,7 @@ function streamliner_schema(configs::AbstractVector; additionalProperties::Bool 
 end
 
 # Compute schemas used for model or training in Streamliner,
-# e.g., `conditional_streamliner_schemas(model_dir, model_names, "model")`
+# e.g., `conditional_streamliner_schemas(model_dir, "model")`
 function conditional_streamliner_schema(dir, name)
     vals = available_streamliner_configs(dir)
     d = OrderedDict{String, Vector{StringDict}}(x => parse_properties(dir, x) for x in vals)

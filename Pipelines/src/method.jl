@@ -2,7 +2,7 @@
 
 abstract type AbstractMethod end
 
-function lift_method(
+function choose_method(
         config::AbstractDict, methods::AbstractDict;
         default::Union{AbstractString, Nothing} = nothing
     )
@@ -15,8 +15,6 @@ function lift_method(
     return M
 end
 
-lower_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), methods))
-
 function get_metadata(c::AbstractMethod, methods::AbstractDict)
     d = construct(StringDict, c)
     d["type"] = findfirst(Fix1(isa, c), methods)
@@ -28,12 +26,12 @@ end
 macro options(T, methods, default = nothing)
     return quote
         function StructUtils.make(::DashiStyle, ::Type{$(esc(T))}, c)
-            S = lift_method(c, $(esc(methods)), default = $(esc(default)))
+            S = choose_method(c, $(esc(methods)), default = $(esc(default)))
             return StructUtils.make(DashiStyle(), S, c)
         end
 
         function StructUtils.make(::DashiStyle, ::Type{$(esc(T))}, c, tags)
-            S = lift_method(c, $(esc(methods)), default = $(esc(default)))
+            S = choose_method(c, $(esc(methods)), default = $(esc(default)))
             return StructUtils.make(DashiStyle(), S, c, tags)
         end
 
@@ -44,3 +42,15 @@ macro options(T, methods, default = nothing)
         StructUtils.lower(::DashiStyle, c::$(esc(T))) = get_metadata(c, $(esc(methods)))
     end
 end
+
+# Machinery for simple methods (essentially, enum)
+# TODO: consider how to standardize various method implementations
+
+function lift_simple_method(
+        config::AbstractDict, methods::AbstractDict;
+        default::Union{AbstractString, Nothing} = nothing
+    )
+    return choose_method(config, methods; default)
+end
+
+lower_simple_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), methods))

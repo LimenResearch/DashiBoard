@@ -95,8 +95,6 @@ Interpolate `targets` based on `input`.
     suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
-InterpCard(c::AbstractDict) = construct(InterpCard, c)
-
 ## StandardCard interface
 
 function SourceVariables(ic::InterpCard)

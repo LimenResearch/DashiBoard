@@ -83,8 +83,6 @@ Save resulting column as `output`.
     output::String = "cluster" & (dashi = json_string(minLength = 1),)
 end
 
-ClusterCard(c::AbstractDict) = construct(ClusterCard, c)
-
 ## StandardCard interface
 
 SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.partition)

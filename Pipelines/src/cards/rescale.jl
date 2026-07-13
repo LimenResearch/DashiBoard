@@ -116,8 +116,6 @@ The resulting rescaled variable is added to the table under the name
     target_suffix::Union{String, Nothing} = nothing & (dashi = json_string(minLength = 1),)
 end
 
-RescaleCard(c::AbstractDict) = construct(RescaleCard, c)
-
 ## SQLCard interface
 
 invertible(::RescaleCard) = true

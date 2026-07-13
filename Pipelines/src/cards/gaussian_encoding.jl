@@ -90,18 +90,27 @@ Evaluate:
     n_components::Int & (dashi = json_integer(minimum = 1),)
     lambda::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0),)
     suffix::String = "gaussian" & (dashi = json_string(minLength = 1),)
+
+    function GaussianEncodingCard{M}(
+            method::M, input::AbstractString, n_components::Integer,
+            lambda::Real, suffix::AbstractString
+        ) where {M <: TemporalProcessingMethod}
+        if n_components ≤ 0
+            msg = """
+            `n_components` must be greater than `0`.
+            Provided value: `$(n_components)`.
+            """
+            throw(ArgumentError(msg))
+        end
+        new{M}(method, input, n_components, lambda, suffix)
+    end
 end
 
-function GaussianEncodingCard(c::AbstractDict)
-    gec = construct(GaussianEncodingCard, c)
-    if gec.n_components ≤ 0
-        msg = """
-        `n_components` must be greater than `0`.
-        Provided value: `$(gec.n_components)`.
-        """
-        throw(ArgumentError(msg))
-    end
-    return gec
+function GaussianEncodingCard(
+        method::M, input::AbstractString, n_components::Integer,
+        lambda::Real, suffix::AbstractString
+    ) where {M <: TemporalProcessingMethod}
+    return GaussianEncodingCard{M}(method, input, n_components, lambda, suffix)
 end
 
 ## SQLCard interface

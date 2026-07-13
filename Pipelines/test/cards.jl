@@ -642,7 +642,7 @@ end
         for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
             c = deepcopy(base_fields)
             c["method"]["type"] = k
-            card = GaussianEncodingCard(c)
+            card = Card(c)
             _max = c["method"]["max"]
             @test card.method == v(_max)
         end
@@ -650,7 +650,7 @@ end
         invalid_method = "nonexistent_method"
         invalid_config = deepcopy(base_fields)
         invalid_config["method"]["type"] = invalid_method
-        @test_throws ArgumentError GaussianEncodingCard(invalid_config)
+        @test_throws ArgumentError Card(invalid_config)
 
         invalid_config = Dict(
             "type" => "gaussian_encoding",
@@ -659,7 +659,7 @@ end
             "method" => Dict("type" => "dayofyear", "max" => 365.0),
             "lambda" => 0.5
         )
-        @test_throws ArgumentError GaussianEncodingCard(invalid_config)
+        @test_throws ArgumentError Card(invalid_config)
     end
 
     function gauss_train_test(node::Node)

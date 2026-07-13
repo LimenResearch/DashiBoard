@@ -113,8 +113,6 @@ Run a Streamliner model, predicting `targets` from `inputs`.
     suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
-StreamlinerCard(c::AbstractDict) = construct(StreamlinerCard, c)
-
 ## StreamingCard interface
 
 function input_vars(sc::StreamlinerCard)

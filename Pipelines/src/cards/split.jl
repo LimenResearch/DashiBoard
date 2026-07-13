@@ -56,12 +56,19 @@ Currently supported methods are
     order_by::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,) # TODO: weaken requirement
     group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
     output::String = "partition" & (dashi = json_string(minLength = 1),)
+
+    function SplitCard{M}(
+            method::M, order_by::AbstractVector, group_by::AbstractVector, output::AbstractString
+        ) where {M <: SplittingMethod}
+        (method isa OrderedSplittingMethod) && isempty(order_by) && order_error()
+        new{M}(method, order_by, group_by, output)
+    end
 end
 
-function SplitCard(c::AbstractDict)
-    sc = construct(SplitCard, c)
-    (sc.method isa OrderedSplittingMethod) && isempty(sc.order_by) && order_error()
-    return sc
+function SplitCard(
+        method::M, order_by::AbstractVector, group_by::AbstractVector, output::AbstractString
+    ) where {M <: SplittingMethod}
+    return SplitCard{M}(method, order_by, group_by, output)
 end
 
 ## SQLCard interface

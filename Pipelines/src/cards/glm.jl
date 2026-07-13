@@ -201,8 +201,6 @@ end
 
 has_grouping_factor(::Type{GLMCard}) = false
 
-GLMCard(c::AbstractDict) = construct(GLMCard, c)
-
 function _train(gc::GLMCard, t, ::AbstractPrimaryKey)
     weights = isnothing(gc.weights) ? nothing : fweights(t[gc.weights])
     return train_glm(gc, t, LinearModel, GeneralizedLinearModel; weights)
@@ -241,8 +239,6 @@ To use this card, you must load the MixedModels.jl package first.
 end
 
 has_grouping_factor(::Type{MixedModelCard}) = true
-
-MixedModelCard(c::AbstractDict) = construct(MixedModelCard, c)
 
 function (gc::MixedModelCard)(model, t, id_var::AbstractPrimaryKey)
     M = modelmatrix(model)

@@ -53,49 +53,13 @@ Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
 ```
 """
 @kwarg struct WildCard{T} <: StandardCard
-    order_by::Vector{String}
+    order_by::Vector{String} = String[]
     inputs::Vector{String}
-    targets::Vector{String}
-    weights::Union{String, Nothing}
-    partition::Union{String, Nothing}
-    suffix::Union{String, Nothing}
-    outputs::Vector{String}
-end
-
-function WildCard{T}(c::AbstractDict) where {T}
-    type = card_type(WildCard{T})
-    (; needs_targets, needs_order) = get_spec(type).settings
-
-    # TODO: allow a `group_by` field as well?
-    order_by::Vector{String} = needs_order ? c["order_by"] : get(c, "order_by", String[])
-    inputs::Vector{String} = c["inputs"]
-
-    local targets::Vector{String}
-    local suffix::Union{String, Nothing}
-    local outputs::Vector{String}
-
-    if needs_targets
-        targets = c["targets"]
-        suffix = something(c["suffix"])
-        outputs = get(c, "outputs", join_names(targets, suffix))
-    else
-        targets = get(c, "targets", String[])
-        suffix = get(c, "suffix", nothing)
-        outputs = c["outputs"]
-    end
-
-    weights::Union{String, Nothing} = get(c, "weights", nothing)
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-
-    return WildCard{T}(;
-        order_by,
-        inputs,
-        targets,
-        weights,
-        partition,
-        suffix,
-        outputs,
-    )
+    targets::Vector{String} = String[]
+    weights::Union{String, Nothing} = nothing
+    partition::Union{String, Nothing} = nothing
+    suffix::Union{String, Nothing} = nothing
+    outputs::Vector{String} = join_names(targets, suffix)
 end
 
 ## StandardCard interface

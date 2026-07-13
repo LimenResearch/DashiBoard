@@ -29,8 +29,6 @@ Add new column with output of window function.
     output::String & (dashi = json_string(minLength = 1),)
 end
 
-WindowFunctionCard(c::AbstractDict) = construct(WindowFunctionCard, c)
-
 ## SQLCard interface
 
 SourceVariables(wfc::WindowFunctionCard) = SourceVariables(; wfc.order_by, wfc.group_by)

@@ -51,8 +51,6 @@ Save resulting column as `output`.
     output::String = "component" & (dashi = json_string(minLength = 1),)
 end
 
-DimensionalityReductionCard(c::AbstractDict) = construct(DimensionalityReductionCard, c)
-
 ## StandardCard interface
 
 output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_components)

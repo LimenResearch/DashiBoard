@@ -51,6 +51,11 @@ abstract type StandardCard <: Card end
 abstract type SQLCard <: Card end
 abstract type StreamingCard <: Card end
 
+function choose_card(d::AbstractDict)
+    type::String = d["type"]
+    return CARD_SPECS[type].type
+end
+
 """
     Card(d::AbstractDict)
 
@@ -100,9 +105,9 @@ julia> card.inputs
 ```
 """
 function Card(d::AbstractDict; adjust::Bool = false)
-    type::String = d["type"]
-    C = CARD_SPECS[type].type
-    return adjust ? C(adjust_config(C, d)) : C(d)
+    C = choose_card(d)
+    config = adjust ? adjust_config(C, d) : d
+    return construct(C, config)
 end
 
 """
@@ -313,12 +318,10 @@ end
 
 ## Construction and metadata helpers
 
+@choosetype DashiStyle Card choose_card
+
 card_type(c::Card)::String = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
 card_type(T::Type)::String = findfirst(spec -> (T <: spec.type), CARD_SPECS)
-
-choose_card(config::AbstractDict) = CARD_SPECS[config["type"]].type
-
-@choosetype DashiStyle Card choose_card
 
 function get_metadata(c::Card)
     d = construct(StringDict, c)

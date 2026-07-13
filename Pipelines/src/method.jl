@@ -3,10 +3,10 @@
 abstract type AbstractMethod end
 
 function choose_method(
-        config::AbstractDict, methods::AbstractDict;
+        d::AbstractDict, methods::AbstractDict;
         default::Union{AbstractString, Nothing} = nothing
     )
-    method::String = isnothing(default) ? config["type"] : get(config, "type", default)
+    method::String = isnothing(default) ? d["type"] : get(d, "type", default)
     M = get(methods, method, nothing)
     if isnothing(M)
         valid_methods = join(keys(methods), ", ")
@@ -47,10 +47,10 @@ end
 # TODO: consider how to standardize various method implementations
 
 function lift_simple_method(
-        config::AbstractDict, methods::AbstractDict;
+        d::AbstractDict, methods::AbstractDict;
         default::Union{AbstractString, Nothing} = nothing
     )
-    return choose_method(config, methods; default)
+    return choose_method(d, methods; default)
 end
 
 lower_simple_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), methods))

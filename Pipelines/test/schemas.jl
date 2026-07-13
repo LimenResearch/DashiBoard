@@ -5,8 +5,8 @@ vars = [
 split_vars = vcat(vars, ["partition"])
 time_vars = vcat(vars, ["date", "time"])
 
-function _filtered_metadata(c::AbstractDict)
-    return filter(!isnothing ∘ last, Pipelines.get_metadata(Card(c)))
+function _filtered_metadata(d::AbstractDict)
+    return filter(!isnothing ∘ last, Pipelines.get_metadata(Card(d)))
 end
 
 function _pipeline_schema_validate(schema, conf; from_metadata::Bool = true)

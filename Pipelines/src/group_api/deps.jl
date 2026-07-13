@@ -116,21 +116,21 @@ to_columns(d::AbstractDict, ps::Params) = try_structures(to_columns, d, ps)
 
 # Nested column computations
 
-function replace_placeholders(config::AbstractDict, ps::Params; recur::Bool = false)
-    x = to_columns(config, ps)
+function replace_placeholders(d::AbstractDict, ps::Params; recur::Bool = false)
+    x = to_columns(d, ps)
     isnothing(x) || return x
-    recur || return config
+    recur || return d
 
     res = Dict{String, Any}()
-    for (k, v) in pairs(config)
+    for (k, v) in pairs(d)
         res[k] = replace_placeholders(v, ps; recur)
     end
     return res
 end
 
-function replace_placeholders(config::AbstractVector, ps::Params; recur::Bool = false)
+function replace_placeholders(v::AbstractVector, ps::Params; recur::Bool = false)
     res = Any[]
-    for el in config
+    for el in v
         x = replace_placeholders(el, ps::Params; recur)
         # append if placeholder was replaced, else push
         if (el isa AbstractDict) && (x isa AbstractVector)

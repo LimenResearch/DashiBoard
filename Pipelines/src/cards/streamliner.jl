@@ -23,10 +23,10 @@ end
 
 ## Model, Training, and Funnel implementations
 
-function get_streamliner_model(config::AbstractDict)
-    model_name::String = config["type"]
+function get_streamliner_model(d::AbstractDict)
+    model_name::String = d["type"]
     model = parse_without_widgets(MODEL_DIR[], model_name)
-    return Model(PARSER[], model, config)
+    return Model(PARSER[], model, d)
 end
 
 StructUtils.structlike(::DashiStyle, ::Type{<:Model}) = false
@@ -49,10 +49,10 @@ function schema_from_type(::Type{Model})
     end
 end
 
-function get_streamliner_training(config::AbstractDict)
-    training_name::String = config["type"]
+function get_streamliner_training(d::AbstractDict)
+    training_name::String = d["type"]
     training = parse_without_widgets(TRAINING_DIR[], training_name)
-    return Training(PARSER[], training, config)
+    return Training(PARSER[], training, d)
 end
 
 StructUtils.structlike(::DashiStyle, ::Type{<:Training}) = false
@@ -75,9 +75,9 @@ function schema_from_type(::Type{Training})
     end
 end
 
-function get_streamliner_funnel(config::AbstractDict)
-    funnel_name::String = get(config, "type", "")
-    return PARSER[].funnels[funnel_name](config)
+function get_streamliner_funnel(d::AbstractDict)
+    funnel_name::String = get(d, "type", "")
+    return PARSER[].funnels[funnel_name](d)
 end
 
 StructUtils.structlike(::DashiStyle, ::Type{<:Funnel}) = false

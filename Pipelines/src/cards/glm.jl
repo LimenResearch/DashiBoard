@@ -76,19 +76,19 @@ product_term(x::AbstractVector) = mapfoldl(term, *, x)
 
 composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
 
-function lift_formula(c::AbstractDict)::FormulaTerm
-    inputs::Vector{Any} = c["inputs"]
-    target::String = c["target"]
+function lift_formula(d::AbstractDict)::FormulaTerm
+    inputs::Vector{Any} = d["inputs"]
+    target::String = d["target"]
     lhs = term(target)
     rhs = composite_term(inputs)
     return lhs ~ rhs
 end
 
-function lift_mixed_formula(c::AbstractDict)::FormulaTerm
-    fixed_effect_terms::Vector{Any} = c["fixed_effect_terms"]
-    random_effect_terms::Vector{Any} = c["random_effect_terms"]
-    grouping_factor::String = c["grouping_factor"]
-    target::String = c["target"]
+function lift_mixed_formula(d::AbstractDict)::FormulaTerm
+    fixed_effect_terms::Vector{Any} = d["fixed_effect_terms"]
+    random_effect_terms::Vector{Any} = d["random_effect_terms"]
+    grouping_factor::String = d["grouping_factor"]
+    target::String = d["target"]
     lhs = term(target)
     rhs = composite_term(fixed_effect_terms) + (composite_term(random_effect_terms) | term(grouping_factor))
     return lhs ~ rhs

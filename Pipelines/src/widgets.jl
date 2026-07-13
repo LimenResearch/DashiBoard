@@ -23,20 +23,20 @@ function default_value(widget, type, multiple)
 end
 
 function Widget(
-        conf::AbstractDict;
-        widget = conf["widget"],
-        key = conf["key"],
-        type = get(conf, "type", "text"),
-        label = get(conf, "label", ""),
-        placeholder = get(conf, "placeholder", ""),
-        multiple = get(conf, "multiple", false),
-        value = get(conf, "value", default_value(widget, type, multiple)),
-        min = get(conf, "min", nothing),
-        max = get(conf, "max", nothing),
-        step = get(conf, "step", nothing),
-        options = get(conf, "options", nothing),
-        visible = get(conf, "visible", true),
-        required = get(conf, "required", visible)
+        config::AbstractDict;
+        widget = config["widget"],
+        key = config["key"],
+        type = get(config, "type", "text"),
+        label = get(config, "label", ""),
+        placeholder = get(config, "placeholder", ""),
+        multiple = get(config, "multiple", false),
+        value = get(config, "value", default_value(widget, type, multiple)),
+        min = get(config, "min", nothing),
+        max = get(config, "max", nothing),
+        step = get(config, "step", nothing),
+        options = get(config, "options", nothing),
+        visible = get(config, "visible", true),
+        required = get(config, "required", visible)
     )
 
     (visible isa Bool) || (visible = StringDict(visible))
@@ -59,7 +59,7 @@ function Widget(
     )
 end
 
-Widget(key::AbstractString, c::AbstractDict; options...) = Widget(c[key]; key, options...)
+Widget(key::AbstractString, d::AbstractDict; options...) = Widget(d[key]; key, options...)
 
 function method_dependent_widgets(settings::AbstractDict, key::AbstractString, methods::AbstractDict)
     option_key = string(key, "_", "options")
@@ -109,9 +109,9 @@ end
     methods::StringDict = StringDict()
 end
 
-function CardWidgetConfigs(c::AbstractDict)
-    widget_configs::StringDict = c["widget_configs"]
-    methods::StringDict = get(c, "methods", StringDict())
+function CardWidgetConfigs(d::AbstractDict)
+    widget_configs::StringDict = d["widget_configs"]
+    methods::StringDict = get(d, "methods", StringDict())
     return CardWidgetConfigs(; widget_configs, methods)
 end
 

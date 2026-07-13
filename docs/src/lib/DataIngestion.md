@@ -28,7 +28,7 @@ DataIngestion.summarize
 
 ```@docs
 DataIngestion.Filter
-DataIngestion.Filter(c::AbstractDict)
+DataIngestion.Filter(d::AbstractDict)
 DataIngestion.select
 ```
 

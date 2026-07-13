@@ -10,7 +10,7 @@ function lift_method(
     M = get(methods, method, nothing)
     if isnothing(M)
         valid_methods = join(keys(methods), ", ")
-        throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
+        throw(ArgumentError("Found invalid method: '$method'. Valid methods: $valid_methods."))
     end
     return M
 end

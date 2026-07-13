@@ -19,7 +19,7 @@ function compute_mixed_formula(c::AbstractDict)
     inputs = MixedInputs(fixed_effect_terms, random_effect_terms, grouping_factor)
     target::String = c["target"]
     lhs = term(target)
-    rhs = composite_term(fixed_effect_terms) + composite_term(random_effect_terms) | term(grouping_factor)
+    rhs = composite_term(fixed_effect_terms) + (composite_term(random_effect_terms) | term(grouping_factor))
     formula::FormulaTerm = lhs ~ rhs
     return inputs, target, formula
 end

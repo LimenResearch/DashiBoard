@@ -495,7 +495,7 @@ end
         "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
-    m = lmm(@formula(TEMP ~ 1 + year + 1 | cbwd), train_df)
+    m = lmm(@formula(TEMP ~ 1 + year + (1 | cbwd)), train_df)
     @test predict(m, df) == df.TEMP_hat
 
     card = Pipelines.Card(d["isMixedHasWeights"])
@@ -509,7 +509,7 @@ end
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
     weights = train_df.Iws
-    m = lmm(@formula(TEMP ~ 1 + year + 1 | cbwd), train_df; weights)
+    m = lmm(@formula(TEMP ~ 1 + year + (1 | cbwd)), train_df; weights)
     @test predict(m, df) == df.TEMP_hat
 end
 

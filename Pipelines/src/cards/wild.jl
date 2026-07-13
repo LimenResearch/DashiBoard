@@ -62,10 +62,8 @@ Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
     outputs::Vector{String}
 end
 
-get_metadata(wc::WildCard) = construct(StringDict, wc)
-
 function WildCard{T}(c::AbstractDict) where {T}
-    type = card_name(WildCard{T})
+    type = card_type(WildCard{T})
     (; needs_targets, needs_order) = get_spec(type).settings
 
     # TODO: allow a `group_by` field as well?
@@ -130,11 +128,10 @@ end
 
 ## Card schema
 
-function wild_card_schema(settings::Any, key::AbstractString)
+function wild_card_schema(settings::Any)
     required = String["inputs"]
 
     properties = StringDict(
-        "type" => json_const(key),
         "inputs" => JSON_VARIABLES,
         "suffix" => json_string(minLength = 1)
     )

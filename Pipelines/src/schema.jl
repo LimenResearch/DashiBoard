@@ -186,7 +186,8 @@ end
 
 function json_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
     spec = get_spec(key)
-    schema::StringDict = options_schema(spec.type)
+    T = spec.type
+    schema::StringDict = (T <: WildCard) ? wild_card_schema(spec.settings) : options_schema(T)
     # set defaults if not provided by card schema implementation
     schema["properties"]["type"] = json_const(key)
     ("type" in schema["required"]) || push!(schema["required"], "type")

@@ -2,6 +2,21 @@
 
 abstract type AbstractMethod end
 
+function lift_method(
+        config::AbstractDict, methods::AbstractDict;
+        default::Union{AbstractString, Nothing} = nothing
+    )
+    method::String = isnothing(default) ? config["type"] : get(config, "type", default)
+    M = get(methods, method, nothing)
+    if isnothing(M)
+        valid_methods = join(keys(methods), ", ")
+        throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
+    end
+    return M
+end
+
+lower_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), methods))
+
 function get_metadata(c::AbstractMethod, methods::AbstractDict)
     d = construct(StringDict, c)
     d["type"] = findfirst(Fix1(isa, c), methods)

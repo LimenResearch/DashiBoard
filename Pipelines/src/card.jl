@@ -313,30 +313,15 @@ end
 
 ## Construction and metadata helpers
 
-card_name(c::Card) = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
-card_name(T::Type) = findfirst(spec -> (T <: spec.type), CARD_SPECS)
+card_type(c::Card)::String = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
+card_type(T::Type)::String = findfirst(spec -> (T <: spec.type), CARD_SPECS)
 
-card_type(config::AbstractDict) = CARD_SPECS[config["type"]].type
+choose_card(config::AbstractDict) = CARD_SPECS[config["type"]].type
 
-@choosetype DashiStyle Card card_type
-
-function lift_method(
-        config::AbstractDict, methods::AbstractDict;
-        default::Union{AbstractString, Nothing} = nothing
-    )
-    method::String = isnothing(default) ? config["type"] : get(config, "type", default)
-    M = get(methods, method, nothing)
-    if isnothing(M)
-        valid_methods = join(keys(methods), ", ")
-        throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
-    end
-    return M
-end
-
-lower_method(x, methods::AbstractDict) = StringDict("type" => findfirst(==(x), methods))
+@choosetype DashiStyle Card choose_card
 
 function get_metadata(c::Card)
     d = construct(StringDict, c)
-    d["type"] = card_name(c)
+    d["type"] = card_type(c)
     return d
 end

@@ -42,10 +42,13 @@ end
 StructUtils.lower(::DashiStyle, model::Model) = SC.get_metadata(model)
 
 function schema_from_type(::Type{Model})
+    # TODO: here and for `Training` decide more carefully
+    #  how to distinguish between the two cases
+    # Same for the lifting method
     return if isassigned(MODEL_DIR)
         conditional_streamliner_schema(MODEL_DIR[], "model")
     else
-        json_object() # TODO: here and in `Training` decide more carefull how to distinguish between the two cases
+        json_object()
     end
 end
 
@@ -108,7 +111,10 @@ Run a Streamliner model, predicting `targets` from `inputs`.
 @kwarg struct StreamlinerCard{M <: Model, T <: Training, F <: Funnel} <: StreamingCard
     model::M
     training::T
-    funnel::F & (dashi = type_schema(PARSER[].funnels, additionalProperties = true, default = ""),) # TODO: make more specific
+    funnel::F & (
+        # TODO: make schema more specific
+        dashi = type_schema(PARSER[].funnels, additionalProperties = true, default = ""),
+    )
     partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
     suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end

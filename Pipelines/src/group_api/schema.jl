@@ -1,7 +1,7 @@
 # schema definitions
 
-# schema for a {nodes: [..]}, {groups: [..]}, {cols: [..]}
-# with a potential `through` attribute
+# schema for a `{nodes: [...]}`, `{groups: [...]}`, `{cols: [...]}`
+# with a potential `through: [...]` attribute
 function deps_item_schema(; singular::Bool = false)
     minItems, maxItems = 1, singular ? 1 : nothing
 

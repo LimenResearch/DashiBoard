@@ -1,6 +1,7 @@
 abstract type ClusteringMethod <: AbstractMethod end
 
-@kwarg struct KMeansMethod <: ClusteringMethod
+@kwarg struct KMeansMethod{D <: DissimilarityMethod} <: ClusteringMethod
+    dissimilarity::D = SqEuclideanMethod()
     classes::Int & (dashi = json_integer(minimum = 1),)
     iterations::Int = 100 & (dashi = json_integer(minimum = 1),)
     tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
@@ -54,7 +55,7 @@ function (m::AffinityPropagationMethod)(X; weights)
     return res
 end
 
-const CLUSTERING_METHODS = OrderedDict{String, DataType}(
+const CLUSTERING_METHODS = OrderedDict{String, Type}(
     "kmeans" => KMeansMethod,
     "dbscan" => DBSCANMethod,
     "affinity_propagation" => AffinityPropagationMethod,

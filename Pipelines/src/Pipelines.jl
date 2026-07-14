@@ -161,6 +161,7 @@ include("schema.jl")
 include("dict_helpers.jl")
 include("card.jl")
 include("method.jl")
+include("dissimilarity.jl")
 
 include("cards/standard.jl")
 include("cards/split.jl")

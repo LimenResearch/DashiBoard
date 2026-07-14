@@ -79,13 +79,19 @@ end
 Affinity propagation (`"method" => "affinity_propagation"`): points exchange
 messages until a set of exemplars — actual fitted points — emerges, so the
 number of clusters comes from the data instead of being predeclared.
-`damp`, `maxiter` and `tol` control the message passing. The similarity
-matrix is the negative squared Euclidean distance over the card's `inputs`,
-built densely: the fit is O(N²) in the training rows. Each point's
-self-similarity (its preference; more negative → fewer clusters) is set to
-the median of its similarities, the classic default for a moderate number
-of clusters. Evaluation assigns each row to the nearest exemplar —
-affinity propagation's own assignment rule.
+`damp`, `maxiter` and `tol` control the message passing. Duplicate rows are
+collapsed into per-point weights before the fit: identical points exchange
+identical messages, so affinity propagation cannot separate them and the
+messages can oscillate without converging. The collapse is exact —
+absorbing the `w` copies of a point into an exemplar costs `w` times the
+single-copy similarity (each row of the similarity matrix is scaled by its
+point's count), while extra copies of an exemplar cost nothing.
+Similarities are negative squared Euclidean distances over the card's
+`inputs`, built densely: the fit is O(K²) in the unique training points.
+Each point's self-similarity (its preference; more negative → fewer
+clusters) is the count-weighted median of its similarities — identical to
+the per-point median on the uncollapsed table. Evaluation assigns each row
+to the nearest exemplar — affinity propagation's own assignment rule.
 """
 @kwarg struct AffinityPropagationMethod <: ClusteringMethod
     damp::Float64 = 0.5 & (dashi = StringDict("minimum" => 0, "exclusiveMaximum" => 1),)
@@ -96,12 +102,24 @@ end
 function (m::AffinityPropagationMethod)(X; weights)
     (; damp, maxiter, tol) = m
     isnothing(weights) || @warn "Weights not supported in affinity propagation"
-    S = -pairwise(SqEuclidean(), X, dims = 2)
-    S[diagind(S)] .= vec(median(S, dims = 1))
+    # collapse duplicate points into counts, in first-occurrence order
+    groups = OrderedDict{Vector{Float64}, Int}()
+    for x in eachcol(X)
+        key = convert(Vector{Float64}, x)
+        groups[key] = get(groups, key, 0) + 1
+    end
+    U, w = stack(keys(groups)), collect(values(groups))
+    # a single unique point is trivially its own exemplar (`affinityprop`
+    # requires at least two points)
+    size(U, 2) == 1 && return (; centers = U, converged = true)
+    S = -pairwise(SqEuclidean(), U, dims = 2)
+    p = [median(view(S, :, j), fweights(w)) for j in axes(S, 2)]
+    S .*= w                # rows scaled by the assignee's weight
+    S[diagind(S)] .= p     # preferences unscaled: exemplar copies are free
     res = affinityprop(S; maxiter, tol, damp)
     res.converged ||
         @warn "Affinity propagation did not converge; increase `maxiter` or adjust `damp`"
-    return (; centers = X[:, res.exemplars], res.converged)
+    return (; centers = U[:, res.exemplars], res.converged)
 end
 
 """

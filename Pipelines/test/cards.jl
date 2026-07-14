@@ -446,7 +446,8 @@ end
     @testset "affinity propagation" begin
         # exemplars are fitted points, assignment is nearest exemplar (the
         # method's own rule; Clustering.jl ships no predict — see
-        # JuliaStats/Clustering.jl#63); O(N²) fit, hence the small table
+        # JuliaStats/Clustering.jl#63); O(K²) fit in the unique points,
+        # hence the small table
         apnode = Node(Pipelines.Card(d["affinity"]))
         Pipelines.train_evaljoin!(repo, apnode, "cl_small" => "ap_clust", "No")
         apst = fitted(apnode)
@@ -455,13 +456,38 @@ end
         apdf = DBInterface.execute(DataFrame, repo, "FROM ap_clust ORDER BY No")
         @test apdf.apcluster == nearest_center(Xsmall, apst.centers, sqeuclid)
 
-        # exact exemplar counts and the converged flag are data traits, not
-        # invariants: this dataset's duplicate (TEMP, PRES) rows make the
-        # messages oscillate at default damping (converged stays false in
-        # the state, and the card warns), without perturbing the exemplar
-        # set the assertions above validate
-        @test apst.converged isa Bool
+        # duplicate rows are collapsed into weights before the fit —
+        # identical points deadlock the messages otherwise (this dataset's
+        # duplicate (TEMP, PRES) rows oscillate without converging when fed
+        # raw); the collapse is what makes convergence an invariant here
+        @test apst.converged
         @test K < 200
+
+        # exact-plumbing oracle: the fit equals affinityprop on the
+        # collapsed problem — unique points, accumulated weights,
+        # row-scaled similarities, weighted-median preferences
+        uidx = unique(j -> Xsmall[:, j], axes(Xsmall, 2))
+        Usm = Xsmall[:, uidx]
+        @test size(Usm, 2) < 200
+        apfit = function (w)
+            S = -Pipelines.pairwise(Pipelines.SqEuclidean(), Usm, dims = 2)
+            p = [median(view(S, :, j), Pipelines.fweights(w)) for j in axes(S, 2)]
+            S .*= w
+            S[Pipelines.diagind(S)] .= p
+            return affinityprop(S; maxiter = 200, tol = 1.0e-6, damp = 0.5)
+        end
+        counts = [count(j -> Xsmall[:, j] == Usm[:, k], axes(Xsmall, 2)) for k in axes(Usm, 2)]
+        Rap = apfit(counts)
+        @test apst.centers == Usm[:, Rap.exemplars]
+
+        # all rows duplicates of one point: trivial single-exemplar fit
+        apdup = DataFrame("No" => [1, 2, 3], "TEMP" => [1.0, 1.0, 1.0], "PRES" => [2.0, 2.0, 2.0])
+        DuckDBUtils.load_table(repo, apdup, "ap_dup")
+        dnode = Node(Pipelines.Card(d["affinity"]))
+        Pipelines.train_evaljoin!(repo, dnode, "ap_dup" => "ap_dup_out", "No")
+        @test fitted(dnode).converged
+        ddf = DBInterface.execute(DataFrame, repo, "FROM ap_dup_out ORDER BY No")
+        @test ddf.apcluster == [1, 1, 1]
 
         # exemplars label themselves; far rows are still assigned (nearest
         # exemplar has no noise channel)

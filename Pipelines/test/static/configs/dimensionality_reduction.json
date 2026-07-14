@@ -1,45 +1,42 @@
 {
   "pca": {
     "type": "dimensionality_reduction",
-    "method": "pca",
+    "method": {"type": "pca"},
     "partition": "partition",
     "inputs": ["DEWP", "TEMP", "PRES"],
     "n_components": 2
   },
   "ppca": {
     "type": "dimensionality_reduction",
-    "method": "ppca",
-    "method_options": { "tol": 1e-5, "iterations": 100 },
+    "method": { "type": "ppca", "tol": 1e-5, "iterations": 100 },
     "partition": "partition",
     "inputs": ["DEWP", "TEMP", "PRES"],
     "n_components": 2
   },
   "factoranalysis": {
     "type": "dimensionality_reduction",
-    "method": "factoranalysis",
-    "method_options": { "tol": 1e-5, "iterations": 100 },
+    "method": { "type": "factoranalysis", "tol": 1e-5, "iterations": 100 },
     "partition": "partition",
     "inputs": ["DEWP", "TEMP", "PRES"],
     "n_components": 2
   },
   "mds": {
     "type": "dimensionality_reduction",
-    "method": "mds",
+    "method": {"type": "mds"},
     "partition": "partition",
     "inputs": ["DEWP", "TEMP", "PRES"],
     "n_components": 2
   },
   "no_components": {
     "type": "dimensionality_reduction",
-    "method": "mds",
+    "method": {"type": "mds"},
     "partition": "partition",
     "inputs": ["DEWP", "TEMP", "PRES"],
     "n_components": 0
   },
   "partition": {
     "type": "split",
-    "method": "percentile",
-    "method_options": { "percentile": 0.6 },
+    "method": { "type": "percentile", "percentile": 0.6 },
     "order_by": ["No"],
     "output": "partition"
   }

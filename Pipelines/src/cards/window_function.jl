@@ -6,45 +6,27 @@ const WINDOW_FUNCTIONS = OrderedDict{String, AggClosure}(
     "row_number" => Agg.row_number,
 )
 
+StructUtils.structlike(::DashiStyle, ::Type{<:AggClosure}) = false
+
 """
     struct WindowFunctionCard <: Card
-        type::String
-        method::String
-        window_function::SQLNode
+        method::AggClosure
         order_by::Vector{String}
-        group_by::Vector{String}
+        group_by::Vector{String} = String[]
         output::String
     end
 
 Add new column with output of window function.
 """
-struct WindowFunctionCard <: SQLCard
-    type::String
-    method::String
-    window_function::SQLNode
-    order_by::Vector{String}
-    group_by::Vector{String}
-    output::String
-end
-
-function get_metadata(wfc::WindowFunctionCard)
-    return StringDict(
-        "type" => wfc.type,
-        "method" => wfc.method,
-        "order_by" => wfc.order_by,
-        "group_by" => wfc.group_by,
-        "output" => wfc.output,
+@kwarg struct WindowFunctionCard <: SQLCard
+    method::AggClosure & (
+        dashi = type_schema(WINDOW_FUNCTIONS),
+        lift = Fix2(lift_simple_method, WINDOW_FUNCTIONS),
+        lower = Fix2(lower_simple_method, WINDOW_FUNCTIONS),
     )
-end
-
-function WindowFunctionCard(c::AbstractDict)
-    type::String = c["type"]
-    order_by::Vector{String} = c["order_by"]
-    group_by::Vector{String} = get(c, "group_by", String[])
-    method::String = c["method"]
-    window_function::SQLNode = WINDOW_FUNCTIONS[method]()
-    output::String = c["output"]
-    return WindowFunctionCard(type, method, window_function, order_by, group_by, output)
+    order_by::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
+    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
+    output::String & (dashi = json_string(minLength = 1),)
 end
 
 ## SQLCard interface
@@ -71,7 +53,7 @@ function evaluate(
 
     query = From(source) |>
         Partition(; order_by = Get.(wfc.order_by), by = Get.(wfc.group_by)) |>
-        Select(id_var => Get(id_var), wfc.output => wfc.window_function)
+        Select(id_var => Get(id_var), wfc.output => wfc.method())
 
     replace_table(repository, query, destination; schema)
     return [wfc.output]

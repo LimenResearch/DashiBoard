@@ -5,8 +5,8 @@ vars = [
 split_vars = vcat(vars, ["partition"])
 time_vars = vcat(vars, ["date", "time"])
 
-function _filtered_metadata(c::AbstractDict)
-    return filter(!isnothing ∘ last, Pipelines.get_metadata(Card(c)))
+function _filtered_metadata(d::AbstractDict)
+    return filter(!isnothing ∘ last, Pipelines.get_metadata(Card(d)))
 end
 
 function _pipeline_schema_validate(schema, conf; from_metadata::Bool = true)
@@ -136,8 +136,8 @@ end
     _pipeline_schema_validate(schema, m_basic, from_metadata = false)
     _pipeline_schema_validate(schema, m_classifier, from_metadata = false)
 
-    pop!(m_basic, "model_metadata")
-    pop!(m_classifier, "training_metadata")
+    pop!(m_basic, "model")
+    pop!(m_classifier, "training")
 
     _pipeline_schema_invalidate(schema, m_basic)
     _pipeline_schema_invalidate(schema, m_classifier)

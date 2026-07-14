@@ -93,12 +93,12 @@ get_targets(dbf::DBFunnel) = dbf.targets
 get_constant_targets(dbf::DBFunnel) = String[]
 get_target_paths(dbf::DBFunnel) = dbf.target_paths
 
-function DBFunnel(c::AbstractDict)
-    order_by::Vector{String} = get(c, "order_by", String[])
-    inputs::Vector{RichColumn} = RichColumn.(get(c, "inputs", []))
-    input_paths::Union{String, Nothing} = get(c, "input_paths", nothing)
-    targets::Vector{RichColumn} = RichColumn.(get(c, "targets", []))
-    target_paths::Union{String, Nothing} = get(c, "target_paths", nothing)
+function DBFunnel(d::AbstractDict)
+    order_by::Vector{String} = get(d, "order_by", String[])
+    inputs::Vector{RichColumn} = RichColumn.(get(d, "inputs", []))
+    input_paths::Union{String, Nothing} = get(d, "input_paths", nothing)
+    targets::Vector{RichColumn} = RichColumn.(get(d, "targets", []))
+    target_paths::Union{String, Nothing} = get(d, "target_paths", nothing)
 
     # validation
     if isempty(order_by)

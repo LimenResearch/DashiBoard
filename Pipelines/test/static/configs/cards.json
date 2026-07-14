@@ -1,23 +1,21 @@
 [
   {
     "type": "split",
-    "method": "percentile",
-    "method_options": { "percentile": 0.9 },
+    "method": { "type": "percentile", "percentile": 0.9 },
     "order_by": ["No"],
     "group_by": ["cbwd"],
     "output": "_percentile_partition"
   },
   {
     "type": "split",
-    "method": "tiles",
-    "method_options": { "tiles": [1, 1, 2, 1, 1, 2] },
+    "method": { "type": "tiles", "tiles": [1, 1, 2, 1, 1, 2] },
     "order_by": ["No"],
     "group_by": ["cbwd"],
     "output": "_tiled_partition"
   },
   {
     "type": "rescale",
-    "method": "zscore",
+    "method": { "type": "zscore" },
     "group_by": ["cbwd"],
     "inputs": ["PRES", "TEMP"],
     "partition": "_tiled_partition"

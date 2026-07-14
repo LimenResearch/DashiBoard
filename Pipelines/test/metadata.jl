@@ -1,7 +1,7 @@
 function test_equal_splitters(s1::S1, s2::S2) where {S1, S2}
     @test S1 === S2
     for k in fieldnames(S1)
-        # `make(StructType, c::AbstractDict)` copies the field
+        # `make(StructType, d::AbstractDict)` copies the field
         @test getfield(s1, k) == getfield(s2, k)
     end
     return
@@ -13,40 +13,42 @@ end
     config = d["percentile"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "group_by", "output"]
+    for k in ["type", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
-    @test metadata["method_options"] == Dict("percentile" => 0.9)
+    @test metadata["method"] == Dict("type" => "percentile", "percentile" => 0.9)
     card2 = Pipelines.Card(metadata)
-    test_equal_splitters(card.splitter, card2.splitter)
+    test_equal_splitters(card.method, card2.method)
 
     config = d["tiles"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "group_by", "output"]
+    for k in ["type", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
-    @test metadata["method_options"] == Dict(
+    @test metadata["method"] == Dict(
+        "type" => "tiles",
         "tiles" => [1, 1, 2, 1, 1, 2],
         "repeat" => 1,
         "tail" => 0
     )
     card2 = Pipelines.Card(metadata)
-    test_equal_splitters(card.splitter, card2.splitter)
+    test_equal_splitters(card.method, card2.method)
 
     config = d["tiles2"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "order_by", "group_by", "output"]
+    for k in ["type", "order_by", "group_by", "output"]
         @test metadata[k] == config[k]
     end
-    @test metadata["method_options"] == Dict(
+    @test metadata["method"] == Dict(
+        "type" => "tiles",
         "tiles" => [1, 1, 2],
         "repeat" => 2,
         "tail" => 1
     )
     card2 = Pipelines.Card(metadata)
-    test_equal_splitters(card.splitter, card2.splitter)
+    test_equal_splitters(card.method, card2.method)
 end
 
 @testset "metadata rescale" begin
@@ -62,7 +64,7 @@ end
     @test metadata["suffix"] == "rescaled"
     @test isnothing(metadata["target_suffix"])
     card2 = Pipelines.Card(metadata)
-    @test card.rescaler == card2.rescaler
+    @test card.method == card2.method
 
     config = d["zscore2"]
     card = Pipelines.Card(config)
@@ -74,7 +76,7 @@ end
     @test isnothing(metadata["partition"])
     @test metadata["suffix"] == "rescaled"
     card2 = Pipelines.Card(metadata)
-    @test card.rescaler == card2.rescaler
+    @test card.method == card2.method
 end
 
 @testset "metadata cluster" begin
@@ -83,12 +85,12 @@ end
     config = d["kmeans"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "inputs", "output", "method_options"]
+    for k in ["type", "method", "inputs", "output"]
         @test metadata[k] == config[k]
     end
     @test isnothing(metadata["partition"])
     card2 = Pipelines.Card(metadata)
-    @test card.clusterer == card2.clusterer
+    @test card.method == card2.method
 end
 
 @testset "metadata dimensionality reduction" begin
@@ -101,19 +103,18 @@ end
         @test metadata[k] == config[k]
     end
     @test metadata["output"] == "component"
-    @test isempty(metadata["method_options"])
     card2 = Pipelines.Card(metadata)
-    @test card.projector == card2.projector
+    @test card.method == card2.method
 
     config = d["ppca"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "method", "inputs", "n_components", "method_options", "partition"]
+    for k in ["type", "method", "inputs", "n_components", "partition"]
         @test metadata[k] == config[k]
     end
     @test metadata["output"] == "component"
     card2 = Pipelines.Card(metadata)
-    @test card.projector == card2.projector
+    @test card.method == card2.method
 end
 
 @testset "metadata glm" begin
@@ -122,9 +123,11 @@ end
     config = d["hasPartition"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "inputs", "target", "partition", "distribution", "link"]
+    for k in ["type", "partition", "distribution", "link"]
         @test metadata[k] == config[k]
     end
+    @test metadata["formula"]["target"] == "TEMP"
+    @test metadata["formula"]["inputs"] == [1, "cbwd", "year", "No", ["cbwd", "year"]]
     @test metadata["suffix"] == "hat"
     @test isnothing(metadata["weights"])
     card2 = Pipelines.Card(metadata)
@@ -135,12 +138,14 @@ end
     config = d["isMixed"]
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
-    for k in ["type", "fixed_effect_terms", "random_effect_terms", "grouping_factor", "target"]
-        @test metadata[k] == config[k]
-    end
+    @test metadata["type"] == config["type"]
+    @test metadata["formula"]["fixed_effect_terms"] == [1, "year"]
+    @test metadata["formula"]["random_effect_terms"] == [1]
+    @test metadata["formula"]["grouping_factor"] == "cbwd"
+    @test metadata["formula"]["target"] == "TEMP"
     @test metadata["distribution"] == "normal"
+    @test metadata["link"] == "identity"
     @test metadata["suffix"] == "hat"
-    @test isnothing(metadata["link"])
     @test isnothing(metadata["weights"])
     @test isnothing(metadata["partition"])
     card2 = Pipelines.Card(metadata)
@@ -156,14 +161,14 @@ end
     card = Pipelines.Card(config)
     metadata = Pipelines.get_metadata(card)
     fields = [
-        "type", "method", "input", "targets", "partition", "method_options",
+        "type", "method", "input", "targets", "partition",
     ]
     for k in fields
         @test metadata[k] == config[k]
     end
     @test metadata["suffix"] == "hat"
     card2 = Pipelines.Card(metadata)
-    @test card.interpolator == card2.interpolator
+    @test card.method == card2.method
 end
 
 @testset "metadata gaussian encoding" begin
@@ -180,7 +185,7 @@ end
         @test metadata[k] == config[k]
     end
     card2 = Pipelines.Card(metadata)
-    @test card.temporal_preprocessor == card2.temporal_preprocessor
+    @test card.method == card2.method
 end
 
 @testset "metadata streamliner" begin
@@ -188,7 +193,7 @@ end
 
     config = d["basic"]
     config["group_by"] = String[]
-    config["funnel"] = ""
+    config["funnel"]["type"] = ""
 
     model_dir = joinpath(@__DIR__, "static", "model")
     training_dir = joinpath(@__DIR__, "static", "training")
@@ -197,25 +202,24 @@ end
         card = Pipelines.Card(config)
 
         metadata = Pipelines.get_metadata(card)
-        fields = [
-            "type", "order_by", "partition", "suffix",
-            "model", "training", "funnel",
-        ]
-        for k in fields
+        for k in ["type", "partition", "suffix"]
             @test metadata[k] == config[k]
         end
-        @test metadata["model_metadata"] == StreamlinerCore.get_metadata(card.model)
-        @test metadata["training_metadata"] == StreamlinerCore.get_metadata(card.training)
-        @test metadata["order_by"] == ["No"]
-        @test metadata["inputs"] == [
-            Dict("colname" => "TEMP", "transform" => ""),
-            Dict("colname" => "PRES", "transform" => ""),
-        ]
-        @test isnothing(metadata["input_paths"])
-        @test metadata["targets"] == [Dict("colname" => "Iws", "transform" => "")]
-        @test isnothing(metadata["target_paths"])
-        card2 = Pipelines.Card(metadata)
+        @test metadata["model"] == StreamlinerCore.get_metadata(card.model)
+        @test metadata["training"] == StreamlinerCore.get_metadata(card.training)
+        @test metadata["funnel"] == Dict(
+            "type" => "",
+            "order_by" => ["No"],
+            "inputs" => [
+                Dict("colname" => "TEMP", "transform" => ""),
+                Dict("colname" => "PRES", "transform" => ""),
+            ],
+            "input_paths" => nothing,
+            "targets" => [Dict("colname" => "Iws", "transform" => "")],
+            "target_paths" => nothing
+        )
     end
+    card2 = Pipelines.Card(metadata)
     @test metadata == Pipelines.get_metadata(card2)
 end
 

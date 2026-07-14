@@ -34,7 +34,7 @@ DataIngestion.select(repo, filters)
     card = Pipelines.Card(d["tiles2"])
     str, _ = DuckDBUtils.render_params(
         DuckDBUtils.get_catalog(repo),
-        Partition() |> Select(card.output => Pipelines.get_sql(card.splitter))
+        Partition() |> Select(card.output => Pipelines.get_sql(card.method))
     )
     @test str == "SELECT list_extract(list_value(1, 1, 2), \
         ((((ntile(7) OVER ()) - 1) % 3) + 1)) AS \"_tiled_partition\""
@@ -46,7 +46,7 @@ DataIngestion.select(repo, filters)
     card = Pipelines.Card(d["tiles3"])
     str, _ = DuckDBUtils.render_params(
         DuckDBUtils.get_catalog(repo),
-        Partition() |> Select(card.output => Pipelines.get_sql(card.splitter))
+        Partition() |> Select(card.output => Pipelines.get_sql(card.method))
     )
     @test str == "SELECT list_extract(list_value(1, 1, 2, 1, 1, 2, 1), \
         ((((ntile(7) OVER ()) - 1) % 7) + 1)) AS \"_tiled_partition\""
@@ -634,38 +634,39 @@ end
             "type" => "gaussian_encoding",
             "input" => "date",
             "n_components" => 3,
-            "method_options" => Dict("max" => 365.0),
+            "method" => Dict("type" => "", "max" => 365.0),
             "lambda" => 0.5,
             "suffix" => "gaussian"
         )
 
         for (k, v) in pairs(Pipelines.TEMPORAL_PREPROCESSING_METHODS)
-            c = merge(base_fields, Dict("method" => k))
-            card = GaussianEncodingCard(c)
-            _max = base_fields["method_options"]["max"]
-            @test card.temporal_preprocessor == v(_max)
+            c = deepcopy(base_fields)
+            c["method"]["type"] = k
+            card = Card(c)
+            _max = c["method"]["max"]
+            @test card.method == v(_max)
         end
 
         invalid_method = "nonexistent_method"
-        invalid_config = merge(base_fields, Dict("method" => invalid_method))
-        @test_throws ArgumentError GaussianEncodingCard(invalid_config)
+        invalid_config = deepcopy(base_fields)
+        invalid_config["method"]["type"] = invalid_method
+        @test_throws ArgumentError Card(invalid_config)
 
         invalid_config = Dict(
             "type" => "gaussian_encoding",
             "input" => "date",
             "n_components" => 0,
-            "max" => 365.0,
-            "lambda" => 0.5,
-            "method" => "identity"
+            "method" => Dict("type" => "dayofyear", "max" => 365.0),
+            "lambda" => 0.5
         )
-        @test_throws ArgumentError GaussianEncodingCard(invalid_config)
+        @test_throws ArgumentError Card(invalid_config)
     end
 
     function gauss_train_test(node::Node)
         card, state = get_card(node), get_state(node)
         expected_means = range(0, step = 1 / card.n_components, length = card.n_components)
         expected_sigma = step(expected_means) * card.lambda
-        expected_d = card.temporal_preprocessor.max
+        expected_d = card.method.max
         expected_keys = vcat(["μ_$i" for i in 1:card.n_components], ["σ", "d"])
 
         params = Pipelines.jlddeserialize(state.content)
@@ -681,7 +682,7 @@ end
         @test names(result) == union(names(origin), Pipelines.get_node_outputs(node))
 
         origin_column = origin[:, card.input]
-        max_value = card.temporal_preprocessor.max
+        max_value = card.method.max
         preprocessed_values = processing.(origin_column)
         μs = range(0, step = 1 / card.n_components, length = card.n_components)
         σ = step(μs) * card.lambda

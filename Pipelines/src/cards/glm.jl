@@ -1,28 +1,102 @@
+# Formula schema
+
+function formula_schema()
+    properties = StringDict(
+        "target" => JSON_VARIABLE,
+        "inputs" => json_array() # TODO: make more specific
+    )
+    required = ["target", "inputs"]
+    return json_object(; properties, additionalProperties = false, required)
+end
+
+function mixed_formula_schema()
+    properties = StringDict(
+        "target" => JSON_VARIABLE,
+        "fixed_effect_terms" => json_array(),
+        "random_effect_terms" => json_array(),
+        "grouping_factor" => JSON_VARIABLE
+    )
+    required = ["target", "fixed_effect_terms", "random_effect_terms", "grouping_factor"]
+    return json_object(; properties, additionalProperties = false, required)
+end
+
+# Lower formula
+
+function israndomeffect end
+
+function flatten_terms(f, filter, ts)
+    return Iterators.flatmap(
+        Base.broadcastable ∘ f,
+        Iterators.filter(filter, Base.broadcastable(ts))
+    )
+end
+
+get_all_terms(ts) = flatten_terms(identity, Returns(true), ts)
+
+get_fixed_effect_terms(ts) = flatten_terms(identity, !israndomeffect, ts)
+get_random_effect_terms(ts) = flatten_terms(t -> t.lhs, israndomeffect, ts)
+get_grouping_factors(ts) = flatten_terms(t -> t.rhs, israndomeffect, ts)
+
+function to_term_list(t::AbstractTerm)
+    return t isa ConstantTerm ? t.n :
+        t isa Term ? termnames(t) :
+        t isa InteractionTerm ? termnames(t.terms) :
+        throw(ArgumentError("Unsupported term type $(typeof(t))"))
+end
+
+# Note: a round-trip will add individual terms in presence
+# of an interaction term
+# TODO: decide on a correct serialization format
+function lower_formula(f::FormulaTerm)::StringDict
+    target::String = termnames(f.lhs)
+    inputs = to_term_list.(get_all_terms(f.rhs))
+    return StringDict("inputs" => inputs, "target" => target)
+end
+
+function lower_mixed_formula(f::FormulaTerm)::StringDict
+    target::String = termnames(f.lhs)
+    fixed_effect_terms = to_term_list.(get_fixed_effect_terms(f.rhs))
+    random_effect_terms = to_term_list.(get_random_effect_terms(f.rhs))
+    grouping_factors = termnames.(get_grouping_factors(f.rhs))
+    isempty(grouping_factors) && throw(ArgumentError("No grouping factor found"))
+    allequal(grouping_factors) || throw(ArgumentError("Multiple grouping factor found"))
+    grouping_factor = first(grouping_factors)
+    return StringDict(
+        "fixed_effect_terms" => fixed_effect_terms,
+        "random_effect_terms" => random_effect_terms,
+        "grouping_factor" => grouping_factor,
+        "target" => target,
+    )
+end
+
+# Lift formula
+
 product_term(x::Union{String, Number}) = term(x)
 product_term(x::AbstractVector) = mapfoldl(term, *, x)
 
 composite_term(x::AbstractVector) = mapfoldl(product_term, +, x)
 
-function compute_formula(c::AbstractDict)
-    inputs::Vector{Any} = c["inputs"]
-    target::String = c["target"]
+function lift_formula(d::AbstractDict)::FormulaTerm
+    inputs::Vector{Any} = d["inputs"]
+    target::String = d["target"]
     lhs = term(target)
     rhs = composite_term(inputs)
-    formula::FormulaTerm = lhs ~ rhs
-    return inputs, target, formula
+    return lhs ~ rhs
 end
 
-function compute_mixed_formula(c::AbstractDict)
-    fixed_effect_terms::Vector{Any} = c["fixed_effect_terms"]
-    random_effect_terms::Vector{Any} = c["random_effect_terms"]
-    grouping_factor::String = c["grouping_factor"]
-    inputs = MixedInputs(fixed_effect_terms, random_effect_terms, grouping_factor)
-    target::String = c["target"]
+function lift_mixed_formula(d::AbstractDict)::FormulaTerm
+    fixed_effect_terms::Vector{Any} = d["fixed_effect_terms"]
+    random_effect_terms::Vector{Any} = d["random_effect_terms"]
+    grouping_factor::String = d["grouping_factor"]
+    target::String = d["target"]
     lhs = term(target)
     rhs = composite_term(fixed_effect_terms) + (composite_term(random_effect_terms) | term(grouping_factor))
-    formula::FormulaTerm = lhs ~ rhs
-    return inputs, target, formula
+    return lhs ~ rhs
 end
+
+StructUtils.structlike(::DashiStyle, ::Type{<:FormulaTerm}) = false
+
+# Distribution
 
 const NOISE_MODELS = OrderedDict(
     "normal" => Normal(),
@@ -31,6 +105,14 @@ const NOISE_MODELS = OrderedDict(
     "inversegaussian" => InverseGaussian(),
     "poisson" => Poisson(),
 )
+
+function StructUtils.lift(::DashiStyle, ::Type{Distribution}, k::AbstractString)
+    return NOISE_MODELS[k], nothing
+end
+
+StructUtils.lower(::DashiStyle, d::Distribution) = findfirst(==(d), NOISE_MODELS)
+
+# Link
 
 const LINK_TYPES = OrderedDict(
     "cauchit" => CauchitLink,
@@ -45,58 +127,19 @@ const LINK_TYPES = OrderedDict(
     "sqrt" => SqrtLink,
 )
 
+function StructUtils.lift(::DashiStyle, ::Type{Link}, k::AbstractString)
+    return LINK_TYPES[k](), nothing
+end
+
+function StructUtils.lower(::DashiStyle, l::Link)
+    return findfirst(Fix1(isa, l), LINK_TYPES)
+end
+
+# GLM cards
+
 abstract type AbstractGLMCard <: StandardCard end
 
 function has_grouping_factor end
-
-struct MixedInputs
-    fixed_effect_terms::Vector{Any}
-    random_effect_terms::Vector{Any}
-    grouping_factor::String
-end
-
-function get_metadata(gc::C) where {C <: AbstractGLMCard}
-    metadata = StringDict(
-        "type" => gc.type,
-        "target" => gc.target,
-        "weights" => gc.weights,
-        "distribution" => gc.distribution_name,
-        "link" => gc.link_name,
-        "partition" => gc.partition,
-        "suffix" => gc.suffix,
-    )
-    if has_grouping_factor(C)
-        mi = gc.inputs
-        metadata["fixed_effect_terms"] = mi.fixed_effect_terms
-        metadata["random_effect_terms"] = mi.random_effect_terms
-        metadata["grouping_factor"] = mi.grouping_factor
-    else
-        metadata["inputs"] = gc.inputs
-    end
-    return metadata
-end
-
-function construct_glm_card(::Type{C}, c::AbstractDict) where {C <: AbstractGLMCard}
-    type::String = c["type"]
-    distribution_name::String = get(c, "distribution", "normal")
-    link_name::Union{String, Nothing} = get(c, "link", nothing)
-    weights::Union{String, Nothing} = get(c, "weights", nothing)
-    distribution::Distribution = NOISE_MODELS[distribution_name]
-    link::Link = if isnothing(link_name)
-        canonicallink(distribution)
-    else
-        LINK_TYPES[link_name]()
-    end
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    suffix::String = get(c, "suffix", "hat")
-
-    inputs, target, formula = has_grouping_factor(C) ? compute_mixed_formula(c) : compute_formula(c)
-
-    return C(
-        type, distribution_name, distribution, link_name, link,
-        inputs, target, formula, weights, partition, suffix
-    )
-end
 
 is_linear_model(distribution::Distribution, link::Link) = isa(distribution, Normal) && isa(link, IdentityLink)
 
@@ -119,8 +162,9 @@ target_var(gc::AbstractGLMCard) = termnames(gc.formula.lhs)
 output_var(gc::AbstractGLMCard) = join_names(target_var(gc), gc.suffix)
 
 function SourceVariables(gc::AbstractGLMCard)
+    input_terms = union(flatten_terms(terms, Returns(true), gc.formula.rhs))
     return SourceVariables(;
-        inputs = termnames.(filter(isterm, terms(gc.formula.rhs))),
+        inputs = termnames.(filter(isterm, input_terms)),
         targets = [target_var(gc)],
         gc.weights, gc.partition
     )
@@ -131,39 +175,31 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 ## GLMCard
 
 """
-    struct GLMCard <: Card
-      type::String
-      distribution_name::String
-      distribution::Distribution
-      link_name::Union{String, Nothing}
-      link::Link
-      inputs::Vector{Any}
-      target::String
-      formula::FormulaTerm
-      weights::Union{String, Nothing}
-      partition::Union{String, Nothing}
-      suffix::String
+    struct GLMCard{D <: Distribution, L <: Link} <: Card
+        distribution::D = Normal()
+        link::L = canonicallink(distribution)
+        formula::FormulaTerm
+        weights::Union{String, Nothing} = nothing
+        partition::Union{String, Nothing} = nothing
+        suffix::String = "hat"
     end
 
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
-struct GLMCard <: AbstractGLMCard
-    type::String
-    distribution_name::String
-    distribution::Distribution
-    link_name::Union{String, Nothing}
-    link::Link
-    inputs::Vector{Any}
-    target::String
-    formula::FormulaTerm
-    weights::Union{String, Nothing}
-    partition::Union{String, Nothing}
-    suffix::String
+@kwarg struct GLMCard{D <: Distribution, L <: Link} <: AbstractGLMCard
+    distribution::D = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
+    link::L = canonicallink(distribution) & (dashi = json_string(enum = keys(LINK_TYPES), default = nothing),)
+    formula::FormulaTerm & (
+        dashi = formula_schema(),
+        lift = lift_formula,
+        lower = lower_formula,
+    )
+    weights::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
 has_grouping_factor(::Type{GLMCard}) = false
-
-GLMCard(c::AbstractDict) = construct_glm_card(GLMCard, c)
 
 function _train(gc::GLMCard, t, ::AbstractPrimaryKey)
     weights = isnothing(gc.weights) ? nothing : fweights(t[gc.weights])
@@ -177,40 +213,32 @@ end
 ## MixedModelCard
 
 """
-    struct MixedModelCard <: AbstractGLMCard
-        type::String
-        distribution_name::String
-        distribution::Distribution
-        link_name::Union{String, Nothing}
-        link::Link
-        inputs::MixedInputs
-        target::String
+    struct MixedModelCard{D <: Distribution, L <: Link} <: Card
+        distribution::D = Normal()
+        link::L = canonicallink(distribution)
         formula::FormulaTerm
-        weights::Union{String, Nothing}
-        partition::Union{String, Nothing}
-        suffix::String
+        weights::Union{String, Nothing} = nothing
+        partition::Union{String, Nothing} = nothing
+        suffix::String = "hat"
     end
 
 Run a Mixed Model based on `formula`.
 To use this card, you must load the MixedModels.jl package first.
 """
-struct MixedModelCard <: AbstractGLMCard
-    type::String
-    distribution_name::String
-    distribution::Distribution
-    link_name::Union{String, Nothing}
-    link::Link
-    inputs::MixedInputs
-    target::String
-    formula::FormulaTerm
-    weights::Union{String, Nothing}
-    partition::Union{String, Nothing}
-    suffix::String
+@kwarg struct MixedModelCard{D <: Distribution, L <: Link} <: AbstractGLMCard
+    distribution::D = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
+    link::L = canonicallink(distribution) & (dashi = json_string(enum = keys(LINK_TYPES), default = nothing),)
+    formula::FormulaTerm & (
+        dashi = mixed_formula_schema(),
+        lift = lift_mixed_formula,
+        lower = lower_mixed_formula,
+    )
+    weights::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
 has_grouping_factor(::Type{MixedModelCard}) = true
-
-MixedModelCard(c::AbstractDict) = construct_glm_card(MixedModelCard, c)
 
 function (gc::MixedModelCard)(model, t, id_var::AbstractPrimaryKey)
     M = modelmatrix(model)

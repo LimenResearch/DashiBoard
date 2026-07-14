@@ -65,7 +65,7 @@ function logistic_invtransform(_, col′)
     return @. ln(y / (1 - y))
 end
 
-struct Rescaler
+@nonstruct struct Rescaler
     stats::Vector{Pair}
     transform::Base.Callable
     invtransform::Union{Base.Callable, Nothing}
@@ -82,16 +82,16 @@ const RESCALERS = OrderedDict{String, Rescaler}(
 # TODO: also inv-rescale `target_sigma` for probabilistic models
 """
     struct RescaleCard <: Card
-        type::String
-        group_by::Vector{String}
+        method::Rescaler
+        group_by::Vector{String} = String[]
         inputs::Vector{String}
-        targets::Vector{String}
-        partition::Union{String, Nothing}
-        suffix::String
-        target_suffix::Union{String, Nothing}
+        targets::Vector{String} = String[]
+        partition::Union{String, Nothing} = nothing
+        suffix::String = "rescaled"
+        target_suffix::Union{String, Nothing} = nothing
     end
 
-Card to rescale one or more columns according to a given `rescaler`.
+Card to rescale one or more columns according to a given `method`.
 The supported methods are
 - `zscore`,
 - `maxabs`,
@@ -102,52 +102,18 @@ The supported methods are
 The resulting rescaled variable is added to the table under the name
 `"\$(originalname)_\$(suffix)"`.
 """
-struct RescaleCard <: SQLCard
-    type::String
-    method::String
-    rescaler::Rescaler
-    group_by::Vector{String}
-    inputs::Vector{String}
-    targets::Vector{String}
-    partition::Union{String, Nothing}
-    suffix::String
-    target_suffix::Union{String, Nothing}
-end
-
-function get_metadata(rc::RescaleCard)
-    return StringDict(
-        "type" => rc.type,
-        "method" => rc.method,
-        "group_by" => rc.group_by,
-        "inputs" => rc.inputs,
-        "targets" => rc.targets,
-        "partition" => rc.partition,
-        "suffix" => rc.suffix,
-        "target_suffix" => rc.target_suffix,
+@kwarg struct RescaleCard <: SQLCard
+    method::Rescaler & (
+        dashi = type_schema(RESCALERS),
+        lift = Fix2(lift_simple_method, RESCALERS),
+        lower = Fix2(lower_simple_method, RESCALERS),
     )
-end
-
-function RescaleCard(c::AbstractDict)
-    type::String = c["type"]
-    method::String = c["method"]
-    rescaler::Rescaler = RESCALERS[method]
-    group_by::Vector{String} = get(c, "group_by", String[])
-    inputs::Vector{String} = c["inputs"]
-    targets::Vector{String} = get(c, "targets", String[])
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    suffix::String = get(c, "suffix", "rescaled")
-    target_suffix::Union{String, Nothing} = get(c, "target_suffix", nothing)
-    return RescaleCard(
-        type,
-        method,
-        rescaler,
-        group_by,
-        inputs,
-        targets,
-        partition,
-        suffix,
-        target_suffix,
-    )
+    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
+    inputs::Vector{String} & (dashi = JSON_VARIABLES,)
+    targets::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    suffix::String = "rescaled" & (dashi = json_string(minLength = 1),)
+    target_suffix::Union{String, Nothing} = nothing & (dashi = json_string(minLength = 1),)
 end
 
 ## SQLCard interface
@@ -200,8 +166,8 @@ function train(
         source::AbstractString, ::AbstractPrimaryKey;
         schema::Union{AbstractString, Nothing} = nothing
     )
-    (; group_by, rescaler) = rc
-    (; stats) = rescaler
+    (; group_by, method) = rc
+    (; stats) = method
     tbl = if isempty(stats)
         SimpleTable()
     else
@@ -220,8 +186,8 @@ function evaluate(
         schema::Union{AbstractString, Nothing} = nothing,
         invert::Bool = false
     )
-    (; group_by, targets, rescaler, suffix) = rc
-    (; stats, transform, invtransform) = rescaler
+    (; group_by, targets, method, suffix) = rc
+    (; stats, transform, invtransform) = method
 
     rescaled = if invert
         inverse_inputs, inverse_outputs = inverse_input_vars(rc), inverse_output_vars(rc)

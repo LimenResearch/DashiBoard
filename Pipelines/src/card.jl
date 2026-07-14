@@ -51,6 +51,13 @@ abstract type StandardCard <: Card end
 abstract type SQLCard <: Card end
 abstract type StreamingCard <: Card end
 
+function choose_card(d::AbstractDict)
+    type::String = d["type"]
+    return CARD_SPECS[type].type
+end
+
+@choosetype DashiStyle Card choose_card
+
 """
     Card(d::AbstractDict)
 
@@ -99,11 +106,7 @@ julia> card.inputs
  "humidity"
 ```
 """
-function Card(d::AbstractDict; adjust::Bool = false)
-    type::String = d["type"]
-    C = CARD_SPECS[type].type
-    return adjust ? C(adjust_config(C, d)) : C(d)
-end
+Card(d::AbstractDict) = construct(Card, d)
 
 """
     Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
@@ -170,14 +173,9 @@ inputs = [
 ]
 ```
 """
-function Card(
-        d::AbstractDict, params::AbstractDict;
-        recursive::Integer = 1, adjust::Bool = false
-    )
-    return Card(apply_helpers(d, params; recursive); adjust)
+function Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
+    return Card(apply_helpers(d, params; recursive))
 end
-
-get_default_label(c::Card) = get_label(get_spec(c.type))
 
 ## Encode how a given card uses table variables
 
@@ -282,27 +280,18 @@ visualize(::Repository, ::Card, ::CardState) = nothing
 ## Define new cards using a global dictionary
 
 struct CardSpec
-    type::DataType
+    type::Type
     label::String
-    schema::Function
     settings::Any
 end
 
 """
-    CardSpec(
-        f::Function = Returns(Dict());
-        type::DataType, label::AbstractString, settings::Any = nothing,
-    )
+    CardSpec(type::Type, label::AbstractString; settings::Any = nothing)
 
 Specification to register a given card type.
 """
-function CardSpec(
-        f::Function = Returns(Dict());
-        type::DataType, label::AbstractString, settings::Any = nothing,
-        kwargs...
-    )
-    isempty(kwargs) || @warn "Only `type`, `label` and `settings` keyword arguments are allowed in `CardSpec`"
-    return CardSpec(type, label, f, settings)
+function CardSpec(type::Type, label::AbstractString; settings::Any = nothing)
+    return CardSpec(type, label, settings)
 end
 
 get_label(spec::CardSpec) = spec.label
@@ -322,17 +311,15 @@ function register_card((key, spec)::Pair{<:AbstractString, CardSpec})
     return
 end
 
-## Helper (support two modalities to pass method options)
+## Metadata helpers
 
-function extract_options(c::AbstractDict, key::AbstractString, m::AbstractString)
-    option_key = string(key, "_", "options")
-    r = r"^" * join([option_key, m, ""], ".") * r"(?<name>.*)$"
-    return get(c, option_key) do
-        d = StringDict()
-        for (k, v) in pairs(c)
-            m = match(r, k)
-            isnothing(m) || (d[m[:name]] = v)
-        end
-        return d
-    end
+card_type(c::Card)::String = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
+card_type(T::Type)::String = findfirst(spec -> (T <: spec.type), CARD_SPECS)
+
+get_default_label(c::Card) = get_label(CARD_SPECS[card_type(c)])
+
+function get_metadata(c::Card)
+    d = construct(StringDict, c)
+    d["type"] = card_type(c)
+    return d
 end

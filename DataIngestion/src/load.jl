@@ -55,12 +55,12 @@ The file paths are interpreted as relative to `DataIngestion.DATA_DIR[]`.
 parse_paths(d::AbstractDict)::Vector{String} = _joinpath.(DATA_DIR[], d["files"])
 
 # TODO: document this method and pass options via `c`
-function load_files(repository::Repository, c::AbstractDict, table = TABLE_NAMES.source; kwargs...)
-    return load_files(repository, parse_paths(c), table; kwargs...)
+function load_files(repository::Repository, d::AbstractDict, table = TABLE_NAMES.source; kwargs...)
+    return load_files(repository, parse_paths(d), table; kwargs...)
 end
 
-function load_files(repository::Repository, base_dir::AbstractString, c::AbstractDict, table = TABLE_NAMES.source; kwargs...)
-    return @with DATA_DIR => base_dir load_files(repository, c, table; kwargs...)
+function load_files(repository::Repository, base_dir::AbstractString, d::AbstractDict, table = TABLE_NAMES.source; kwargs...)
+    return @with DATA_DIR => base_dir load_files(repository, d, table; kwargs...)
 end
 
 """

@@ -7,7 +7,6 @@ end
 
 """
     struct WildCard{T} <: Card
-        type::String
         order_by::Vector{String}
         inputs::Vector{String}
         targets::Vector{String}
@@ -53,65 +52,14 @@ settings = Pipelines.WildCardSettings(
 Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
 ```
 """
-@kwdef struct WildCard{T} <: StandardCard
-    type::String
-    order_by::Vector{String}
+@kwarg struct WildCard{T} <: StandardCard
+    order_by::Vector{String} = String[]
     inputs::Vector{String}
-    targets::Vector{String}
-    weights::Union{String, Nothing}
-    partition::Union{String, Nothing}
-    suffix::Union{String, Nothing}
-    outputs::Vector{String}
-end
-
-function get_metadata(wc::WildCard)
-    return StringDict(
-        "type" => wc.type,
-        "order_by" => wc.order_by,
-        "inputs" => wc.inputs,
-        "weights" => wc.weights,
-        "partition" => wc.partition,
-        "targets" => wc.targets,
-        "suffix" => wc.suffix,
-        "outputs" => wc.outputs
-    )
-end
-
-function WildCard{T}(c::AbstractDict) where {T}
-    type::String = c["type"]
-    (; needs_targets, needs_order) = get_spec(type).settings
-
-    # TODO: allow a `group_by` field as well?
-    order_by::Vector{String} = needs_order ? c["order_by"] : get(c, "order_by", String[])
-    inputs::Vector{String} = c["inputs"]
-
-    local targets::Vector{String}
-    local suffix::Union{String, Nothing}
-    local outputs::Vector{String}
-
-    if needs_targets
-        targets = c["targets"]
-        suffix = something(c["suffix"])
-        outputs = get(c, "outputs", join_names(targets, suffix))
-    else
-        targets = get(c, "targets", String[])
-        suffix = get(c, "suffix", nothing)
-        outputs = c["outputs"]
-    end
-
-    weights::Union{String, Nothing} = get(c, "weights", nothing)
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-
-    return WildCard{T}(;
-        type,
-        order_by,
-        inputs,
-        targets,
-        weights,
-        partition,
-        suffix,
-        outputs,
-    )
+    targets::Vector{String} = String[]
+    weights::Union{String, Nothing} = nothing
+    partition::Union{String, Nothing} = nothing
+    suffix::Union{String, Nothing} = nothing
+    outputs::Vector{String} = join_names(targets, suffix)
 end
 
 ## StandardCard interface
@@ -127,6 +75,59 @@ function SourceVariables(wc::WildCard)
 end
 
 OutputVariables(wc::WildCard) = OutputVariables(wc.outputs)
+
+## Card registration
+
+function register_wild_card(key::Symbol, label::AbstractString; settings::WildCardSettings)
+    type = WildCard{key}
+    spec = CardSpec(type, label; settings)
+    return register_card(string(key) => spec)
+end
+
+@deprecate(
+    register_wild_card(key::Symbol; label::AbstractString, settings::WildCardSettings),
+    register_wild_card(key, label; settings),
+    false
+)
+
+## Card schema
+
+function wild_card_schema(settings::Any)
+    required = String["inputs"]
+
+    properties = StringDict(
+        "inputs" => JSON_VARIABLES,
+        "suffix" => json_string(minLength = 1)
+    )
+
+    if settings.needs_order
+        push!(required, "order_by")
+        properties["order_by"] = JSON_NONEMPTY_VARIABLES
+    else
+        properties["order_by"] = JSON_VARIABLES
+    end
+
+    if settings.needs_targets
+        push!(required, "targets")
+        push!(required, "suffix")
+        properties["targets"] = JSON_NONEMPTY_VARIABLES
+        properties["outputs"] = json_array(items = json_string(minLength = 1))
+    else
+        push!(required, "outputs")
+        properties["targets"] = JSON_VARIABLES
+        properties["outputs"] = JSON_NONEMPTY_VARIABLES
+    end
+
+    if settings.allows_weights
+        properties["weights"] = JSON_VARIABLE
+    end
+
+    if settings.allows_partition
+        properties["partition"] = JSON_VARIABLE
+    end
+
+    return json_object(; properties, required)
+end
 
 ## UI representation
 

@@ -5,6 +5,9 @@ makedocs(
     sitename = "DashiBoard",
     format = Documenter.HTML(inventory_version = v"2.0.0"),
     modules = [DuckDBUtils, DataIngestion, Pipelines, StreamlinerCore],
+    # Internal helpers carry docstrings for maintainers without necessarily
+    # being part of the manual; only exported names must be documented there.
+    checkdocs = :exports,
     pages = [
         "Overview" => "index.md",
         "Getting Started" => "getting-started.md",

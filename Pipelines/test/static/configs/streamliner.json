@@ -1,99 +1,98 @@
 {
   "basic": {
     "type": "streamliner",
-    "order_by": ["No"],
-    "inputs": ["TEMP", "PRES"],
-    "targets": ["Iws"],
+    "funnel": {
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["Iws"]
+    },
+    "model": { "type": "dense", "features": 5 },
+    "training": { "type": "batched", "iterations": 4 },
     "partition": "partition",
-    "suffix": "hat",
-    "model": "dense",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "suffix": "hat"
   },
   "classifier": {
     "type": "streamliner",
-    "funnel": "",
-    "order_by": ["No"],
-    "inputs": ["TEMP", "PRES"],
-    "targets": ["cbwd"],
+    "funnel": {
+      "type": "",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"]
+    },
+    "model": { "type": "classifier", "features": 5 },
+    "training": { "type": "batched", "iterations": 4 },
     "partition": "partition",
-    "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "suffix": "hat"
   },
   "wrongModel": {
     "type": "streamliner",
-    "funnel": "",
-    "order_by": ["No"],
-    "inputs": ["TEMP", "PRES"],
-    "targets": ["cbwd"],
+    "funnel": {
+      "type": "",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"]
+    },
+    "model": { "type": "classifier", "features": -2 },
+    "training": { "type": "batched", "iterations": 4 },
     "partition": "partition",
-    "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": -2 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "suffix": "hat"
   },
   "wrongTraining": {
     "type": "streamliner",
-    "funnel": "",
-    "order_by": ["No"],
-    "inputs": ["TEMP", "PRES"],
-    "targets": ["cbwd"],
+    "funnel": {
+      "type": "",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"]
+    },
+    "model": { "type": "classifier", "features": 5 },
+    "training": { "type": "batched", "iterations": -1 },
     "partition": "partition",
-    "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": -1 }
+    "suffix": "hat"
   },
   "spuriousProperty": {
     "type": "streamliner",
-    "funnel": "",
-    "order_by": ["No"],
-    "inputs": ["TEMP", "PRES"],
+    "funnel": {
+      "type": "",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"]
+    },
     "qualifier": "Pres",
-    "targets": ["cbwd"],
+    "model": { "type": "classifier", "features": 5 },
+    "training": { "type": "batched", "iterations": 4 },
     "partition": "partition",
-    "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "suffix": "hat"
   },
   "spuriousModelProperty": {
     "type": "streamliner",
-    "funnel": "",
-    "order_by": ["No"],
-    "inputs": ["TEMP", "PRES"],
-    "targets": ["cbwd"],
+    "funnel": {
+      "type": "",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"]
+    },
+    "model": { "type": "classifier", "features": 5, "channels": 2 },
+    "training": { "type": "batched", "iterations": 4 },
     "partition": "partition",
-    "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5, "channels": 2},
-    "training": "batched",
-    "training_options": { "iterations": 4 }
+    "suffix": "hat"
   },
   "spuriousTrainingProperty": {
     "type": "streamliner",
-    "funnel": "",
-    "order_by": ["No"],
-    "inputs": ["TEMP", "PRES"],
-    "targets": ["cbwd"],
+    "funnel": {
+      "type": "",
+      "order_by": ["No"],
+      "inputs": ["TEMP", "PRES"],
+      "targets": ["cbwd"]
+    },
+    "model": { "type": "classifier", "features": 5 },
+    "training": { "type": "batched", "iterations": 4, "tol": 1e-5 },
     "partition": "partition",
-    "suffix": "hat",
-    "model": "classifier",
-    "model_options": { "features": 5 },
-    "training": "batched",
-    "training_options": { "iterations": 4, "tol": 1e-5 }
+    "suffix": "hat"
   },
   "partition": {
     "type": "split",
-    "method": "percentile",
-    "method_options": { "percentile": 0.9 },
+    "method": { "type": "percentile", "percentile": 0.9 },
     "order_by": ["No"],
     "output": "partition"
   }

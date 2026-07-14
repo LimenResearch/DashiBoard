@@ -57,19 +57,17 @@ function Node(
     return Node(card, update, train, false, label, StateRef(state))
 end
 
-function Node(c::AbstractDict; update::Bool = true, adjust::Bool = false)
-    card = Card(c["card"]; adjust)
-    label::String = get(c, "label") do
-        get_default_label(card)
-    end
-    train::Bool = get(c, "train", true)
-    state_config = get(c, "state", nothing)
+function Node(d::AbstractDict; update::Bool = true)
+    card = Card(d["card"])
+    label::String = get(() -> get_default_label(card), d, "label")
+    train::Bool = get(d, "train", true)
+    state_config = get(d, "state", nothing)
     state = if isnothing(state_config)
         CardState()
     else
         CardState(
-            content = c["state"]["content"],
-            metadata = c["state"]["metadata"]
+            content = d["state"]["content"],
+            metadata = d["state"]["metadata"]
         )
     end
     return Node(card, state; update, train, label)

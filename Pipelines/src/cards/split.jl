@@ -1,4 +1,4 @@
-abstract type SplittingMethod end
+abstract type SplittingMethod <: AbstractMethod end
 
 abstract type OrderedSplittingMethod <: SplittingMethod end
 
@@ -9,20 +9,17 @@ order_error() = throw(ArgumentError("At least one sorter is required."))
 # TODO: add unordered methods
 
 @tags struct PercentileMethod <: OrderedSplittingMethod
-    percentile::Float64 & (dashi = StringDict("minimum" => 0, "maximum" => 1),)
+    percentile::Float64 & (dashi = json_number(minimum = 0, maximum = 1),)
 end
 
 get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)
 
 @kwarg struct TilesMethod <: OrderedSplittingMethod
     tiles::Vector{Int} & (
-        dashi = StringDict(
-            "items" => Dict("enum" => [1, 2], "type" => "integer"),
-            "minItems" => 1,
-        ),
+        dashi = json_array(items = json_integer(enum = [1, 2]), minItems = 1),
     )
-    repeat::Int = 1 & (dashi = StringDict("minimum" => 1),)
-    tail::Int = 0 & (dashi = StringDict("minimum" => 0),)
+    repeat::Int = 1 & (dashi = json_integer(minimum = 1),)
+    tail::Int = 0 & (dashi = json_integer(minimum = 0),)
 end
 
 function get_sql(m::TilesMethod)
@@ -38,53 +35,40 @@ const SPLITTING_METHODS = OrderedDict{String, DataType}(
     "tiles" => TilesMethod,
 )
 
+@options SplittingMethod SPLITTING_METHODS
+
 """
-    struct SplitCard <: Card
-        type::String
-        method::String
-        splitter::SplittingMethod
-        order_by::Vector{String}
-        group_by::Vector{String}
-        output::String
+    struct SplitCard{M <: SplittingMethod} <: SQLCard
+        method::M
+        order_by::Vector{String} = String[]
+        group_by::Vector{String} = String[]
+        output::String = "partition"
     end
 
-Card to split the data into two groups according to a given function `splitter`.
+Card to split the data into two groups according to a given `method`.
 
 Currently supported methods are
 - `tiles` (requires `tiles` argument, e.g., `tiles = [1, 1, 2, 1, 1, 2]`),
 - `percentile` (requires `percentile` argument, e.g. `percentile = 0.9`).
 """
-struct SplitCard <: SQLCard
-    type::String
-    method::String
-    splitter::SplittingMethod
-    order_by::Vector{String}
-    group_by::Vector{String}
-    output::String
+@kwarg struct SplitCard{M <: SplittingMethod} <: SQLCard
+    method::M
+    order_by::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,) # TODO: weaken requirement
+    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
+    output::String = "partition" & (dashi = json_string(minLength = 1),)
+
+    function SplitCard{M}(
+            method::M, order_by::AbstractVector, group_by::AbstractVector, output::AbstractString
+        ) where {M <: SplittingMethod}
+        (method isa OrderedSplittingMethod) && isempty(order_by) && order_error()
+        new{M}(method, order_by, group_by, output)
+    end
 end
 
-function get_metadata(sc::SplitCard)
-    return StringDict(
-        "type" => sc.type,
-        "method" => sc.method,
-        "method_options" => get_options(sc.splitter),
-        "order_by" => sc.order_by,
-        "group_by" => sc.group_by,
-        "output" => sc.output,
-    )
-end
-
-function SplitCard(c::AbstractDict)
-    type::String = c["type"]
-    order_by::Vector{String} = get(c, "order_by", String[])
-    has_order = !isempty(order_by)
-    group_by::Vector{String} = get(c, "group_by", String[])
-    method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method", method)
-    splitter::SplittingMethod = construct(SPLITTING_METHODS[method], method_options)
-    output::String = c["output"]
-    (splitter isa OrderedSplittingMethod) && isempty(order_by) && order_error()
-    return SplitCard(type, method, splitter, order_by, group_by, output)
+function SplitCard(
+        method::M, order_by::AbstractVector, group_by::AbstractVector, output::AbstractString
+    ) where {M <: SplittingMethod}
+    return SplitCard{M}(method, order_by, group_by, output)
 end
 
 ## SQLCard interface
@@ -111,7 +95,7 @@ function evaluate(
 
     query = From(source) |>
         Partition(; order_by = Get.(sc.order_by), by = Get.(sc.group_by)) |>
-        Select(id_var => Get(id_var), sc.output => get_sql(sc.splitter))
+        Select(id_var => Get(id_var), sc.output => get_sql(sc.method))
 
     replace_table(repository, query, destination; schema)
     return [sc.output]

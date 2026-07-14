@@ -34,7 +34,7 @@ using TOML: parsefile
 using RelocatableFolders: @path
 
 using JLD2: jldopen
-using StructUtils: @kwarg, @tags, fieldtags, fielddefaults, StructUtils
+using StructUtils: @choosetype, @nonstruct, @kwarg, @tags, fieldtags, fielddefaults, StructUtils
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
@@ -76,7 +76,8 @@ using FunSQL:
 using Graphs: SimpleDiGraphFromIterator, DiGraph, Edge,
     inneighbors, outneighbors, nv, add_vertices!, topological_sort
 
-using StatsModels: term, terms, termnames, Term, FormulaTerm, AbstractTerm
+using StatsModels: term, terms, termnames,
+    ConstantTerm, Term, InteractionTerm, FormulaTerm, AbstractTerm
 
 using StatsAPI: fit, predict, modelmatrix, RegressionModel
 
@@ -156,9 +157,10 @@ end
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
-include("schema_utils.jl")
+include("schema.jl")
 include("dict_helpers.jl")
 include("card.jl")
+include("method.jl")
 
 include("cards/standard.jl")
 include("cards/split.jl")
@@ -172,7 +174,6 @@ include("cards/gaussian_encoding.jl")
 include("cards/streamliner.jl")
 include("cards/wild.jl")
 
-include("schemas.jl")
 include("node.jl")
 include("dag.jl")
 include("pipeline.jl")
@@ -182,15 +183,15 @@ include("group_api/dag.jl")
 include("group_api/schema.jl")
 
 function __init__()
-    register_card("split" => SPLIT_SPEC)
-    register_card("window_function" => WINDOW_FUNCTION_SPEC)
-    register_card("rescale" => RESCALE_SPEC)
-    register_card("cluster" => CLUSTER_SPEC)
-    register_card("dimensionality_reduction" => DIMENSIONALITY_REDUCTION_SPEC)
-    register_card("glm" => GLM_SPEC)
-    register_card("interp" => INTERP_SPEC)
-    register_card("gaussian_encoding" => GAUSSIAN_ENCODING_SPEC)
-    register_card("streamliner" => STREAMLINER_SPEC)
+    register_card("split" => CardSpec(SplitCard, "Split"))
+    register_card("window_function" => CardSpec(WindowFunctionCard, "Window Function"))
+    register_card("rescale" => CardSpec(RescaleCard, "Rescale"))
+    register_card("cluster" => CardSpec(ClusterCard, "Cluster"))
+    register_card("dimensionality_reduction" => CardSpec(DimensionalityReductionCard, "Dimensionality Reduction"))
+    register_card("glm" => CardSpec(GLMCard, "GLM"))
+    register_card("interp" => CardSpec(InterpCard, "Interpolation"))
+    register_card("gaussian_encoding" => CardSpec(GaussianEncodingCard, "Gaussian Encoding"))
+    register_card("streamliner" => CardSpec(StreamlinerCard, "Streamliner"))
     return
 end
 

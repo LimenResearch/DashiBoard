@@ -1,26 +1,40 @@
 struct DashiStyle <: StructUtils.StructStyle end
 
+get_dashi(s::Union{NamedTuple, Nothing}) = isnothing(s) ? nothing : get(s, :dashi, nothing)
+
+construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
+
+function StructUtils.lift(::DashiStyle, ::Type{String}, x::AbstractVector, tags)
+    if get_dashi(tags) != JSON_VARIABLE
+        msg = """
+        Automatic vector to string conversion is only allowed for fields
+        with schema `$(JSON_VARIABLE)`.
+        """
+        throw(ArgumentError(msg))
+    elseif length(x) != 1
+        msg = """
+        Automatic vector to string conversion is only allowed for vector
+        of length `1`, found `length = $(length(x))`.
+        """
+        throw(ArgumentError(msg))
+    else
+        s::String = only(x)
+        return s, nothing
+    end
+end
+
 StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
 
 StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))
 
-_lower(x) = StructUtils.lower(DashiStyle(), x)
-
-construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
-
-function get_dashi(nt::NamedTuple, sym::Symbol)
-    s = get(nt, sym, nothing)
-    return isnothing(s) ? nothing : get(s, :dashi, nothing)
-end
-
 _instances(::Type{T}) where {T <: Enum} = instances(T)
-_instances(::Type{Union{T, Nothing}}) where {T <: Enum} = _instances(T)
+_instances(::Type{Union{T, Nothing}}) where {T <: Enum} = instances(T)
 
-enum_instances(T::Type) = collect(Iterators.map(_lower, _instances(T)))
+enum_instances(T::Type) = String[StructUtils.lower(DashiStyle(), x) for x in _instances(T)]
 
 # generic schema utils
 
-function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default)
+function schema_from_type(T::Type)
     schema = StringDict()
 
     if T <: Nothing
@@ -33,11 +47,18 @@ function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default
         (T <: Union{AbstractString, Symbol, Nothing}) ? "string" :
         (T <: Union{AbstractVector, Nothing}) ? "array" :
         (T <: Union{Enum, Nothing}) ? "string" :
-        throw(ArgumentError("Type $T not supported in json schema generation."))
-    schema["type"] = type
+        nothing
+    isnothing(type) || (schema["type"] = type)
 
     (T <: Union{Enum, Nothing}) && (schema["enum"] = enum_instances(T))
-    isnothing(default) || (schema["default"] = _lower(default))
+
+    return schema
+end
+
+function schema_from_type(T::Type, config::Union{AbstractDict, Nothing}, default)
+    schema = schema_from_type(T)
+
+    isnothing(default) || (schema["default"] = StructUtils.lower(DashiStyle(), default))
     isnothing(config) || merge!(schema, config)
 
     required = isnothing(default) && !(Nothing <: T)
@@ -65,19 +86,6 @@ function conditional_schema(condition::AbstractDict, schema::AbstractDict)
     return StringDict("if" => condition, "then" => schema)
 end
 
-function conditional_schema(
-        (method_key, method_name)::Pair{<:AbstractString, <:AbstractString},
-        (options_key, options_schema)::Pair{<:AbstractString, <:AbstractDict},
-    )
-    condition = match_property(method_key => method_name)
-    properties = StringDict(options_key => options_schema)
-    # If at least one property of `options_schema` is required,
-    # then `options_schema` is required
-    required = isempty(options_schema["required"]) ? String[] : String[options_key]
-    schema = json_config(; properties, required)
-    return conditional_schema(condition, schema)
-end
-
 function one_or_many_schema(schema::AbstractDict; kwargs...)
     obj_schema::StringDict = schema
     arr_schema = json_array(; items = obj_schema, kwargs...)
@@ -99,7 +107,7 @@ function options_schema(::Type{T}; additionalProperties::Bool = false) where {T}
 
     for field in fieldnames(T)
         key = string(field)
-        config = get_dashi(tags, field)
+        config = get_dashi(get(tags, field, nothing))
         default = get(defaults, field, nothing)
         schema, is_required = schema_from_type(fieldtype(T, field), config, default)
         properties[key] = schema
@@ -108,11 +116,29 @@ function options_schema(::Type{T}; additionalProperties::Bool = false) where {T}
     return json_object(; properties, additionalProperties, required)
 end
 
-function conditional_options_schemas(d)
-    return [
-        conditional_schema("method" => k, "method_options" => options_schema(T))
-            for (k, T) in pairs(d)
-    ]
+function type_schema(d::AbstractDict; default = nothing, additionalProperties::Bool = false)
+    properties = StringDict("type" => json_string(; enum = keys(d), default))
+    required = isnothing(default) ? String["type"] : String[]
+    return json_object(; properties, additionalProperties, required)
+end
+
+function conditional_options_schema(f::F, d::AbstractDict; default = nothing) where {F}
+    schema = type_schema(d; default, additionalProperties = true)
+
+    allOf = StringDict[]
+    for (k, v) in pairs(d)
+        option_schema = f(v)
+        option_schema["properties"]["type"] = true
+        cond = isnothing(default) ? match_property("type" => k) : match_property("type" => k, default)
+        push!(allOf, conditional_schema(cond, option_schema))
+    end
+    schema["allOf"] = allOf
+
+    return schema
+end
+
+function conditional_options_schema(d::AbstractDict; default = nothing)
+    return conditional_options_schema(options_schema, d; default)
 end
 
 # schema utils for Streamliner cards
@@ -132,12 +158,45 @@ function streamliner_schema(configs::AbstractVector; additionalProperties::Bool 
 end
 
 # Compute schemas used for model or training in Streamliner,
-# e.g., `conditional_options_schemas(model_dir, model_names, "model")`
-function conditional_streamliner_schemas(dir, vals, name)
-    return map(vals) do x
-        schema = streamliner_schema(parse_properties(dir, x))
-        conditional_schema(name => x, string(name, "_", "options") => schema)
-    end
+# e.g., `conditional_streamliner_schemas(model_dir, "model")`
+function conditional_streamliner_schema(dir, name)
+    vals = available_streamliner_configs(dir)
+    d = OrderedDict{String, Vector{StringDict}}(x => parse_properties(dir, x) for x in vals)
+    return conditional_options_schema(streamliner_schema, d)
+end
+
+# Card schema
+
+function schema_definitions(variables::AbstractVector)
+    variable_schema = json_string(enum = variables)
+    variables_schema = json_array(items = JSON_VARIABLE, default = [])
+    nonempty_variables_schema = json_array(items = JSON_VARIABLE, minItems = 1)
+    return StringDict(
+        "variable" => variable_schema,
+        "variables" => variables_schema,
+        "nonempty_variables" => nonempty_variables_schema,
+    )
+end
+
+function json_schema(
+        key::AbstractString, variables::Any;
+        additionalProperties::Bool = false
+    )::StringDict
+    schema = json_schema(key; additionalProperties)
+    schema["\$defs"] = schema_definitions(variables)
+    return schema
+end
+
+function json_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
+    spec = get_spec(key)
+    T = spec.type
+    schema::StringDict = (T <: WildCard) ? wild_card_schema(spec.settings) : options_schema(T)
+    # set defaults if not provided by card schema implementation
+    schema["properties"]["type"] = json_const(key)
+    ("type" in schema["required"]) || push!(schema["required"], "type")
+    get!(schema, "title", spec.label)
+    get!(schema, "additionalProperties", additionalProperties)
+    return schema
 end
 
 # Definitions
@@ -169,6 +228,7 @@ json_integer(; kwargs...) = json_number("integer"; kwargs...)
 
 function json_number(
         type::AbstractString = "number";
+        enum::Union{AbstractVector, Nothing} = nothing,
         minimum::Union{Integer, Nothing} = nothing,
         maximum::Union{Integer, Nothing} = nothing,
         exclusiveMinimum::Union{Integer, Nothing} = nothing,
@@ -179,7 +239,7 @@ function json_number(
     )
     return nonnothing_dict(;
         type = type,
-        minimum, maximum,
+        enum, minimum, maximum,
         exclusiveMinimum, exclusiveMaximum,
         title, description, default
     )

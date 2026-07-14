@@ -67,7 +67,7 @@ function Pipeline(nodes::AbstractVector, groups::AbstractDict)
     for v in topological_sort(G)
         if v ≤ n_nodes
             config = replace_placeholders(nodes[v], ps; recur = true)
-            node = Node(config, adjust = true)
+            node = Node(config)
             node_key = get_label(node)
             ps.nodes[node_key] = parsed_nodes[v] = node
         else

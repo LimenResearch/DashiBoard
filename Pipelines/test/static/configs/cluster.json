@@ -4,8 +4,8 @@
     "inputs": ["TEMP", "PRES", "Iws"],
     "weights": "Iws",
     "output": "cluster",
-    "method": "kmeans",
-    "method_options": {
+    "method": {
+      "type": "kmeans",
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
@@ -16,17 +16,28 @@
     "type": "cluster",
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "type": "dbscan",
       "radius": 0.02
+    }
+  },
+  "affinity": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "apcluster",
+    "method": {
+      "type": "affinity_propagation",
+      "damp": 0.5,
+      "maxiter": 200,
+      "tol": 1e-6
     }
   },
   "hasPartition": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "type": "dbscan",
       "radius": 0.02
     },
     "partition": "partition"
@@ -35,8 +46,8 @@
     "type": "cluster",
     "inputs": ["temp", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "type": "dbscan",
       "radius": 0.02
     }
   },
@@ -44,21 +55,10 @@
     "type": "cluster",
     "inputs": ["TEMP", "PRES"],
     "output": "dbcluster",
-    "method": "dbscan",
-    "method_options": {
+    "method": {
+      "type": "dbscan",
       "radius": 0.02,
       "minneighbors": 10
-    }
-  },
-  "affinity": {
-    "type": "cluster",
-    "inputs": ["TEMP", "PRES"],
-    "output": "apcluster",
-    "method": "affinity_propagation",
-    "method_options": {
-      "damp": 0.5,
-      "maxiter": 200,
-      "tol": 1e-6
     }
   }
 }

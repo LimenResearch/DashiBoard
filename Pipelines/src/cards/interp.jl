@@ -1,4 +1,4 @@
-abstract type InterpolationMethod end
+abstract type InterpolationMethod <: AbstractMethod end
 
 function StructUtils.lift(::DashiStyle, ::Type{ExtrapolationType.T}, s::AbstractString)
     return StructUtils.lift(ExtrapolationType.T, uppercasefirst(s)), nothing
@@ -11,7 +11,7 @@ end
 ## Constant interpolation
 
 @kwarg struct ConstantInterpolationMethod <: InterpolationMethod
-    dir::Symbol & (dashi = StringDict("enum" => ["left", "right"]),)
+    dir::Symbol & (dashi = json_string(enum = ["left", "right"]),)
     extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
     extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
@@ -74,11 +74,11 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
     "pchip" => PCHIPInterpolationMethod,
 )
 
+@options InterpolationMethod INTERPOLATION_METHODS
+
 """
-    struct InterpCard <: Card
-        type::String
-        method::String
-        interpolator::InterpolationMethod
+    struct InterpCard{M <: InterpolationMethod} <: Card
+        method::M
         input::String
         targets::Vector{String}
         partition::Union{String, Nothing} = nothing
@@ -87,46 +87,12 @@ const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
 
 Interpolate `targets` based on `input`.
 """
-struct InterpCard <: StandardCard
-    type::String
-    method::String
-    interpolator::InterpolationMethod
-    input::String
-    targets::Vector{String}
-    partition::Union{String, Nothing}
-    suffix::String
-end
-
-function get_metadata(ic::InterpCard)
-    return StringDict(
-        "type" => ic.type,
-        "method" => ic.method,
-        "method_options" => get_options(ic.interpolator),
-        "input" => ic.input,
-        "targets" => ic.targets,
-        "partition" => ic.partition,
-        "suffix" => ic.suffix,
-    )
-end
-
-function InterpCard(c::AbstractDict)
-    type::String = c["type"]
-    method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method", method)
-    interpolator::InterpolationMethod = construct(INTERPOLATION_METHODS[method], method_options)
-    input::String = c["input"]
-    targets::Vector{String} = c["targets"]
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    suffix::String = get(c, "suffix", "hat")
-    return InterpCard(
-        type,
-        method,
-        interpolator,
-        input,
-        targets,
-        partition,
-        suffix
-    )
+@kwarg struct InterpCard{M <: InterpolationMethod} <: StandardCard
+    method::M
+    input::String & (dashi = JSON_VARIABLE,)
+    targets::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
 ## StandardCard interface
@@ -138,10 +104,10 @@ end
 OutputVariables(ic::InterpCard) = OutputVariables(join_names.(ic.targets, ic.suffix))
 
 function _train(ic::InterpCard, t, ::AbstractPrimaryKey)
-    (; interpolator, targets, input, partition) = ic
+    (; method, targets, input, partition) = ic
     return map(targets) do target
         y, x = t[target], t[input]
-        return interpolator(y, x)
+        return method(y, x)
     end
 end
 

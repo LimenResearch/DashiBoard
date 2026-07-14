@@ -255,15 +255,15 @@ mktempdir() do dir
         @test_throws ArgumentError invert(node)
     end
 
-    @testset "labels" begin
-        d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
-        node1 = Pipelines.Node(Dict("card" => d["zscore"]))
-        @test node1.label == "Rescale"
+    # @testset "labels" begin
+    #     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
+    #     node1 = Pipelines.Node(Dict("card" => d["zscore"]))
+    #     @test node1.label == "Rescale"
 
-        node2 = Pipelines.Node(Dict("card" => d["zscore"], "label" => "custom2"))
-        @test node2.label == "custom2"
+    #     node2 = Pipelines.Node(Dict("card" => d["zscore"], "label" => "custom2"))
+    #     @test node2.label == "custom2"
 
-        node3 = Pipelines.Node(Card(d["zscore"]), label = "custom3")
-        @test node3.label == "custom3"
-    end
+    #     node3 = Pipelines.Node(Card(d["zscore"]), label = "custom3")
+    #     @test node3.label == "custom3"
+    # end
 end

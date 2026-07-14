@@ -1,19 +1,19 @@
-abstract type ProjectionMethod end
+abstract type ProjectionMethod <: AbstractMethod end
 
 struct PCAMethod <: ProjectionMethod end
 
 (::PCAMethod)(X, n) = fit(PCA, X; maxoutdim = n)
 
 @kwarg struct PPCAMethod <: ProjectionMethod
-    iterations::Int = 1000 & (dashi = StringDict("minimum" => 1),)
-    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    iterations::Int = 1000 & (dashi = json_integer(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
 end
 
 (m::PPCAMethod)(X, n) = fit(PPCA, X; maxoutdim = n, maxiter = m.iterations, m.tol)
 
 @kwarg struct FactorAnalysisMethod <: ProjectionMethod
-    iterations::Int = 1000 & (dashi = StringDict("minimum" => 1),)
-    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    iterations::Int = 1000 & (dashi = json_integer(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
 end
 
 (m::FactorAnalysisMethod)(X, n) = fit(FactorAnalysis, X; maxoutdim = n, maxiter = m.iterations, m.tol)
@@ -29,60 +29,26 @@ const PROJECTION_METHODS = OrderedDict{String, DataType}(
     "mds" => MDSMethod,
 )
 
+@options ProjectionMethod PROJECTION_METHODS
+
 """
-    struct DimensionalityReductionCard <: Card
-        type::String
-        method::String
-        projector::ProjectionMethod
+    @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
+        method::M
         inputs::Vector{String}
-        partition::Union{String, Nothing}
+        partition::Union{String, Nothing} = nothing
         n_components::Int
-        output::String
+        output::String = "component"
     end
 
-Project `inputs` based on `projector`.
+Project `inputs` based on `method`.
 Save resulting column as `output`.
 """
-struct DimensionalityReductionCard <: StandardCard
-    type::String
-    method::String
-    projector::ProjectionMethod
-    inputs::Vector{String}
-    partition::Union{String, Nothing}
-    n_components::Int
-    output::String
-end
-
-function get_metadata(drc::DimensionalityReductionCard)
-    return StringDict(
-        "type" => drc.type,
-        "method" => drc.method,
-        "method_options" => get_options(drc.projector),
-        "inputs" => drc.inputs,
-        "partition" => drc.partition,
-        "n_components" => drc.n_components,
-        "output" => drc.output,
-    )
-end
-
-function DimensionalityReductionCard(c::AbstractDict)
-    type::String = c["type"]
-    method::String = c["method"]
-    method_options::StringDict = extract_options(c, "method", method)
-    projector::ProjectionMethod = construct(PROJECTION_METHODS[method], method_options)
-    inputs::Vector{String} = c["inputs"]
-    partition::Union{String, Nothing} = get(c, "partition", nothing)
-    n_components::Int = c["n_components"]
-    output::String = get(c, "output", "component")
-    return DimensionalityReductionCard(
-        type,
-        method,
-        projector,
-        inputs,
-        partition,
-        n_components,
-        output
-    )
+@kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
+    method::M
+    inputs::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
+    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
+    n_components::Int & (dashi = json_integer(minimum = 1),)
+    output::String = "component" & (dashi = json_string(minLength = 1),)
 end
 
 ## StandardCard interface
@@ -95,7 +61,7 @@ OutputVariables(drc::DimensionalityReductionCard) = OutputVariables(output_vars(
 
 function _train(drc::DimensionalityReductionCard, t, ::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), drc.inputs, dims = 1)
-    return drc.projector(X, drc.n_components)
+    return drc.method(X, drc.n_components)
 end
 
 function (drc::DimensionalityReductionCard)(model, t, id_var::AbstractPrimaryKey)

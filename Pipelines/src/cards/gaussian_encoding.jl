@@ -1,4 +1,4 @@
-abstract type TemporalProcessingMethod end
+abstract type TemporalProcessingMethod <: AbstractMethod end
 
 @kwarg struct IdentityMethod <: TemporalProcessingMethod
     max::Float64 = 1.0
@@ -39,15 +39,15 @@ const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
     "minuteofhour" => MinuteOfHourMethod,
 )
 
+@options TemporalProcessingMethod TEMPORAL_PREPROCESSING_METHODS "identity"
+
 """
     struct GaussianEncodingCard <: Card
 
 Defines a card for applying Gaussian transformations to a specified column.
 
 Fields:
-- `type::String`: Card type, i.e., `"gaussian_encoding"`.
-- `method::String`: Name of the processing method (see below).
-- `temporal_preprocessor::TemporalProcessingMethod`: Tranformation to process a given column (see below).
+- `method::TemporalProcessingMethod`: Tranformation to process a given column (see below).
 - `input::String`: Name of the column to transform.
 - `n_components::Int`: Number of Gaussian curves to generate.
 - `lambda::Float64`: Coefficient for scaling the standard deviation.
@@ -84,56 +84,33 @@ Evaluate:
   5. Selects only the required columns (original and transformed).
   6. Replaces the target table with the final results.
 """
-struct GaussianEncodingCard <: SQLCard
-    type::String
-    method::String
-    temporal_preprocessor::TemporalProcessingMethod
-    input::String
-    n_components::Int
-    lambda::Float64
-    suffix::String
+@kwarg struct GaussianEncodingCard{M <: TemporalProcessingMethod} <: SQLCard
+    method::M = IdentityMethod()
+    input::String & (dashi = JSON_VARIABLE,)
+    n_components::Int & (dashi = json_integer(minimum = 1),)
+    lambda::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0),)
+    suffix::String = "gaussian" & (dashi = json_string(minLength = 1),)
+
+    function GaussianEncodingCard{M}(
+            method::M, input::AbstractString, n_components::Integer,
+            lambda::Real, suffix::AbstractString
+        ) where {M <: TemporalProcessingMethod}
+        if n_components ≤ 0
+            msg = """
+            `n_components` must be greater than `0`.
+            Provided value: `$(n_components)`.
+            """
+            throw(ArgumentError(msg))
+        end
+        new{M}(method, input, n_components, lambda, suffix)
+    end
 end
 
-function get_metadata(gec::GaussianEncodingCard)
-    return StringDict(
-        "type" => gec.type,
-        "method" => gec.method,
-        "method_options" => get_options(gec.temporal_preprocessor),
-        "input" => gec.input,
-        "n_components" => gec.n_components,
-        "lambda" => gec.lambda,
-        "suffix" => gec.suffix,
-    )
-end
-
-function GaussianEncodingCard(c::AbstractDict)
-    type::String = c["type"]
-    method::String = get(c, "method", "identity")
-    input::String = c["input"]
-    if !haskey(TEMPORAL_PREPROCESSING_METHODS, method)
-        valid_methods = join(keys(TEMPORAL_PREPROCESSING_METHODS), ", ")
-        throw(ArgumentError("Invalid method: '$method'. Valid methods are: $valid_methods."))
-    end
-    method_options::StringDict = extract_options(c, "method", method)
-    temporal_preprocessor = construct(TEMPORAL_PREPROCESSING_METHODS[method], method_options)
-
-    n_components::Int = c["n_components"]
-    if n_components ≤ 0
-        throw(ArgumentError("`n_components` must be greater than `0`. Provided value: `$n_components`."))
-    end
-
-    lambda::Float64 = get(c, "lambda", 0.5)
-    suffix::String = get(c, "suffix", "gaussian")
-
-    return GaussianEncodingCard(
-        type,
-        method,
-        temporal_preprocessor,
-        input,
-        n_components,
-        lambda,
-        suffix
-    )
+function GaussianEncodingCard(
+        method::M, input::AbstractString, n_components::Integer,
+        lambda::Real, suffix::AbstractString
+    ) where {M <: TemporalProcessingMethod}
+    return GaussianEncodingCard{M}(method, input, n_components, lambda, suffix)
 end
 
 ## SQLCard interface
@@ -148,7 +125,7 @@ function train(
     )
     μs = range(start = 0, step = 1 / gec.n_components, length = gec.n_components)
     σ = step(μs) * gec.lambda
-    params = SimpleTable("σ" => [σ], "d" => [gec.temporal_preprocessor.max])
+    params = SimpleTable("σ" => [σ], "d" => [gec.method.max])
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
     end
@@ -180,7 +157,7 @@ function evaluate(
     end
     selection = vcat([id_var => Get._id], converted)
 
-    processed_input = gec.temporal_preprocessor(Get(gec.input))
+    processed_input = gec.method(Get(gec.input))
     with_table(repository, params_tbl; schema) do tbl_name
         query = From(source) |>
             Select("_id" => Get(id_var), "transformed" => processed_input) |>

@@ -15,6 +15,8 @@
 - `CardConfig` was simplified and renamed to `CardSpec` [#120](https://github.com/LimenResearch/DashiBoard/pull/120).
 - `Pipelines.get_metadata` and `Pipelines.card_widgets` are still public no longer exported [#122](https://github.com/LimenResearch/DashiBoard/pull/122).
 - `register_wild_card` and `WildCardSettings` are the preferred way to register a wild card [#123](https://github.com/LimenResearch/DashiBoard/pull/123).
+- The API `"method": "m"` + `"method_options": {"opt1": v1, "opt2": v2}` configuration in Pipelines is superseded by `method: {"type": "m", "opt1": v1, "opt2": v2}`. In the StreamlinerCard, the same change occurred for `model` and `training`, and the data `funnel` has now to be passed explicitly in the same way [#143](https://github.com/LimenResearch/DashiBoard/pull/143).
+- In Pipelines, the dot notation for `method_options`, e.g., `"method_options.kmeans.n_classes": 7`, is no longer supported [#143](https://github.com/LimenResearch/DashiBoard/pull/143).
 
 ### Features
 

@@ -38,9 +38,9 @@ the median of its similarities, the classic default for a moderate number
 of clusters.
 """
 @kwarg struct AffinityPropagationMethod <: ClusteringMethod
-    damp::Float64 = 0.5 & (dashi = StringDict("minimum" => 0, "exclusiveMaximum" => 1),)
-    maxiter::Int = 200 & (dashi = StringDict("minimum" => 1),)
-    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+    damp::Float64 = 0.5 & (dashi = json_number(minimum = 0, exclusiveMaximum = 1),)
+    maxiter::Int = 200 & (dashi = json_integer(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
 end
 
 function (m::AffinityPropagationMethod)(X; weights)

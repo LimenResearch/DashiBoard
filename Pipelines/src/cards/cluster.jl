@@ -24,9 +24,40 @@ function (m::DBSCANMethod)(X; weights)
     return dbscan(X, radius; min_neighbors, min_cluster_size)
 end
 
+"""
+    AffinityPropagationMethod <: ClusteringMethod
+
+Affinity propagation (`"method" => "affinity_propagation"`): points exchange
+messages until a set of exemplars — actual fitted points — emerges, so the
+number of clusters comes from the data instead of being predeclared.
+`damp`, `maxiter` and `tol` control the message passing. The similarity
+matrix is the negative squared Euclidean distance over the card's `inputs`,
+built densely: the fit is O(N²) in the training rows. Each point's
+self-similarity (its preference; more negative → fewer clusters) is set to
+the median of its similarities, the classic default for a moderate number
+of clusters.
+"""
+@kwarg struct AffinityPropagationMethod <: ClusteringMethod
+    damp::Float64 = 0.5 & (dashi = StringDict("minimum" => 0, "exclusiveMaximum" => 1),)
+    maxiter::Int = 200 & (dashi = StringDict("minimum" => 1),)
+    tol::Float64 = 1.0e-6 & (dashi = StringDict("exclusiveMinimum" => 0),)
+end
+
+function (m::AffinityPropagationMethod)(X; weights)
+    (; damp, maxiter, tol) = m
+    isnothing(weights) || @warn "Weights not supported in affinity propagation"
+    S = -pairwise(SqEuclidean(), X, dims = 2)
+    S[diagind(S)] .= vec(median(S, dims = 1))
+    res = affinityprop(S; maxiter, tol, damp)
+    res.converged ||
+        @warn "Affinity propagation did not converge; increase `maxiter` or adjust `damp`"
+    return res
+end
+
 const CLUSTERING_METHODS = OrderedDict{String, DataType}(
     "kmeans" => KMeansMethod,
     "dbscan" => DBSCANMethod,
+    "affinity_propagation" => AffinityPropagationMethod,
 )
 
 # TODO: support custom metrics

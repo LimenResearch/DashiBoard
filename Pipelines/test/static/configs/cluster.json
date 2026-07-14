@@ -49,5 +49,16 @@
       "radius": 0.02,
       "minneighbors": 10
     }
+  },
+  "affinity": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "apcluster",
+    "method": "affinity_propagation",
+    "method_options": {
+      "damp": 0.5,
+      "maxiter": 200,
+      "tol": 1e-6
+    }
   }
 }

@@ -80,7 +80,7 @@ using StatsModels: term, terms, termnames, Term, FormulaTerm, AbstractTerm
 
 using StatsAPI: fit, predict, modelmatrix, RegressionModel
 
-using StatsBase: fweights
+using StatsBase: fweights, median
 
 using Distributions: Distribution,
     Normal,
@@ -130,7 +130,11 @@ using StreamlinerCore:
     get_rng,
     StreamlinerCore as SC
 
-using Clustering: assignments, kmeans, dbscan
+using Clustering: assignments, kmeans, dbscan, affinityprop
+
+using Distances: pairwise, SqEuclidean
+
+using LinearAlgebra: diagind
 
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 

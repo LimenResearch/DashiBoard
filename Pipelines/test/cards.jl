@@ -320,6 +320,39 @@ end
     train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
     R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
     @test assignments(R) == df.dbcluster
+
+    # affinity propagation builds a dense N×N similarity matrix: test on a
+    # small table, deduplicated so that the fit converges (identical points
+    # receive identical messages and can keep oscillating)
+    DBInterface.execute(
+        Returns(nothing),
+        repo,
+        """
+        CREATE OR REPLACE TABLE cl_small AS (
+            SELECT min("No") AS "No", "TEMP", "PRES"
+            FROM (FROM selection LIMIT 200)
+            GROUP BY "TEMP", "PRES"
+            ORDER BY "No"
+        );
+        """
+    )
+    card = Pipelines.Card(d["affinity"])
+    @test !Pipelines.invertible(card)
+
+    node = Node(card)
+    @test Pipelines.get_node_inputs(node) == ["TEMP", "PRES"]
+    @test Pipelines.get_node_outputs(node) == ["apcluster"]
+
+    Pipelines.train_evaljoin!(repo, node, "cl_small" => "clustering", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+
+    train_df = DBInterface.execute(DataFrame, repo, "FROM cl_small")
+    X = [train_df.TEMP train_df.PRES]'
+    S = -Pipelines.pairwise(Pipelines.SqEuclidean(), X, dims = 2)
+    S[Pipelines.diagind(S)] .= vec(median(S, dims = 1))
+    R = affinityprop(S; maxiter = 200, tol = 1.0e-6, damp = 0.5)
+    @test R.converged
+    @test df.apcluster == assignments(R)
 end
 
 @testset "dimensionality reduction" begin

@@ -1,11 +1,27 @@
 struct DashiStyle <: StructUtils.StructStyle end
 
-function get_dashi(nt::NamedTuple, sym::Symbol)
-    s = get(nt, sym, nothing)
-    return isnothing(s) ? nothing : get(s, :dashi, nothing)
-end
+get_dashi(s::Union{NamedTuple, Nothing}) = isnothing(s) ? nothing : get(s, :dashi, nothing)
 
 construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
+
+function StructUtils.lift(::DashiStyle, ::Type{String}, x::AbstractVector, tags)
+    if get_dashi(tags) != JSON_VARIABLE
+        msg = """
+        Automatic vector to string conversion is only allowed for fields
+        with schema `$(JSON_VARIABLE)`.
+        """
+        throw(ArgumentError(msg))
+    elseif length(x) != 1
+        msg = """
+        Automatic vector to string conversion is only allowed for vector
+        of length `1`, found `length = $(length(x))`.
+        """
+        throw(ArgumentError(msg))
+    else
+        s::String = only(x)
+        return s, nothing
+    end
+end
 
 StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
 
@@ -91,7 +107,7 @@ function options_schema(::Type{T}; additionalProperties::Bool = false) where {T}
 
     for field in fieldnames(T)
         key = string(field)
-        config = get_dashi(tags, field)
+        config = get_dashi(get(tags, field, nothing))
         default = get(defaults, field, nothing)
         schema, is_required = schema_from_type(fieldtype(T, field), config, default)
         properties[key] = schema

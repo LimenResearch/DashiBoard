@@ -56,6 +56,8 @@ function choose_card(d::AbstractDict)
     return CARD_SPECS[type].type
 end
 
+@choosetype DashiStyle Card choose_card
+
 """
     Card(d::AbstractDict)
 
@@ -104,11 +106,7 @@ julia> card.inputs
  "humidity"
 ```
 """
-function Card(d::AbstractDict; adjust::Bool = false)
-    C = choose_card(d)
-    config = adjust ? adjust_config(C, d) : d
-    return construct(C, config)
-end
+Card(d::AbstractDict) = construct(Card, d)
 
 """
     Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
@@ -175,11 +173,8 @@ inputs = [
 ]
 ```
 """
-function Card(
-        d::AbstractDict, params::AbstractDict;
-        recursive::Integer = 1, adjust::Bool = false
-    )
-    return Card(apply_helpers(d, params; recursive); adjust)
+function Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
+    return Card(apply_helpers(d, params; recursive))
 end
 
 ## Encode how a given card uses table variables
@@ -316,9 +311,7 @@ function register_card((key, spec)::Pair{<:AbstractString, CardSpec})
     return
 end
 
-## Construction and metadata helpers
-
-@choosetype DashiStyle Card choose_card
+## Metadata helpers
 
 card_type(c::Card)::String = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
 card_type(T::Type)::String = findfirst(spec -> (T <: spec.type), CARD_SPECS)

@@ -57,8 +57,8 @@ function Node(
     return Node(card, update, train, false, label, StateRef(state))
 end
 
-function Node(d::AbstractDict; update::Bool = true, adjust::Bool = false)
-    card = Card(d["card"]; adjust)
+function Node(d::AbstractDict; update::Bool = true)
+    card = Card(d["card"])
     label::String = get(d, "label", "")
     train::Bool = get(d, "train", true)
     state_config = get(d, "state", nothing)

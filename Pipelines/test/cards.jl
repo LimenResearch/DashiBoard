@@ -455,18 +455,13 @@ end
         apdf = DBInterface.execute(DataFrame, repo, "FROM ap_clust ORDER BY No")
         @test apdf.apcluster == nearest_center(Xsmall, apst.centers, sqeuclid)
 
-        # the preference knob's direction: preference 0 (≥ every pairwise
-        # similarity) splits down to roughly one exemplar per distinct point —
-        # far more than the median default. Exact counts and the converged
-        # flag are data traits, not invariants: this dataset's duplicate
-        # (TEMP, PRES) rows make the messages oscillate at default damping
-        # (converged stays false in the state, and the card warns), without
-        # perturbing the exemplar set the assertions above validate.
+        # exact exemplar counts and the converged flag are data traits, not
+        # invariants: this dataset's duplicate (TEMP, PRES) rows make the
+        # messages oscillate at default damping (converged stays false in
+        # the state, and the card warns), without perturbing the exemplar
+        # set the assertions above validate
         @test apst.converged isa Bool
         @test K < 200
-        fnode = Node(Pipelines.Card(d["affinityPreferenceZero"]))
-        Pipelines.train_evaljoin!(repo, fnode, "cl_small" => "ap_all", "No")
-        @test size(fitted(fnode).centers, 2) > K
 
         # exemplars label themselves; far rows are still assigned (nearest
         # exemplar has no noise channel)
@@ -480,16 +475,6 @@ end
         apo = DBInterface.execute(DataFrame, repo, "FROM approbes_out ORDER BY No")
         @test apo.apcluster[1] == 1
         @test apo.apcluster[2] in 1:K
-
-        # preference_rule: the resolved preference is kept in the state —
-        # exact plumbing check, convergence-independent
-        svals = vec([-sqeuclid(Xsmall[:, i], Xsmall[:, j]) for i in axes(Xsmall, 2), j in axes(Xsmall, 2)])
-        @test apst.preference ≈ median(svals)
-        mnode = Node(Pipelines.Card(merge(d["affinity"], Dict(
-            "method_options" => Dict("preference_rule" => "min"),
-        ))))
-        Pipelines.train_evaljoin!(repo, mnode, "cl_small" => "ap_min", "No")
-        @test fitted(mnode).preference ≈ minimum(svals)
     end
 
     @testset "kmedoids" begin

@@ -6,15 +6,6 @@
     "method": "affinity_propagation",
     "method_options": {}
   },
-  "affinityPreferenceZero": {
-    "type": "cluster",
-    "inputs": ["TEMP", "PRES"],
-    "output": "apcluster",
-    "method": "affinity_propagation",
-    "method_options": {
-      "preference": 0.0
-    }
-  },
   "kmedoids": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES"],

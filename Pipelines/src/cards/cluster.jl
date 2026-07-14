@@ -10,7 +10,12 @@ end
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
-    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights)
+    # under any dissimilarity other than squared Euclidean the center update
+    # stays the arithmetic mean (only the true minimizer for sqeuclidean),
+    # so the fit is a reasonable heuristic without the usual convergence
+    # guarantee
+    distance = get_dissimilarity(m.dissimilarity)
+    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights, distance)
 end
 
 @kwarg struct DBSCANMethod <: ClusteringMethod

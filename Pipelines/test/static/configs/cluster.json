@@ -1,7 +1,60 @@
 {
+  "affinity": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "apcluster",
+    "method": "affinity_propagation",
+    "method_options": {}
+  },
+  "affinityPreferenceZero": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "apcluster",
+    "method": "affinity_propagation",
+    "method_options": {
+      "preference": 0.0
+    }
+  },
+  "kmedoids": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "kmcluster",
+    "method": "kmedoids",
+    "method_options": {
+      "classes": 3,
+      "seed": 1234
+    }
+  },
+  "kmedoidsChebyshev": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "kmcluster",
+    "method": "kmedoids",
+    "method_options": {
+      "classes": 3,
+      "seed": 1234,
+      "metric": "chebyshev"
+    }
+  },
   "kmeans": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES", "Iws"],
+    "weights": "Iws",
+    "output": "cluster",
+    "method": "kmeans",
+    "method_options": {
+      "classes": 3,
+      "iterations": 100,
+      "tol": 1e-6,
+      "seed": 1234,
+      "init": "kmpp",
+      "metric": "sqeuclidean"
+    }
+  },
+  "kmeansAssign": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES", "Iws"],
+    "assign_inputs": ["TEMP", "PRES"],
     "weights": "Iws",
     "output": "cluster",
     "method": "kmeans",

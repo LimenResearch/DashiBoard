@@ -87,8 +87,15 @@ end
         @test metadata[k] == config[k]
     end
     @test isnothing(metadata["partition"])
+    @test isnothing(metadata["assign_inputs"])
     card2 = Pipelines.Card(metadata)
     @test card.clusterer == card2.clusterer
+
+    # `assign_inputs` round-trips
+    acard = Pipelines.Card(d["kmeansAssign"])
+    ametadata = Pipelines.get_metadata(acard)
+    @test ametadata["assign_inputs"] == d["kmeansAssign"]["assign_inputs"]
+    @test Pipelines.Card(ametadata).assign_inputs == acard.assign_inputs
 end
 
 @testset "metadata dimensionality reduction" begin

@@ -130,7 +130,10 @@ using StreamlinerCore:
     get_rng,
     StreamlinerCore as SC
 
-using Clustering: assignments, kmeans, dbscan
+using Clustering: assignments, kmeans, dbscan, affinityprop, kmedoids, initseeds_by_costs
+using NearestNeighbors: KDTree, inrange
+using Distances: pairwise, PreMetric, SemiMetric, Metric, SqEuclidean, Euclidean, Cityblock, Chebyshev
+using StatsBase: median
 
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 

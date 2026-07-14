@@ -54,6 +54,13 @@ placeholder = "Select input variables..."
 multiple = true
 options = { "-v" = "names" }
 
+[assign_inputs]
+widget = "select"
+label = "Assign inputs"
+placeholder = "Select assignment variables..."
+multiple = true
+options = { "-v" = "names" }
+
 [weights]
 widget = "select"
 label = "Weights"

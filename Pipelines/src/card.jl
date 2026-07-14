@@ -316,6 +316,8 @@ end
 card_type(c::Card)::String = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
 card_type(T::Type)::String = findfirst(spec -> (T <: spec.type), CARD_SPECS)
 
+get_default_label(c::Card) = get_label(CARD_SPECS[card_type(c)])
+
 function get_metadata(c::Card)
     d = construct(StringDict, c)
     d["type"] = card_type(c)

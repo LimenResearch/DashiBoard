@@ -1,12 +1,14 @@
 # Inner constructor utils
 
+has_keywords(xs::AbstractVector) = @capture :(f($(xs...))) f(args__; kwargs__)
+
 macro noparams(ex)
     ismatch = @capture(
         ex, function f_{Ps__}(xs__) where {Ts__}
             body_
         end
     )
-    if !ismatch || isempty(Ps)
+    if !ismatch || isempty(Ps) || has_keywords(xs)
         msg =
         """
         Expected expression of the type
@@ -15,7 +17,7 @@ macro noparams(ex)
             body
         end
         ```
-        with at least one `P`.
+        with at least one `P` and no keyword arguments.
         """
         throw(ArgumentError(msg))
     end
@@ -25,9 +27,7 @@ macro noparams(ex)
             $body
         end
 
-        function $f($(xs...)) where {$(Ts...)}
-            $body
-        end
+        $f($(xs...)) where {$(Ts...)} = $f{$(Ps...)}($(xs...))
     end
     return esc(res)
 end

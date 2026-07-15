@@ -1,3 +1,32 @@
+@testset "noparams macro" begin
+    @test_throws ArgumentError @macroexpand Pipelines.@noparams(
+        function f(x::I) where {I}
+            nothing
+        end
+    )
+
+    @test_throws ArgumentError @macroexpand Pipelines.@noparams(
+        function f{}(x::I) where {I}
+            nothing
+        end
+    )
+
+    @test_throws ArgumentError @macroexpand Pipelines.@noparams(
+        function f{I}(x::I; k = 2) where {I}
+            nothing
+        end
+    )
+
+    struct _X{I <: Integer}
+        x::I
+        Pipelines.@noparams function _X{I}(x::I) where {I <: Integer}
+            return new{I}(x)
+        end
+    end
+
+    @test _X{Int}(1) === _X(1)
+end
+
 @testset "name manipulations" begin
     col = "temp"
     suffix = "hat"

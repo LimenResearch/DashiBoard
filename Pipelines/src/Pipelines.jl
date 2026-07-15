@@ -30,6 +30,8 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
 
+using MacroTools: @capture
+
 using TOML: parsefile
 using RelocatableFolders: @path
 

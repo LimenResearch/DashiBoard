@@ -1,3 +1,37 @@
+# Inner constructor utils
+
+macro noparams(ex)
+    ismatch = @capture(
+        ex, function f_{Ps__}(xs__) where {Ts__}
+            body_
+        end
+    )
+    if !ismatch || isempty(Ps)
+        msg =
+        """
+        Expected expression of the type
+        ```
+        function f{Ps...}(xs...) where {Ts...}
+            body
+        end
+        ```
+        with at least one `P`.
+        """
+        throw(ArgumentError(msg))
+    end
+
+    res = quote
+        function $f{$(Ps...)}($(xs...)) where {$(Ts...)}
+            $body
+        end
+
+        function $f($(xs...)) where {$(Ts...)}
+            $body
+        end
+    end
+    return esc(res)
+end
+
 # General utils
 
 to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]

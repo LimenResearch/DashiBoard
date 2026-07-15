@@ -91,7 +91,7 @@ Evaluate:
     lambda::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0),)
     suffix::String = "gaussian" & (dashi = json_string(minLength = 1),)
 
-    function GaussianEncodingCard{M}(
+    @noparams function GaussianEncodingCard{M}(
             method::M, input::AbstractString, n_components::Integer,
             lambda::Real, suffix::AbstractString
         ) where {M <: TemporalProcessingMethod}
@@ -102,15 +102,8 @@ Evaluate:
             """
             throw(ArgumentError(msg))
         end
-        new{M}(method, input, n_components, lambda, suffix)
+        return new{M}(method, input, n_components, lambda, suffix)
     end
-end
-
-function GaussianEncodingCard(
-        method::M, input::AbstractString, n_components::Integer,
-        lambda::Real, suffix::AbstractString
-    ) where {M <: TemporalProcessingMethod}
-    return GaussianEncodingCard{M}(method, input, n_components, lambda, suffix)
 end
 
 ## SQLCard interface

@@ -236,7 +236,7 @@ end
         allows_partition = false,
         allows_weights = false
     )
-    Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
+    Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 
     config = Dict("type" => "trivial", "inputs" => ["a", "b"], "outputs" => ["c"])
     card = Pipelines.Card(config)

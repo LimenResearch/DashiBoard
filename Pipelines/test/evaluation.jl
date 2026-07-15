@@ -11,7 +11,7 @@
         allows_partition = false,
         allows_weights = false
     )
-    Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
+    Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 
     function trivialcard(inputs::AbstractVector, output::Union{AbstractVector, AbstractString})
         outputs = isa(output, AbstractVector) ? output : [output]

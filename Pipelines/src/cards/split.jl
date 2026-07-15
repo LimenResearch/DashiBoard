@@ -57,7 +57,7 @@ Currently supported methods are
     group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
     output::String = "partition" & (dashi = json_string(minLength = 1),)
 
-    @noparams function SplitCard{M}(
+    @optional_type_params function SplitCard{M}(
             method::M, order_by::AbstractVector, group_by::AbstractVector, output::AbstractString
         ) where {M <: SplittingMethod}
         (method isa OrderedSplittingMethod) && isempty(order_by) && order_error()

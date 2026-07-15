@@ -1,17 +1,17 @@
-@testset "noparams macro" begin
-    @test_throws ArgumentError @macroexpand Pipelines.@noparams(
+@testset "optional_type_params macro" begin
+    @test_throws ArgumentError @macroexpand Pipelines.@optional_type_params(
         function f(x::I) where {I}
             nothing
         end
     )
 
-    @test_throws ArgumentError @macroexpand Pipelines.@noparams(
+    @test_throws ArgumentError @macroexpand Pipelines.@optional_type_params(
         function f{}(x::I) where {I}
             nothing
         end
     )
 
-    @test_throws ArgumentError @macroexpand Pipelines.@noparams(
+    @test_throws ArgumentError @macroexpand Pipelines.@optional_type_params(
         function f{I}(x::I; k = 2) where {I}
             nothing
         end
@@ -19,7 +19,7 @@
 
     struct _X{I <: Integer}
         x::I
-        Pipelines.@noparams function _X{I}(x::I) where {I <: Integer}
+        Pipelines.@optional_type_params function _X{I}(x::I) where {I <: Integer}
             return new{I}(x)
         end
     end

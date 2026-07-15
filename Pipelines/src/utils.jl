@@ -2,12 +2,13 @@
 
 has_keywords(xs::AbstractVector) = @capture :(f($(xs...))) f(args__; kwargs__)
 
-macro noparams(ex)
+macro optional_type_params(ex)
     ismatch = @capture(
         ex, function f_{Ps__}(xs__) where {Ts__}
             body_
         end
     )
+
     if !ismatch || isempty(Ps) || has_keywords(xs)
         msg =
         """
@@ -22,14 +23,13 @@ macro noparams(ex)
         throw(ArgumentError(msg))
     end
 
-    res = quote
+    return quote
         function $f{$(Ps...)}($(xs...)) where {$(Ts...)}
             $body
         end
 
         $f($(xs...)) where {$(Ts...)} = $f{$(Ps...)}($(xs...))
-    end
-    return esc(res)
+    end |> esc
 end
 
 # General utils

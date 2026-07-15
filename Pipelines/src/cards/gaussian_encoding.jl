@@ -91,7 +91,7 @@ Evaluate:
     lambda::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0),)
     suffix::String = "gaussian" & (dashi = json_string(minLength = 1),)
 
-    @noparams function GaussianEncodingCard{M}(
+    @optional_type_params function GaussianEncodingCard{M}(
             method::M, input::AbstractString, n_components::Integer,
             lambda::Real, suffix::AbstractString
         ) where {M <: TemporalProcessingMethod}

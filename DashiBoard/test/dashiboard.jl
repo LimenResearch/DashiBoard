@@ -16,7 +16,7 @@ settings = Pipelines.WildCardSettings(
     allows_partition = false,
     allows_weights = false
 )
-Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
+Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 
 mktempdir() do data_dir
     Downloads.download(

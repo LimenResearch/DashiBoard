@@ -334,6 +334,15 @@ end
     R = dbscan([train_df.TEMP train_df.PRES]', 0.02)
     @test assignments(R) == df.dbcluster
 
+    # the configured metric reaches the dbscan fit
+    card = Pipelines.Card(d["dbscanCityblock"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+    train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+    R = dbscan([train_df.TEMP train_df.PRES]', 0.02; metric = Pipelines.Cityblock())
+    @test assignments(R) == df.dbcbcluster
+
     # affinity propagation builds a dense N×N similarity matrix: test on a
     # small table, deduplicated so that the fit converges (identical points
     # receive identical messages and can keep oscillating)

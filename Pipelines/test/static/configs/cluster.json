@@ -43,8 +43,38 @@
     "output": "cbcluster",
     "method": {
       "type": "kmeans",
-      "dissimilarity": { "type": "chebyshev" },
+      "dissimilarity": { "type": "not_a_dissimilarity" },
       "classes": 3
+    }
+  },
+  "wrongMinkowskiP": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "cbcluster",
+    "method": {
+      "type": "kmeans",
+      "dissimilarity": { "type": "minkowski", "p": 0.5 },
+      "classes": 3
+    }
+  },
+  "dbscanCityblock": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "dbcbcluster",
+    "method": {
+      "type": "dbscan",
+      "dissimilarity": { "type": "cityblock" },
+      "radius": 0.02
+    }
+  },
+  "wrongMetric": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "dbcbcluster",
+    "method": {
+      "type": "dbscan",
+      "dissimilarity": { "type": "sqeuclidean" },
+      "radius": 0.02
     }
   },
   "dbscan": {

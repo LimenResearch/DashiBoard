@@ -18,7 +18,10 @@ function (m::KMeansMethod)(X; weights)
     return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights, distance)
 end
 
-@kwarg struct DBSCANMethod <: ClusteringMethod
+# the KD-tree behind the fit requires the triangle inequality, hence the
+# `MetricMethod` restriction (parsing and schema only accept true metrics)
+@kwarg struct DBSCANMethod{D <: MetricMethod} <: ClusteringMethod
+    dissimilarity::D = EuclideanMethod()
     radius::Float64 & (dashi = json_number(exclusiveMinimum = 0),)
     min_neighbors::Int = 1 & (dashi = json_integer(minimum = 1),)
     min_cluster_size::Int = 1 & (dashi = json_integer(minimum = 1),)
@@ -27,7 +30,8 @@ end
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
-    return dbscan(X, radius; min_neighbors, min_cluster_size)
+    metric = get_dissimilarity(m.dissimilarity)
+    return dbscan(X, radius; metric, min_neighbors, min_cluster_size)
 end
 
 """

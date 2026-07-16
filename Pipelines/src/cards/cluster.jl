@@ -1,5 +1,22 @@
+"""
+    ClusteringMethod <: AbstractMethod
+
+A clustering algorithm and its options, selected in the cluster card's
+JSON by `"type"` (see `CLUSTERING_METHODS`). Concrete types are functors
+`(m)(X; weights)` fitting the d×N input matrix `X`.
+"""
 abstract type ClusteringMethod <: AbstractMethod end
 
+"""
+    KMeansMethod{D <: DissimilarityMethod} <: ClusteringMethod
+
+k-means (`"type" => "kmeans"`) into a predeclared number of `classes`.
+Accepts any [`DissimilarityMethod`](@ref); the default, squared Euclidean,
+is the canonical k-means objective — under any other dissimilarity the
+center update remains the arithmetic mean (only the true minimizer for
+squared Euclidean), so the fit becomes a reasonable heuristic without the
+usual convergence guarantee.
+"""
 @kwarg struct KMeansMethod{D <: DissimilarityMethod} <: ClusteringMethod
     dissimilarity::D = SqEuclideanMethod()
     classes::Int & (dashi = json_integer(minimum = 1),)
@@ -10,16 +27,19 @@ end
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
-    # under any dissimilarity other than squared Euclidean the center update
-    # stays the arithmetic mean (only the true minimizer for sqeuclidean),
-    # so the fit is a reasonable heuristic without the usual convergence
-    # guarantee
     distance = get_dissimilarity(m.dissimilarity)
     return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights, distance)
 end
 
-# the KD-tree behind the fit requires the triangle inequality, hence the
-# `MetricMethod` restriction (parsing and schema only accept true metrics)
+"""
+    DBSCANMethod{D <: MetricMethod} <: ClusteringMethod
+
+DBSCAN (`"type" => "dbscan"`): density-based clusters of points within
+`radius` of each other, with the number of clusters coming from the data;
+sparse rows are labeled 0 (noise). The dissimilarity is restricted to
+[`MetricMethod`](@ref) — the KD-tree behind the fit requires the triangle
+inequality — so parsing and the schema only accept true metrics.
+"""
 @kwarg struct DBSCANMethod{D <: MetricMethod} <: ClusteringMethod
     dissimilarity::D = EuclideanMethod()
     radius::Float64 & (dashi = json_number(exclusiveMinimum = 0),)
@@ -37,7 +57,7 @@ end
 """
     AffinityPropagationMethod <: ClusteringMethod
 
-Affinity propagation (`"method" => "affinity_propagation"`): points exchange
+Affinity propagation (`"type" => "affinity_propagation"`): points exchange
 messages until a set of exemplars — actual fitted points — emerges, so the
 number of clusters comes from the data instead of being predeclared.
 `damp`, `maxiter` and `tol` control the message passing. The similarity

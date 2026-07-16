@@ -25,8 +25,22 @@ abstract type MetricMethod <: DissimilarityMethod end
 
 # semimetrics (no triangle inequality)
 
+"""
+    SqEuclideanMethod <: DissimilarityMethod
+
+Squared Euclidean distance (`"type" => "sqeuclidean"`) — the canonical
+k-means objective. A semimetric, not a true metric: squaring breaks the
+triangle inequality.
+"""
 @kwarg struct SqEuclideanMethod <: DissimilarityMethod end
 
+"""
+    WeightedSqEuclideanMethod <: DissimilarityMethod
+
+Squared Euclidean distance with one positive weight per coordinate
+(`"type" => "weighted_sqeuclidean"`); `weights` must match the card's
+`inputs` in length and order. A semimetric, like the unweighted version.
+"""
 @kwarg struct WeightedSqEuclideanMethod <: DissimilarityMethod
     weights::Vector{Float64} & (
         dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
@@ -35,29 +49,75 @@ end
 
 # true metrics
 
+"""
+    EuclideanMethod <: MetricMethod
+
+Euclidean distance (`"type" => "euclidean"`).
+"""
 @kwarg struct EuclideanMethod <: MetricMethod end
 
+"""
+    CityblockMethod <: MetricMethod
+
+City-block / Manhattan distance (`"type" => "cityblock"`): the sum of
+absolute coordinate differences.
+"""
 @kwarg struct CityblockMethod <: MetricMethod end
 
+"""
+    ChebyshevMethod <: MetricMethod
+
+Chebyshev distance (`"type" => "chebyshev"`): the largest absolute
+coordinate difference.
+"""
 @kwarg struct ChebyshevMethod <: MetricMethod end
 
-# a true metric only for p ≥ 1 (fractional p breaks the triangle inequality)
+"""
+    MinkowskiMethod <: MetricMethod
+
+Minkowski distance of order `p` (`"type" => "minkowski"`): the p-norm of
+the coordinate differences, interpolating between city block (`p = 1`),
+Euclidean (`p = 2`) and Chebyshev (`p → ∞`). Restricted to `p ≥ 1` —
+fractional orders break the triangle inequality, and with it the
+`MetricMethod` classification.
+"""
 @kwarg struct MinkowskiMethod <: MetricMethod
     p::Float64 = 2.0 & (dashi = json_number(minimum = 1),)
 end
 
+"""
+    WeightedEuclideanMethod <: MetricMethod
+
+Euclidean distance with one positive weight per coordinate
+(`"type" => "weighted_euclidean"`); `weights` must match the card's
+`inputs` in length and order.
+"""
 @kwarg struct WeightedEuclideanMethod <: MetricMethod
     weights::Vector{Float64} & (
         dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
+"""
+    WeightedCityblockMethod <: MetricMethod
+
+City-block distance with one positive weight per coordinate
+(`"type" => "weighted_cityblock"`); `weights` must match the card's
+`inputs` in length and order.
+"""
 @kwarg struct WeightedCityblockMethod <: MetricMethod
     weights::Vector{Float64} & (
         dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
+"""
+    WeightedMinkowskiMethod <: MetricMethod
+
+Minkowski distance of order `p ≥ 1` with one positive weight per
+coordinate (`"type" => "weighted_minkowski"`); `weights` must match the
+card's `inputs` in length and order.
+"""
 @kwarg struct WeightedMinkowskiMethod <: MetricMethod
     weights::Vector{Float64} & (
         dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
@@ -83,6 +143,13 @@ get_dissimilarity(m::WeightedEuclideanMethod) = WeightedEuclidean(m.weights)
 get_dissimilarity(m::WeightedCityblockMethod) = WeightedCityblock(m.weights)
 get_dissimilarity(m::WeightedMinkowskiMethod) = WeightedMinkowski(m.weights, m.p)
 
+"""
+    METRIC_METHODS
+
+Registry of the [`MetricMethod`](@ref) types by JSON `"type"` name — the
+subset of [`DISSIMILARITY_METHODS`](@ref) a metric-restricted field (e.g.
+dbscan's) accepts, in parsing and in the generated schema alike.
+"""
 const METRIC_METHODS = OrderedDict{String, Type}(
     "euclidean" => EuclideanMethod,
     "cityblock" => CityblockMethod,
@@ -93,6 +160,13 @@ const METRIC_METHODS = OrderedDict{String, Type}(
     "weighted_minkowski" => WeightedMinkowskiMethod,
 )
 
+"""
+    DISSIMILARITY_METHODS
+
+Registry of every [`DissimilarityMethod`](@ref) type by JSON `"type"` name:
+the semimetrics plus all of [`METRIC_METHODS`](@ref). This is the set an
+unrestricted dissimilarity field (e.g. k-means') accepts.
+"""
 const DISSIMILARITY_METHODS = merge(
     OrderedDict{String, Type}(
         "sqeuclidean" => SqEuclideanMethod,

@@ -6,10 +6,75 @@
     "output": "cluster",
     "method": {
       "type": "kmeans",
+      "dissimilarity": { "type": "sqeuclidean" },
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
       "seed": 1234
+    }
+  },
+  "kmeansCityblock": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "cbcluster",
+    "method": {
+      "type": "kmeans",
+      "dissimilarity": { "type": "cityblock" },
+      "classes": 3,
+      "seed": 1234
+    }
+  },
+  "kmeansWeighted": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "wcluster",
+    "method": {
+      "type": "kmeans",
+      "dissimilarity": { "type": "weighted_cityblock", "weights": [1.0, 0.5] },
+      "classes": 3,
+      "iterations": 100,
+      "tol": 1e-6,
+      "seed": 1234
+    }
+  },
+  "wrongDissimilarity": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "cbcluster",
+    "method": {
+      "type": "kmeans",
+      "dissimilarity": { "type": "not_a_dissimilarity" },
+      "classes": 3
+    }
+  },
+  "wrongMinkowskiP": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "cbcluster",
+    "method": {
+      "type": "kmeans",
+      "dissimilarity": { "type": "minkowski", "p": 0.5 },
+      "classes": 3
+    }
+  },
+  "dbscanCityblock": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "dbcbcluster",
+    "method": {
+      "type": "dbscan",
+      "dissimilarity": { "type": "cityblock" },
+      "radius": 0.02
+    }
+  },
+  "wrongMetric": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "dbcbcluster",
+    "method": {
+      "type": "dbscan",
+      "dissimilarity": { "type": "sqeuclidean" },
+      "radius": 0.02
     }
   },
   "dbscan": {

@@ -60,10 +60,18 @@ end
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
     schema = Pipelines.json_schema("cluster", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["kmeans"])
+    _pipeline_schema_validate(schema, d["kmeansCityblock"])
+    _pipeline_schema_validate(schema, d["kmeansWeighted"])
     _pipeline_schema_validate(schema, d["dbscan"])
+    _pipeline_schema_validate(schema, d["dbscanCityblock"])
     _pipeline_schema_validate(schema, d["hasPartition"])
     _pipeline_schema_invalidate(schema, d["wrongInput"])
     _pipeline_schema_invalidate(schema, d["spuriousProperty"])
+    _pipeline_schema_invalidate(schema, d["wrongDissimilarity"])
+    # minkowski is a true metric only for p ≥ 1
+    _pipeline_schema_invalidate(schema, d["wrongMinkowskiP"])
+    # dbscan accepts true metrics only (KD-tree): sqeuclidean is refused
+    _pipeline_schema_invalidate(schema, d["wrongMetric"])
 end
 
 @testset "dimensionality reduction schema" begin

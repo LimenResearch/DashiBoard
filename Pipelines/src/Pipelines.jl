@@ -133,7 +133,8 @@ using StreamlinerCore:
 
 using Clustering: assignments, kmeans, dbscan, affinityprop
 
-using Distances: pairwise, SqEuclidean
+using Distances: pairwise, SqEuclidean, Euclidean, Cityblock, Chebyshev, Minkowski,
+    WeightedSqEuclidean, WeightedEuclidean, WeightedCityblock, WeightedMinkowski
 
 using LinearAlgebra: diagind
 
@@ -161,6 +162,7 @@ include("schema.jl")
 include("dict_helpers.jl")
 include("card.jl")
 include("method.jl")
+include("dissimilarities.jl")
 
 include("cards/standard.jl")
 include("cards/split.jl")

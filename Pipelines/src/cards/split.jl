@@ -30,7 +30,7 @@ function get_sql(m::TilesMethod)
     return Fun.list_extract(vals, Fun."%"(Agg.ntile(N) .- 1, n) .+ 1)
 end
 
-const SPLITTING_METHODS = OrderedDict{String, DataType}(
+const SPLITTING_METHODS = OrderedDict{String, Type}(
     "percentile" => PercentileMethod,
     "tiles" => TilesMethod,
 )

@@ -6,6 +6,8 @@ by `"type"` (e.g. `{"type": "minkowski", "p": 3}`) like any other method.
 Each concrete type implements [`get_dissimilarity`](@ref), and cards carry
 one as a typed field (see `KMeansMethod`), so its options are part of the
 card schema and travel with the card.
+A dissimilarity promises only a non-negative "how different" score, zero
+from a point to itself — weaker than a true distance.
 
 The subtype [`MetricMethod`](@ref) marks true metrics: a clustering method
 that requires the triangle inequality constrains its field to it, and both
@@ -16,10 +18,10 @@ abstract type DissimilarityMethod <: AbstractMethod end
 """
     MetricMethod <: DissimilarityMethod
 
-A [`DissimilarityMethod`](@ref) that is a true metric (satisfies the
-triangle inequality) — the requirement of KD-tree-backed methods such as
-`dbscan`. Registered in `METRIC_METHODS`, a subset of
-`DISSIMILARITY_METHODS`.
+A [`DissimilarityMethod`](@ref) that is a true distance: symmetric and
+satisfying the triangle inequality, `d(A, C) ≤ d(A, B) + d(B, C)` — a
+detour is never shorter than the direct trip. 
+Registered in `METRIC_METHODS`, a subset of `DISSIMILARITY_METHODS`.
 """
 abstract type MetricMethod <: DissimilarityMethod end
 

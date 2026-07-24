@@ -104,7 +104,7 @@ The resulting rescaled variable is added to the table under the name
 """
 @kwarg struct RescaleCard <: SQLCard
     method::Rescaler & (
-        dashi = type_schema(RESCALERS),
+        dashi = match_property("type" => keys(RESCALERS), additionalProperties = false),
         lift = Fix2(lift_simple_method, RESCALERS),
         lower = Fix2(lower_simple_method, RESCALERS),
     )

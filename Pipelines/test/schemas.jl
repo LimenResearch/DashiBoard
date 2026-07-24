@@ -31,8 +31,8 @@ end
     _pipeline_schema_validate(schema, d["tiles"])
     _pipeline_schema_validate(schema, d["tiles2"])
     _pipeline_schema_validate(schema, d["tiles3"])
-    _pipeline_schema_invalidate(schema, d["unsorted"])
-    _pipeline_schema_invalidate(schema, d["spuriousProperty"])
+    _pipeline_schema_invalidate(schema, merge(d["tiles3"], Dict("order_by" => [])))
+    _pipeline_schema_invalidate(schema, merge(d["tiles3"], Dict("suffix" => "hat")))
 end
 
 @testset "window_function schema" begin
@@ -41,7 +41,8 @@ end
     _pipeline_schema_validate(schema, d["percent_rank"])
     _pipeline_schema_validate(schema, d["rank"])
     _pipeline_schema_validate(schema, d["row_number"])
-    _pipeline_schema_invalidate(schema, d["no_output"])
+    no_output = delete!(deepcopy(d["row_number"]), "output")
+    _pipeline_schema_invalidate(schema, no_output)
 end
 
 @testset "rescale schema" begin
@@ -53,7 +54,8 @@ end
     _pipeline_schema_validate(schema, d["minmax"])
     _pipeline_schema_validate(schema, d["log"])
     _pipeline_schema_validate(schema, d["logistic"])
-    _pipeline_schema_invalidate(schema, d["wrong_method"])
+    wrong_method = merge(d["logistic"], Dict("method" => Dict("type" => "loggistic")))
+    _pipeline_schema_invalidate(schema, wrong_method)
 end
 
 @testset "cluster schema" begin
@@ -62,8 +64,11 @@ end
     _pipeline_schema_validate(schema, d["kmeans"])
     _pipeline_schema_validate(schema, d["dbscan"])
     _pipeline_schema_validate(schema, d["hasPartition"])
-    _pipeline_schema_invalidate(schema, d["wrongInput"])
-    _pipeline_schema_invalidate(schema, d["spuriousProperty"])
+    wrong_input = merge(d["dbscan"], Dict("inputs" => ["temp", "PRES"]))
+    _pipeline_schema_invalidate(schema, wrong_input)
+    spurious_property = deepcopy(d["dbscan"])
+    spurious_property["method"]["minneighbors"] = 10
+    _pipeline_schema_invalidate(schema, spurious_property)
 end
 
 @testset "dimensionality reduction schema" begin
@@ -73,7 +78,7 @@ end
     _pipeline_schema_validate(schema, d["ppca"])
     _pipeline_schema_validate(schema, d["factoranalysis"])
     _pipeline_schema_validate(schema, d["mds"])
-    _pipeline_schema_invalidate(schema, d["no_components"])
+    _pipeline_schema_invalidate(schema, merge(d["mds"], Dict("n_components" => 0)))
 end
 
 @testset "glm schema" begin
@@ -81,12 +86,16 @@ end
     schema = Pipelines.json_schema("glm", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["hasPartition"])
     _pipeline_schema_validate(schema, d["hasWeights"])
-    _pipeline_schema_invalidate(schema, d["noInputs"])
+    no_inputs = deepcopy(d["hasWeights"])
+    delete!(no_inputs["formula"], "inputs")
+    _pipeline_schema_invalidate(schema, no_inputs)
 
     schema = Pipelines.json_schema("mixed_model", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["isMixed"])
     _pipeline_schema_validate(schema, d["isMixedHasWeights"])
-    _pipeline_schema_invalidate(schema, d["isMixedNoGrouping"])
+    is_mixed_no_grouping = deepcopy(d["isMixedHasWeights"])
+    delete!(is_mixed_no_grouping["formula"], "grouping_factor")
+    _pipeline_schema_invalidate(schema, is_mixed_no_grouping)
 end
 
 @testset "interp schema" begin
@@ -94,7 +103,9 @@ end
     schema = Pipelines.json_schema("interp", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["constant"])
     _pipeline_schema_validate(schema, d["quadratic"])
-    _pipeline_schema_invalidate(schema, d["wrongMethod"])
+    wrong_method = deepcopy(d["quadratic"])
+    wrong_method["method"]["type"] = "nonsupported"
+    _pipeline_schema_invalidate(schema, wrong_method)
 end
 
 @testset "gaussian_encoding schema" begin
@@ -105,7 +116,10 @@ end
     _pipeline_schema_validate(schema, d["dayofyear"])
     _pipeline_schema_validate(schema, d["hour"])
     _pipeline_schema_validate(schema, d["minute"])
-    _pipeline_schema_invalidate(schema, d["zeroLambda"])
+    zero_lambda = merge(d["identity"], Dict("lambda" => 0))
+    _pipeline_schema_invalidate(schema, zero_lambda)
+    no_components = merge(d["identity"], Dict("n_components" => 0))
+    _pipeline_schema_invalidate(schema, no_components)
 end
 
 @testset "streamliner schema" begin
@@ -122,11 +136,26 @@ end
             _pipeline_schema_validate(schema, d["classifier"], from_metadata = false)
             m_basic = _filtered_metadata(d["basic"])
             m_classifier = _filtered_metadata(d["classifier"])
-            _pipeline_schema_invalidate(schema, d["wrongModel"])
-            _pipeline_schema_invalidate(schema, d["wrongTraining"])
-            _pipeline_schema_invalidate(schema, d["spuriousProperty"])
-            _pipeline_schema_invalidate(schema, d["spuriousModelProperty"])
-            _pipeline_schema_invalidate(schema, d["spuriousTrainingProperty"])
+
+            wrong_model = deepcopy(d["classifier"])
+            wrong_model["model"]["features"] = -2
+            _pipeline_schema_invalidate(schema, wrong_model)
+
+            wrong_training = deepcopy(d["classifier"])
+            wrong_training["training"]["iterations"] = -1
+            _pipeline_schema_invalidate(schema, wrong_training)
+
+            spurious_property = deepcopy(d["classifier"])
+            spurious_property["qualifier"] = "PRES"
+            _pipeline_schema_invalidate(schema, spurious_property)
+
+            spurious_model_property = deepcopy(d["classifier"])
+            spurious_model_property["model"]["channels"] = 2
+            _pipeline_schema_invalidate(schema, spurious_model_property)
+
+            spurious_training_property = deepcopy(d["classifier"])
+            spurious_training_property["training"]["tol"] = 1.0e-5
+            _pipeline_schema_invalidate(schema, spurious_training_property)
         end
     )
 

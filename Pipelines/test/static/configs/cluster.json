@@ -41,24 +41,5 @@
       "radius": 0.02
     },
     "partition": "partition"
-  },
-  "wrongInput": {
-    "type": "cluster",
-    "inputs": ["temp", "PRES"],
-    "output": "dbcluster",
-    "method": {
-      "type": "dbscan",
-      "radius": 0.02
-    }
-  },
-  "spuriousProperty": {
-    "type": "cluster",
-    "inputs": ["TEMP", "PRES"],
-    "output": "dbcluster",
-    "method": {
-      "type": "dbscan",
-      "radius": 0.02,
-      "minneighbors": 10
-    }
   }
 }

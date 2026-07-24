@@ -157,7 +157,11 @@ end
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
-include("schema.jl")
+
+include("structs/style.jl")
+include("structs/json_schema.jl")
+include("structs/card_schema.jl")
+
 include("dict_helpers.jl")
 include("card.jl")
 include("method.jl")

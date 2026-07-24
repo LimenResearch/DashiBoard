@@ -46,7 +46,7 @@ function schema_from_type(::Type{Model})
     #  how to distinguish between the two cases
     # Same for the lifting method
     return if isassigned(MODEL_DIR)
-        conditional_streamliner_schema(MODEL_DIR[], "model")
+        tagged_streamliner_schema(MODEL_DIR[], "model")
     else
         json_object()
     end
@@ -72,7 +72,7 @@ StructUtils.lower(::DashiStyle, training::Training) = SC.get_metadata(training)
 
 function schema_from_type(::Type{Training})
     return if isassigned(TRAINING_DIR)
-        conditional_streamliner_schema(TRAINING_DIR[], "training")
+        tagged_streamliner_schema(TRAINING_DIR[], "training")
     else
         json_object()
     end
@@ -113,7 +113,7 @@ Run a Streamliner model, predicting `targets` from `inputs`.
     training::T
     funnel::F & (
         # TODO: make schema more specific
-        dashi = type_schema(PARSER[].funnels, additionalProperties = true, default = ""),
+        dashi = match_property("type" => keys(PARSER[].funnels), default = ""),
     )
     partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
     suffix::String = "hat" & (dashi = json_string(minLength = 1),)

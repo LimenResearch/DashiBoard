@@ -4,8 +4,6 @@ abstract type OrderedSplittingMethod <: SplittingMethod end
 
 abstract type UnorderedSplittingMethod <: SplittingMethod end
 
-order_error() = throw(ArgumentError("At least one sorter is required."))
-
 # TODO: add unordered methods
 
 @tags struct PercentileMethod <: OrderedSplittingMethod
@@ -53,22 +51,18 @@ Currently supported methods are
 """
 @kwarg struct SplitCard{M <: SplittingMethod} <: SQLCard
     method::M
-    order_by::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,) # TODO: weaken requirement
+    order_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
     group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
     output::String = "partition" & (dashi = json_string(minLength = 1),)
-
-    function SplitCard{M}(
-            method::M, order_by::AbstractVector, group_by::AbstractVector, output::AbstractString
-        ) where {M <: SplittingMethod}
-        (method isa OrderedSplittingMethod) && isempty(order_by) && order_error()
-        new{M}(method, order_by, group_by, output)
-    end
 end
 
-function SplitCard(
-        method::M, order_by::AbstractVector, group_by::AbstractVector, output::AbstractString
-    ) where {M <: SplittingMethod}
-    return SplitCard{M}(method, order_by, group_by, output)
+function additional_conditions(::Type{SplitCard})
+    enum = findall(T -> T <: OrderedSplittingMethod, SPLITTING_METHODS)
+    schema = conditional_schema(
+        match_property("method" => match_property("type" => enum, is_condition = true), is_condition = true),
+        match_property("order_by" => JSON_NONEMPTY_VARIABLES)
+    )
+    return Any[schema]
 end
 
 ## SQLCard interface

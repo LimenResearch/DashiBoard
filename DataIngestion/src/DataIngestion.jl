@@ -2,7 +2,7 @@ module DataIngestion
 
 export Filter, ListFilter, IntervalFilter
 
-public is_supported, acceptable_paths, load_files, summarize, select
+public is_supported, acceptable_paths, load_files, summarize, select, selection_query
 
 using Base.ScopedValues: @with, ScopedValue
 using FunSQL: SQLNode,

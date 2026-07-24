@@ -55,6 +55,8 @@ struct GroupDiGraph{I <: Integer} <: AbstractEnrichedDiGraph{I}
     groups::Vector{Vector{String}}
 end
 
+get_source_vars(eg::GroupDiGraph) = eg.source_vars
+
 function Pipeline(nodes::AbstractVector, groups::AbstractDict)
     G, (group_keys, group_vals), cols = generate_dag(nodes, groups)
 

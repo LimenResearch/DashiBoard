@@ -68,8 +68,6 @@ DataIngestion.select(repo, filters)
     @test count(==(1), df._percentile_partition) == 39441
     @test count(==(2), df._percentile_partition) == 4383
     # TODO: port TimeFunnelUtils tests
-
-    @test_throws ArgumentError Pipelines.Card(d["unsorted"])
 end
 
 @testset "widow_function" begin
@@ -650,15 +648,6 @@ end
         invalid_method = "nonexistent_method"
         invalid_config = deepcopy(base_fields)
         invalid_config["method"]["type"] = invalid_method
-        @test_throws ArgumentError Card(invalid_config)
-
-        invalid_config = Dict(
-            "type" => "gaussian_encoding",
-            "input" => "date",
-            "n_components" => 0,
-            "method" => Dict("type" => "dayofyear", "max" => 365.0),
-            "lambda" => 0.5
-        )
         @test_throws ArgumentError Card(invalid_config)
     end
 

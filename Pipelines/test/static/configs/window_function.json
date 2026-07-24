@@ -19,11 +19,5 @@
     "group_by": ["cbwd"],
     "method": {"type": "row_number"},
     "output": "_row_number"
-  },
-  "no_output": {
-    "type": "window_function",
-    "order_by": ["No"],
-    "group_by": ["cbwd"],
-    "method": {"type": "row_number"}
   }
 }

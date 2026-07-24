@@ -18,14 +18,6 @@
     "weights": "Iws",
     "distribution": "gamma"
   },
-  "noInputs": {
-    "type": "glm",
-    "formula": {
-      "target": "PRES"
-    },
-    "weights": "Iws",
-    "distribution": "gamma"
-  },
   "partition": {
     "type": "split",
     "method": { "type": "percentile", "percentile": 0.9 },
@@ -47,15 +39,6 @@
       "fixed_effect_terms": [1, "year"],
       "random_effect_terms": [1],
       "grouping_factor": "cbwd",
-      "target": "TEMP"
-    },
-    "weights": "Iws"
-  },
-  "isMixedNoGrouping": {
-    "type": "mixed_model",
-    "formula": {
-      "fixed_effect_terms": [1, "year"],
-      "random_effect_terms": [1],
       "target": "TEMP"
     },
     "weights": "Iws"

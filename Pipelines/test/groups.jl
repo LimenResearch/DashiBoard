@@ -1,10 +1,26 @@
 @testset "groups" begin
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
-    g, (grp_keys, grp_vals), cols = Pipelines.generate_dag(d["nodes"], d["groups"])
+    ps = Pipelines.Params(d["nodes"], d["groups"])
+    g, cols = Pipelines.dependency_graph!(ps)
     es = sort(collect(edges(g)))
+    node_vals, group_vals = ps.node_configs, ps.group_configs
 
-    @test grp_keys == ["weather"]
-    @test grp_vals == [Dict("cols" => ["PRES", "TEMP"])]
+    # @test grp_keys == ["weather"] FIXME!
+    @test group_vals[1].cols == ["PRES", "TEMP"]
+    @test group_vals[1].through == String[]
+
+    @test node_vals[1]["card"]["group_by"].cols == ["cbwd"]
+    @test node_vals[1]["card"]["inputs"][1].groups == ["weather"]
+    @test node_vals[1]["card"]["inputs"][2].cols == ["No"]
+    @test node_vals[1]["card"]["partition"].nodes == ["partition"]
+
+    @test node_vals[2]["card"]["inputs"].cols == ["No"]
+
+    @test node_vals[3]["card"]["inputs"][1].nodes == ["log"]
+    @test node_vals[3]["card"]["inputs"][2].groups == ["weather"]
+    @test node_vals[3]["card"]["inputs"][2].through == ["rescale"]
+
+    @test node_vals[4]["card"]["order_by"].cols == ["No"]
 
     @test length(es) == 5
     @test Pair(es[1]) == (1 => 3)

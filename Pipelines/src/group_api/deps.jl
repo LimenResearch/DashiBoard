@@ -1,145 +1,118 @@
 # utils
 
-get_list(d::AbstractDict, k)::Vector{String} = to_stringlist(get(d, k, nothing))
-
-get_through(d::AbstractDict) = get_list(d, "through")
-
-# TODO: more general definition
-function pass_through(x::AbstractVector, ks, node_params)
-    isempty(ks) && return x
-    nodes = Node[node_params[k] for k in ks]
-    suffix = join([node.card.suffix for node in nodes], "_")
-    return join_names.(x, suffix)
-end
-
-function is_special_dict(d::AbstractDict, k::AbstractString)
-    return issetequal(keys(d), (k,)) || issetequal(keys(d), (k, "through"))
-end
-
-# Compute dependencies
-
-@kwdef struct Deps
+@kwarg struct Deps
     nodes::Vector{String} = String[]
     groups::Vector{String} = String[]
     cols::Vector{String} = String[]
+    through::Vector{String} = String[]
 end
 
-function merge_deps!(d::Deps, deps::Deps)
-    append!(d.nodes, deps.nodes)
-    append!(d.groups, deps.groups)
-    append!(d.cols, deps.cols)
-    return d
+const DEPS_NAMES = ("nodes", "groups", "cols")
+
+function is_deps(d::AbstractDict)
+    return count(in(keys(d)), DEPS_NAMES) == 1 && keys(d) ⊆ (DEPS_NAMES..., "through")
 end
 
-abstract type AbstractStructure end
+struct DepsParser
+    list::Vector{Deps}
+end
 
-struct NodeStructure <: AbstractStructure end
-struct GroupStructure <: AbstractStructure end
-struct ColStructure <: AbstractStructure end
+DepsParser() = DepsParser(Deps[])
 
-const structures = (NodeStructure(), GroupStructure(), ColStructure())
+parse_once(dp::DepsParser, d::AbstractDict) = (deps = construct(Deps, d); push!(dp.list, deps); deps)
 
-function try_structures(f, args...)
-    return foldl(structures, init = nothing) do acc, s
-        isnothing(acc) ? f(s, args...) : acc
+(dp::DepsParser)(d::AbstractDict) = is_deps(d) ? parse_once(dp, d) : map_into(dp, StringDict, d)
+(dp::DepsParser)(v::AbstractVector) = map_into(dp, Vector{Any}, v)
+(::DepsParser)(x::Any) = x
+
+function parse_and_return_deps!(ls::AbstractVector)
+    deps_collection = similar(ls, Vector{Deps})
+    for i in eachindex(ls)
+        dp = DepsParser()
+        ls[i] = dp(ls[i])
+        deps_collection[i] = dp.list
     end
+    return deps_collection
 end
-
-obeys(::NodeStructure, d) = is_special_dict(d, "nodes")
-obeys(::GroupStructure, d) = is_special_dict(d, "groups")
-obeys(::ColStructure, d) = is_special_dict(d, "cols")
-
-_direct_deps(::NodeStructure, d) = Deps(nodes = get_list(d, "nodes"))
-_direct_deps(::GroupStructure, d) = Deps(groups = get_list(d, "groups"))
-_direct_deps(::ColStructure, d) = Deps(cols = get_list(d, "cols"))
-
-function direct_deps(s::AbstractStructure, d::AbstractDict)
-    obeys(s, d) || return nothing
-    return merge_deps!(_direct_deps(s, d), Deps(nodes = get_through(d)))
-end
-
-direct_deps(d::AbstractDict) = try_structures(direct_deps, d)
-
-# Nested dependency computations
-
-function iterator_deps(iter; recur::Bool = false)
-    res = Deps()
-    for el in iter
-        merge_deps!(res, compute_deps(el; recur))
-    end
-    return res
-end
-
-function compute_deps(d::AbstractDict; recur::Bool = false)
-    deps = direct_deps(d)
-    isnothing(deps) || return deps
-    recur || return Deps()
-    return iterator_deps(values(d); recur)
-end
-
-compute_deps(v::AbstractVector; recur::Bool = false) = iterator_deps(v; recur)
-
-compute_deps(::Any; recur::Bool = false) = Deps()
 
 # Compute columns
 
 struct Params
-    nodes::Dict{String, Node}
-    groups::Dict{String, Vector{String}}
+    node_idxs::Dict{String, Int}
+    node_configs::Vector{StringDict}
+    node_outputs::Vector{Vector{String}}
+    nodes::Vector{Node}
+    group_idxs::Dict{String, Int}
+    group_configs::Vector{Any}
+    groups::Vector{Vector{String}}
 end
 
-Params() = Params(Dict{String, Node}(), Dict{String, Vector{String}}())
-
-function _to_columns(::NodeStructure, d::AbstractDict, ps::Params)
-    outputs = Vector{String}[
-        get_node_outputs(ps.nodes[k]) for k in get_list(d, "nodes")
-    ]
-    return reduce(vcat, outputs)
+function separate_vals_idxs(::Type{T}, iter) where {T}
+    vals, idx_dict = Vector{T}(undef, length(iter)), Dict{String, Int}()
+    for (i, (k, v)) in enumerate(iter)
+        vals[i] = v
+        isnothing(k) || (idx_dict[k] = i)
+    end
+    return vals, idx_dict
 end
 
-function _to_columns(::GroupStructure, d::AbstractDict, ps::Params)
-    grps = Vector{String}[ps.groups[k] for k in get_list(d, "groups")]
-    return reduce(vcat, grps)
+function Params(node_configs::AbstractVector, group_configs::AbstractDict)
+    group_configs′, group_idxs = separate_vals_idxs(Any, pairs(group_configs))
+    node_configs′, node_idxs = separate_vals_idxs(
+        StringDict, get(n, "label", nothing) => n for n in node_configs
+    )
+    node_outputs = similar(node_configs′, Vector{String})
+    nodes = similar(node_configs′, Node)
+    groups = similar(group_configs′, Vector{String})
+
+    return Params(
+        node_idxs, node_configs′, node_outputs, nodes,
+        group_idxs, group_configs′, groups
+    )
 end
 
-function _to_columns(::ColStructure, d::AbstractDict, ::Params)
-    return get_list(d, "cols")
+get_nodes(ps::Params, ks::AbstractVector) = ps.nodes[get_indices(ps.node_idxs, ks)]
+get_node_outputs(ps::Params, ks::AbstractVector) = ps.node_outputs[get_indices(ps.node_idxs, ks)]
+get_groups(ps::Params, ks::AbstractVector) = ps.groups[get_indices(ps.group_idxs, ks)]
+
+# TODO: more general definition
+function pass_through(x::AbstractVector, ks::AbstractVector, ps::Params)
+    isempty(ks) && return x
+    nodes = get_nodes(ps, ks)
+    suffix = join([node.card.suffix for node in nodes], "_")
+    return join_names.(x, suffix)
 end
 
-function to_columns(s::AbstractStructure, d::AbstractDict, ps::Params)
-    obeys(s, d) || return nothing
-    cols = _to_columns(s, d, ps)
-    return pass_through(cols, get_through(d), ps.nodes)
+function to_columns(d::Deps, ps::Params)
+    nested = vcat(get_node_outputs(ps, d.nodes), get_groups(ps, d.groups), [d.cols])
+    cols = reduce(vcat, nested)
+    return pass_through(cols, d.through, ps)
 end
-
-to_columns(d::AbstractDict, ps::Params) = try_structures(to_columns, d, ps)
 
 # Nested column computations
 
-function replace_placeholders(d::AbstractDict, ps::Params; recur::Bool = false)
-    x = to_columns(d, ps)
-    isnothing(x) || return x
-    recur || return d
+replace_placeholders(d::AbstractDict, ps::Params) = map_into(Fix2(replace_placeholders, ps), StringDict, d)
 
-    res = Dict{String, Any}()
-    for (k, v) in pairs(d)
-        res[k] = replace_placeholders(v, ps; recur)
-    end
-    return res
-end
-
-function replace_placeholders(v::AbstractVector, ps::Params; recur::Bool = false)
+function replace_placeholders(v::AbstractVector, ps::Params)
     res = Any[]
     for el in v
-        x = replace_placeholders(el, ps::Params; recur)
-        # append if placeholder was replaced, else push
-        if (el isa AbstractDict) && (x isa AbstractVector)
-            append!(res, x)
-        else
-            push!(res, x)
-        end
+        # append if `Deps`, else push
+        el isa Deps ? append!(res, to_columns(el, ps)) : push!(res, replace_placeholders(el, ps))
     end
     return res
 end
 
-replace_placeholders(x::Any, ::Params; recur::Bool = false) = x
+replace_placeholders(deps::Deps, ps::Params) = to_columns(deps, ps)
+
+replace_placeholders(x::Any, ps::Params) = x
+
+function replace_placeholders!(ps::Params, i::Integer)
+    if i ≤ length(ps.nodes)
+        ps.nodes[i] = Node(replace_placeholders(ps.node_configs[i], ps))
+        ps.node_outputs[i] = get_node_outputs(ps.nodes[i])
+    else
+        j = i - length(ps.nodes)
+        ps.groups[j] = replace_placeholders(ps.group_configs[j], ps)
+    end
+    return ps
+end

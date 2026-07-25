@@ -1,5 +1,13 @@
 # General utils
 
+function map_into(f::F, ::Type{T}, x)::T where {F, T}
+    r = T(x)
+    map!(f, values(r))
+    return r
+end
+
+get_indices(d::AbstractDict{<:Any, I}, ks::AbstractVector) where {I} = I[d[k] for k in ks]
+
 to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]
 to_stringlist(s::AbstractVector) = convert(Vector{String}, s)
 

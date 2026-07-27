@@ -1,7 +1,6 @@
 function json_reader(
         N::Integer;
         compression::Maybe{AbstractString} = nothing,
-        filename::Bool = false,
         format::AbstractString = "auto",
         hive_partitioning::Bool = false,
         ignore_errors::Bool = false,
@@ -12,7 +11,6 @@ function json_reader(
 
     options = StringDict(
         "compression" => compression,
-        "filename" => filename,
         "format" => format,
         "hive_partitioning" => hive_partitioning,
         "ignore_errors" => ignore_errors,

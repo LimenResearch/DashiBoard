@@ -32,15 +32,14 @@ using Test
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.custom_table")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
+        @test propertynames(df′) == [:x, :y]
 
         DataIngestion.load_files(repo, ["$path1.csv"]; schema = "csv")
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.source")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
 
-        DataIngestion.load_files(repo, ["$path1.csv", "$path2.csv"]; schema = "csv")
+        DataIngestion.load_files(repo, ["$path1.csv", "$path2.csv"]; schema = "csv", filename = "_name")
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.source")
         @test df′.x == [1, 2, 3, 4, 5, 6]
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
@@ -51,25 +50,24 @@ using Test
         df′ = DBInterface.execute(DataFrame, repo, "FROM json.source")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
 
-        DataIngestion.load_files(repo, ["$path1.json", "$path2.json"]; schema = "json")
+        DataIngestion.load_files(repo, ["$path1.json", "$path2.json"]; schema = "json", filename = "filename")
         df′ = DBInterface.execute(DataFrame, repo, "FROM json.source")
         @test df′.x == [1, 2, 3, 4, 5, 6]
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
-        @test df′._name == ["test1", "test1", "test1", "test2", "test2", "test2"]
+        @test df′.filename == ["test1", "test1", "test1", "test2", "test2", "test2"]
 
-        DataIngestion.load_files(repo, ["$path1.parquet"]; schema = "parquet")
+        DataIngestion.load_files(repo, ["$path1.parquet"]; schema = "parquet", filename = "filename")
         df′ = DBInterface.execute(DataFrame, repo, "FROM parquet.source")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
+        @test df′.filename == ["test1", "test1", "test1"]
 
-        DataIngestion.load_files(repo, ["$path1.parquet", "$path2.parquet"]; schema = "parquet")
+        DataIngestion.load_files(repo, ["$path1.parquet", "$path2.parquet"]; schema = "parquet", filename = "filename")
         df′ = DBInterface.execute(DataFrame, repo, "FROM parquet.source")
         @test df′.x == [1, 2, 3, 4, 5, 6]
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
-        @test df′._name == ["test1", "test1", "test1", "test2", "test2", "test2"]
+        @test df′.filename == ["test1", "test1", "test1", "test2", "test2", "test2"]
     end
 end
 

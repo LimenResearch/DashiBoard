@@ -21,8 +21,6 @@ public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
 public get_source_vars, get_output_vars
 
-public report, visualize, get_card, get_state, invert, Node
-
 public train!, evaljoin, train_evaljoin!
 
 public train, evaluate, inputs, outputs, invertible

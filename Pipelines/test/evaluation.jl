@@ -162,7 +162,7 @@ mktempdir() do dir
             names(df),
             [
                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "PRES", "cbwd", "Iws", "Is", "Ir",
                 "_percentile_partition", "_tiled_partition",
                 "PRES_rescaled", "TEMP_rescaled",
             ]
@@ -180,7 +180,7 @@ mktempdir() do dir
             names(df),
             [
                 "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-                "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+                "PRES", "cbwd", "Iws", "Is", "Ir",
                 "_percentile_partition", "_tiled_partition",
                 "PRES_rescaled", "TEMP_rescaled",
             ]

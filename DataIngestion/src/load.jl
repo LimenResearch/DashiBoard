@@ -70,6 +70,7 @@ end
         table = "$(TABLE_NAMES.source)";
         format::AbstractString,
         schema::Union{AbstractString, Nothing} = nothing,
+        filename::Union{AbstractString, Nothing} = nothing,
         union_by_name::Bool = true, kwargs...)
     )
 
@@ -91,17 +92,16 @@ function load_files(
         table::AbstractString = TABLE_NAMES.source;
         format::AbstractString = to_format(first(files)),
         schema::Union{AbstractString, Nothing} = nothing,
+        filename::Union{AbstractString, Nothing} = nothing,
         union_by_name::Bool = true,
         kwargs...
     )
 
     N = length(files)
-    reader = DEFAULT_READERS[format](N; filename = true, union_by_name, kwargs...)
+    reader = DEFAULT_READERS[format](N; union_by_name, kwargs...)
 
-    sql = """
-    FROM $reader
-    SELECT * EXCLUDE filename, parse_filename(filename, true) AS _name
-    """
+    sql = isnothing(filename) ? "FROM $(reader) SELECT *;" :
+        "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS \"$(filename)\";"
 
     return replace_table(repository, sql, files, table; schema)
 end

@@ -138,7 +138,7 @@ end
         names(df),
         [
             "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-            "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "No_log", "partition",
+            "PRES", "cbwd", "Iws", "Is", "Ir", "No_log", "partition",
             "PRES_rescaled", "TEMP_rescaled", "No_rescaled", "component_1", "component_2",
         ]
     )

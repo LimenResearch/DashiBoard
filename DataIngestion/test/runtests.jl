@@ -32,7 +32,7 @@ using Test
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.custom_table")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test !hasproperty(df′, :_name)
+        @test propertynames(df′) == [:x, :y]
 
         DataIngestion.load_files(repo, ["$path1.csv"]; schema = "csv")
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.source")

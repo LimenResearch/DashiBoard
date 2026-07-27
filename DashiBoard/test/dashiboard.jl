@@ -112,17 +112,17 @@ mktempdir() do data_dir
             write(io, stream)
             data = take!(io)
 
-            @test length(data) == 394870
+            @test length(data) == 336104
             @test r.headers == [
                 DashiBoard.CORS_RES_HEADERS...,
                 "Content-Type" => "text/csv",
                 "Transfer-Encoding" => "chunked",
-                "Content-Length" => "394870",
+                "Content-Length" => "336104",
             ]
             s = String(data)
             l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
             @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
-            @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,pollution,8761,1,1"
+            @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
         end
         resp = HTTP.request("OPTIONS", url * "get-processed-data")
         @test resp.headers == [

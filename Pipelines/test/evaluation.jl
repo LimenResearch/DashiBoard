@@ -57,6 +57,8 @@
     (; source_vars, output_vars) = Pipelines.EnrichedDiGraph(nodes)
     @test source_vars == ["temp", "wind"]
     @test output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
+    @test Pipelines.get_source_vars(Pipelines.Pipeline(nodes)) == source_vars
+    @test Pipelines.get_output_vars(Pipelines.Pipeline(nodes)) == output_vars
 
     faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"))
     @test_throws "pred temp" Pipelines.digraph(vcat(nodes, [faulty_node]))

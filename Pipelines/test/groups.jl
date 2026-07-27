@@ -3,24 +3,29 @@
     c = Pipelines.Configuration(d["nodes"], d["groups"]) |> Pipelines.parse_deps!
     g, cols = Pipelines.dependency_graph(c)
     es = sort(collect(edges(g)))
-    node_vals, group_vals = c.node_configs, c.group_configs
 
-    # @test grp_keys == ["weather"] FIXME!
-    @test group_vals[1].cols == ["PRES", "TEMP"]
-    @test group_vals[1].through == String[]
+    @test c.node_idxs == Dict(
+        "rescale" => 1,
+        "log" => 2,
+        "pca" => 3,
+        "partition" => 4,
+    )
+    @test c.node_configs[1]["card"]["group_by"].cols == ["cbwd"]
+    @test c.node_configs[1]["card"]["inputs"][1].groups == ["weather"]
+    @test c.node_configs[1]["card"]["inputs"][2].cols == ["No"]
+    @test c.node_configs[1]["card"]["partition"].nodes == ["partition"]
 
-    @test node_vals[1]["card"]["group_by"].cols == ["cbwd"]
-    @test node_vals[1]["card"]["inputs"][1].groups == ["weather"]
-    @test node_vals[1]["card"]["inputs"][2].cols == ["No"]
-    @test node_vals[1]["card"]["partition"].nodes == ["partition"]
+    @test c.node_configs[2]["card"]["inputs"].cols == ["No"]
 
-    @test node_vals[2]["card"]["inputs"].cols == ["No"]
+    @test c.node_configs[3]["card"]["inputs"][1].nodes == ["log"]
+    @test c.node_configs[3]["card"]["inputs"][2].groups == ["weather"]
+    @test c.node_configs[3]["card"]["inputs"][2].through == ["rescale"]
 
-    @test node_vals[3]["card"]["inputs"][1].nodes == ["log"]
-    @test node_vals[3]["card"]["inputs"][2].groups == ["weather"]
-    @test node_vals[3]["card"]["inputs"][2].through == ["rescale"]
+    @test c.node_configs[4]["card"]["order_by"].cols == ["No"]
 
-    @test node_vals[4]["card"]["order_by"].cols == ["No"]
+    @test c.group_idxs == Dict("weather" => 1)
+    @test c.group_configs[1].cols == ["PRES", "TEMP"]
+    @test c.group_configs[1].through == String[]
 
     @test length(es) == 5
     @test Pair(es[1]) == (1 => 3)
@@ -109,6 +114,22 @@ end
     end
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     pipeline = Pipelines.Pipeline(d["nodes"], d["groups"])
+    @test Pipelines.get_source_vars(pipeline) == [
+        "cbwd",
+        "No",
+        "PRES",
+        "TEMP",
+    ]
+    @test Pipelines.get_output_vars(pipeline) == [
+        "PRES_rescaled",
+        "TEMP_rescaled",
+        "No_rescaled",
+        "No_log",
+        "component_1",
+        "component_2",
+        "partition",
+    ]
+
     Pipelines.train_evaljoin!(repo, pipeline, "source", "No")
     df = DBInterface.execute(DataFrame, repo, "FROM source")
     # order-insensitive: `evaljoin_many` appends independent nodes' columns

@@ -77,7 +77,7 @@ mktempdir() do data_dir
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load-files", body = body)
         summaries = JSON.parse(resp.body)
-        @test summaries[end]["name"] == "_name"
+        @test summaries[end]["name"] == "Ir"
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",
@@ -121,7 +121,7 @@ mktempdir() do data_dir
             ]
             s = String(data)
             l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
-            @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_name,_id,_percentile_partition,_tiled_partition"
+            @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
             @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,pollution,8761,1,1"
         end
         resp = HTTP.request("OPTIONS", url * "get-processed-data")

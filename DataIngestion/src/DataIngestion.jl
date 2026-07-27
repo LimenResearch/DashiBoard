@@ -6,6 +6,7 @@ public is_supported, acceptable_paths, load_files, summarize, select, selection_
 
 using Base.ScopedValues: @with, ScopedValue
 using FunSQL: SQLNode,
+    Agg,
     Fun,
     Get,
     Var,

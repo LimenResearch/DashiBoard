@@ -200,11 +200,7 @@ end
     @test info[1].name == "No"
     @test info[1].type == "numerical"
     @test info[1].eltype == "int"
-    @test info[1].summary == (
-        min = No_min,
-        max = No_max,
-        step = round((No_max - No_min) / 100, sigdigits = 2),
-    )
+    @test info[1].summary == [No_min, No_max]
 
     @test info[10].name == "cbwd"
     @test info[10].type == "categorical"
@@ -215,9 +211,5 @@ end
     @test info[11].name == "Iws"
     @test info[11].type == "numerical"
     @test info[11].eltype == "float"
-    @test info[11].summary == (
-        min = Iws_min,
-        max = Iws_max,
-        step = round((Iws_max - Iws_min) / 100, sigdigits = 2),
-    )
+    @test info[11].summary == [Iws_min, Iws_max]
 end

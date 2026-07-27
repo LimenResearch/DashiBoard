@@ -19,12 +19,12 @@ function print_argument(io::IO, x::AbstractVector)
     return
 end
 
-function reader_call(reader::AbstractString, N::Integer, options::AbstractDict)
+function reader_call(reader::AbstractString, files::AbstractVector{<:AbstractString}, options::AbstractDict)
     return sprint() do io
         print(io, reader)
         print(io, "(")
         print(io, "[")
-        join(io, string.('$', 1:N), ", ")
+        join(io, to_sql.(files), ", ")
         print(io, "]")
         for (k, v) in pairs(options)
             if !isnothing(v)

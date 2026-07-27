@@ -1,5 +1,5 @@
 function json_reader(
-        N::Integer;
+        files::AbstractVector{<:AbstractString};
         compression::Maybe{AbstractString} = nothing,
         format::AbstractString = "auto",
         hive_partitioning::Bool = false,
@@ -19,5 +19,5 @@ function json_reader(
         "union_by_name" => union_by_name,
     )
 
-    return reader_call("read_json", N, options)
+    return reader_call("read_json", files, options)
 end

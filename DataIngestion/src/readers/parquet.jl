@@ -1,5 +1,5 @@
 function parquet_reader(
-        N::Integer;
+        files::AbstractVector{<:AbstractString};
         binary_as_string::Bool = false,
         encryption_config::Maybe{StringStruct} = nothing,
         file_row_number::Bool = false,
@@ -15,5 +15,5 @@ function parquet_reader(
         "union_by_name" => union_by_name,
     )
 
-    return reader_call("read_parquet", N, options)
+    return reader_call("read_parquet", files, options)
 end

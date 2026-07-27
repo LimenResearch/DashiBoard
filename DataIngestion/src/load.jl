@@ -70,6 +70,7 @@ end
         table = "$(TABLE_NAMES.source)";
         format::AbstractString,
         schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
         filename::Union{AbstractString, Nothing} = nothing,
         union_by_name::Bool = true, kwargs...)
     )
@@ -92,16 +93,18 @@ function load_files(
         table::AbstractString = TABLE_NAMES.source;
         format::AbstractString = to_format(first(files)),
         schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
         filename::Union{AbstractString, Nothing} = nothing,
         union_by_name::Bool = true,
         kwargs...
     )
 
-    N = length(files)
-    reader = DEFAULT_READERS[format](N; union_by_name, kwargs...)
+    # Note: we avoid parameters as otherwise we could not create views
+    # due to https://github.com/duckdb/duckdb/issues/13069
+    reader = DEFAULT_READERS[format](files; union_by_name, kwargs...)
 
     sql = isnothing(filename) ? "FROM $(reader) SELECT *;" :
         "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS \"$(filename)\";"
 
-    return replace_table(repository, sql, files, table; schema)
+    return replace_table(repository, sql, table; schema, virtual)
 end

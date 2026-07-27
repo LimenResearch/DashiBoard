@@ -1,5 +1,5 @@
 function csv_reader(
-        N::Integer;
+        files::AbstractVector{<:AbstractString};
         allow_quoted_nulls::Bool = true,
         auto_detect::Bool = true,
         auto_type_candidates::Maybe{StringList} = nothing,
@@ -59,5 +59,5 @@ function csv_reader(
         "union_by_name" => union_by_name,
     )
 
-    return reader_call("read_csv", N, options)
+    return reader_call("read_csv", files, options)
 end

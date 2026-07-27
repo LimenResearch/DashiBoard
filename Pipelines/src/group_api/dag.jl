@@ -1,18 +1,15 @@
-function dependency_graph!(ps::Params)
+function dependency_graph(c::Configuration)
     edges, cols = Edge{Int}[], OrderedSet{String}()
+    n_nodes, n_groups = length(c.nodes), length(c.groups)
 
-    n_nodes, n_groups = length(ps.nodes), length(ps.groups)
-    node_deps::Vector{Vector{Deps}} = parse_and_return_deps!(ps.node_configs)
-    group_deps::Vector{Vector{Deps}} = parse_and_return_deps!(ps.group_configs)
-
-    for (i, deplist) in enumerate(Iterators.flatten([node_deps, group_deps]))
+    for (i, deplist) in enumerate(Iterators.flatten([c.node_deps, c.group_deps]))
         # Iterate over `deps` elements and add dependency edges
         for deps::Deps in deplist
             for node_key in Iterators.flatten([deps.nodes, deps.through])
-                push!(edges, Edge(ps.node_idxs[node_key], i))
+                push!(edges, Edge(c.node_idxs[node_key], i))
             end
             for group_key in deps.groups
-                push!(edges, Edge(n_nodes + ps.group_idxs[group_key], i))
+                push!(edges, Edge(n_nodes + c.group_idxs[group_key], i))
             end
             union!(cols, deps.cols)
         end
@@ -36,11 +33,9 @@ get_source_vars(eg::GroupDiGraph) = eg.source_vars
 get_output_vars(eg::GroupDiGraph) = eg.output_vars
 
 function Pipeline(nodes::AbstractVector, groups::AbstractDict)
-    ps = Params(nodes, groups) # FIXME: better name, `Configuration?`
-    G, cols = dependency_graph!(ps)
-    for i in topological_sort(G)
-        replace_placeholders!(ps, i)
-    end
-    eg = GroupDiGraph(G, cols, reduce(vcat, ps.node_outputs), ps.groups)
-    return Pipeline(ps.nodes, eg)
+    c = Configuration(nodes, groups) |> parse_deps!
+    G, cols = dependency_graph(c)
+    replace_placeholders!(c, G)
+    eg = GroupDiGraph(G, cols, reduce(vcat, c.node_outputs), c.groups)
+    return Pipeline(c.nodes, eg)
 end

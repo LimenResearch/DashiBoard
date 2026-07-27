@@ -25,9 +25,8 @@ parse_once(dp::DepsParser, d::AbstractDict) = (deps = construct(Deps, d); push!(
 (dp::DepsParser)(v::AbstractVector) = map_into(dp, Vector{Any}, v)
 (::DepsParser)(x::Any) = x
 
-function parse_and_return_deps!(ls::AbstractVector)
-    deps_collection = similar(ls, Vector{Deps})
-    for i in eachindex(ls)
+function parse_deps!(deps_collection::AbstractVector, ls::AbstractVector)
+    for i in eachindex(deps_collection, ls)
         dp = DepsParser()
         ls[i] = dp(ls[i])
         deps_collection[i] = dp.list
@@ -35,16 +34,18 @@ function parse_and_return_deps!(ls::AbstractVector)
     return deps_collection
 end
 
-# Compute columns
+# `Configuration` structure
 
-struct Params
+struct Configuration
     node_idxs::Dict{String, Int}
     node_configs::Vector{StringDict}
     node_outputs::Vector{Vector{String}}
     nodes::Vector{Node}
+    node_deps::Vector{Vector{Deps}}
     group_idxs::Dict{String, Int}
     group_configs::Vector{Any}
     groups::Vector{Vector{String}}
+    group_deps::Vector{Vector{Deps}}
 end
 
 function separate_vals_idxs(::Type{T}, iter) where {T}
@@ -56,63 +57,85 @@ function separate_vals_idxs(::Type{T}, iter) where {T}
     return vals, idx_dict
 end
 
-function Params(node_configs::AbstractVector, group_configs::AbstractDict)
+function Configuration(node_configs::AbstractVector, group_configs::AbstractDict)
     group_configs′, group_idxs = separate_vals_idxs(Any, pairs(group_configs))
     node_configs′, node_idxs = separate_vals_idxs(
-        StringDict, get(n, "label", nothing) => n for n in node_configs
+        StringDict,
+        get(n, "label", nothing) => n for n in node_configs
     )
     node_outputs = similar(node_configs′, Vector{String})
     nodes = similar(node_configs′, Node)
+    node_deps = similar(node_configs′, Vector{Deps})
     groups = similar(group_configs′, Vector{String})
+    group_deps = similar(group_configs′, Vector{Deps})
 
-    return Params(
-        node_idxs, node_configs′, node_outputs, nodes,
-        group_idxs, group_configs′, groups
+    return Configuration(
+        node_idxs, node_configs′, node_outputs, nodes, node_deps,
+        group_idxs, group_configs′, groups, group_deps
     )
 end
 
-get_nodes(ps::Params, ks::AbstractVector) = ps.nodes[get_indices(ps.node_idxs, ks)]
-get_node_outputs(ps::Params, ks::AbstractVector) = ps.node_outputs[get_indices(ps.node_idxs, ks)]
-get_groups(ps::Params, ks::AbstractVector) = ps.groups[get_indices(ps.group_idxs, ks)]
+function parse_deps!(c::Configuration)
+    parse_deps!(c.node_deps, c.node_configs)
+    parse_deps!(c.group_deps, c.group_configs)
+    return c
+end
+
+get_node_indices(c::Configuration, ks::AbstractVector) = get_indices(c.node_idxs, ks)
+get_group_indices(c::Configuration, ks::AbstractVector) = get_indices(c.group_idxs, ks)
 
 # TODO: more general definition
-function pass_through(x::AbstractVector, ks::AbstractVector, ps::Params)
+function pass_through(x::AbstractVector, ks::AbstractVector, c::Configuration)
     isempty(ks) && return x
-    nodes = get_nodes(ps, ks)
+    nodes = c.nodes[get_node_indices(c, ks)]
     suffix = join([node.card.suffix for node in nodes], "_")
     return join_names.(x, suffix)
 end
 
-function to_columns(d::Deps, ps::Params)
-    nested = vcat(get_node_outputs(ps, d.nodes), get_groups(ps, d.groups), [d.cols])
+function to_columns(d::Deps, c::Configuration)
+    nested = vcat(
+        c.node_outputs[get_node_indices(c, d.nodes)],
+        c.groups[get_group_indices(c, d.groups)],
+        [d.cols]
+    )
     cols = reduce(vcat, nested)
-    return pass_through(cols, d.through, ps)
+    return pass_through(cols, d.through, c)
 end
 
 # Nested column computations
 
-replace_placeholders(d::AbstractDict, ps::Params) = map_into(Fix2(replace_placeholders, ps), StringDict, d)
+function replace_placeholders(d::AbstractDict, c::Configuration)
+    return map_into(Fix2(replace_placeholders, c), StringDict, d)
+end
 
-function replace_placeholders(v::AbstractVector, ps::Params)
+function replace_placeholders(v::AbstractVector, c::Configuration)
     res = Any[]
     for el in v
         # append if `Deps`, else push
-        el isa Deps ? append!(res, to_columns(el, ps)) : push!(res, replace_placeholders(el, ps))
+        x = replace_placeholders(el, c)
+        el isa Deps ? append!(res, x) : push!(res, x)
     end
     return res
 end
 
-replace_placeholders(deps::Deps, ps::Params) = to_columns(deps, ps)
+replace_placeholders(deps::Deps, c::Configuration) = to_columns(deps, c)
 
-replace_placeholders(x::Any, ps::Params) = x
+replace_placeholders(x::Any, c::Configuration) = x
 
-function replace_placeholders!(ps::Params, i::Integer)
-    if i ≤ length(ps.nodes)
-        ps.nodes[i] = Node(replace_placeholders(ps.node_configs[i], ps))
-        ps.node_outputs[i] = get_node_outputs(ps.nodes[i])
+function replace_placeholders!(c::Configuration, i::Integer)
+    if i ≤ length(c.nodes)
+        c.nodes[i] = Node(replace_placeholders(c.node_configs[i], c))
+        c.node_outputs[i] = get_node_outputs(c.nodes[i])
     else
-        j = i - length(ps.nodes)
-        ps.groups[j] = replace_placeholders(ps.group_configs[j], ps)
+        j = i - length(c.nodes)
+        c.groups[j] = replace_placeholders(c.group_configs[j], c)
     end
-    return ps
+    return c
+end
+
+function replace_placeholders!(c::Configuration, G::DiGraph)
+    for i in topological_sort(G)
+        replace_placeholders!(c, i)
+    end
+    return c
 end

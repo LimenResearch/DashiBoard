@@ -1,9 +1,9 @@
 @testset "groups" begin
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
-    ps = Pipelines.Params(d["nodes"], d["groups"])
-    g, cols = Pipelines.dependency_graph!(ps)
+    c = Pipelines.Configuration(d["nodes"], d["groups"]) |> Pipelines.parse_deps!
+    g, cols = Pipelines.dependency_graph(c)
     es = sort(collect(edges(g)))
-    node_vals, group_vals = ps.node_configs, ps.group_configs
+    node_vals, group_vals = c.node_configs, c.group_configs
 
     # @test grp_keys == ["weather"] FIXME!
     @test group_vals[1].cols == ["PRES", "TEMP"]

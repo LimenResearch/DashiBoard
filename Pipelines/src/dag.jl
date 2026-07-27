@@ -6,6 +6,9 @@ struct EnrichedDiGraph{I <: Integer} <: AbstractEnrichedDiGraph{I}
     output_vars::Vector{String}
 end
 
+get_source_vars(eg::EnrichedDiGraph) = eg.source_vars
+get_output_vars(eg::EnrichedDiGraph) = eg.output_vars
+
 # Generate `node_idxs` and `var_idxs` pairings for digraph as well as a list of variable names corresponding to the indices.
 # A buffer dict `d` containing `var => var_idx` mappings is updated in place.
 # It is assumed that all entries in `d` have distinct values within `length(nodes) + 1` and `length(nodes) + length(d)`.

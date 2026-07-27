@@ -88,6 +88,15 @@ const FILTER_TYPES = Dict(
     "list" => ListFilter,
 )
 
+
+"""
+    selection_query(filters::AbstractVector)
+
+Return `query::FunSQL.Node` and `params::AbstractDict` that can be used to filter
+a table based on `filters`.
+
+Each filter should be an instance of [`Filter`](@ref). See also [`select`](@ref).
+"""
 function selection_query(filters::AbstractVector)
     cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
     params = mapfoldl(get_params, merge!, cs, init = StringDict())

@@ -28,6 +28,9 @@ function Pipeline(node_iter)
     return Pipeline(nodes, enriched_digraph)
 end
 
+get_source_vars(p::Pipeline) = get_source_vars(p.enriched_digraph)
+get_output_vars(p::Pipeline) = get_output_vars(p.enriched_digraph)
+
 graphviz(io::IO, p::Pipeline) = graphviz(io, p.enriched_digraph, p.nodes)
 
 function foreach_layer(

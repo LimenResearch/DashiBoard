@@ -1,10 +1,9 @@
 # General utils
 
-function map_into(f::F, ::Type{T}, x)::T where {F, T}
-    r = T(x)
-    map!(f, values(r))
-    return r
-end
+_map!(f::F, d::AbstractDict) where {F} = (map!(f, values(d)); d)
+_map!(f::F, v::AbstractVector) where {F} = map!(f, v, v)
+
+map_into(f::F, ::Type{T}, x) where {F, T} = _map!(f, T(x))::T
 
 get_indices(d::AbstractDict{<:Any, I}, ks::AbstractVector) where {I} = I[d[k] for k in ks]
 

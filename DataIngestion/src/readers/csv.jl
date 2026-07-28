@@ -1,5 +1,5 @@
 function csv_reader(
-        files::AbstractVector{<:AbstractString};
+        files::StringList;
         allow_quoted_nulls::Bool = true,
         auto_detect::Bool = true,
         auto_type_candidates::Maybe{StringList} = nothing,

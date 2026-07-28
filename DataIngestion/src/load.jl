@@ -72,7 +72,7 @@ end
         schema::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
         filename::Union{AbstractString, Nothing} = nothing,
-        union_by_name::Bool = true, kwargs...)
+        kwargs...
     )
 
 Load `files` into a table called `table` (defaults to "$(TABLE_NAMES.source)")
@@ -84,8 +84,7 @@ The format is inferred or can be passed explicitly.
 The following formats are supported:
 $(list_formats()).
 
-`union_by_name` and the remaining keyword arguments are forwarded to the reader
-for the given format.
+The remaining keyword arguments are forwarded to the reader for the given format.
 """
 function load_files(
         repository::Repository,
@@ -95,13 +94,12 @@ function load_files(
         schema::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
         filename::Union{AbstractString, Nothing} = nothing,
-        union_by_name::Bool = true,
         kwargs...
     )
 
     # Note: we avoid parameters as otherwise we could not create views
     # due to https://github.com/duckdb/duckdb/issues/13069
-    reader = DEFAULT_READERS[format](files; union_by_name, kwargs...)
+    reader = DEFAULT_READERS[format](files; kwargs...)
 
     sql = isnothing(filename) ? "FROM $(reader) SELECT *;" :
         "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS \"$(filename)\";"

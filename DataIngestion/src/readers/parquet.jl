@@ -1,5 +1,5 @@
 function parquet_reader(
-        files::AbstractVector{<:AbstractString};
+        files::StringList;
         binary_as_string::Bool = false,
         encryption_config::Maybe{StringStruct} = nothing,
         file_row_number::Bool = false,

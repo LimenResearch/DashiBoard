@@ -1,5 +1,5 @@
 function json_reader(
-        files::AbstractVector{<:AbstractString};
+        files::StringList;
         compression::Maybe{AbstractString} = nothing,
         format::AbstractString = "auto",
         hive_partitioning::Bool = false,

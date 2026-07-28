@@ -23,6 +23,11 @@ function VariableSummary(name::AbstractString, type::AbstractString, eltype::Abs
     return VariableSummary(name, type, eltype, nothing)
 end
 
+const MACRO_DEFINITION = """
+CREATE MACRO IF NOT EXISTS list_unique_sorted(x) AS list(DISTINCT x ORDER BY x ASC);
+CREATE MACRO IF NOT EXISTS list_extrema(x) AS list_value(min(x), max(x));
+"""
+
 const SUMMARY_FUNCTIONS = Dict(
     "numerical" => Agg.list_extrema,
     "categorical" => Agg.list_unique_sorted,
@@ -64,16 +69,7 @@ function summarize(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-    DBInterface.execute(
-        Returns(nothing),
-        repository,
-        "CREATE MACRO IF NOT EXISTS list_unique_sorted(x) AS list(DISTINCT x ORDER BY x ASC);"
-    )
-    DBInterface.execute(
-        Returns(nothing),
-        repository,
-        "CREATE MACRO IF NOT EXISTS list_extrema(x) AS list_value(min(x), max(x));"
-    )
+    DuckDBUtils.query(Returns(nothing), repository, MACRO_DEFINITION)
 
     tbl_schema = table_schema(repository, tbl; schema)
     names, types = collect(tbl_schema.names), collect(tbl_schema.types)

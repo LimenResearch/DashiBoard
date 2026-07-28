@@ -17,7 +17,7 @@ using FunSQL: SQLNode,
     Order,
     Group
 using DBInterface: DBInterface
-using DuckDBUtils: Repository, get_catalog, replace_table, to_sql, in_schema
+using DuckDBUtils: DuckDBUtils, Repository, get_catalog, replace_table, to_sql, in_schema
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using IterTools: flagfirst
 using Tables: Tables

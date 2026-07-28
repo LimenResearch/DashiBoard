@@ -70,21 +70,22 @@ end
         table = "$(TABLE_NAMES.source)";
         format::AbstractString,
         schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
         filename::Union{AbstractString, Nothing} = nothing,
-        union_by_name::Bool = true, kwargs...)
+        kwargs...
     )
 
 Load `files` into a table called `table` (defaults to "$(TABLE_NAMES.source)")
 within the schema `schema` (defaults to main schema) inside `repository.db`,
 where `repository` is a [`Repository`](@ref).
 
-The format is inferred or can be passed explicitly.
-
-The following formats are supported:
+The format is inferred or can be passed explicitly. The following formats are supported:
 $(list_formats()).
 
-`union_by_name` and the remaining keyword arguments are forwarded to the reader
-for the given format.
+Use `virtual = true` to load the data lazily as a view (especially useful for Parquet files).
+Use `filename = "some_name"` to store the parsed filename (without extension) as a new column `some_name`.
+
+The remaining keyword arguments are forwarded to the reader for the given format.
 """
 function load_files(
         repository::Repository,
@@ -92,16 +93,17 @@ function load_files(
         table::AbstractString = TABLE_NAMES.source;
         format::AbstractString = to_format(first(files)),
         schema::Union{AbstractString, Nothing} = nothing,
+        virtual::Bool = false,
         filename::Union{AbstractString, Nothing} = nothing,
-        union_by_name::Bool = true,
         kwargs...
     )
 
-    N = length(files)
-    reader = DEFAULT_READERS[format](N; union_by_name, kwargs...)
+    # Note: we avoid parameters as otherwise we could not create views
+    # due to https://github.com/duckdb/duckdb/issues/13069
+    reader = DEFAULT_READERS[format](files; kwargs...)
 
     sql = isnothing(filename) ? "FROM $(reader) SELECT *;" :
         "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS \"$(filename)\";"
 
-    return replace_table(repository, sql, files, table; schema)
+    return replace_table(repository, sql, table; schema, virtual)
 end

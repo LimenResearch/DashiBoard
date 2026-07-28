@@ -1,9 +1,9 @@
 """
-    to_sql(x)
+    to_sql(x; dialect::SQLDialect = SQLDialect(name = :duckdb))
 
-Convert a julia value `x` to its SQL representation.
+Convert a julia value `x` to its SQL representation in the given dialect.
 """
-to_sql(x) = render(LIT(x))
+to_sql(x; dialect::SQLDialect = SQLDialect(name = :duckdb)) = render(dialect, LIT(x))
 
 """
     in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})

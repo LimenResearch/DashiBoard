@@ -24,8 +24,13 @@ function VariableSummary(name::AbstractString, type::AbstractString, eltype::Abs
 end
 
 const MACRO_DEFINITION = """
-CREATE OR REPLACE TEMP MACRO list_unique_sorted(x) AS list(DISTINCT x ORDER BY x ASC);
-CREATE OR REPLACE TEMP MACRO list_extrema(x) AS list_value(min(x), max(x));
+CREATE TEMP MACRO list_unique_sorted(x) AS list(DISTINCT x ORDER BY x ASC);
+CREATE TEMP MACRO list_extrema(x) AS list_value(min(x), max(x));
+"""
+
+const MACRO_CLEANUP = """
+DROP MACRO list_unique_sorted;
+DROP MACRO list_extrema;
 """
 
 const SUMMARY_FUNCTIONS = Dict(
@@ -69,8 +74,6 @@ function summarize(
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-    DuckDBUtils.query(Returns(nothing), repository, MACRO_DEFINITION)
-
     tbl_schema = table_schema(repository, tbl; schema)
     names, types = collect(tbl_schema.names), collect(tbl_schema.types)
 
@@ -85,12 +88,16 @@ function summarize(
 
     DuckDBUtils.with_connection(repository) do con
         DuckDBUtils._query(Returns(nothing), con, MACRO_DEFINITION)
-        DuckDBUtils._execute(con, query; schema) do res
-            row = first(res)
-            for s in summaries
-                val = Tables.getcolumn(row, Symbol(s.name))
-                s.summary = post_processor(s)(val)
+        try
+            DuckDBUtils._execute(con, query; schema) do res
+                row = first(res)
+                for s in summaries
+                    val = Tables.getcolumn(row, Symbol(s.name))
+                    s.summary = post_processor(s)(val)
+                end
             end
+        finally
+            DuckDBUtils._query(Returns(nothing), con, MACRO_CLEANUP)
         end
     end
 

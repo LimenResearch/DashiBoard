@@ -79,10 +79,11 @@ Load `files` into a table called `table` (defaults to "$(TABLE_NAMES.source)")
 within the schema `schema` (defaults to main schema) inside `repository.db`,
 where `repository` is a [`Repository`](@ref).
 
-The format is inferred or can be passed explicitly.
-
-The following formats are supported:
+The format is inferred or can be passed explicitly. The following formats are supported:
 $(list_formats()).
+
+Use `virtual = true` to load the data lazily as a view (especially useful for Parquet files).
+Use `filename = "some_name"` to store the parsed filename (without extension) as a new column `some_name`.
 
 The remaining keyword arguments are forwarded to the reader for the given format.
 """

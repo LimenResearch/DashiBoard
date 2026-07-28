@@ -206,7 +206,7 @@ function stream(f, data::FunneledData{DBFunnel}, i::Integer, streaming::Streamin
     nrows = get_nsamples(data, i)
 
     return with_connection(repository) do con
-        catalog = get_catalog(repository; schema)
+        catalog = get_catalog(con; schema)
         sorters = shuffle ? [Fun.random()] : Get.(funnel.order_by)
         cond = get_partition_cond(partition, i)
         stream_query = From(table) |>

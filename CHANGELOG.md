@@ -27,5 +27,4 @@
 - Support for Gaussian encoding of week day [#86](https://github.com/LimenResearch/DashiBoard/pull/86).
 - Training and evaluation now support callbacks [#99](https://github.com/LimenResearch/DashiBoard/pull/99).
 - Support transformation in `DataIngestion.select` [#104](https://github.com/LimenResearch/DashiBoard/pull/104).
-- `DuckDBUtils.render_params` now can also accepts a `Repository` instead of a `SQLCatalog` [#106](https://github.com/LimenResearch/DashiBoard/pull/106).
-- `DataIngestion.load_files` support loading as a view [#151](https://github.com/LimenResearch/DashiBoard/pull/151).
+- `DataIngestion.load_files` supports loading data as a view [#151](https://github.com/LimenResearch/DashiBoard/pull/151).

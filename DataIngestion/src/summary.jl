@@ -24,8 +24,8 @@ function VariableSummary(name::AbstractString, type::AbstractString, eltype::Abs
 end
 
 const MACRO_DEFINITION = """
-CREATE MACRO IF NOT EXISTS list_unique_sorted(x) AS list(DISTINCT x ORDER BY x ASC);
-CREATE MACRO IF NOT EXISTS list_extrema(x) AS list_value(min(x), max(x));
+CREATE OR REPLACE TEMP MACRO list_unique_sorted(x) AS list(DISTINCT x ORDER BY x ASC);
+CREATE OR REPLACE TEMP MACRO list_extrema(x) AS list_value(min(x), max(x));
 """
 
 const SUMMARY_FUNCTIONS = Dict(
@@ -83,11 +83,14 @@ function summarize(
 
     query = From(tbl) |> Group() |> Select(args = agg_selection.(summaries))
 
-    DBInterface.execute(repository, query; schema) do res
-        row = first(res)
-        for s in summaries
-            val = Tables.getcolumn(row, Symbol(s.name))
-            s.summary = post_processor(s)(val)
+    DuckDBUtils.with_connection(repository) do con
+        DuckDBUtils._query(Returns(nothing), con, MACRO_DEFINITION)
+        DuckDBUtils._execute(con, query; schema) do res
+            row = first(res)
+            for s in summaries
+                val = Tables.getcolumn(row, Symbol(s.name))
+                s.summary = post_processor(s)(val)
+            end
         end
     end
 

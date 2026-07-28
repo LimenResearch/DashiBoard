@@ -75,9 +75,10 @@ struct ListFilter{T} <: Filter
     end
 end
 
-function ListFilter(colname::AbstractString, list::AbstractVector{T}) where {T}
-    S = nonmissingtype(T)
-    return ListFilter{S}(colname, list)
+function ListFilter(colname::AbstractString, list::AbstractVector)
+    list′ = identity.(list) # narrow element type
+    T = eltype(list′)
+    return ListFilter{T}(colname, list′)
 end
 
 function ListFilter(d::AbstractDict)

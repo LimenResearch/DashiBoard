@@ -23,9 +23,18 @@ function VariableSummary(name::AbstractString, type::AbstractString, eltype::Abs
     return VariableSummary(name, type, eltype, nothing)
 end
 
-agg_fn(vs::VariableSummary) = vs.type == "numerical" ? Agg.list_extrema : Agg.list_unique_sorted
+const SUMMARY_FUNCTIONS = Dict(
+    "numerical" => Agg.list_extrema,
+    "categorical" => Agg.list_unique_sorted,
+)
 
-agg_selection(vs::VariableSummary) = vs.name => agg_fn(vs)(Get(vs.name))
+const POST_PROCESSING_FUNCTIONS = Dict(
+    "numerical" => NamedTuple{(:min, :max)},
+    "categorical" => identity,
+)
+
+agg_selection(vs::VariableSummary) = vs.name => SUMMARY_FUNCTIONS[vs.type](Get(vs.name))
+post_processor(vs::VariableSummary) = POST_PROCESSING_FUNCTIONS[vs.type]
 
 function stringify_type(::Type{T}) where {T}
     T <: Bool && return "bool"
@@ -81,7 +90,8 @@ function summarize(
     DBInterface.execute(repository, query; schema) do res
         row = first(res)
         for s in summaries
-            s.summary = Tables.getcolumn(row, Symbol(s.name))
+            val = Tables.getcolumn(row, Symbol(s.name))
+            s.summary = post_processor(s)(val)
         end
     end
 

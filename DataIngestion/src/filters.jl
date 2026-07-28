@@ -47,8 +47,8 @@ end
 function Condition(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
-    pleft, pright = string.(prefix, ("left", "right"))
-    params = Dict(pleft => leftendpoint(interval), pright => rightendpoint(interval))
+    pleft, pright = string.(prefix, "_", ("left", "right"))
+    params = StringDict(pleft => leftendpoint(interval), pright => rightendpoint(interval))
     pred = Fun.between(Get(colname), Var(pleft), Var(pright))
 
     return Condition(pred, params)
@@ -61,25 +61,35 @@ end
     end
 
 Object to retain only those rows for which the variable `colname` belongs to a `list` of options.
+
+!!! note
+    `list` cannot contain missing values, as that might give surprising results in SQL.
 """
 struct ListFilter{T} <: Filter
     colname::String
     list::Vector{T}
+    function ListFilter{T}(colname::AbstractString, list::AbstractVector) where {T}
+        # For now we do not allow missings. We might choose to handle them explicitly in the future.
+        any(ismissing, list) && throw(ArgumentError("No missings allowed in `list`"))
+        return new{T}(colname, list)
+    end
+end
+
+function ListFilter(colname::AbstractString, list::AbstractVector{T}) where {T}
+    S = nonmissingtype(T)
+    return ListFilter{S}(colname, list)
 end
 
 function ListFilter(d::AbstractDict)
     colname, list = d["colname"], d["list"]
-    T = eltype(list)
-    return ListFilter{T}(colname, list)
+    return ListFilter(colname, list)
 end
 
 function Condition(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
-
-    ks = string.(prefix, "value", eachindex(list))
-    params = StringDict(zip(ks, list))
-    pred = Fun.in(Get(colname), Var.(ks)...)
-
+    k = string(prefix, "_", "values")
+    params = StringDict(k => list)
+    pred = Fun." IN "(Get(colname), Var(k))
     return Condition(pred, params)
 end
 
@@ -87,7 +97,6 @@ const FILTER_TYPES = Dict(
     "interval" => IntervalFilter,
     "list" => ListFilter,
 )
-
 
 """
     selection_query(filters::AbstractVector)
@@ -98,7 +107,7 @@ a table based on `filters`.
 Each filter should be an instance of [`Filter`](@ref). See also [`select`](@ref).
 """
 function selection_query(filters::AbstractVector)
-    cs = [Condition(f, string("filter", i, "_")) for (i, f) in enumerate(filters)]
+    cs = [Condition(f, string("filter", "_", i)) for (i, f) in enumerate(filters)]
     params = mapfoldl(get_params, merge!, cs, init = StringDict())
     pred = Fun.and(Iterators.map(get_pred, cs)...)
     return Where(pred), params

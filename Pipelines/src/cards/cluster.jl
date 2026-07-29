@@ -23,12 +23,19 @@ usual convergence guarantee.
     iterations::Int = 100 & (dashi = json_integer(minimum = 1),)
     tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
     seed::Union{Int, Nothing} = nothing & (dashi = json_integer(minimum = 0),)
+    # how the initial centers are seeded: k-means++, uniformly at random, or
+    # the points of extreme centrality (Clustering.jl's :kmpp/:rand/:kmcen)
+    init::String = "kmpp" & (dashi = json_string(enum = ["kmpp", "rand", "kmcen"]),)
 end
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
     distance = get_dissimilarity(m.dissimilarity)
-    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights, distance)
+    return kmeans(
+        X, classes;
+        maxiter = iterations, tol, rng = get_rng(seed), weights, distance,
+        init = Symbol(m.init),
+    )
 end
 
 """

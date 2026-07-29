@@ -314,6 +314,19 @@ end
     )
     @test assignments(R) == df.cbcluster
 
+    # the configured seeding reaches the fit
+    card = Pipelines.Card(d["kmeansInit"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+    train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+    rng = StreamlinerCore.get_rng(1234)
+    R = kmeans(
+        [train_df.TEMP train_df.PRES train_df.Iws]', 3;
+        maxiter = 100, tol = 1.0e-6, rng, weights = train_df.Iws, init = :rand,
+    )
+    @test assignments(R) == df.initcluster
+
     card = Pipelines.Card(d["dbscan"])
     @test !Pipelines.invertible(card)
 

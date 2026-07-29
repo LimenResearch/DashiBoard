@@ -10,7 +10,8 @@
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
-      "seed": 1234
+      "seed": 1234,
+      "init": "kmpp"
     }
   },
   "kmeansCityblock": {
@@ -34,7 +35,8 @@
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
-      "seed": 1234
+      "seed": 1234,
+      "init": "kmpp"
     }
   },
   "wrongDissimilarity": {
@@ -106,5 +108,30 @@
       "radius": 0.02
     },
     "partition": "partition"
+  },
+  "kmeansInit": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES", "Iws"],
+    "weights": "Iws",
+    "output": "initcluster",
+    "method": {
+      "type": "kmeans",
+      "dissimilarity": { "type": "sqeuclidean" },
+      "classes": 3,
+      "iterations": 100,
+      "tol": 1e-6,
+      "seed": 1234,
+      "init": "rand"
+    }
+  },
+  "wrongInit": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "initcluster",
+    "method": {
+      "type": "kmeans",
+      "classes": 3,
+      "init": "not_an_init"
+    }
   }
 }

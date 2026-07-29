@@ -133,5 +133,16 @@
       "classes": 3,
       "init": "not_an_init"
     }
+  },
+  "reconcile": {
+    "type": "cluster",
+    "inputs": ["x", "y"],
+    "output": "cluster",
+    "method": {
+      "type": "dbscan",
+      "radius": 1.0,
+      "min_neighbors": 2,
+      "min_cluster_size": 3
+    }
   }
 }

@@ -414,6 +414,103 @@ end
     @test all(==(1), per_point.k)
 end
 
+@testset "cluster reconciliation" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
+
+    # The matcher on hand-written fits. Density refits can only grow clusters
+    # (an added point never separates two others), so the split, merge and
+    # threshold branches are exercised here directly.
+    relabel = Pipelines._relabel_map
+
+    # an identical refit: every cluster keeps its label, noise stays noise
+    m, highest = relabel([1, 1, 2, 2, 0], [1, 1, 2, 2, 0], 0.5, 2)
+    @test m == Dict(0 => 0, 1 => 1, 2 => 2)
+    @test highest == 2
+
+    # inheritance follows membership, not the refit's numbering
+    m, _ = relabel([2, 2, 1, 1], [1, 1, 2, 2], 0.5, 2)
+    @test m[2] == 1 && m[1] == 2
+
+    # split: the larger piece keeps the label, the smaller is an emergence
+    m, highest = relabel([1, 1, 1, 4, 4, 2, 2], [1, 1, 1, 1, 1, 2, 2], 0.5, 2)
+    @test m[1] == 1 && m[4] == 3 && m[2] == 2
+    @test highest == 3
+
+    # merge: the union inherits from its largest contributor (ties to the lowest)
+    m, _ = relabel([1, 1, 1, 1], [1, 1, 2, 2], 0.5, 2)
+    @test m[1] == 1
+
+    # rows the stored fit never saw cannot claim a label...
+    m, _ = relabel([1, 1, 2, 2], [1, 1], 0.5, 2)
+    @test m[1] == 1 && m[2] == 3
+
+    # ...and fresh labels continue from the highest ever issued, not the
+    # highest present, so a forgotten cluster's number is never reused
+    m, highest = relabel([1, 1, 2, 2], [1, 1], 0.5, 7)
+    @test m[2] == 8 && highest == 8
+
+    # the threshold is the share of previously-labelled rows the winner holds
+    @test relabel([3, 3, 3, 3], [1, 2, 2, 2], 0.5, 3)[1][3] == 2   # 3/4 suffices
+    @test relabel([3, 3, 3, 3], [1, 2, 2, 2], 0.8, 3)[1][3] == 4   # 3/4 < 0.8
+
+    # The shared refit-and-reconcile evaluation, on three tight well-separated
+    # blobs plus a fourth far away to add later.
+    blob(cx, cy, k) = DataFrame(
+        id = k .+ (1:9),
+        x = [cx + 0.1 * (i % 3) for i in 1:9],
+        y = [cy + 0.1 * (i ÷ 3) for i in 1:9],
+    )
+    base = reduce(vcat, [blob(0.0, 0.0, 0), blob(10.0, 0.0, 100), blob(0.0, 10.0, 200)])
+    grown = vcat(base, blob(30.0, 30.0, 300))
+    DuckDBUtils.load_table(repo, base, "recon_base")
+    DuckDBUtils.load_table(repo, grown, "recon_grown")
+
+    reconcile_state(node) = Pipelines.jlddeserialize(Pipelines.get_state(node).content)
+
+    node = Node(Pipelines.Card(d["reconcile"]))
+    Pipelines.train_evaljoin!(repo, node, "recon_base" => "recon_out", "id")
+    fitted = DBInterface.execute(DataFrame, repo, "FROM recon_out ORDER BY id").cluster
+    @test sort(unique(fitted)) == [1, 2, 3]
+
+    # refitting on unchanged data produces no transitions
+    Pipelines.evaljoin(repo, node, "recon_base" => "recon_again", "id")
+    again = DBInterface.execute(DataFrame, repo, "FROM recon_again ORDER BY id")
+    @test again.cluster == fitted
+
+    # a far-away blob is an emergence: one fresh label, old labels untouched
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_emerged", "id")
+    emerged = DBInterface.execute(DataFrame, repo, "FROM recon_emerged ORDER BY id")
+    @test emerged.cluster[emerged.id .< 300] == fitted
+    @test unique(emerged.cluster[emerged.id .> 300]) == [maximum(fitted) + 1]
+    # with lineage off both evaluations left the state alone
+    @test reconcile_state(node).iteration == 1
+    @test length(reconcile_state(node).members["label"]) == nrow(base)
+
+    # lineage on: an evaluation that admits rows rolls the members forward,
+    # stamping the iteration they arrived in
+    node = Node(Pipelines.Card(merge(d["reconcile"], Dict("lineage" => true))))
+    Pipelines.train_evaljoin!(repo, node, "recon_base" => "recon_out", "id")
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_emerged", "id")
+    st = reconcile_state(node)
+    @test st.iteration == 2
+    @test length(st.members["label"]) == nrow(grown)
+    @test sort(unique(st.members["iteration_origin"])) == [1, 2]
+
+    # ...but one that admits nothing is a no-op: iterations measure growth,
+    # so re-running an evaluation cannot age the members
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_noop", "id")
+    @test reconcile_state(node).iteration == 2
+
+    # memory keeps only the newest iterations, without reissuing freed labels
+    node = Node(Pipelines.Card(merge(d["reconcile"], Dict("lineage" => true, "memory" => 1))))
+    Pipelines.train_evaljoin!(repo, node, "recon_base" => "recon_out", "id")
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_emerged", "id")
+    st = reconcile_state(node)
+    @test unique(st.members["iteration_origin"]) == [2]
+    @test length(st.members["label"]) == nrow(grown) - nrow(base)
+    @test st.highest_label == maximum(fitted) + 1
+end
+
 @testset "dimensionality reduction" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimensionality_reduction.json"))
 

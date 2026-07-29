@@ -80,6 +80,14 @@ end
     spurious_property = deepcopy(d["dbscan"])
     spurious_property["method"]["minneighbors"] = 10
     _pipeline_schema_invalidate(schema, spurious_property)
+    # the reconciliation options: threshold in (0, 1], memory ≥ 1
+    reconcile = merge(
+        d["reconcile"],
+        Dict("inputs" => ["TEMP", "PRES"], "threshold" => 0.75, "lineage" => true, "memory" => 2),
+    )
+    _pipeline_schema_validate(schema, reconcile)
+    _pipeline_schema_invalidate(schema, merge(reconcile, Dict("threshold" => 1.5)))
+    _pipeline_schema_invalidate(schema, merge(reconcile, Dict("memory" => 0)))
 end
 
 @testset "dimensionality reduction schema" begin

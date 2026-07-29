@@ -73,15 +73,62 @@ of clusters.
     tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
 end
 
+"""
+    _labels(res)
+
+Which cluster the fit put each ROW in. Most methods hand back a Clustering.jl
+result; a method that fits *transformed* data returns the per-row labels it
+mapped back itself.
+"""
+_labels(res) = assignments(res)
+_labels(labels::AbstractVector{<:Integer}) = labels
+
+"""
+    _collapse_duplicates(X)
+
+Distinct columns of `X` in first-occurrence order, how many rows each stands
+for, and the row -> distinct-point map.
+"""
+function _collapse_duplicates(X)
+    groups = OrderedDict{Vector{Float64}, Int}()
+    counts, row_group = Int[], Vector{Int}(undef, size(X, 2))
+    for (j, x) in enumerate(eachcol(X))
+        g = get!(groups, convert(Vector{Float64}, x)) do
+            push!(counts, 0)
+            length(counts)
+        end
+        counts[g] += 1
+        row_group[j] = g
+    end
+    return stack(keys(groups)), counts, row_group
+end
+
+#=
+Duplicate rows are collapsed into count weights before the fit. Repeated
+identical points otherwise keep affinity propagation's messages oscillating,
+and real data is full of them — calls from one address, readings from one
+sensor. The reduction is exact rather than a sample: similarities are scaled
+by the assignee's count so a distinct point pulls as hard as its copies would
+have, while the diagonal preferences stay unscaled, since a point is free to
+be its own exemplar however many copies it has, and the preference itself is
+the count-weighted median. Labels come back per distinct point, so they are
+expanded to the original rows before returning.
+=#
 function (m::AffinityPropagationMethod)(X; weights)
     (; damp, maxiter, tol) = m
     isnothing(weights) || @warn "Weights not supported in affinity propagation"
-    S = -pairwise(SqEuclidean(), X, dims = 2)
-    S[diagind(S)] .= vec(median(S, dims = 1))
+    U, counts, row_group = _collapse_duplicates(X)
+    # `affinityprop` needs at least two points; one distinct point is
+    # trivially its own exemplar
+    size(U, 2) == 1 && return ones(Int, size(X, 2))
+    S = -pairwise(SqEuclidean(), U, dims = 2)
+    p = [median(view(S, :, j), fweights(counts)) for j in axes(S, 2)]
+    S .*= counts
+    S[diagind(S)] .= p
     res = affinityprop(S; maxiter, tol, damp)
     res.converged ||
         @warn "Affinity propagation did not converge; increase `maxiter` or adjust `damp`"
-    return res
+    return assignments(res)[row_group]
 end
 
 const CLUSTERING_METHODS = OrderedDict{String, Type}(
@@ -123,7 +170,7 @@ function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
     weights = isnothing(cc.weights) ? nothing : t[cc.weights]
     res = cc.method(X; weights)
-    label = assignments(res)
+    label = _labels(res)
     return (; label, id = t[id_var]) # return `label`s and relative `id`s for the evaluation
 end
 

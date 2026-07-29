@@ -373,6 +373,32 @@ end
     R = affinityprop(S; maxiter = 200, tol = 1.0e-6, damp = 0.5)
     @test R.converged
     @test df.apcluster == assignments(R)
+
+    # the same fit WITHOUT the hand-deduplication: duplicates are collapsed
+    # into count weights inside the method, so identical points no longer
+    # keep the messages oscillating and every row still comes back labeled
+    DBInterface.execute(
+        Returns(nothing),
+        repo,
+        "CREATE OR REPLACE TABLE cl_dup AS (FROM selection LIMIT 200);"
+    )
+    counts = DBInterface.execute(
+        DataFrame, repo,
+        "SELECT count(*) AS n, count(DISTINCT (\"TEMP\", \"PRES\")) AS distinct_points FROM cl_dup"
+    )
+    @test counts.distinct_points[1] < counts.n[1]   # otherwise the test is vacuous
+
+    node = Node(Pipelines.Card(d["affinity"]))
+    Pipelines.train_evaljoin!(repo, node, "cl_dup" => "clustering_dup", "No")
+    dup = DBInterface.execute(DataFrame, repo, "FROM clustering_dup")
+    @test nrow(dup) == counts.n[1]
+    @test all(>(0), dup.apcluster)
+    # identical points must share a cluster
+    per_point = DBInterface.execute(
+        DataFrame, repo,
+        "SELECT count(DISTINCT apcluster) AS k FROM clustering_dup GROUP BY \"TEMP\", \"PRES\""
+    )
+    @test all(==(1), per_point.k)
 end
 
 @testset "dimensionality reduction" begin

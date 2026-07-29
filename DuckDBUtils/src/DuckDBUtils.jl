@@ -41,6 +41,7 @@ using OrderedCollections: OrderedDict
 
 include("repository.jl")
 include("table.jl")
+include("macro.jl")
 include("batches.jl")
 
 end

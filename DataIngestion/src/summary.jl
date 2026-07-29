@@ -23,19 +23,9 @@ function VariableSummary(name::AbstractString, type::AbstractString, eltype::Abs
     return VariableSummary(name, type, eltype, nothing)
 end
 
-const MACRO_DEFINITION = """
-CREATE TEMP MACRO list_unique_sorted(x) AS list(DISTINCT x ORDER BY x ASC);
-CREATE TEMP MACRO list_extrema(x) AS list_value(min(x), max(x));
-"""
-
-const MACRO_CLEANUP = """
-DROP MACRO list_unique_sorted;
-DROP MACRO list_extrema;
-"""
-
 const SUMMARY_FUNCTIONS = Dict(
-    "numerical" => Agg.list_extrema,
-    "categorical" => Agg.list_unique_sorted,
+    "numerical" => SQLMacro("list_extrema", ["x"], "list_value(min(x), max(x))"),
+    "categorical" => SQLMacro("list_unique_sorted", ["x"], "list(DISTINCT x ORDER BY x ASC)"),
 )
 
 const POST_PROCESSING_FUNCTIONS = Dict(
@@ -43,7 +33,7 @@ const POST_PROCESSING_FUNCTIONS = Dict(
     "categorical" => identity,
 )
 
-agg_selection(vs::VariableSummary) = vs.name => SUMMARY_FUNCTIONS[vs.type](Get(vs.name))
+agg_selection(vs::VariableSummary) = vs.name => Agg(SUMMARY_FUNCTIONS[vs.type].name, Get(vs.name))
 post_processor(vs::VariableSummary) = POST_PROCESSING_FUNCTIONS[vs.type]
 
 function stringify_type(::Type{T}) where {T}
@@ -86,18 +76,11 @@ function summarize(
 
     query = From(tbl) |> Group() |> Select(args = agg_selection.(summaries))
 
-    DuckDBUtils.with_connection(repository) do con
-        DuckDBUtils._query(Returns(nothing), con, MACRO_DEFINITION)
-        try
-            DuckDBUtils._execute(con, query; schema) do res
-                row = first(res)
-                for s in summaries
-                    val = Tables.getcolumn(row, Symbol(s.name))
-                    s.summary = post_processor(s)(val)
-                end
-            end
-        finally
-            DuckDBUtils._query(Returns(nothing), con, MACRO_CLEANUP)
+    DuckDBUtils.execute_with_macros(repository, values(SUMMARY_FUNCTIONS), query; schema) do res
+        row = first(res)
+        for s in summaries
+            val = Tables.getcolumn(row, Symbol(s.name))
+            s.summary = post_processor(s)(val)
         end
     end
 

@@ -1,6 +1,24 @@
+"""
+    ClusteringMethod <: AbstractMethod
+
+A clustering algorithm and its options, selected in the cluster card's
+JSON by `"type"` (see `CLUSTERING_METHODS`). Concrete types are functors
+`(m)(X; weights)` fitting the d×N input matrix `X`.
+"""
 abstract type ClusteringMethod <: AbstractMethod end
 
-@kwarg struct KMeansMethod <: ClusteringMethod
+"""
+    KMeansMethod{D <: DissimilarityMethod} <: ClusteringMethod
+
+k-means (`"type" => "kmeans"`) into a predeclared number of `classes`.
+Accepts any [`DissimilarityMethod`](@ref); the default, squared Euclidean,
+is the canonical k-means objective — under any other dissimilarity the
+center update remains the arithmetic mean (only the true minimizer for
+squared Euclidean), so the fit becomes a reasonable heuristic without the
+usual convergence guarantee.
+"""
+@kwarg struct KMeansMethod{D <: DissimilarityMethod} <: ClusteringMethod
+    dissimilarity::D = SqEuclideanMethod()
     classes::Int & (dashi = json_integer(minimum = 1),)
     iterations::Int = 100 & (dashi = json_integer(minimum = 1),)
     tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
@@ -9,10 +27,21 @@ end
 
 function (m::KMeansMethod)(X; weights)
     (; classes, iterations, tol, seed) = m
-    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights)
+    distance = get_dissimilarity(m.dissimilarity)
+    return kmeans(X, classes; maxiter = iterations, tol, rng = get_rng(seed), weights, distance)
 end
 
-@kwarg struct DBSCANMethod <: ClusteringMethod
+"""
+    DBSCANMethod{D <: MetricMethod} <: ClusteringMethod
+
+DBSCAN (`"type" => "dbscan"`): density-based clusters of points within
+`radius` of each other, with the number of clusters coming from the data;
+sparse rows are labeled 0 (noise). The dissimilarity is restricted to
+[`MetricMethod`](@ref) — the KD-tree behind the fit requires the triangle
+inequality — so parsing and the schema only accept true metrics.
+"""
+@kwarg struct DBSCANMethod{D <: MetricMethod} <: ClusteringMethod
+    dissimilarity::D = EuclideanMethod()
     radius::Float64 & (dashi = json_number(exclusiveMinimum = 0),)
     min_neighbors::Int = 1 & (dashi = json_integer(minimum = 1),)
     min_cluster_size::Int = 1 & (dashi = json_integer(minimum = 1),)
@@ -21,13 +50,14 @@ end
 function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
-    return dbscan(X, radius; min_neighbors, min_cluster_size)
+    metric = get_dissimilarity(m.dissimilarity)
+    return dbscan(X, radius; metric, min_neighbors, min_cluster_size)
 end
 
 """
     AffinityPropagationMethod <: ClusteringMethod
 
-Affinity propagation (`"method" => "affinity_propagation"`): points exchange
+Affinity propagation (`"type" => "affinity_propagation"`): points exchange
 messages until a set of exemplars — actual fitted points — emerges, so the
 number of clusters comes from the data instead of being predeclared.
 `damp`, `maxiter` and `tol` control the message passing. The similarity
@@ -54,7 +84,7 @@ function (m::AffinityPropagationMethod)(X; weights)
     return res
 end
 
-const CLUSTERING_METHODS = OrderedDict{String, DataType}(
+const CLUSTERING_METHODS = OrderedDict{String, Type}(
     "kmeans" => KMeansMethod,
     "dbscan" => DBSCANMethod,
     "affinity_propagation" => AffinityPropagationMethod,

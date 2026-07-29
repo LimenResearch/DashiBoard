@@ -22,7 +22,7 @@ struct MDSMethod <: ProjectionMethod end
 
 (mds::MDSMethod)(X, n) = fit(MDS, X; maxoutdim = n, distances = false)
 
-const PROJECTION_METHODS = OrderedDict{String, DataType}(
+const PROJECTION_METHODS = OrderedDict{String, Type}(
     "pca" => PCAMethod,
     "ppca" => PPCAMethod,
     "factoranalysis" => FactorAnalysisMethod,

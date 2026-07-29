@@ -91,6 +91,15 @@ end
     @test isnothing(metadata["partition"])
     card2 = Pipelines.Card(metadata)
     @test card.method == card2.method
+
+    # dissimilarity with an array-valued option round-trips through metadata
+    config = d["kmeansWeighted"]
+    card = Pipelines.Card(config)
+    metadata = Pipelines.get_metadata(card)
+    @test metadata["method"] == config["method"]
+    card2 = Pipelines.Card(metadata)
+    @test typeof(card2.method) == typeof(card.method)
+    @test card2.method.dissimilarity.weights == card.method.dissimilarity.weights
 end
 
 @testset "metadata dimensionality reduction" begin

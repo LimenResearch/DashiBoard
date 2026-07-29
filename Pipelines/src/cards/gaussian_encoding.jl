@@ -30,7 +30,7 @@ end
 end
 (::MinuteOfHourMethod)(x::SQLNode) = @. minute(x)
 
-const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, DataType}(
+const TEMPORAL_PREPROCESSING_METHODS = OrderedDict{String, Type}(
     "identity" => IdentityMethod,
     "dayofweek" => DayOfWeekMethod,
     "dayofyear" => DayOfYearMethod,

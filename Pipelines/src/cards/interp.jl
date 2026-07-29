@@ -64,7 +64,7 @@ end
 
 # Global dictionary of interpolation methods
 
-const INTERPOLATION_METHODS = OrderedDict{String, DataType}(
+const INTERPOLATION_METHODS = OrderedDict{String, Type}(
     "constant" => ConstantInterpolationMethod,
     "linear" => LinearInterpolationMethod,
     "quadratic" => QuadraticInterpolationMethod,

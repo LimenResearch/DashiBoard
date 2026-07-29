@@ -21,11 +21,9 @@ julia> print(in_schema("tbl", "schm"))
 """
 function in_schema end
 
-in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
+in_schema(name::AbstractString, ::Nothing) = String(to_sql(Symbol(name)))
 
-function in_schema(name::AbstractString, schema::AbstractString)
-    return string("\"", schema, "\".\"", name, "\"")
-end
+in_schema(name::AbstractString, schema::AbstractString) = join(to_sql.(Symbol.((schema, name))), ".")
 
 function regularize(
         repository::Repository,

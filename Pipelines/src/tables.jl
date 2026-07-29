@@ -21,7 +21,7 @@ function get_colspecs(
         d = Dict{String, String}()
         for row in Tables.rows(res)
             (; column_name, column_type) = row
-            d[column_name] = string("\"", column_name, "\" ", column_type)
+            d[column_name] = string(to_sql(Symbol(column_name)), " ", column_type)
         end
         return d
     end
@@ -44,7 +44,8 @@ function join_on_id_var(
             for k in sel
     ]
 
-    cols = string.("\"", sel, "\"")
+    cols = to_sql.(Symbol.(sel))
+    id_col = to_sql(Symbol(id_var))
     ALTERATIONS = join(alter, "\n")
     COLUMNS = join(cols, ", ")
     UPDATES = join(string.(cols, " = ", extra, ".", cols), ", ")
@@ -56,7 +57,7 @@ function join_on_id_var(
         UPDATE $(original)
             SET $(UPDATES)
             FROM $(extra)
-            WHERE $(extra).\"$(id_var)\" = $(original).\"$(id_var)\";
+            WHERE $(extra).$(id_col) = $(original).$(id_col);
         """
     )
 

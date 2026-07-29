@@ -54,7 +54,8 @@ using DuckDBUtils: DuckDBUtils,
     with_table_name,
     with_table_names,
     colnames,
-    to_nrow
+    to_nrow,
+    to_sql
 
 using FunSQL:
     render,

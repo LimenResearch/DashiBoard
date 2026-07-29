@@ -103,7 +103,7 @@ function load_files(
     reader = DEFAULT_READERS[format](files; kwargs...)
 
     sql = isnothing(filename) ? "FROM $(reader) SELECT *;" :
-        "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS \"$(filename)\";"
+        "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS $(to_sql(Symbol(filename)));"
 
     return replace_table(repository, sql, table; schema, virtual)
 end

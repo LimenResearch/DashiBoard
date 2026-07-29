@@ -3,29 +3,29 @@ const StringStruct = AbstractDict{<:AbstractString, <:AbstractString}
 
 const Maybe{T} = Union{T, Nothing}
 
+to_sql_pair((k, v)::Pair) = string(to_sql(k), ": ", to_sql(v))
+
 print_argument(io::IO, x::Union{Number, AbstractString}) = print(io, to_sql(x))
 
-function print_argument(io::IO, x::AbstractDict)
+function print_argument(io::IO, d::StringStruct)
     print(io, "{")
-    join(io, (string(to_sql(k), ": ", to_sql(v)) for (k, v) in pairs(x)), ", ")
+    join(io, Iterators.map(to_sql_pair, pairs(d)), ", ")
     print(io, "}")
     return
 end
 
-function print_argument(io::IO, x::AbstractVector)
+function print_argument(io::IO, v::StringList)
     print(io, "[")
-    join(io, Iterators.map(to_sql, x), ", ")
+    join(io, Iterators.map(to_sql, v), ", ")
     print(io, "]")
     return
 end
 
-function reader_call(reader::AbstractString, N::Integer, options::AbstractDict)
+function reader_call(reader::AbstractString, files::StringList, options::AbstractDict)
     return sprint() do io
         print(io, reader)
         print(io, "(")
-        print(io, "[")
-        join(io, string.('$', 1:N), ", ")
-        print(io, "]")
+        print_argument(io, files)
         for (k, v) in pairs(options)
             if !isnothing(v)
                 print(io, ", ", k, " = ")

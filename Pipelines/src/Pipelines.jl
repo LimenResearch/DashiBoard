@@ -19,6 +19,8 @@ public register_wild_card, WildCardSettings
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
+public get_source_vars, get_output_vars
+
 public train!, evaljoin, train_evaljoin!
 
 public train, evaluate, inputs, outputs, invertible
@@ -52,7 +54,8 @@ using DuckDBUtils: DuckDBUtils,
     with_table_name,
     with_table_names,
     colnames,
-    to_nrow
+    to_nrow,
+    to_sql
 
 using FunSQL:
     render,
@@ -158,7 +161,11 @@ end
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
-include("schema.jl")
+
+include("structs/style.jl")
+include("structs/json_schema.jl")
+include("structs/card_schema.jl")
+
 include("dict_helpers.jl")
 include("card.jl")
 include("method.jl")

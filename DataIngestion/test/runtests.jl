@@ -28,19 +28,36 @@ using Test
         DBInterface.execute(Returns(nothing), repo, "COPY (FROM source2) TO '$path2.json'")
         DBInterface.execute(Returns(nothing), repo, "COPY (FROM source2) TO '$path2.parquet'")
 
+        DataIngestion.load_files(repo, ["$path1.csv"], "custom_view"; schema = "csv", virtual = true)
+        df′ = DBInterface.execute(DataFrame, repo, "FROM csv.custom_view")
+        @test df′.x == [1, 2, 3]
+        @test df′.y == ["a", "b", "c"]
+        @test propertynames(df′) == [:x, :y]
+        vs = DBInterface.execute(
+            DataFrame,
+            repo,
+            "FROM duckdb_views() WHERE schema_name = 'csv' AND view_name = 'custom_view';"
+        )
+        @test nrow(vs) == 1
+
         DataIngestion.load_files(repo, ["$path1.csv"], "custom_table"; schema = "csv")
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.custom_table")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
+        @test propertynames(df′) == [:x, :y]
+        ts = DBInterface.execute(
+            DataFrame,
+            repo,
+            "FROM duckdb_tables() WHERE schema_name = 'csv' AND table_name = 'custom_table';"
+        )
+        @test nrow(ts) == 1
 
         DataIngestion.load_files(repo, ["$path1.csv"]; schema = "csv")
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.source")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
 
-        DataIngestion.load_files(repo, ["$path1.csv", "$path2.csv"]; schema = "csv")
+        DataIngestion.load_files(repo, ["$path1.csv", "$path2.csv"]; schema = "csv", filename = "_name")
         df′ = DBInterface.execute(DataFrame, repo, "FROM csv.source")
         @test df′.x == [1, 2, 3, 4, 5, 6]
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
@@ -51,25 +68,24 @@ using Test
         df′ = DBInterface.execute(DataFrame, repo, "FROM json.source")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
 
-        DataIngestion.load_files(repo, ["$path1.json", "$path2.json"]; schema = "json")
+        DataIngestion.load_files(repo, ["$path1.json", "$path2.json"]; schema = "json", filename = "filename")
         df′ = DBInterface.execute(DataFrame, repo, "FROM json.source")
         @test df′.x == [1, 2, 3, 4, 5, 6]
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
-        @test df′._name == ["test1", "test1", "test1", "test2", "test2", "test2"]
+        @test df′.filename == ["test1", "test1", "test1", "test2", "test2", "test2"]
 
-        DataIngestion.load_files(repo, ["$path1.parquet"]; schema = "parquet")
+        DataIngestion.load_files(repo, ["$path1.parquet"]; schema = "parquet", filename = "filename")
         df′ = DBInterface.execute(DataFrame, repo, "FROM parquet.source")
         @test df′.x == [1, 2, 3]
         @test df′.y == ["a", "b", "c"]
-        @test df′._name == ["test1", "test1", "test1"]
+        @test df′.filename == ["test1", "test1", "test1"]
 
-        DataIngestion.load_files(repo, ["$path1.parquet", "$path2.parquet"]; schema = "parquet")
+        DataIngestion.load_files(repo, ["$path1.parquet", "$path2.parquet"]; schema = "parquet", filename = "filename")
         df′ = DBInterface.execute(DataFrame, repo, "FROM parquet.source")
         @test df′.x == [1, 2, 3, 4, 5, 6]
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
-        @test df′._name == ["test1", "test1", "test1", "test2", "test2", "test2"]
+        @test df′.filename == ["test1", "test1", "test1", "test2", "test2", "test2"]
     end
 end
 

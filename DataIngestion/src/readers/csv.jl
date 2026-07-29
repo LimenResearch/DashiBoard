@@ -1,5 +1,5 @@
 function csv_reader(
-        N::Integer;
+        files::StringList;
         allow_quoted_nulls::Bool = true,
         auto_detect::Bool = true,
         auto_type_candidates::Maybe{StringList} = nothing,
@@ -10,7 +10,6 @@ function csv_reader(
         delim::AbstractString = ",",
         encoding::Maybe{AbstractString} = nothing,
         escape::AbstractString = "\"",
-        filename::Bool = false,
         force_not_null::StringList = String[],
         header::Bool = true,
         hive_partitioning::Bool = false,
@@ -41,7 +40,6 @@ function csv_reader(
         "delim" => delim,
         "encoding" => encoding,
         "escape" => escape,
-        "filename" => filename,
         "force_not_null" => force_not_null,
         "header" => header,
         "hive_partitioning" => hive_partitioning,
@@ -61,5 +59,5 @@ function csv_reader(
         "union_by_name" => union_by_name,
     )
 
-    return reader_call("read_csv", N, options)
+    return reader_call("read_csv", files, options)
 end

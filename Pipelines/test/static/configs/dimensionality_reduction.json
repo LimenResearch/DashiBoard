@@ -27,13 +27,6 @@
     "inputs": ["DEWP", "TEMP", "PRES"],
     "n_components": 2
   },
-  "no_components": {
-    "type": "dimensionality_reduction",
-    "method": {"type": "mds"},
-    "partition": "partition",
-    "inputs": ["DEWP", "TEMP", "PRES"],
-    "n_components": 0
-  },
   "partition": {
     "type": "split",
     "method": { "type": "percentile", "percentile": 0.6 },

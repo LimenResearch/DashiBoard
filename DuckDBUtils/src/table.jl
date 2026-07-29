@@ -1,9 +1,9 @@
 """
-    to_sql(x)
+    to_sql(x; dialect::SQLDialect = SQLDialect(:duckdb))
 
-Convert a julia value `x` to its SQL representation.
+Convert a julia value `x` to its SQL representation in the given dialect.
 """
-to_sql(x) = render(LIT(x))
+to_sql(x; dialect::SQLDialect = SQLDialect(:duckdb)) = render(dialect, LIT(x))
 
 """
     in_schema(name::AbstractString, schema::Union{AbstractString, Nothing})
@@ -21,11 +21,9 @@ julia> print(in_schema("tbl", "schm"))
 """
 function in_schema end
 
-in_schema(name::AbstractString, ::Nothing) = string("\"", name, "\"")
+in_schema(name::AbstractString, ::Nothing) = String(to_sql(Symbol(name)))
 
-function in_schema(name::AbstractString, schema::AbstractString)
-    return string("\"", schema, "\".\"", name, "\"")
-end
+in_schema(name::AbstractString, schema::AbstractString) = join(to_sql.(Symbol.((schema, name))), ".")
 
 function regularize(
         repository::Repository,

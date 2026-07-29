@@ -49,7 +49,7 @@ settings = Pipelines.WildCardSettings(
     allows_partition = false,
     allows_weights = false
 )
-Pipelines.register_wild_card(:trivial; label = "Trivial", settings)
+Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 ```
 """
 @kwarg struct WildCard{T} <: StandardCard
@@ -83,12 +83,6 @@ function register_wild_card(key::Symbol, label::AbstractString; settings::WildCa
     spec = CardSpec(type, label; settings)
     return register_card(string(key) => spec)
 end
-
-@deprecate(
-    register_wild_card(key::Symbol; label::AbstractString, settings::WildCardSettings),
-    register_wild_card(key, label; settings),
-    false
-)
 
 ## Card schema
 

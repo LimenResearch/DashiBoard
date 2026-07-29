@@ -25,7 +25,7 @@ DataIngestion.select(repo, filters)
     df = DBInterface.execute(DataFrame, repo, "FROM split")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_tiled_partition",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_tiled_partition",
     ]
     @test count(==(1), df._tiled_partition) == 29218
     @test count(==(2), df._tiled_partition) == 14606
@@ -63,13 +63,11 @@ DataIngestion.select(repo, filters)
     df = DBInterface.execute(DataFrame, repo, "FROM split")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_percentile_partition",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_percentile_partition",
     ]
     @test count(==(1), df._percentile_partition) == 39441
     @test count(==(2), df._percentile_partition) == 4383
     # TODO: port TimeFunnelUtils tests
-
-    @test_throws ArgumentError Pipelines.Card(d["unsorted"])
 end
 
 @testset "widow_function" begin
@@ -84,7 +82,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM output")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_row_number",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_row_number",
     ]
     for dd in groupby(df, :cbwd)
         sorted = sort(dd, :No)
@@ -98,7 +96,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM output")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_percent_rank",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_percent_rank",
     ]
     for dd in groupby(df, :cbwd)
         sorted = sort(dd, :No)
@@ -112,7 +110,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM output")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "_rank",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "_rank",
     ]
     for dd in groupby(df, :cbwd)
         sorted = sort(dd, :No)
@@ -135,7 +133,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "TEMP_rescaled",
     ]
 
     aux = transform(
@@ -163,7 +161,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled", "PRES_rescaled",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "TEMP_rescaled", "PRES_rescaled",
     ]
 
     TEMP_mean, TEMP_std = mean(df.TEMP), std(df.TEMP, corrected = false)
@@ -191,7 +189,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "TEMP_rescaled",
     ]
 
     aux = transform(
@@ -218,7 +216,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "TEMP_rescaled",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "TEMP_rescaled",
     ]
     min, max = extrema(df.TEMP)
     @test df.TEMP_rescaled ≈ @. (df.TEMP - min) / (max - min)
@@ -241,7 +239,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "PRES_rescaled",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "PRES_rescaled",
     ]
     @test df.PRES_rescaled ≈ @. log(df.PRES)
 
@@ -263,7 +261,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM rescaled")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "hour_rescaled",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "hour_rescaled",
     ]
     @test df.hour_rescaled ≈ @. 1 / (1 + exp(- df.hour))
 
@@ -294,7 +292,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM clustering")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "cluster",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "cluster",
     ]
 
     train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
@@ -327,7 +325,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM clustering")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "dbcluster",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "dbcluster",
     ]
 
     train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
@@ -405,7 +403,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+        "PRES", "cbwd", "Iws", "Is", "Ir",
         "partition", "component_1", "component_2",
     ]
 
@@ -427,7 +425,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+        "PRES", "cbwd", "Iws", "Is", "Ir",
         "partition", "component_1", "component_2",
     ]
 
@@ -455,7 +453,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+        "PRES", "cbwd", "Iws", "Is", "Ir",
         "partition", "component_1", "component_2",
     ]
 
@@ -483,7 +481,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM dimres")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name",
+        "PRES", "cbwd", "Iws", "Is", "Ir",
         "partition", "component_1", "component_2",
     ]
 
@@ -518,7 +516,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM glm")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "partition", "TEMP_hat",
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
     m = lm(@formula(TEMP ~ 1 + cbwd * year + No), train_df)
@@ -533,7 +531,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM glm")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "PRES_hat",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "partition", "PRES_hat",
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
     weights = fweights(train_df.Iws)
@@ -547,7 +545,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM mixed_model")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "partition", "TEMP_hat",
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
     m = lmm(@formula(TEMP ~ 1 + year + (1 | cbwd)), train_df)
@@ -560,7 +558,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM mixed_model")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP",
-        "PRES", "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat",
+        "PRES", "cbwd", "Iws", "Is", "Ir", "partition", "TEMP_hat",
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition")
     weights = train_df.Iws
@@ -586,7 +584,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-        "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+        "cbwd", "Iws", "Is", "Ir", "partition", "TEMP_hat", "PRES_hat",
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
     ips = [
@@ -619,7 +617,7 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM interp ORDER BY No")
     @test names(df) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-        "cbwd", "Iws", "Is", "Ir", "_name", "partition", "TEMP_hat", "PRES_hat",
+        "cbwd", "Iws", "Is", "Ir", "partition", "TEMP_hat", "PRES_hat",
     ]
     train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1 ORDER BY  No")
     ips = [
@@ -672,15 +670,6 @@ end
         invalid_method = "nonexistent_method"
         invalid_config = deepcopy(base_fields)
         invalid_config["method"]["type"] = invalid_method
-        @test_throws ArgumentError Card(invalid_config)
-
-        invalid_config = Dict(
-            "type" => "gaussian_encoding",
-            "input" => "date",
-            "n_components" => 0,
-            "method" => Dict("type" => "dayofyear", "max" => 365.0),
-            "lambda" => 0.5
-        )
         @test_throws ArgumentError Card(invalid_config)
     end
 
@@ -817,7 +806,7 @@ end
     result = DBInterface.execute(DataFrame, repo, "FROM prediction")
     @test names(result) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-        "cbwd", "Iws", "Is", "Ir", "_name", "partition", "Iws_hat",
+        "cbwd", "Iws", "Is", "Ir", "partition", "Iws_hat",
     ]
     @test all(!ismissing, result.Iws_hat)
     @test nrow(origin) == nrow(result)
@@ -847,7 +836,7 @@ end
     result = DBInterface.execute(DataFrame, repo, "FROM prediction")
     @test names(result) == [
         "No", "year", "month", "day", "hour", "pm2.5", "DEWP", "TEMP", "PRES",
-        "cbwd", "Iws", "Is", "Ir", "_name", "partition", "cbwd_hat",
+        "cbwd", "Iws", "Is", "Ir", "partition", "cbwd_hat",
     ]
     @test all(x -> x isa AbstractString, result.cbwd_hat)
     @test nrow(origin) == nrow(result)

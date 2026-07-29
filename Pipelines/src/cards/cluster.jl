@@ -44,8 +44,10 @@ end
 DBSCAN (`"type" => "dbscan"`): density-based clusters of points within
 `radius` of each other, with the number of clusters coming from the data;
 sparse rows are labeled 0 (noise). The dissimilarity is restricted to
-[`MetricMethod`](@ref) — the KD-tree behind the fit requires the triangle
-inequality — so parsing and the schema only accept true metrics.
+[`MetricMethod`](@ref) — neighborhood queries rely on the triangle
+inequality — so parsing and the schema only accept true metrics. The
+Minkowski family is served by a KD-tree; any other metric goes in as a
+precomputed distance matrix, O(N²) in the fitted rows.
 """
 @kwarg struct DBSCANMethod{D <: MetricMethod} <: ClusteringMethod
     dissimilarity::D = EuclideanMethod()
@@ -58,6 +60,11 @@ function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
     metric = get_dissimilarity(m.dissimilarity)
+    metric isa UnionMinkowskiMetric ||
+        return dbscan(
+            pairwise(metric, X, dims = 2), radius;
+            metric = nothing, min_neighbors, min_cluster_size,
+        )
     return dbscan(X, radius; metric, min_neighbors, min_cluster_size)
 end
 

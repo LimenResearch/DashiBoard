@@ -511,6 +511,117 @@ end
     @test st.highest_label == maximum(fitted) + 1
 end
 
+@testset "conjunctive metric" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
+
+    # the metric itself: the largest within-block Euclidean over its radius
+    conj = Pipelines.get_dissimilarity(
+        Pipelines.ConjunctiveMethod(blocks = [1, 1, 2], radii = [5.0, 60.0])
+    )
+    @test conj([0.0, 0.0, 0.0], [3.0, 4.0, 0.0]) == 1.0     # 5 km at radius 5
+    @test conj([0.0, 0.0, 0.0], [0.0, 0.0, 60.0]) == 1.0    # 60 min at radius 60
+    @test conj([0.0, 0.0, 0.0], [3.0, 4.0, 30.0]) == 1.0    # max never trades
+    @test conj([0.0, 0.0, 0.0], [0.0, 3.0, 30.0]) == 0.6
+    @test conj([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == 0.0
+
+    # malformed specs stop at the gate
+    @test_throws ArgumentError Pipelines.get_dissimilarity(
+        Pipelines.ConjunctiveMethod(blocks = [1, 3], radii = [1.0, 2.0])    # gapped numbering
+    )
+    @test_throws ArgumentError Pipelines.get_dissimilarity(
+        Pipelines.ConjunctiveMethod(blocks = [1, 1], radii = [0.0])         # not a radius
+    )
+    @test_throws DimensionMismatch conj([0.0, 0.0], [1.0, 1.0])             # two coordinates for three
+
+    #=
+    Two groups with IDENTICAL internal distance structure: P holds one place
+    across 40 minutes, Q holds one minute across 40 km. Every Minkowski metric
+    sees two isometric sets and must label them alike, whatever its
+    parameters. The conjunctive metric is not obliged to, and that is the
+    whole point of it: within 5 km AND within 60 minutes makes P one
+    neighbourhood and Q five isolated points.
+    =#
+    steps = collect(0.0:10.0:40.0)
+    pq = DataFrame(
+        id = 1:10,
+        x = vcat(zeros(5), steps),
+        y = vcat(zeros(5), fill(1000.0, 5)),
+        z = vcat(steps, zeros(5)),
+    )
+    DuckDBUtils.load_table(repo, pq, "conj_pq")
+
+    node = Node(Pipelines.Card(d["conjunctive"]))
+    Pipelines.train_evaljoin!(repo, node, "conj_pq" => "conj_out", "id")
+    labels = DBInterface.execute(DataFrame, repo, "FROM conj_out ORDER BY id").cluster
+    @test labels[1:5] == fill(1, 5)
+    @test labels[6:10] == zeros(Int, 5)
+
+    euclid = merge(
+        d["conjunctive"],
+        Dict("method" => Dict(
+            "type" => "dbscan", "radius" => 25.0, "min_neighbors" => 3, "min_cluster_size" => 3,
+        )),
+    )
+    node = Node(Pipelines.Card(euclid))
+    Pipelines.train_evaljoin!(repo, node, "conj_pq" => "conj_out", "id")
+    labels = DBInterface.execute(DataFrame, repo, "FROM conj_out ORDER BY id").cluster
+    @test labels[1:5] == fill(1, 5)
+    @test labels[6:10] == fill(2, 5)
+
+    # the same dissimilarity reaches kmeans through the shared field — which
+    # method-local options never could
+    kmconj = merge(
+        d["conjunctive"],
+        Dict("method" => Dict(
+            "type" => "kmeans", "classes" => 2, "seed" => 1234,
+            "dissimilarity" => d["conjunctive"]["method"]["dissimilarity"],
+        )),
+    )
+    node = Node(Pipelines.Card(kmconj))
+    Pipelines.train_evaljoin!(repo, node, "conj_pq" => "conj_out", "id")
+    labels = DBInterface.execute(DataFrame, repo, "FROM conj_out ORDER BY id").cluster
+    @test allunique(labels[[1, 6]]) && labels[1:5] == fill(labels[1], 5) && labels[6:10] == fill(labels[6], 5)
+
+    # one block of radius 1 IS the Euclidean default; and dividing every
+    # radius and the cut by the same factor leaves the labeling alone
+    xy = DataFrame(
+        id = 1:18,
+        x = [cx + 0.1 * (i % 3) for cx in (0.0, 10.0) for i in 1:9],
+        y = [0.1 * (i ÷ 3) for _ in (0.0, 10.0) for i in 1:9],
+    )
+    DuckDBUtils.load_table(repo, xy, "conj_xy")
+    node = Node(Pipelines.Card(d["reconcile"]))
+    Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_base", "id")
+    base = DBInterface.execute(DataFrame, repo, "FROM conj_base ORDER BY id").cluster
+    @test sort(unique(base)) == [1, 2]
+
+    unit_block = Dict("type" => "conjunctive", "blocks" => [1, 1], "radii" => [1.0])
+    unit = merge(d["reconcile"], Dict("method" => merge(d["reconcile"]["method"], Dict("dissimilarity" => unit_block))))
+    node = Node(Pipelines.Card(unit))
+    Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_unit", "id")
+    @test DBInterface.execute(DataFrame, repo, "FROM conj_unit ORDER BY id").cluster == base
+
+    scaled_block = Dict("type" => "conjunctive", "blocks" => [1, 1], "radii" => [2.0])
+    scaled = merge(
+        d["reconcile"],
+        Dict("method" => merge(d["reconcile"]["method"], Dict("radius" => 0.5, "dissimilarity" => scaled_block))),
+    )
+    node = Node(Pipelines.Card(scaled))
+    Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_scaled", "id")
+    @test DBInterface.execute(DataFrame, repo, "FROM conj_scaled ORDER BY id").cluster == base
+
+    # a block per input is required once the metric meets the data
+    bad = merge(
+        d["reconcile"],
+        Dict("method" => merge(
+            d["reconcile"]["method"],
+            Dict("dissimilarity" => d["conjunctive"]["method"]["dissimilarity"]),
+        )),
+    )
+    node = Node(Pipelines.Card(bad))
+    @test_throws DimensionMismatch Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_bad", "id")
+end
+
 @testset "dimensionality reduction" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimensionality_reduction.json"))
 

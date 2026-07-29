@@ -144,5 +144,21 @@
       "min_neighbors": 2,
       "min_cluster_size": 3
     }
+  },
+  "conjunctive": {
+    "type": "cluster",
+    "inputs": ["x", "y", "z"],
+    "output": "cluster",
+    "method": {
+      "type": "dbscan",
+      "radius": 1.0,
+      "min_neighbors": 3,
+      "min_cluster_size": 3,
+      "dissimilarity": {
+        "type": "conjunctive",
+        "blocks": [1, 1, 2],
+        "radii": [5.0, 60.0]
+      }
+    }
   }
 }

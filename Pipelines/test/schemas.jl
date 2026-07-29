@@ -88,6 +88,16 @@ end
     _pipeline_schema_validate(schema, reconcile)
     _pipeline_schema_invalidate(schema, merge(reconcile, Dict("threshold" => 1.5)))
     _pipeline_schema_invalidate(schema, merge(reconcile, Dict("memory" => 0)))
+    # the conjunctive metric is a true metric, so dbscan's field accepts it;
+    # radii are positive and required
+    conjunctive = merge(d["conjunctive"], Dict("inputs" => ["TEMP", "PRES", "Iws"]))
+    _pipeline_schema_validate(schema, conjunctive)
+    zero_radius = deepcopy(conjunctive)
+    zero_radius["method"]["dissimilarity"]["radii"] = [5.0, 0.0]
+    _pipeline_schema_invalidate(schema, zero_radius)
+    no_radii = deepcopy(conjunctive)
+    delete!(no_radii["method"]["dissimilarity"], "radii")
+    _pipeline_schema_invalidate(schema, no_radii)
 end
 
 @testset "dimensionality reduction schema" begin

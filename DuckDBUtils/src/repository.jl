@@ -171,14 +171,19 @@ function with_appender(
 end
 
 """
+    get_catalog()
+
     get_catalog(r::Union{Repository, DuckDB.Connection}; schema::Union{AbstractString, Nothing} = nothing)
 
 Extract the catalog of available tables from a `Repository` or `DuckDB.Connection` `x`.
+The no-argument version returns a default empty DuckDB catalog.
 """
 function get_catalog end
 
+get_catalog() = SQLCatalog(dialect = SQLDialect(:duckdb))
+
 function get_catalog(con::DuckDB.Connection; schema::Union{AbstractString, Nothing} = nothing)
-    return reflect(con; dialect = :duckdb, schema)
+    return reflect(con; dialect = SQLDialect(:duckdb), schema)
 end
 
 function get_catalog(repository::Repository; schema::Union{AbstractString, Nothing} = nothing)

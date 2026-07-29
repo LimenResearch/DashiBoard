@@ -186,6 +186,7 @@ function load_table(
         schema::Union{AbstractString, Nothing} = nothing
     )
     return with_view(repository, table) do tempname
+        # No need to escape `tempname` as we generate it
         replace_table(repository, string("FROM \"", tempname, "\";"), name; schema)
     end
 end

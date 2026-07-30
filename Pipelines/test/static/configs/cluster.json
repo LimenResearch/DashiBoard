@@ -94,16 +94,6 @@
       "init": "rand"
     }
   },
-  "wrongInit": {
-    "type": "cluster",
-    "inputs": ["TEMP", "PRES"],
-    "output": "initcluster",
-    "method": {
-      "type": "kmeans",
-      "classes": 3,
-      "init": "not_an_init"
-    }
-  },
   "reconcile": {
     "type": "cluster",
     "inputs": ["x", "y"],

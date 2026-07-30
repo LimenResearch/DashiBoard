@@ -8,40 +8,33 @@ function table_schema(
     return DBInterface.execute(Tables.schema, repository, query; schema)
 end
 
-function categorical_summary(
-        repository::Repository, tbl::AbstractString, var::AbstractString;
-        schema::Union{AbstractString, Nothing} = nothing
-    )
-    query = From(tbl) |> Group(Get(var)) |> Order(Get(var))
-    return DBInterface.execute(res -> map(only, res), repository, query; schema)
-end
-
-function numerical_summary(
-        repository::Repository, tbl::AbstractString, var::AbstractString;
-        schema::Union{AbstractString, Nothing} = nothing,
-        length::Integer = 100, sigdigits::Integer = 2
-    )
-    query = From(tbl) |> Select("x0" => Fun.min(Get(var)), "x1" => Fun.max(Get(var)))
-    (; x0, x1) = DBInterface.execute(first, repository, query; schema)
-    diff = x1 - x0
-    step = if x0 isa Integer && diff ≤ length
-        1
-    else
-        round(diff / length; sigdigits)
-    end
-    return (min = x0, max = x1, step = step)
-end
-
 isnumerical(::Type{<:Number}) = true
 isnumerical(::Type{Bool}) = false
 isnumerical(::Type) = false
 
-struct VariableSummary
-    name::String
-    type::String
-    eltype::String
+mutable struct VariableSummary
+    const name::String
+    const type::String
+    const eltype::String
     summary::Any
 end
+
+function VariableSummary(name::AbstractString, type::AbstractString, eltype::AbstractString)
+    return VariableSummary(name, type, eltype, nothing)
+end
+
+const SUMMARY_FUNCTIONS = Dict(
+    "numerical" => SQLMacro("list_extrema", ["x"], "list_value(min(x), max(x))"),
+    "categorical" => SQLMacro("list_unique_sorted", ["x"], "list(DISTINCT x ORDER BY x ASC)"),
+)
+
+const POST_PROCESSING_FUNCTIONS = Dict(
+    "numerical" => NamedTuple{(:min, :max)},
+    "categorical" => identity,
+)
+
+agg_selection(vs::VariableSummary) = vs.name => Agg(SUMMARY_FUNCTIONS[vs.type].name, Get(vs.name))
+post_processor(vs::VariableSummary) = POST_PROCESSING_FUNCTIONS[vs.type]
 
 function stringify_type(::Type{T}) where {T}
     T <: Bool && return "bool"
@@ -70,18 +63,26 @@ function summarize(
         repository::Repository, tbl::AbstractString;
         schema::Union{AbstractString, Nothing} = nothing
     )
-    (; names, types) = table_schema(repository, tbl; schema)
-    return map(names, types) do name, eltype
+
+    tbl_schema = table_schema(repository, tbl; schema)
+    names, types = collect(tbl_schema.names), collect(tbl_schema.types)
+
+    summaries = map(names, types) do name, eltype
         T = nonmissingtype(eltype)
-        var = string(name)
-        if isnumerical(T)
-            summary = numerical_summary(repository, tbl, var; schema)
-            type = "numerical"
-        else
-            summary = categorical_summary(repository, tbl, var; schema)
-            type = "categorical"
-        end
+        type = isnumerical(T) ? "numerical" : "categorical"
         eltype = stringify_type(T)
-        return VariableSummary(var, type, eltype, summary)
+        return VariableSummary(string(name), type, eltype)
     end
+
+    query = From(tbl) |> Group() |> Select(args = agg_selection.(summaries))
+
+    DuckDBUtils.execute_with_macros(repository, values(SUMMARY_FUNCTIONS), query; schema) do res
+        row = first(res)
+        for s in summaries
+            val = Tables.getcolumn(row, Symbol(s.name))
+            s.summary = post_processor(s)(val)
+        end
+    end
+
+    return summaries
 end

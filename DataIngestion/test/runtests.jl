@@ -145,6 +145,15 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")
     orig = DBInterface.execute(DataFrame, repo, "FROM schm.source")
     @test nrow(df) == nrow(orig)
+
+    # empty list filter
+    filters = [DataIngestion.ListFilter("cbwd", [])]
+    DataIngestion.select(repo, filters, "custom_table" => "empty_selection")
+    df = DBInterface.execute(DataFrame, repo, "FROM empty_selection")
+    @test nrow(df) == 0
+
+    # error with missings
+    @test_throws ArgumentError DataIngestion.ListFilter("cbwd", [missing, "SE"])
 end
 
 @testset "dates" begin
@@ -200,11 +209,7 @@ end
     @test info[1].name == "No"
     @test info[1].type == "numerical"
     @test info[1].eltype == "int"
-    @test info[1].summary == (
-        min = No_min,
-        max = No_max,
-        step = round((No_max - No_min) / 100, sigdigits = 2),
-    )
+    @test info[1].summary == (min = No_min, max = No_max)
 
     @test info[10].name == "cbwd"
     @test info[10].type == "categorical"
@@ -215,9 +220,5 @@ end
     @test info[11].name == "Iws"
     @test info[11].type == "numerical"
     @test info[11].eltype == "float"
-    @test info[11].summary == (
-        min = Iws_min,
-        max = Iws_max,
-        step = round((Iws_max - Iws_min) / 100, sigdigits = 2),
-    )
+    @test info[11].summary == (min = Iws_min, max = Iws_max)
 end

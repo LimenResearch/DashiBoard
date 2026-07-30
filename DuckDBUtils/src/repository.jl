@@ -171,23 +171,34 @@ function with_appender(
 end
 
 """
-    get_catalog(repository::Repository; schema::Union{AbstractString, Nothing} = nothing)
+    get_catalog()
 
-Extract the catalog of available tables from a `Repository` `repository`.
+    get_catalog(r::Union{Repository, DuckDB.Connection}; schema::Union{AbstractString, Nothing} = nothing)
+
+Extract the catalog of available tables from a `Repository` or `DuckDB.Connection` `x`.
+The no-argument version returns a default empty DuckDB catalog.
 """
+function get_catalog end
+
+get_catalog() = SQLCatalog(dialect = SQLDialect(:duckdb))
+
+function get_catalog(con::DuckDB.Connection; schema::Union{AbstractString, Nothing} = nothing)
+    return reflect(con; dialect = SQLDialect(:duckdb), schema)
+end
+
 function get_catalog(repository::Repository; schema::Union{AbstractString, Nothing} = nothing)
-    return with_connection(repository) do con
-        reflect(con; dialect = :duckdb, schema)
-    end
+    return with_connection(con -> get_catalog(con; schema), repository)
+end
+
+function _execute(f, con::DuckDB.Connection, sql::AbstractString, params = NamedTuple())
+    return DBInterface.execute(f, con, sql, params)
 end
 
 function DBInterface.execute(
         f::Base.Callable, repository::Repository,
         sql::AbstractString, params = NamedTuple()
     )
-    return with_connection(repository) do con
-        DBInterface.execute(f, con, sql, params)
-    end
+    return with_connection(con -> _execute(f, con, sql, params), repository)
 end
 
 """
@@ -197,34 +208,21 @@ end
         params::Union{NamedTuple, AbstractDict} = NamedTuple()
     )
 
-    render_params(
-        repository::Repository,
-        node::SQLNode,
-        params::Union{NamedTuple, AbstractDict} = NamedTuple();
-        schema::Union{AbstractString, Nothing}
-    )
-
 Return query string and parameter list from query expressed as `node`.
-The first argument can be either a `SQLCatalog` (obtained via the [`get_catalog`](@ref) function)
-or a `Repository`.
-In the latter case, a `schema` should also be passed,
-as different schemas within a repository may have different catalogs.
+The first argument is a `SQLCatalog` (obtained via the [`get_catalog`](@ref) function).
 """
-function render_params end
-
 function render_params(catalog::SQLCatalog, node::SQLNode, params::NamedParams = NamedTuple())
     sql = render(catalog, node)
     return String(sql), pack(sql, params)
 end
 
-function render_params(
-        repository::Repository,
-        node::SQLNode,
-        params::Union{NamedTuple, AbstractDict} = NamedTuple();
-        schema::Union{AbstractString, Nothing}
+function _execute(
+        f, con::DuckDB.Connection, node::SQLNode, params = NamedTuple();
+        schema::Union{AbstractString, Nothing} = nothing
     )
-    catalog = get_catalog(repository; schema)
-    return render_params(catalog, node, params)
+    catalog = get_catalog(con; schema)
+    q, ps = render_params(catalog, node, params)
+    return DBInterface.execute(f, con, q, ps)
 end
 
 function DBInterface.execute(
@@ -234,20 +232,19 @@ function DBInterface.execute(
         params = NamedTuple();
         schema::Union{AbstractString, Nothing} = nothing
     )
-    q, ps = render_params(repository, node, params; schema)
-    return DBInterface.execute(f, repository, q, ps)
+    return with_connection(con -> _execute(f, con, node, params; schema), repository)
 end
 
-function DuckDB.query(f, r::Repository, sql::AbstractString)
-    return with_connection(r) do con
-        res = query(con, sql)
-        try
-            f(res)
-        finally
-            DBInterface.close!(res)
-        end
+function _query(f, con::DuckDB.Connection, sql::AbstractString)
+    res = query(con, sql)
+    return try
+        f(res)
+    finally
+        DBInterface.close!(res)
     end
 end
+
+DuckDB.query(f, r::Repository, sql::AbstractString) = with_connection(con -> _query(f, con, sql), r)
 
 function transaction(r::Repository, sql::AbstractString)
     t = string("BEGIN TRANSACTION;\n", sql, "\nCOMMIT;")

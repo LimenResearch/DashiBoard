@@ -1,5 +1,5 @@
 using DuckDB, DuckDBUtils, DBInterface, Tables
-using FunSQL: From, Where, Get, Var
+using FunSQL: From, Where, Get, Var, Select, Fun
 using OrderedCollections: OrderedDict
 using Test
 
@@ -71,6 +71,53 @@ end
         """
     )
     @test res == (; Count = 1)
+end
+
+@testset "catalog" begin
+    catalog = DuckDBUtils.get_catalog()
+    sql, ps = DuckDBUtils.render_params(catalog, Select("a" => Var.b), (b = 1,))
+    @test sql == "SELECT \$1 AS \"a\""
+    @test ps == [1]
+
+    r = Repository()
+    DuckDBUtils.query(Returns(nothing), r, "CREATE SCHEMA schm;")
+    DuckDBUtils.query(
+        Returns(nothing), r, """
+        CREATE TABLE schm.tbl (i BIGINT);
+        INSERT INTO schm.tbl VALUES (12);
+        """
+    )
+    catalog = get_catalog(r; schema = "schm")
+    @test haskey(catalog, "tbl")
+    sql, ps = DuckDBUtils.render_params(catalog, From("tbl") |> Select("a" => Get.i, "b" => Var.c), (c = 2.2,))
+    tbl = DBInterface.execute(Tables.columntable, r, sql, ps)
+    @test tbl == (a = [12], b = [2.2])
+end
+
+@testset "macros" begin
+    r = Repository()
+    DuckDBUtils.query(Returns(nothing), r, "CREATE SCHEMA schm;")
+    DuckDBUtils.query(
+        Returns(nothing), r, """
+        CREATE TABLE schm.tbl (i BIGINT, j BIGINT);
+        INSERT INTO schm.tbl VALUES (12, 3);
+        """
+    )
+    macros = [DuckDBUtils.SQLMacro("add1", ["x"], "x + 1"), DuckDBUtils.SQLMacro("multiply", ["x", "y"], "x * y")]
+
+    query = From("tbl") |> Select("a" => Fun.add1(Get.i), "b" => Fun.multiply(Get.i, Get.j))
+    tbl = DuckDBUtils.execute_with_macros(Tables.columntable, r, macros, query; schema = "schm")
+    @test tbl == (a = [13], b = [36])
+    # test that no functions were left in the repository
+    s = DBInterface.execute(Tables.columntable, r, "FROM duckdb_functions() WHERE NOT internal;")
+    @test isempty(Tables.rows(s))
+
+    query = From("tbl") |> Select("a" => Fun.add1(Var.a), "b" => Fun.multiply(Get.i, Get.j))
+    tbl = DuckDBUtils.execute_with_macros(Tables.columntable, r, macros, query, (a = 9,); schema = "schm")
+    @test tbl == (a = [10], b = [36])
+    # test that no functions were left in the repository
+    s = DBInterface.execute(Tables.columntable, r, "FROM duckdb_functions() WHERE NOT internal;")
+    @test isempty(Tables.rows(s))
 end
 
 @testset "load and delete tables" begin
@@ -147,7 +194,7 @@ end
     DuckDBUtils.initialize_table(r, ["col1", "col2"], [Int, String], "tbl"; schema)
     tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl")
     @test tbl == (col1 = Int[], col2 = String[])
-    
+
     DuckDBUtils.with_appender(r, "tbl"; schema) do appender
         DuckDBUtils.append(appender, 1)
         DuckDBUtils.append(appender, "a")
@@ -156,7 +203,7 @@ end
         DuckDBUtils.append(appender, "b")
         DuckDBUtils.end_row(appender)
     end
-        
+
     tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.tbl")
     @test tbl == (col1 = Int[1, 2], col2 = String["a", "b"])
 end

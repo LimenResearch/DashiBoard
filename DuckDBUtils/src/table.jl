@@ -42,7 +42,8 @@ function regularize(
         if !isa(params, NamedParams)
             throw(ArgumentError("Named parameters are required when `node::SQLNode`"))
         end
-        render_params(repository, node, params; schema)
+        catalog = get_catalog(repository; schema)
+        render_params(catalog, node, params)
     end
     return repository, query, ps
 end
@@ -185,6 +186,7 @@ function load_table(
         schema::Union{AbstractString, Nothing} = nothing
     )
     return with_view(repository, table) do tempname
+        # No need to escape `tempname` as we generate it
         replace_table(repository, string("FROM \"", tempname, "\";"), name; schema)
     end
 end

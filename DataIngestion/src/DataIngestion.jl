@@ -6,9 +6,11 @@ public is_supported, acceptable_paths, load_files, summarize, select, selection_
 
 using Base.ScopedValues: @with, ScopedValue
 using FunSQL: SQLNode,
+    Agg,
     Fun,
     Get,
     Var,
+    Lit,
     Limit,
     Select,
     From,
@@ -16,7 +18,7 @@ using FunSQL: SQLNode,
     Order,
     Group
 using DBInterface: DBInterface
-using DuckDBUtils: Repository, get_catalog, replace_table, to_sql, in_schema
+using DuckDBUtils: DuckDBUtils, Repository, SQLMacro, get_catalog, replace_table, to_sql, in_schema
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using IterTools: flagfirst
 using Tables: Tables

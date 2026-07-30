@@ -43,7 +43,7 @@ PipelinesMixedModelsExt = ["MixedModels"]
 [compat]
 Clustering = "0.15.8"
 DBInterface = "2.6.1"
-DataInterpolations = "7, 8"
+DataInterpolations = "7, 8, 9"
 Dates = "1.11.0"
 Distances = "0.10.12"
 Distributions = "0.25.115"

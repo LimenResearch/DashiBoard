@@ -35,6 +35,7 @@ using DataIngestion: acceptable_paths, Filter, DataIngestion
 
 using Pipelines: Card, get_state, Pipelines
 
+# load the PipelinesMakie extension
 import AlgebraOfGraphics, CairoMakie
 
 const cache_directory() = @get_scratch!("cache")

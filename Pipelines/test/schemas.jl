@@ -68,15 +68,26 @@ end
     _pipeline_schema_validate(schema, d["dbscan"])
     _pipeline_schema_validate(schema, d["dbscanCityblock"])
     _pipeline_schema_validate(schema, d["hasPartition"])
-    _pipeline_schema_invalidate(schema, d["wrongDissimilarity"])
     # kmeans seeding is one of Clustering.jl's three strategies
     _pipeline_schema_invalidate(schema, d["wrongInit"])
+
+    wrong_dissimilarity = deepcopy(d["kmeansCityblock"])
+    wrong_dissimilarity["dissimilarity"] = Dict("type" => "not_a_dissimilarity")
+    _pipeline_schema_invalidate(schema, wrong_dissimilarity)
+
     # minkowski is a true metric only for p ≥ 1
-    _pipeline_schema_invalidate(schema, d["wrongMinkowskiP"])
+    wrong_minkowski_p = deepcopy(d["kmeansCityblock"])
+    wrong_minkowski_p["dissimilarity"] = Dict("type" => "minkowski", "p" => 0.5)
+    _pipeline_schema_invalidate(schema, wrong_minkowski_p)
+
     # dbscan accepts true metrics only (KD-tree): sqeuclidean is refused
-    _pipeline_schema_invalidate(schema, d["wrongMetric"])
+    wrong_metric = deepcopy(d["dbscanCityblock"])
+    wrong_metric["dissimilarity"] = Dict("type" => "sqeuclidean")
+    _pipeline_schema_invalidate(schema, wrong_metric)
+
     wrong_input = merge(d["dbscan"], Dict("inputs" => ["temp", "PRES"]))
     _pipeline_schema_invalidate(schema, wrong_input)
+
     spurious_property = deepcopy(d["dbscan"])
     spurious_property["method"]["minneighbors"] = 10
     _pipeline_schema_invalidate(schema, spurious_property)

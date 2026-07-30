@@ -88,10 +88,12 @@ end
 
 function Condition(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f
-    k = string(prefix, "_", "values")
-    params = StringDict(k => list)
-    pred = Fun." IN "(Get(colname), Var(k))
-    return Condition(pred, params)
+    return if isempty(list)
+        Condition(Lit(false), StringDict())
+    else
+        k = string(prefix, "_", "values")
+        Condition(Fun." IN "(Get(colname), Var(k)), StringDict(k => list))
+    end
 end
 
 const FILTER_TYPES = Dict(

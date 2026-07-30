@@ -145,6 +145,15 @@ end
     df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")
     orig = DBInterface.execute(DataFrame, repo, "FROM schm.source")
     @test nrow(df) == nrow(orig)
+
+    # empty list filter
+    filters = [DataIngestion.ListFilter("cbwd", [])]
+    DataIngestion.select(repo, filters, "custom_table" => "empty_selection")
+    df = DBInterface.execute(DataFrame, repo, "FROM empty_selection")
+    @test nrow(df) == 0
+
+    # error with missings
+    @test_throws ArgumentError DataIngestion.ListFilter("cbwd", [missing, "SE"])
 end
 
 @testset "dates" begin

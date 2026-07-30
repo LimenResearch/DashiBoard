@@ -417,41 +417,61 @@ end
 @testset "cluster reconciliation" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
 
-    # The matcher on hand-written fits. Density refits can only grow clusters
-    # (an added point never separates two others), so the split, merge and
-    # threshold branches are exercised here directly.
+    # The matcher on hand-written fits, one case per MONIC transition
+    # (survival, absorption, split, disappearance, emergence). Density refits
+    # can only grow clusters — an added point never separates two others — so
+    # the split and disappearance branches are exercised here directly.
     relabel = Pipelines._relabel_map
 
-    # an identical refit: every cluster keeps its label, noise stays noise
-    m, highest = relabel([1, 1, 2, 2, 0], [1, 1, 2, 2, 0], 0.5, 2)
+    # survival: every cluster keeps its label, noise stays noise
+    m, highest = relabel([1, 1, 2, 2, 0], [1, 1, 2, 2, 0], 0.5, 0.25, 2)
     @test m == Dict(0 => 0, 1 => 1, 2 => 2)
     @test highest == 2
 
-    # inheritance follows membership, not the refit's numbering
-    m, _ = relabel([2, 2, 1, 1], [1, 1, 2, 2], 0.5, 2)
+    # survival follows membership, not the refit's numbering
+    m, _ = relabel([2, 2, 1, 1], [1, 1, 2, 2], 0.5, 0.25, 2)
     @test m[2] == 1 && m[1] == 2
 
-    # split: the larger piece keeps the label, the smaller is an emergence
-    m, highest = relabel([1, 1, 1, 4, 4, 2, 2], [1, 1, 1, 1, 1, 2, 2], 0.5, 2)
-    @test m[1] == 1 && m[4] == 3 && m[2] == 2
+    # survival preempts split: the best match holds ≥ match_threshold of the
+    # stored cluster on its own, so the smaller shard is an emergence
+    m, highest = relabel([1, 1, 1, 4, 4, 2, 2], [1, 1, 1, 1, 1, 2, 2], 0.5, 0.25, 2)
+    @test m[1] == 1 && m[2] == 2 && m[4] == 3
     @test highest == 3
 
-    # merge: the union inherits from its largest contributor (ties to the lowest)
-    m, _ = relabel([1, 1, 1, 1], [1, 1, 2, 2], 0.5, 2)
+    # split: no single piece reaches the match_threshold, but the pieces holding
+    # ≥ split_threshold jointly do — ALL of them are descendants and keep
+    # the label, so an event seen as several pieces keeps one name
+    m, highest = relabel([1, 1, 1, 4, 4, 2, 2], [1, 1, 1, 1, 1, 2, 2], 0.7, 0.25, 2)
+    @test m[1] == 1 && m[4] == 1 && m[2] == 2
+    @test highest == 2
+
+    # a shard below split_threshold is no descendant: it emerges fresh
+    m, _ = relabel([1, 1, 1, 1, 4, 4, 4, 4, 4, 6], fill(1, 10), 0.6, 0.25, 2)
+    @test m[1] == 1 && m[4] == 1 && m[6] == 3
+
+    # absorption: the union is named by the dominant contributor...
+    m, _ = relabel([7, 7, 7, 7, 7], [1, 1, 1, 2, 2], 0.5, 0.25, 7)
+    @test m[7] == 1
+    # ...and equal contributions resolve to the lowest label
+    m, _ = relabel([1, 1, 1, 1], [1, 1, 2, 2], 0.5, 0.25, 2)
     @test m[1] == 1
 
-    # rows the stored fit never saw cannot claim a label...
-    m, _ = relabel([1, 1, 2, 2], [1, 1], 0.5, 2)
-    @test m[1] == 1 && m[2] == 3
+    # disappearance: members scattered below split_threshold leave no heir,
+    # and the freed number is never reissued — fresh labels continue past
+    # the highest ever issued
+    m, highest = relabel([3, 4, 5, 6, 7], fill(1, 5), 0.5, 0.25, 9)
+    @test [m[n] for n in 3:7] == [10, 11, 12, 13, 14]
+    @test highest == 14
 
-    # ...and fresh labels continue from the highest ever issued, not the
-    # highest present, so a forgotten cluster's number is never reused
-    m, highest = relabel([1, 1, 2, 2], [1, 1], 0.5, 7)
+    # emergence: rows the stored fit never saw cannot claim a label
+    m, _ = relabel([1, 1, 2, 2], [1, 1], 0.5, 0.25, 2)
+    @test m[1] == 1 && m[2] == 3
+    m, highest = relabel([1, 1, 2, 2], [1, 1], 0.5, 0.25, 7)
     @test m[2] == 8 && highest == 8
 
-    # the threshold is the share of previously-labelled rows the winner holds
-    @test relabel([3, 3, 3, 3], [1, 2, 2, 2], 0.5, 3)[1][3] == 2   # 3/4 suffices
-    @test relabel([3, 3, 3, 3], [1, 2, 2, 2], 0.8, 3)[1][3] == 4   # 3/4 < 0.8
+    # `split_threshold` is a fraction bounded by `match_threshold`
+    @test_throws ArgumentError relabel([1], [1], 0.5, 0.6, 1)
+    @test_throws ArgumentError relabel([1], [1], 0.5, 0.0, 1)
 
     # The shared refit-and-reconcile evaluation, on three tight well-separated
     # blobs plus a fourth far away to add later.

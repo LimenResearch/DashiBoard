@@ -161,7 +161,8 @@ const CLUSTERING_METHODS = OrderedDict{String, Type}(
         weights::Union{String, Nothing} = nothing
         partition::Union{String, Nothing} = nothing
         output::String = "cluster"
-        threshold::Float64 = 0.5
+        match_threshold::Float64 = 0.5
+        split_threshold::Float64 = 0.25
         lineage::Bool = false
         memory::Union{Int, Nothing} = nothing
     end
@@ -175,9 +176,13 @@ identity from one evaluation to the next instead of being renumbered. No
 assignment rule could do this: training is transitive, whereas assigning against
 a frozen fit is one-shot, so a cluster could never grow.
 
-`threshold` is how much of a refit cluster's previously-labelled rows must come
-from one stored cluster for it to inherit that cluster's label; below it, the
-cluster is new. It is the sensitivity knob — high means more things count as new.
+The reconciliation follows MONIC's transition model (see [`_relabel_map`](@ref)):
+`match_threshold` is the fraction of a stored cluster's members that must land in a
+refit cluster for its label to survive there, and `split_threshold` the smaller
+fraction at which a refit cluster still counts as a piece of it when several
+pieces jointly reach `match_threshold` — the split case, where every piece keeps the
+label. Below both, correspondence is refused; high thresholds mean more things
+count as new.
 
 `lineage` makes evaluation roll the stored members forward, so the model
 accumulates what it has seen. It is off by default because it makes evaluation
@@ -193,7 +198,8 @@ grew.
     weights::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
     partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
     output::String = "cluster" & (dashi = json_string(minLength = 1),)
-    threshold::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0, maximum = 1),)
+    match_threshold::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0, maximum = 1),)
+    split_threshold::Float64 = 0.25 & (dashi = json_number(exclusiveMinimum = 0, maximum = 1),)
     lineage::Bool = false
     memory::Union{Int, Nothing} = nothing & (dashi = json_integer(minimum = 1),)
 end
@@ -269,60 +275,105 @@ function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
 end
 
 """
-    _relabel_map(new_label, old_label, threshold, highest)
+    _relabel_map(new_label, old_label, match_threshold, split_threshold, highest)
 
 Which stored label each refit cluster should carry, and the highest label issued
 once fresh ones are handed out.
 
 `old_label` covers the rows the stored fit had seen, aligned with the first
 `length(old_label)` entries of `new_label`. Noise (0) is not a cluster and takes
-no part in the correspondence. For each refit cluster, the stored cluster
-contributing most of its previously-labelled rows wins the label, provided that
-share reaches `threshold`; otherwise the cluster is an emergence and takes a
-fresh label. When several refit clusters claim the same stored one — a split —
-the largest keeps the label and the rest are fresh.
+no part in the correspondence.
 
-Every scan runs in sorted order, so ties resolve to the lowest label rather than
-to whatever a `Dict` happened to iterate first: the result must depend on the
-data alone.
+The correspondence follows MONIC's external transitions (Spiliopoulou, Ntoutsi,
+Theodoridis & Schult, *MONIC: Modeling and Monitoring Cluster Transitions*,
+KDD 2006), computed on the overlap of each STORED cluster with the refit:
+`overlap(o, n)` is the fraction of `o`'s members that landed in `n`. Members
+weigh equally — the card's `memory` window is MONIC's age function in its
+binary form: weight 1 inside the window, 0 beyond. Each stored cluster meets
+exactly one fate:
+
+- **survival / absorption** — its best match holds `overlap ≥ match_threshold` and
+  the label passes there; several stored clusters matching the same refit
+  cluster is an absorption (merge).
+- **split** — no single match suffices, but the refit clusters holding
+  `overlap ≥ split_threshold` jointly reach `match_threshold`: ALL of them are
+  descendants and carry the label, so a persistent event seen as several
+  pieces keeps one name.
+- **disappearance** — neither of the above; the label stops.
+
+A refit cluster no stored cluster passed into is an **emergence** and takes a
+fresh label, continuing past the highest ever issued — a forgotten cluster's
+number is never reused.
+
+MONIC emits a transition graph, not labels, so one convention is ours by
+necessity: a refit cluster with several ancestors (absorption, or ancestry
+through both a match and a split) is named by the ancestor that contributed
+most shared rows. Every scan runs in sorted order and ties resolve to the
+lowest label, so the result depends on the data alone.
 """
-function _relabel_map(new_label, old_label, threshold::Real, highest::Integer)
+function _relabel_map(
+        new_label, old_label, match_threshold::Real, split_threshold::Real, highest::Integer
+    )
+    0 < split_threshold <= match_threshold || throw(
+        ArgumentError("`split_threshold` must be in (0, `match_threshold`], got $split_threshold against $match_threshold")
+    )
     shared = min(length(old_label), length(new_label))
     counts = Dict{Tuple{Int, Int}, Int}()   # (stored, refit) => shared rows
-    labelled = Dict{Int, Int}()             # refit cluster => its previously-labelled rows
-    @inbounds for i in 1:shared
-        o, n = old_label[i], new_label[i]
-        (o > 0 && n > 0) || continue
+    sizes = Dict{Int, Int}()                # stored cluster => member count
+    # TODO: a recency-weighted age function — MONIC's aging in its smooth
+    # form — would count these per-member weights by the iteration each
+    # member entered on, so the newest pieces of a long-lived event weigh
+    # more in the overlap than its oldest ones.
+    @inbounds for i in eachindex(old_label)
+        o = old_label[i]
+        o > 0 || continue
+        sizes[o] = get(sizes, o, 0) + 1
+        i <= shared || continue
+        n = new_label[i]
+        n > 0 || continue
         counts[(o, n)] = get(counts, (o, n), 0) + 1
-        labelled[n] = get(labelled, n, 0) + 1
     end
 
-    stored = sort!(unique(o for o in old_label if o > 0))
+    stored = sort!(collect(keys(sizes)))
     refit = sort!(unique(n for n in new_label if n > 0))
 
-    claim = Dict{Int, Int}()                # refit cluster => stored cluster it claims
-    for n in refit
-        best_o, best_c = 0, 0
-        for o in stored                     # sorted: ties go to the lowest stored label
+    # stored cluster => the refit clusters it passes its label to
+    heirs = Dict{Int, Vector{Int}}()
+    for o in stored
+        best_n, best_c, joint = 0, 0, 0
+        children = Int[]
+        for n in refit                      # sorted: ties go to the lowest refit label
             c = get(counts, (o, n), 0)
-            c > best_c && ((best_o, best_c) = (o, c))
+            c > best_c && ((best_n, best_c) = (n, c))
+            if c >= split_threshold * sizes[o]
+                push!(children, n)
+                joint += c
+            end
         end
-        best_o > 0 && best_c >= threshold * labelled[n] && (claim[n] = best_o)
+        if best_c >= match_threshold * sizes[o]
+            heirs[o] = [best_n]
+        elseif !isempty(children) && joint >= match_threshold * sizes[o]
+            heirs[o] = children
+        end
     end
 
-    keeper = Dict{Int, Int}()               # stored cluster => refit cluster keeping it
-    for n in refit                          # sorted: ties go to the lowest refit label
-        o = get(claim, n, 0)
-        o > 0 || continue
-        held = get(keeper, o, 0)
-        (held == 0 || counts[(o, n)] > counts[(o, held)]) && (keeper[o] = n)
+    ancestor = Dict{Int, Int}()             # refit cluster => naming ancestor
+    strength = Dict{Int, Int}()             # refit cluster => that ancestor's shared rows
+    for o in stored                         # sorted: ties go to the lowest stored label
+        for n in get(() -> Int[], heirs, o)
+            c = counts[(o, n)]
+            if c > get(strength, n, 0)
+                ancestor[n] = o
+                strength[n] = c
+            end
+        end
     end
 
     map = Dict{Int, Int}(0 => 0)            # noise stays noise
     next = Int(highest)
     for n in refit
-        o = get(claim, n, 0)
-        if o > 0 && keeper[o] == n
+        o = get(ancestor, n, 0)
+        if o > 0
             map[n] = o
         else
             next += 1
@@ -358,7 +409,9 @@ function (cc::ClusterCard)(model, t, id_var::AbstractPrimaryKey)
     X, weights = _refit_input(cc, members, t, fresh)
     new_label = _labels(cc.method(X; weights))
 
-    map, highest = _relabel_map(new_label, members[MEMBER_LABEL], cc.threshold, model.highest_label)
+    map, highest = _relabel_map(
+        new_label, members[MEMBER_LABEL], cc.match_threshold, cc.split_threshold, model.highest_label
+    )
     relabelled = [map[n] for n in new_label]
 
     ids = vcat(members[id_var], t[id_var][fresh])

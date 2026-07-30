@@ -56,6 +56,17 @@ Pipelines.StreamlinerCard
 Pipelines.WildCard
 ```
 
+## Cluster reconciliation
+
+The cluster card's evaluation refits on its stored members plus the unseen
+rows and reconciles the two clusterings following MONIC's transition model;
+`_relabel_map` is the reconciliation engine — internal, but the semantics of
+cluster identity evolution live there.
+
+```@docs
+Pipelines._relabel_map
+```
+
 ## Card registration
 
 ```@docs

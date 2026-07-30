@@ -163,7 +163,7 @@ Then save the output in table `destination`.
 
 A card that rolls its state forward as it evaluates may return
 `(columns, state)` instead of `columns`; the new state is then stored in the
-node. See [`_persist_state!`](@ref).
+node. See `_persist_state!`.
 """
 function evaluate(
         repository::Repository, node::Node,

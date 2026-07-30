@@ -20,6 +20,8 @@ public initialize_table, load_table, delete_table, replace_table, export_table
 
 public with_table, with_view, with_table_name, with_table_names
 
+public SQLMacro, execute_with_macros
+
 public render_params, in_schema, query, transaction
 
 using Base: front, Fix1, Fix2

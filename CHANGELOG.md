@@ -18,6 +18,7 @@
 - The API `"method": "m"` + `"method_options": {"opt1": v1, "opt2": v2}` configuration in Pipelines is superseded by `method: {"type": "m", "opt1": v1, "opt2": v2}`. In the StreamlinerCard, the same change occurred for `model` and `training`, and the data `funnel` has now to be passed explicitly in the same way [#143](https://github.com/LimenResearch/DashiBoard/pull/143).
 - In Pipelines, the dot notation for `method_options`, e.g., `"method_options.kmeans.n_classes": 7`, is no longer supported [#143](https://github.com/LimenResearch/DashiBoard/pull/143).
 - When loading several files, the filename is no longer added by default as a new `_name` column, pass `filename = "_name"` to recover the old behavior [#149](https://github.com/LimenResearch/DashiBoard/pull/149).
+- `DataIngestion.summarize` only returns `min` and `max` for numerical columns, and it no longer returns a suggested `step` for a slider widget [#150](https://github.com/LimenResearch/DashiBoard/pull/150).
 - `DuckDBUtils.to_sql` now defaults to `duckdb` dialect [#151](https://github.com/LimenResearch/DashiBoard/pull/151).
 - In `DataIngestion.load_files`, `union_by_name` now respect DuckDB default (i.e., `false`) [#151](https://github.com/LimenResearch/DashiBoard/pull/151).
 
@@ -27,4 +28,5 @@
 - Support for Gaussian encoding of week day [#86](https://github.com/LimenResearch/DashiBoard/pull/86).
 - Training and evaluation now support callbacks [#99](https://github.com/LimenResearch/DashiBoard/pull/99).
 - Support transformation in `DataIngestion.select` [#104](https://github.com/LimenResearch/DashiBoard/pull/104).
+- New `DuckDBUtils.execute_with_macros` function to temporarily register SQL macros before executing a query [#150](https://github.com/LimenResearch/DashiBoard/pull/150).
 - `DataIngestion.load_files` supports loading data as a view [#151](https://github.com/LimenResearch/DashiBoard/pull/151).

@@ -16,7 +16,7 @@ function choose_method(
 end
 
 function get_metadata(c::AbstractMethod, methods::AbstractDict)
-    d = construct(StringDict, c)
+    d = to_config(c)
     d["type"] = findfirst(Fix1(isa, c), methods)
     return d
 end

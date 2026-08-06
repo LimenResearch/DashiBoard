@@ -4,6 +4,12 @@ get_dashi(s::Union{NamedTuple, Nothing}) = isnothing(s) ? nothing : get(s, :dash
 
 construct(::Type{T}, x) where {T} = StructUtils.make(T, x, DashiStyle())
 
+function to_config(x)
+    config = StringDict()
+    StructUtils.make!(DashiStyle(), config, x)
+    return config
+end
+
 function StructUtils.lift(::DashiStyle, ::Type{String}, x::AbstractVector, tags)
     if get_dashi(tags) != JSON_VARIABLE
         msg = """

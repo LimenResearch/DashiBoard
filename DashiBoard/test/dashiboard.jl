@@ -47,7 +47,7 @@ mktempdir() do data_dir
     model_directory = joinpath(static_directory, "model")
     training_directory = joinpath(static_directory, "training")
 
-    port = rand(8000:9000)
+    port = 8080
     server = DashiBoard.launch(
         data_dir;
         port = port,

@@ -71,9 +71,9 @@ function fetch_data(stream::HTTP.Stream)
             From(table) |> Group() |> Select("Count" => Agg.count())
         )
 
-        stream_file(
+        stream_data(
             stream, path, "application/json";
-            pre = "{\"values\": ", post = string(", \"length\": ", nrows, "}")
+            pre = "{\"values\":", post = string(",\"length\":", nrows, "}")
         )
     end
     return
@@ -83,7 +83,7 @@ function get_processed_data(stream::HTTP.Stream)
     mktempdir() do dir
         path = joinpath(dir, "processed-data.csv")
         export_table(REPOSITORY[], From("selection"), path)
-        stream_file(stream, path, "text/csv")
+        stream_data(stream, path, "text/csv")
     end
     return
 end

@@ -1,5 +1,5 @@
 @testset "stream" begin
-    train_x, train_y, test_x, test_y = get_mnist()
+    train_x, train_y, test_x, test_y = get_mnistlike()
     # reproduce split from `setup.jl`
     train_idxs = filter(i -> mod(i, 3) != 0, 1:500)
     valid_idxs = filter(i -> mod(i, 3) == 0, 1:500)

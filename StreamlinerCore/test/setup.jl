@@ -8,7 +8,6 @@ using MLUtils
 using MLUtils: flatten, numobs, getobs, DataLoader
 using Optimisers: Adam
 using ParameterSchedulers: CosAnneal
-using MLDatasets: MNIST
 using JLD2
 using ChainRulesTestUtils
 using Test, Random
@@ -20,13 +19,12 @@ ENV["DATADEPS_ALWAYS_ACCEPT"] = true
 static_dir = joinpath(@__DIR__, "static")
 parser = default_parser()
 
-function get_mnist()
-    train_x, train_y = MNIST(split = :train)[:]
-    test_x, test_y = MNIST(split = :test)[:]
-    train_x = reshape(train_x, 28, 28, 1, :)
-    test_x = reshape(test_x, 28, 28, 1, :)
-    train_y = Flux.onehotbatch(train_y, 0:9)
-    test_y = Flux.onehotbatch(test_y, 0:9)
+function get_mnistlike()
+    rng = Xoshiro(1234)
+    train_x = randn(rng, Float32, 28, 28, 1, 60_000)
+    test_x = randn(rng, Float32, 28, 28, 1, 10_000)
+    train_y = Flux.onehotbatch(rand(rng, 0:9, 60_000), 0:9)
+    test_y = Flux.onehotbatch(rand(rng, 0:9, 10_000), 0:9)
     return train_x, train_y, test_x, test_y
 end
 
@@ -39,7 +37,7 @@ train_idxs = filter(i -> mod(i, 3) != 0, 1:500)
 valid_idxs = filter(i -> mod(i, 3) == 0, 1:500)
 test_idxs = 1:100
 
-train_x, train_y, test_x, test_y = get_mnist()
+train_x, train_y, test_x, test_y = get_mnistlike()
 
 regression_train_data = (input = train_x, target = train_y)
 regression_test_data = (input = test_x, target = test_y)

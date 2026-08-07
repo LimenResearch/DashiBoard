@@ -6,7 +6,7 @@ using Base: Fix1, Fix2
 
 using Base.ScopedValues: @with, ScopedValue
 
-using HTTP: HTTP, startwrite
+using HTTP: HTTP, startread, startwrite, closeread
 
 using Scratch: @get_scratch!
 
@@ -45,7 +45,6 @@ const REPOSITORY = Ref{Repository}()
 
 const ID_VAR = ScopedValue("_id")
 
-include("settings.jl")
 include("handlers.jl")
 include("middleware.jl")
 include("launch.jl")

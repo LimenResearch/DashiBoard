@@ -6,30 +6,54 @@ const CORS_OPTIONS_HEADERS = [
     "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
 ]
 
-function stream_middleware(handler)
+options_handler(::HTTP.Request) = HTTP.Response(200, headers = CORS_OPTIONS_HEADERS)
+cors404(::HTTP.Request) = HTTP.Response(404, headers = CORS_RES_HEADERS, body = "")
+cors405(::HTTP.Request) = HTTP.Response(405, headers = CORS_RES_HEADERS, body = "")
+
+function CorsMiddleware(handler)
     return function (stream::HTTP.Stream)
-        for header in CORS_RES_HEADERS
-            HTTP.setheader(stream, header)
+        req = startread(stream)
+        return if req.method == "OPTIONS"
+            HTTP.streamhandler(options_handler)(stream)
+        else
+            handler(stream)
         end
-        handler(stream)
-        return
     end
 end
 
-function _register!(
-        router::HTTP.Router,
-        method::AbstractString,
-        path::AbstractString,
-        handler::Function,
-        settings::Settings
-    )
+stringify_visualization(::Nothing) = nothing
+stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
-    scoped_handler = ScopedHandler(handler, settings)
-    HTTP.register!(router, method, path, stream_middleware(scoped_handler))
-    HTTP.register!(router, "OPTIONS", path, HTTP.streamhandler(options_handler))
-    return
+function json_read(stream::HTTP.Stream)
+    return JSON.parse(read(stream, String))
 end
 
-options_handler(::HTTP.Request) = HTTP.Response(200, CORS_OPTIONS_HEADERS)
-cors404(::HTTP.Request) = HTTP.Response(404, CORS_RES_HEADERS, "")
-cors405(::HTTP.Request) = HTTP.Response(405, CORS_RES_HEADERS, "")
+function json_read(req::HTTP.Request)
+    return JSON.parse(String(req.body))
+end
+
+function json_response(d)
+    headers = vcat(CORS_RES_HEADERS, ["Content-Type" => "application/json"])
+    return HTTP.Response(200, headers = headers, body = JSON.json(d))
+end
+
+function stream_data(
+        stream::HTTP.Stream, path::AbstractString, content_type::AbstractString;
+        pre::AbstractString = "", post::AbstractString = ""
+    )
+
+    nbytes = filesize(path) + ncodeunits(pre) + ncodeunits(post)
+
+    HTTP.setstatus(stream, 200)
+    foreach(Base.Fix1(HTTP.setheader, stream), CORS_RES_HEADERS)
+    HTTP.setheader(stream, "Content-Type" => content_type)
+    HTTP.setheader(stream, "Content-Length" => string(nbytes))
+
+    startwrite(stream)
+    print(stream, pre)
+    open(Fix1(write, stream), path)
+    print(stream, post)
+    closewrite(stream)
+    closeread(stream)
+    return
+end

@@ -1,27 +1,24 @@
-function get_acceptable_paths(stream::HTTP.Stream)
-    _ = json_read(stream)
+function get_acceptable_paths(req::HTTP.Request)
+    _ = json_read(req)
     files = collect(String, acceptable_paths())
-    json_write(stream, files)
-    return
+    return json_response(files)
 end
 
-function load_files(stream::HTTP.Stream)
-    spec = json_read(stream)
+function load_files(req::HTTP.Request)
+    spec = json_read(req)
     DataIngestion.load_files(REPOSITORY[], spec)
     summaries = DataIngestion.summarize(REPOSITORY[], "source")
-    json_write(stream, summaries)
-    return
+    return json_response(summaries)
 end
 
-function get_card_widgets(stream::HTTP.Stream)
-    spec = json_read(stream)
+function get_card_widgets(req::HTTP.Request)
+    spec = json_read(req)
     configs = Pipelines.card_widgets(spec)
-    json_write(stream, configs)
-    return
+    return json_response(configs)
 end
 
-function evaluate_pipeline(stream::HTTP.Stream)
-    spec = json_read(stream)
+function evaluate_pipeline(req::HTTP.Request)
+    spec = json_read(req)
     filters = Filter.(spec["filters"])
     cards = Card.(spec["cards"])
     nodes = Pipelines.Node.(cards)
@@ -35,8 +32,7 @@ function evaluate_pipeline(stream::HTTP.Stream)
     visualization = stringify_visualization.(vs)
     graph = sprint(Pipelines.graphviz, p)
     summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-    json_write(stream, (; summaries, visualization, graph, report))
-    return
+    return json_response((; summaries, visualization, graph, report))
 end
 
 struct Sorter

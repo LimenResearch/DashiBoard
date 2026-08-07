@@ -9,28 +9,6 @@ const CORS_OPTIONS_HEADERS = [
 stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
-function stream_data(
-        stream::HTTP.Stream, path::AbstractString, content_type::AbstractString;
-        pre::AbstractString = "", post::AbstractString = ""
-    )
-
-    nbytes = filesize(path) + ncodeunits(pre) + ncodeunits(post)
-
-    foreach(Base.Fix1(HTTP.setheader, stream), CORS_RES_HEADERS)
-    HTTP.setheader(stream, "Content-Type" => content_type)
-    HTTP.setheader(stream, "Content-Length" => string(nbytes))
-
-    startwrite(stream)
-    print(stream, pre)
-    open(Fix1(write, stream), path)
-    print(stream, post)
-    closewrite(stream)
-    closeread(stream)
-    return
-end
-
-# TODO: consider reading / writing directly from the stream
-
 function json_read(stream::HTTP.Stream)
     return JSON.parse(read(stream, String))
 end
@@ -44,6 +22,27 @@ function json_response(d)
     return HTTP.Response(200, headers = headers, body = JSON.json(d))
 end
 
+function stream_data(
+        stream::HTTP.Stream, path::AbstractString, content_type::AbstractString;
+        pre::AbstractString = "", post::AbstractString = ""
+    )
+
+    nbytes = filesize(path) + ncodeunits(pre) + ncodeunits(post)
+
+    HTTP.setstatus(stream, 200)
+    foreach(Base.Fix1(HTTP.setheader, stream), CORS_RES_HEADERS)
+    HTTP.setheader(stream, "Content-Type" => content_type)
+    HTTP.setheader(stream, "Content-Length" => string(nbytes))
+
+    startwrite(stream)
+    print(stream, pre)
+    open(Fix1(write, stream), path)
+    print(stream, post)
+    closewrite(stream)
+    closeread(stream)
+    return
+end
+
 function _register!(
         router::HTTP.Router,
         method::AbstractString,
@@ -52,8 +51,7 @@ function _register!(
         settings::Settings
     )
 
-    scoped_handler = ScopedHandler(handler, settings)
-    HTTP.register!(router, method, path, scoped_handler)
+    HTTP.register!(router, method, path, ScopedHandler(handler, settings))
     HTTP.register!(router, "OPTIONS", path, HTTP.streamhandler(options_handler))
     return
 end

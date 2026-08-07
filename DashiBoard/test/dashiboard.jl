@@ -116,12 +116,8 @@ mktempdir() do data_dir
                 "Content-Length" => "336104",
             ]
 
-            io = IOBuffer()
-            write(io, stream)
-            data = take!(io)
-            @test length(data) == 336104
-
-            s = String(data)
+            s = read(stream, String)
+            @test ncodeunits(s) == 336104
             l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
             @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
             @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"

@@ -6,6 +6,21 @@ const CORS_OPTIONS_HEADERS = [
     "Access-Control-Allow-Methods" => "GET, POST, OPTIONS",
 ]
 
+options_handler(::HTTP.Request) = HTTP.Response(200, headers = CORS_OPTIONS_HEADERS)
+cors404(::HTTP.Request) = HTTP.Response(404, headers = CORS_RES_HEADERS, body = "")
+cors405(::HTTP.Request) = HTTP.Response(405, headers = CORS_RES_HEADERS, body = "")
+
+function CorsMiddleware(handler)
+    return function (stream::HTTP.Stream)
+        req = startread(stream)
+        return if req.method == "OPTIONS"
+            HTTP.streamhandler(options_handler)(stream)
+        else
+            handler(stream)
+        end
+    end
+end
+
 stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
@@ -42,20 +57,3 @@ function stream_data(
     closeread(stream)
     return
 end
-
-function _register!(
-        router::HTTP.Router,
-        method::AbstractString,
-        path::AbstractString,
-        handler,
-        settings::Settings
-    )
-
-    HTTP.register!(router, method, path, ScopedHandler(handler, settings))
-    HTTP.register!(router, "OPTIONS", path, HTTP.streamhandler(options_handler))
-    return
-end
-
-options_handler(::HTTP.Request) = HTTP.Response(200, headers = CORS_OPTIONS_HEADERS)
-cors404(::HTTP.Request) = HTTP.Response(404, headers = CORS_RES_HEADERS, body = "")
-cors405(::HTTP.Request) = HTTP.Response(405, headers = CORS_RES_HEADERS, body = "")

@@ -1,30 +1,31 @@
 function launch(
-        data_directory;
+        data_directory::AbstractString;
         host = "127.0.0.1",
         port = 8080,
         async = false,
-        training_directory,
-        model_directory,
-        parser = Pipelines.default_parser()
+        training_directory::AbstractString,
+        model_directory::AbstractString,
+        parser::Pipelines.Parser = Pipelines.default_parser()
     )
-
-    settings = Settings(; parser, model_directory, training_directory, data_directory)
 
     router = HTTP.Router(
         HTTP.streamhandler(cors404),
         HTTP.streamhandler(cors405),
+        CorsMiddleware
     )
 
-    _register!(router, "POST", "/get-acceptable-paths", HTTP.streamhandler(get_acceptable_paths), settings)
-    _register!(router, "POST", "/load-files", HTTP.streamhandler(load_files), settings)
-    _register!(router, "POST", "/get-card-widgets", HTTP.streamhandler(get_card_widgets), settings)
-    _register!(router, "POST", "/evaluate-pipeline", HTTP.streamhandler(evaluate_pipeline), settings)
-    _register!(router, "POST", "/fetch-data", fetch_data, settings)
-    _register!(router, "GET", "/get-processed-data", get_processed_data, settings)
+    HTTP.register!(router, "/get-acceptable-paths", HTTP.streamhandler(get_acceptable_paths))
+    HTTP.register!(router, "/load-files", HTTP.streamhandler(load_files))
+    HTTP.register!(router, "/get-card-widgets", HTTP.streamhandler(get_card_widgets))
+    HTTP.register!(router, "/evaluate-pipeline", HTTP.streamhandler(evaluate_pipeline))
+    HTTP.register!(router, "/fetch-data", fetch_data)
+    HTTP.register!(router, "/get-processed-data", get_processed_data)
 
-    return if async
-        HTTP.listen!(router, host, port)
-    else
-        HTTP.listen(router, host, port)
-    end
+    return @with(
+        Pipelines.PARSER => parser,
+        Pipelines.MODEL_DIR => model_directory,
+        Pipelines.TRAINING_DIR => training_directory,
+        DataIngestion.DATA_DIR => data_directory,
+        async ? HTTP.listen!(router, host, port) : HTTP.listen(router, host, port)
+    )
 end

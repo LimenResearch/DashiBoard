@@ -70,7 +70,7 @@ mktempdir() do data_dir
             "Content-Type" => "application/json",
             "Content-Length" => string(length(resp.body)),
         ]
-        resp = HTTP.request("OPTIONS", url * "get-card-widgets")
+        resp = HTTP.options(url * "get-card-widgets")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
             "Content-Length" => "0",
@@ -122,7 +122,7 @@ mktempdir() do data_dir
             @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
             @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
         end
-        resp = HTTP.request("OPTIONS", url * "get-processed-data")
+        resp = HTTP.options(url * "get-processed-data")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,
             "Content-Length" => "0",

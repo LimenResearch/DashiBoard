@@ -6,7 +6,7 @@ using Base: Fix1, Fix2
 
 using Base.ScopedValues: @with, ScopedValue
 
-using HTTP: HTTP, startwrite
+using HTTP: HTTP, startwrite, closeread
 
 using Scratch: @get_scratch!
 

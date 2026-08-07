@@ -19,7 +19,7 @@ function stream_data(
     _write_all(stream, file)
     print(stream, post)
     closewrite(stream)
-    HTTP.closeread(stream)
+    closeread(stream)
     return
 end
 

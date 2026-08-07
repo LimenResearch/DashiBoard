@@ -30,6 +30,6 @@ function _register!(
     return
 end
 
-options_handler(::HTTP.Request) = HTTP.Response(200, CORS_OPTIONS_HEADERS)
-cors404(::HTTP.Request) = HTTP.Response(404, CORS_RES_HEADERS, "")
-cors405(::HTTP.Request) = HTTP.Response(405, CORS_RES_HEADERS, "")
+options_handler(::HTTP.Request) = HTTP.Response(200, headers = CORS_OPTIONS_HEADERS)
+cors404(::HTTP.Request) = HTTP.Response(404, headers = CORS_RES_HEADERS, body = "")
+cors405(::HTTP.Request) = HTTP.Response(405, headers = CORS_RES_HEADERS, body = "")

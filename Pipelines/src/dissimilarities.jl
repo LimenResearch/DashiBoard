@@ -130,6 +130,64 @@ card's `inputs` in length and order.
 end
 
 """
+    ConjunctiveMethod <: MetricMethod
+
+Conjunctive distance (`"type" => "conjunctive"`): `blocks` assigns each of
+the card's `inputs` to a block, `radii` gives each block its own radius, and
+the distance is the largest within-block Euclidean distance divided by that
+block's radius. Two points are close only when close in every block at once,
+so no exchange rate between the blocks' units is ever asserted — with inputs
+`[east, north, minutes]`, `blocks = [1, 1, 2]` and `radii = [5.0, 60.0]`
+reads "within 5 km and within 60 minutes". Distances are dimensionless: 1
+means "at the radius in the worst block". A maximum of metrics is again a
+metric, hence a true [`MetricMethod`](@ref).
+"""
+@kwarg struct ConjunctiveMethod <: MetricMethod
+    blocks::Vector{Int} & (
+        dashi = json_array(items = json_integer(minimum = 1), minItems = 1),
+    )
+    radii::Vector{Float64} & (
+        dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
+    )
+end
+
+"""
+    Conjunctive(groups, radii, dims)
+
+The Distances.jl object behind [`ConjunctiveMethod`](@ref): `groups` lists
+the coordinate indices of each block, `radii` its radius, `dims` the
+coordinate count every evaluated pair must have.
+"""
+struct Conjunctive <: Metric
+    groups::Vector{Vector{Int}}
+    radii::Vector{Float64}
+    dims::Int
+end
+
+function (dist::Conjunctive)(a, b)
+    length(a) == length(b) == dist.dims || throw(
+        DimensionMismatch(
+            "conjunctive metric over $(dist.dims) coordinates, got $(length(a)) and $(length(b))"
+        )
+    )
+    worst = 0.0
+    for (g, r) in zip(dist.groups, dist.radii)
+        s = 0.0
+        @inbounds for k in g
+            δ = a[k] - b[k]
+            s += δ * δ
+        end
+        d = sqrt(s) / r
+        d > worst && (worst = d)
+    end
+    return worst
+end
+
+# the generic fallback probes the metric on two scalars, which the dimension
+# check above refuses
+Distances.result_type(::Conjunctive, ::Type, ::Type) = Float64
+
+"""
     get_dissimilarity(m::DissimilarityMethod)
 
 The Distances.jl object a `DissimilarityMethod` configures — usable
@@ -147,6 +205,16 @@ get_dissimilarity(m::WeightedEuclideanMethod) = WeightedEuclidean(m.weights)
 get_dissimilarity(m::WeightedCityblockMethod) = WeightedCityblock(m.weights)
 get_dissimilarity(m::WeightedMinkowskiMethod) = WeightedMinkowski(m.weights, m.p)
 
+function get_dissimilarity(m::ConjunctiveMethod)
+    (; blocks, radii) = m
+    sort(unique(blocks)) == eachindex(radii) || throw(
+        ArgumentError("`blocks` must number the blocks 1:$(length(radii)), got $(sort(unique(blocks)))")
+    )
+    all(>(0), radii) || throw(ArgumentError("`radii` must be positive, got $radii"))
+    groups = [findall(==(b), blocks) for b in eachindex(radii)]
+    return Conjunctive(groups, radii, length(blocks))
+end
+
 """
     METRIC_METHODS
 
@@ -162,6 +230,7 @@ const METRIC_METHODS = OrderedDict{String, Type}(
     "weighted_euclidean" => WeightedEuclideanMethod,
     "weighted_cityblock" => WeightedCityblockMethod,
     "weighted_minkowski" => WeightedMinkowskiMethod,
+    "conjunctive" => ConjunctiveMethod,
 )
 
 """

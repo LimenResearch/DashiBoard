@@ -10,7 +10,8 @@
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
-      "seed": 1234
+      "seed": 1234,
+      "init": "kmpp"
     }
   },
   "kmeansCityblock": {
@@ -34,7 +35,8 @@
       "classes": 3,
       "iterations": 100,
       "tol": 1e-6,
-      "seed": 1234
+      "seed": 1234,
+      "init": "kmpp"
     }
   },
   "dbscanCityblock": {
@@ -76,5 +78,47 @@
       "radius": 0.02
     },
     "partition": "partition"
+  },
+  "kmeansInit": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES", "Iws"],
+    "weights": "Iws",
+    "output": "initcluster",
+    "method": {
+      "type": "kmeans",
+      "dissimilarity": { "type": "sqeuclidean" },
+      "classes": 3,
+      "iterations": 100,
+      "tol": 1e-6,
+      "seed": 1234,
+      "init": "rand"
+    }
+  },
+  "reconcile": {
+    "type": "cluster",
+    "inputs": ["x", "y"],
+    "output": "cluster",
+    "method": {
+      "type": "dbscan",
+      "radius": 1.0,
+      "min_neighbors": 2,
+      "min_cluster_size": 3
+    }
+  },
+  "conjunctive": {
+    "type": "cluster",
+    "inputs": ["x", "y", "z"],
+    "output": "cluster",
+    "method": {
+      "type": "dbscan",
+      "radius": 1.0,
+      "min_neighbors": 3,
+      "min_cluster_size": 3,
+      "dissimilarity": {
+        "type": "conjunctive",
+        "blocks": [1, 1, 2],
+        "radii": [5.0, 60.0]
+      }
+    }
   }
 }

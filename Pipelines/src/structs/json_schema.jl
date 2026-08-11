@@ -140,6 +140,7 @@ json_object(; kwargs...) = json_config("object"; kwargs...)
 
 function json_config(
         type::Union{AbstractString, Nothing} = nothing;
+        var"$ref" = nothing,
         properties::Union{AbstractDict, Nothing} = nothing,
         additionalProperties::Union{Bool, Nothing} = nothing,
         allOf::Union{AbstractVector, Nothing} = nothing,
@@ -152,7 +153,7 @@ function json_config(
     )
 
     return nonnothing_dict(;
-        type = type,
+        type = type, var"$ref",
         properties, additionalProperties,
         allOf, anyOf, oneOf, required,
         title, description, default

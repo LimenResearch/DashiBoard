@@ -58,12 +58,10 @@ end
 
 # Definitions
 
-# Note: must keep `valtype::Any` due to a JSONSchema limitation
-# see https://github.com/JuliaIO/JSONSchema.jl/issues/81
-const JSON_VARIABLE = StringDict("\$ref" => "#/\$defs/variable")
-const JSON_VARIABLES = StringDict("\$ref" => "#/\$defs/variables")
-const JSON_NONEMPTY_VARIABLES = StringDict("\$ref" => "#/\$defs/nonempty_variables")
+const JSON_VARIABLE = json_config(var"$ref" = raw"#/$defs/variable")
+const JSON_VARIABLES = json_config(var"$ref" = raw"#/$defs/variables")
+const JSON_NONEMPTY_VARIABLES = json_config(var"$ref" = raw"#/$defs/nonempty_variables")
 
-const JSON_NODE = StringDict("\$ref" => "#/\$defs/node")
-const JSON_GROUP = StringDict("\$ref" => "#/\$defs/group")
-const JSON_COL = StringDict("\$ref" => "#/\$defs/col")
+const JSON_NODE = json_config(var"$ref" = raw"#/$defs/node")
+const JSON_GROUP = json_config(var"$ref" = raw"#/$defs/group")
+const JSON_COL = json_config(var"$ref" = raw"#/$defs/col")

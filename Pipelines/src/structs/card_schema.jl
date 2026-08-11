@@ -36,11 +36,11 @@ function schema_definitions(variables::AbstractVector)
 end
 
 function json_schema(
-        key::AbstractString, variables::Any;
+        key::AbstractString, variable_config::Any;
         additionalProperties::Bool = false
     )::StringDict
     schema = json_schema(key; additionalProperties)
-    schema["\$defs"] = schema_definitions(variables)
+    schema["\$defs"] = schema_definitions(variable_config)
     return schema
 end
 

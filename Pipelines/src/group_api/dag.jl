@@ -32,7 +32,14 @@ end
 get_source_vars(eg::GroupDiGraph) = eg.source_vars
 get_output_vars(eg::GroupDiGraph) = eg.output_vars
 
-function Pipeline(nodes::AbstractVector, groups::AbstractDict)
+function Pipeline(
+        nodes::AbstractVector,
+        groups::AbstractDict,
+        cols::Union{AbstractVector, Nothing} = nothing;
+        validate_schema::Bool = true
+    )
+
+    validate_schema && validate_pipeline_schema(nodes, groups, cols)
     c = Configuration(nodes, groups) |> parse_deps!
     G, cols = dependency_graph(c)
     replace_placeholders!(c, G)

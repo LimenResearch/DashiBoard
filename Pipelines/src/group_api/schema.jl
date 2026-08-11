@@ -60,3 +60,48 @@ function groups_schema(grp_names::AbstractVector)
     end
     return json_object(; properties, additionalProperties = false, required = grp_names)
 end
+
+# Validation
+
+struct SchemaValidationError{I} <: Exception
+    culprit::String
+    issue::I
+end
+
+function Base.showerror(io::IO, err::SchemaValidationError)
+    print(io, "Schema Validation Error")
+    isempty(err.culprit) ? println(io) : println(io, " for ", err.culprit)
+    return show(io, err.issue)
+end
+
+function validate_pipeline_schema(
+        nodes::AbstractVector,
+        groups::AbstractDict,
+        cols::Union{AbstractVector, Nothing} = nothing
+    )
+    node_labels = (get(n, "label", nothing) for n in nodes)
+    grp_names = collect(String, keys(groups))
+    variable_config = VariableConfig(
+        nodes = collect(String, Iterators.filter(!isnothing, node_labels)),
+        groups = grp_names,
+        cols = cols
+    )
+
+    grp_schema = JSONSchema.Schema(groups_schema(variable_config))
+    card_schemas = Dict{String, JSONSchema.Schema}()
+    for n in nodes
+        key = n["card"]["type"]
+        card_schemas[key] = JSONSchema.Schema(card_schema(key, variable_config))
+    end
+
+    grp_issue = JSONSchema.validate(groups, grp_schema)
+    isnothing(grp_issue) || throw(SchemaValidationError("groups", grp_issue))
+
+    for (i, node) in enumerate(nodes)
+        card = node["card"]
+        card_schema = card_schemas[card["type"]]
+        issue = JSONSchema.validate(card, card_schema)
+        isnothing(issue) || throw(SchemaValidationError("card in node $(i)", issue))
+    end
+    return
+end

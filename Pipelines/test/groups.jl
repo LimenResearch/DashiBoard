@@ -67,8 +67,8 @@ end
     @test occursin("oneOf", string(issue))
 
     variable_config′ = variable_config
-    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
-    @test JSONSchema.validate(schema, d["groups"]) === nothing
+    schema = Pipelines.group_schema(variable_config′) |> JSONSchema.Schema
+    @test JSONSchema.validate(schema, d["groups"]["weather"]) === nothing
 
     variable_config′ = @set variable_config.groups = ["wether"]
     card = d["nodes"][1]["card"]
@@ -78,21 +78,9 @@ end
     @test occursin("weather", string(issue))
     @test occursin("wether", string(issue))
 
-    variable_config′ = @set variable_config.groups = ["weather", "grp_name"]
-    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
-    issue = JSONSchema.validate(schema, d["groups"])
-    @test issue !== nothing
-    @test occursin("grp_name", string(issue))
-
-    variable_config′ = @set variable_config.groups = String[]
-    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
-    issue = JSONSchema.validate(schema, d["groups"])
-    @test issue !== nothing
-    @test occursin("additionalProperties", string(issue))
-
     variable_config′ = @set variable_config.cols = String[]
-    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
-    issue = JSONSchema.validate(schema, d["groups"])
+    schema = Pipelines.group_schema(variable_config′) |> JSONSchema.Schema
+    issue = JSONSchema.validate(schema, d["groups"]["weather"])
     @test issue !== nothing
     @test occursin("TEMP", string(issue)) || occursin("PRES", string(issue))
 end

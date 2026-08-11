@@ -8,7 +8,7 @@ end
 
 # schema for a `{nodes: [...]}`, `{groups: [...]}`, `{cols: [...]}`
 # with a potential `through: [...]` attribute
-function deps_item_schema(; singular::Bool = false)
+function variable_item_schema(; singular::Bool = false)
     minItems, maxItems = 1, singular ? 1 : nothing
 
     properties = StringDict(
@@ -30,8 +30,8 @@ function schema_definitions(variable_config::VariableConfig)
     group_schema = json_string(enum = variable_config.groups)
     col_schema = json_string(enum = variable_config.cols)
 
-    item_schema = deps_item_schema()
-    singular_item_schema = deps_item_schema(singular = true)
+    item_schema = variable_item_schema()
+    singular_item_schema = variable_item_schema(singular = true)
 
     variable_schema = one_or_many_schema(singular_item_schema, minItems = 1, maxItems = 1)
     variables_schema = one_or_many_schema(item_schema, default = [])
@@ -47,18 +47,12 @@ function schema_definitions(variable_config::VariableConfig)
     )
 end
 
-function groups_schema(variable_config::VariableConfig)
-    schema = groups_schema(variable_config.groups)
+group_schema() = copy(JSON_VARIABLES)
+
+function group_schema(variable_config::VariableConfig)
+    schema = group_schema()
     schema["\$defs"] = schema_definitions(variable_config)
     return schema
-end
-
-function groups_schema(grp_names::AbstractVector)
-    properties = StringDict()
-    for name in grp_names
-        properties[name] = JSON_VARIABLES
-    end
-    return json_object(; properties, additionalProperties = false, required = grp_names)
 end
 
 # Validation
@@ -87,15 +81,17 @@ function validate_pipeline_schema(
         cols = cols
     )
 
-    grp_schema = JSONSchema.Schema(groups_schema(variable_config))
+    grp_schema = JSONSchema.Schema(group_schema(variable_config))
     card_schemas = Dict{String, JSONSchema.Schema}()
     for n in nodes
         key = n["card"]["type"]
         card_schemas[key] = JSONSchema.Schema(card_schema(key, variable_config))
     end
 
-    grp_issue = JSONSchema.validate(groups, grp_schema)
-    isnothing(grp_issue) || throw(SchemaValidationError("groups", grp_issue))
+    for (grp_key, grp_val) in pairs(groups)
+        issue = JSONSchema.validate(grp_val, grp_schema)
+        isnothing(issue) || throw(SchemaValidationError("group $(grp_key)", issue))
+    end
 
     for (i, node) in enumerate(nodes)
         card = node["card"]

@@ -8,6 +8,7 @@ using Clustering, GLM, MixedModels, DataInterpolations, Distributions, Dates, St
 using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 using FunSQL: Get, Select, Partition, From, Order
 using TOML: TOML
+using Accessors: @set
 using Base.ScopedValues: @with
 using Test
 

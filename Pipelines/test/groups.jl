@@ -38,7 +38,7 @@
 end
 
 @testset "groups schema" begin
-    deps = Pipelines.Deps(
+    variable_config = Pipelines.VariableConfig(
         nodes = ["rescale", "log", "pca", "partition"],
         groups = ["weather"],
         cols = [
@@ -50,14 +50,14 @@ end
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     for node in d["nodes"]
         card = node["card"]
-        schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
+        schema = Pipelines.json_schema(card["type"], variable_config) |> JSONSchema.Schema
         @test JSONSchema.validate(schema, card) === nothing
     end
 
     # exactly one between `nodes`, `groups`, and `cols` is allowed
     card = deepcopy(d["nodes"][1]["card"])
     card["inputs"] = Dict("groups" => ["weather"], "cols" => ["No"])
-    schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
+    schema = Pipelines.json_schema(card["type"], variable_config) |> JSONSchema.Schema
     issue = JSONSchema.validate(schema, card)
     @test issue !== nothing
     @test occursin("oneOf", string(issue))
@@ -66,36 +66,32 @@ end
     @test issue !== nothing
     @test occursin("oneOf", string(issue))
 
-    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    variable_config′ = variable_config
+    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
     @test JSONSchema.validate(schema, d["groups"]) === nothing
 
-    empty!(deps.groups)
-    push!(deps.groups, "wether")
+    variable_config′ = @set variable_config.groups = ["wether"]
     card = d["nodes"][1]["card"]
-    schema = Pipelines.json_schema(card["type"], deps) |> JSONSchema.Schema
+    schema = Pipelines.json_schema(card["type"], variable_config′) |> JSONSchema.Schema
     issue = JSONSchema.validate(schema, card)
     @test issue !== nothing
     @test occursin("weather", string(issue))
     @test occursin("wether", string(issue))
 
-    empty!(deps.groups)
-    push!(deps.groups, "weather")
-    push!(deps.groups, "grp_name")
-    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    variable_config′ = @set variable_config.groups = ["weather", "grp_name"]
+    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
     issue = JSONSchema.validate(schema, d["groups"])
     @test issue !== nothing
     @test occursin("grp_name", string(issue))
 
-    empty!(deps.groups)
-    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    variable_config′ = @set variable_config.groups = String[]
+    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
     issue = JSONSchema.validate(schema, d["groups"])
     @test issue !== nothing
     @test occursin("additionalProperties", string(issue))
 
-    empty!(deps.groups)
-    push!(deps.groups, "weather")
-    empty!(deps.cols)
-    schema = Pipelines.groups_schema(deps) |> JSONSchema.Schema
+    variable_config′ = @set variable_config.cols = String[]
+    schema = Pipelines.groups_schema(variable_config′) |> JSONSchema.Schema
     issue = JSONSchema.validate(schema, d["groups"])
     @test issue !== nothing
     @test occursin("TEMP", string(issue)) || occursin("PRES", string(issue))

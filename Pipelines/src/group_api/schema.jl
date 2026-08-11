@@ -1,5 +1,11 @@
 # schema definitions
 
+@kwarg struct VariableConfig
+    nodes::Union{Vector{String}, Nothing} = nothing
+    groups::Union{Vector{String}, Nothing} = nothing
+    cols::Union{Vector{String}, Nothing} = nothing
+end
+
 # schema for a `{nodes: [...]}`, `{groups: [...]}`, `{cols: [...]}`
 # with a potential `through: [...]` attribute
 function deps_item_schema(; singular::Bool = false)
@@ -19,10 +25,10 @@ function deps_item_schema(; singular::Bool = false)
     return json_object(; properties, additionalProperties = false, oneOf)
 end
 
-function schema_definitions(deps::Deps)
-    node_schema = json_string(enum = deps.nodes)
-    group_schema = json_string(enum = deps.groups)
-    col_schema = json_string(enum = deps.cols)
+function schema_definitions(variable_config::VariableConfig)
+    node_schema = json_string(enum = variable_config.nodes)
+    group_schema = json_string(enum = variable_config.groups)
+    col_schema = json_string(enum = variable_config.cols)
 
     item_schema = deps_item_schema()
     singular_item_schema = deps_item_schema(singular = true)
@@ -41,9 +47,9 @@ function schema_definitions(deps::Deps)
     )
 end
 
-function groups_schema(deps::Deps)
-    schema = groups_schema(deps.groups)
-    schema["\$defs"] = schema_definitions(deps)
+function groups_schema(variable_config::VariableConfig)
+    schema = groups_schema(variable_config.groups)
+    schema["\$defs"] = schema_definitions(variable_config)
     return schema
 end
 

@@ -85,6 +85,43 @@ end
     @test occursin("TEMP", string(issue)) || occursin("PRES", string(issue))
 end
 
+@testset "pipeline validation" begin
+    d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    cols = [
+        "No", "year", "month", "day", "hour",
+        "pm2.5", "DEWP", "TEMP", "PRES", "cbwd",
+        "Iws", "Is", "Ir",
+    ]
+
+    nodes = d["nodes"]
+    groups = Dict("weather" => ["colname"])
+    @test_throws(
+        r"Schema Validation Error for group weather(.)*oneOf"s,
+        Pipelines.Pipeline(nodes, groups, validate_schema = true)
+    )
+
+    groups = Dict("weather" => Dict("cols" => ["mycol"]))
+    p = Pipelines.Pipeline(nodes, groups, validate_schema = true)
+    @test p.enriched_digraph.source_vars == ["cbwd", "No", "mycol"]
+
+    # If `cols` are specified, the schema knows `mycol` is not available
+    @test_throws(
+        r"Schema Validation Error for group weather(.)*mycol"s,
+        Pipelines.Pipeline(nodes, groups, cols, validate_schema = true)
+    )
+
+    groups = d["groups"]
+    nodes[1]["card"]["extra_prop"] = 1
+    @test_throws(
+        r"Schema Validation Error for card in node 1(.)*extra_prop"s,
+        Pipelines.Pipeline(nodes, groups, cols, validate_schema = true)
+    )
+
+    # without validating the schema, the spurious property is not an issue
+    p = Pipelines.Pipeline(nodes, groups, cols, validate_schema = false)
+    @test p.nodes[1].card isa RescaleCard
+end
+
 @testset "node_digraph" begin
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
     repo = Repository()

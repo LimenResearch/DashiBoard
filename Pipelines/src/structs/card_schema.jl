@@ -35,16 +35,16 @@ function schema_definitions(variables::AbstractVector)
     )
 end
 
-function json_schema(
+function card_schema(
         key::AbstractString, variable_config::Any;
         additionalProperties::Bool = false
     )::StringDict
-    schema = json_schema(key; additionalProperties)
+    schema = card_schema(key; additionalProperties)
     schema["\$defs"] = schema_definitions(variable_config)
     return schema
 end
 
-function json_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
+function card_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
     spec = get_spec(key)
     T = spec.type
     schema::StringDict = (T <: WildCard) ? wild_card_schema(spec.settings) : composite_schema(T)

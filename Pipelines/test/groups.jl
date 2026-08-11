@@ -50,14 +50,14 @@ end
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     for node in d["nodes"]
         card = node["card"]
-        schema = Pipelines.json_schema(card["type"], variable_config) |> JSONSchema.Schema
+        schema = Pipelines.card_schema(card["type"], variable_config) |> JSONSchema.Schema
         @test JSONSchema.validate(schema, card) === nothing
     end
 
     # exactly one between `nodes`, `groups`, and `cols` is allowed
     card = deepcopy(d["nodes"][1]["card"])
     card["inputs"] = Dict("groups" => ["weather"], "cols" => ["No"])
-    schema = Pipelines.json_schema(card["type"], variable_config) |> JSONSchema.Schema
+    schema = Pipelines.card_schema(card["type"], variable_config) |> JSONSchema.Schema
     issue = JSONSchema.validate(schema, card)
     @test issue !== nothing
     @test occursin("oneOf", string(issue))
@@ -72,7 +72,7 @@ end
 
     variable_config′ = @set variable_config.groups = ["wether"]
     card = d["nodes"][1]["card"]
-    schema = Pipelines.json_schema(card["type"], variable_config′) |> JSONSchema.Schema
+    schema = Pipelines.card_schema(card["type"], variable_config′) |> JSONSchema.Schema
     issue = JSONSchema.validate(schema, card)
     @test issue !== nothing
     @test occursin("weather", string(issue))

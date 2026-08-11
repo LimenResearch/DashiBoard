@@ -26,7 +26,7 @@ end
 
 @testset "split schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
-    schema = Pipelines.json_schema("split", vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("split", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["percentile"])
     _pipeline_schema_validate(schema, d["tiles"])
     _pipeline_schema_validate(schema, d["tiles2"])
@@ -37,7 +37,7 @@ end
 
 @testset "window_function schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "window_function.json"))
-    schema = Pipelines.json_schema("window_function", vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("window_function", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["percent_rank"])
     _pipeline_schema_validate(schema, d["rank"])
     _pipeline_schema_validate(schema, d["row_number"])
@@ -47,7 +47,7 @@ end
 
 @testset "rescale schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
-    schema = Pipelines.json_schema("rescale", vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("rescale", vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["zscore"])
     _pipeline_schema_validate(schema, d["zscore2"])
     _pipeline_schema_validate(schema, d["maxabs"])
@@ -60,7 +60,7 @@ end
 
 @testset "cluster schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
-    schema = Pipelines.json_schema("cluster", split_vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("cluster", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["kmeans"])
     _pipeline_schema_validate(schema, d["kmeansCityblock"])
     _pipeline_schema_validate(schema, d["kmeansWeighted"])
@@ -92,7 +92,7 @@ end
 
 @testset "dimensionality reduction schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "dimensionality_reduction.json"))
-    schema = Pipelines.json_schema("dimensionality_reduction", split_vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("dimensionality_reduction", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["pca"])
     _pipeline_schema_validate(schema, d["ppca"])
     _pipeline_schema_validate(schema, d["factoranalysis"])
@@ -102,14 +102,14 @@ end
 
 @testset "glm schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
-    schema = Pipelines.json_schema("glm", split_vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("glm", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["hasPartition"])
     _pipeline_schema_validate(schema, d["hasWeights"])
     no_inputs = deepcopy(d["hasWeights"])
     delete!(no_inputs["formula"], "inputs")
     _pipeline_schema_invalidate(schema, no_inputs)
 
-    schema = Pipelines.json_schema("mixed_model", split_vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("mixed_model", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["isMixed"])
     _pipeline_schema_validate(schema, d["isMixedHasWeights"])
     is_mixed_no_grouping = deepcopy(d["isMixedHasWeights"])
@@ -119,7 +119,7 @@ end
 
 @testset "interp schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "interp.json"))
-    schema = Pipelines.json_schema("interp", split_vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("interp", split_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["constant"])
     _pipeline_schema_validate(schema, d["quadratic"])
     wrong_method = deepcopy(d["quadratic"])
@@ -129,7 +129,7 @@ end
 
 @testset "gaussian_encoding schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
-    schema = Pipelines.json_schema("gaussian_encoding", time_vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("gaussian_encoding", time_vars) |> JSONSchema.Schema
     _pipeline_schema_validate(schema, d["identity"])
     _pipeline_schema_validate(schema, d["dayofweek"])
     _pipeline_schema_validate(schema, d["dayofyear"])
@@ -150,7 +150,7 @@ end
         Pipelines.MODEL_DIR => model_dir,
         Pipelines.TRAINING_DIR => training_dir,
         begin
-            schema = Pipelines.json_schema("streamliner", split_vars) |> JSONSchema.Schema
+            schema = Pipelines.card_schema("streamliner", split_vars) |> JSONSchema.Schema
             _pipeline_schema_validate(schema, d["basic"], from_metadata = false)
             _pipeline_schema_validate(schema, d["classifier"], from_metadata = false)
             m_basic = _filtered_metadata(d["basic"])
@@ -179,7 +179,7 @@ end
     )
 
     # consider scenario where configuration files are no longer available
-    schema = Pipelines.json_schema("streamliner", split_vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("streamliner", split_vars) |> JSONSchema.Schema
 
     _pipeline_schema_validate(schema, m_basic, from_metadata = false)
     _pipeline_schema_validate(schema, m_classifier, from_metadata = false)
@@ -192,7 +192,7 @@ end
 end
 
 @testset "wild schema" begin
-    schema = Pipelines.json_schema("trivial", vars) |> JSONSchema.Schema
+    schema = Pipelines.card_schema("trivial", vars) |> JSONSchema.Schema
 
     single_output = Dict("type" => "trivial", "inputs" => ["month"], "outputs" => ["TEMP"])
     multi_outputs = Dict("type" => "trivial", "inputs" => ["month"], "outputs" => ["TEMP", "PRES"])

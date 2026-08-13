@@ -1,5 +1,5 @@
 [[nodes]]
-label = "rescale"
+id = "rescale"
 [nodes.card]
 type = "rescale"
 method = {type = "zscore"}
@@ -11,7 +11,7 @@ inputs = [
 ]
 
 [[nodes]]
-label = "log"
+id = "log"
 [nodes.card]
 type = "rescale"
 method = {type = "log"}
@@ -19,7 +19,7 @@ suffix = "log"
 inputs = {cols = ["No"]}
 
 [[nodes]]
-label = "pca"
+id = "pca"
 [nodes.card]
 type = "dimensionality_reduction"
 method = {type = "pca"}
@@ -30,7 +30,7 @@ inputs = [
 ]
 
 [[nodes]]
-label = "partition"
+id = "partition"
 [nodes.card]
 type = "split"
 method = {type = "percentile", percentile = 0.9}

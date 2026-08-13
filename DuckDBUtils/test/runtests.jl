@@ -39,7 +39,7 @@ end
     release_connection(r, con4)
 end
 
-@testset "multidict" begin
+@testset "acquisition_utils" begin
     s = Set([1, 3, 4, 7])
     idxs = DuckDBUtils.first_not_in!(s, 5)
     @test idxs == [2, 5, 6, 8, 9]

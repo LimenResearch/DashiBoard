@@ -52,7 +52,7 @@ function separate_vals_idxs(::Type{T}, iter) where {T}
     vals, idx_dict = Vector{T}(undef, length(iter)), Dict{String, Int}()
     for (i, (k, v)) in enumerate(iter)
         vals[i] = v
-        isnothing(k) || (idx_dict[k] = i)
+        idx_dict[k] = i
     end
     return vals, idx_dict
 end
@@ -60,9 +60,11 @@ end
 function Configuration(node_configs::AbstractVector, group_configs::AbstractDict)
     group_configs′, group_idxs = separate_vals_idxs(Any, pairs(group_configs))
     node_configs′, node_idxs = separate_vals_idxs(
-        StringDict,
-        get(n, "label", nothing) => n for n in node_configs
+        StringDict, (get_id(n) => n for n in node_configs)
     )
+    if length(node_idxs) < length(node_configs)
+        throw(ArgumentError("Encountered nodes with equal `id`"))
+    end
     node_outputs = similar(node_configs′, Vector{String})
     nodes = similar(node_configs′, Node)
     node_deps = similar(node_configs′, Vector{Deps})

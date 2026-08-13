@@ -73,12 +73,8 @@ function validate_pipeline_schema(
         groups::AbstractDict,
         cols::Union{AbstractVector, Nothing} = nothing
     )
-    node_labels = (get(n, "label", nothing) for n in nodes)
-    grp_names = collect(String, keys(groups))
     variable_config = VariableConfig(
-        nodes = collect(String, Iterators.filter(!isnothing, node_labels)),
-        groups = grp_names,
-        cols = cols
+        nodes = get_id.(nodes), groups = collect(String, keys(groups)), cols = cols
     )
 
     grp_schema = JSONSchema.Schema(group_schema(variable_config))

@@ -35,6 +35,10 @@
     @test Pair(es[5]) == (5 => 3)
 
     @test cols == ["cbwd", "No", "PRES", "TEMP"] # TODO: consider keeping them grouped
+
+    d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    d["nodes"][2]["id"] = "rescale" # artificially create ambiguous `id`
+    @test_throws ArgumentError Pipelines.Configuration(d["nodes"], d["groups"])
 end
 
 @testset "groups schema" begin

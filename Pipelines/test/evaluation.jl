@@ -24,10 +24,10 @@
     @test eltype(g) === Int
 
     nodes = [
-        Pipelines.Node(trivialcard(["temp"], "pred humid"), update = true),
-        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
-        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), update = true),
-        Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
+        Pipelines.Node(trivialcard(["temp"], "pred humid"), id = "1", update = true),
+        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), id = "2", update = true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), id = "3", update = true),
+        Pipelines.Node(trivialcard(["wind"], "wind name"), id = "4", update = true),
     ]
 
     enriched_digraph = Pipelines.EnrichedDiGraph(nodes)
@@ -60,7 +60,7 @@
     @test Pipelines.get_source_vars(Pipelines.Pipeline(nodes)) == source_vars
     @test Pipelines.get_output_vars(Pipelines.Pipeline(nodes)) == output_vars
 
-    faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"))
+    faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"), id = "faulty")
     @test_throws "pred temp" Pipelines.digraph(vcat(nodes, [faulty_node]))
 
     # Test returned value of `Pipelines.train_evaljoin!`
@@ -74,10 +74,10 @@
     @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     nodes = [
-        Pipelines.Node(trivialcard(["temp"], "pred humid"), update = false),
-        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), update = true),
-        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), update = false),
-        Pipelines.Node(trivialcard(["wind"], "wind name"), update = true),
+        Pipelines.Node(trivialcard(["temp"], "pred humid"), id = "5", update = false),
+        Pipelines.Node(trivialcard(["pred humid"], "pred wind"), id = "6", update = true),
+        Pipelines.Node(trivialcard(["wind", "wind name"], "pred temp"), id = "7", update = false),
+        Pipelines.Node(trivialcard(["wind"], "wind name"), id = "8", update = true),
     ]
 
     # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
@@ -99,10 +99,10 @@
     @test Pipelines.digraph(Pipelines.Node[]) == DiGraph(0)
 
     nodes = [
-        Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), update = false, label = "No update"),
-        Pipelines.Node(trivialcard(["a"], ["c", "d"]), update = true),
-        Pipelines.Node(trivialcard(["b"], ["e"]), update = true, label = "Single output"),
-        Pipelines.Node(trivialcard(["e", "f"], ["g", "h", "i"]), update = true),
+        Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), id = "9", update = false, label = "No update"),
+        Pipelines.Node(trivialcard(["a"], ["c", "d"]), id = "10", update = true),
+        Pipelines.Node(trivialcard(["b"], ["e"]), id = "11", update = true, label = "Single output"),
+        Pipelines.Node(trivialcard(["e", "f"], ["g", "h", "i"]), id = "12", update = true),
     ]
 
     enriched_digraph = Pipelines.EnrichedDiGraph(nodes)
@@ -243,7 +243,7 @@ mktempdir() do dir
         card = Pipelines.Card(d["zscore"])
         _update, _train, _invert = true, true, true
         state = Pipelines.StateRef(Pipelines.CardState())
-        @test_throws ArgumentError Node(card, _update, _train, _invert, "zscore", state)
+        @test_throws ArgumentError Node(card, "faulty", _update, _train, _invert, "zscore", state)
 
         node = Node(card)
         inv_node = invert(node)

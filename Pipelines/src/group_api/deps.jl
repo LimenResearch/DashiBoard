@@ -25,79 +25,65 @@ parse_once(dp::DepsParser, d::AbstractDict) = (deps = construct(Deps, d); push!(
 (dp::DepsParser)(v::AbstractVector) = map_into(dp, Vector{Any}, v)
 (::DepsParser)(x::Any) = x
 
-function parse_deps!(deps_collection::AbstractVector, ls::AbstractVector)
-    for i in eachindex(deps_collection, ls)
-        dp = DepsParser()
-        ls[i] = dp(ls[i])
-        deps_collection[i] = dp.list
-    end
-    return deps_collection
-end
-
 # `Configuration` structure
 
-struct Configuration
-    node_idxs::Dict{String, Int}
-    node_configs::Vector{StringDict}
-    node_outputs::Vector{Vector{String}}
-    nodes::Vector{Node}
-    node_deps::Vector{Vector{Deps}}
-    group_idxs::Dict{String, Int}
-    group_configs::Vector{Any}
-    groups::Vector{Vector{String}}
-    group_deps::Vector{Vector{Deps}}
+struct IndexableConfigs{T}
+    idxs::Dict{String, Int}
+    configs::Vector{T}
+    outputs::Vector{Vector{String}}
+    deps::Vector{Vector{Deps}}
 end
 
-function separate_vals_idxs(::Type{T}, iter) where {T}
-    vals, idx_dict = Vector{T}(undef, length(iter)), Dict{String, Int}()
+IndexableConfigs{T}(ks, vs) where {T} = IndexableConfigs{T}(zip(ks, vs))
+
+function IndexableConfigs{T}(iter) where {T}
+    n = length(iter)
+    idxs = Dict{String, Int}()
+    configs = Vector{T}(undef, n)
+    outputs = Vector{Vector{String}}(undef, n)
+    deps = Vector{Vector{Deps}}(undef, n)
+
     for (i, (k, v)) in enumerate(iter)
-        vals[i] = v
-        idx_dict[k] = i
+        dp = DepsParser()
+        configs[i] = dp(v)
+        deps[i] = dp.list
+        idxs[k] = i
     end
-    return vals, idx_dict
+    return IndexableConfigs{T}(idxs, configs, outputs, deps)
+end
+
+Base.length(ic::IndexableConfigs) = length(ic.configs)
+
+get_indices(ic::IndexableConfigs, ks::AbstractVector) = get_indices(ic.idxs, ks)
+
+get_outputs(ic::IndexableConfigs, ks::AbstractVector) = ic.outputs[get_indices(ic, ks)]
+
+struct Configuration
+    nodes::Vector{Node}
+    node_configs::IndexableConfigs{StringDict}
+    group_configs::IndexableConfigs{Union{Deps, Vector{Deps}}}
 end
 
 function Configuration(node_configs::AbstractVector, group_configs::AbstractDict)
-    group_configs′, group_idxs = separate_vals_idxs(Any, pairs(group_configs))
-    node_configs′, node_idxs = separate_vals_idxs(
-        StringDict, (get_id(n) => n for n in node_configs)
-    )
-    if length(node_idxs) < length(node_configs)
-        throw(ArgumentError("Encountered nodes with equal `id`"))
-    end
-    node_outputs = similar(node_configs′, Vector{String})
-    nodes = similar(node_configs′, Node)
-    node_deps = similar(node_configs′, Vector{Deps})
-    groups = similar(group_configs′, Vector{String})
-    group_deps = similar(group_configs′, Vector{Deps})
-
-    return Configuration(
-        node_idxs, node_configs′, node_outputs, nodes, node_deps,
-        group_idxs, group_configs′, groups, group_deps
-    )
+    ids = get_id.(node_configs)
+    allunique(ids) || throw(ArgumentError("Encountered nodes with equal `id`"))
+    nds = IndexableConfigs{StringDict}(ids, node_configs)
+    grps = IndexableConfigs{Union{Deps, Vector{Deps}}}(pairs(group_configs))
+    return Configuration(similar(nds.configs, Node), nds, grps)
 end
-
-function parse_deps!(c::Configuration)
-    parse_deps!(c.node_deps, c.node_configs)
-    parse_deps!(c.group_deps, c.group_configs)
-    return c
-end
-
-get_node_indices(c::Configuration, ks::AbstractVector) = get_indices(c.node_idxs, ks)
-get_group_indices(c::Configuration, ks::AbstractVector) = get_indices(c.group_idxs, ks)
 
 # TODO: more general definition
 function pass_through(x::AbstractVector, ks::AbstractVector, c::Configuration)
     isempty(ks) && return x
-    nodes = c.nodes[get_node_indices(c, ks)]
+    nodes = c.nodes[get_indices(c.node_configs, ks)]
     suffix = join([node.card.suffix for node in nodes], "_")
     return join_names.(x, suffix)
 end
 
 function to_columns(d::Deps, c::Configuration)
     nested = vcat(
-        c.node_outputs[get_node_indices(c, d.nodes)],
-        c.groups[get_group_indices(c, d.groups)],
+        get_outputs(c.node_configs, d.nodes),
+        get_outputs(c.group_configs, d.groups),
         [d.cols]
     )
     cols = reduce(vcat, nested)
@@ -125,12 +111,14 @@ replace_placeholders(deps::Deps, c::Configuration) = to_columns(deps, c)
 replace_placeholders(x::Any, c::Configuration) = x
 
 function replace_placeholders!(c::Configuration, i::Integer)
+    (; nodes, node_configs, group_configs) = c
     if i ≤ length(c.nodes)
-        c.nodes[i] = Node(replace_placeholders(c.node_configs[i], c))
-        c.node_outputs[i] = get_node_outputs(c.nodes[i])
+        node = Node(replace_placeholders(node_configs.configs[i], c))
+        node_configs.outputs[i] = get_node_outputs(node)
+        nodes[i] = node
     else
-        j = i - length(c.nodes)
-        c.groups[j] = replace_placeholders(c.group_configs[j], c)
+        j = i - length(nodes)
+        group_configs.outputs[j] = replace_placeholders(group_configs.configs[j], c)
     end
     return c
 end

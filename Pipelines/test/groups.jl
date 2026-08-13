@@ -1,31 +1,31 @@
 @testset "groups" begin
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
-    c = Pipelines.Configuration(d["nodes"], d["groups"]) |> Pipelines.parse_deps!
+    c = Pipelines.Configuration(d["nodes"], d["groups"])
     g, cols = Pipelines.dependency_graph(c)
     es = sort(collect(edges(g)))
 
-    @test c.node_idxs == Dict(
+    @test c.node_configs.idxs == Dict(
         "rescale" => 1,
         "log" => 2,
         "pca" => 3,
         "partition" => 4,
     )
-    @test c.node_configs[1]["card"]["group_by"].cols == ["cbwd"]
-    @test c.node_configs[1]["card"]["inputs"][1].groups == ["weather"]
-    @test c.node_configs[1]["card"]["inputs"][2].cols == ["No"]
-    @test c.node_configs[1]["card"]["partition"].nodes == ["partition"]
+    @test c.node_configs.configs[1]["card"]["group_by"].cols == ["cbwd"]
+    @test c.node_configs.configs[1]["card"]["inputs"][1].groups == ["weather"]
+    @test c.node_configs.configs[1]["card"]["inputs"][2].cols == ["No"]
+    @test c.node_configs.configs[1]["card"]["partition"].nodes == ["partition"]
 
-    @test c.node_configs[2]["card"]["inputs"].cols == ["No"]
+    @test c.node_configs.configs[2]["card"]["inputs"].cols == ["No"]
 
-    @test c.node_configs[3]["card"]["inputs"][1].nodes == ["log"]
-    @test c.node_configs[3]["card"]["inputs"][2].groups == ["weather"]
-    @test c.node_configs[3]["card"]["inputs"][2].through == ["rescale"]
+    @test c.node_configs.configs[3]["card"]["inputs"][1].nodes == ["log"]
+    @test c.node_configs.configs[3]["card"]["inputs"][2].groups == ["weather"]
+    @test c.node_configs.configs[3]["card"]["inputs"][2].through == ["rescale"]
 
-    @test c.node_configs[4]["card"]["order_by"].cols == ["No"]
+    @test c.node_configs.configs[4]["card"]["order_by"].cols == ["No"]
 
-    @test c.group_idxs == Dict("weather" => 1)
-    @test c.group_configs[1].cols == ["PRES", "TEMP"]
-    @test c.group_configs[1].through == String[]
+    @test c.group_configs.idxs == Dict("weather" => 1)
+    @test c.group_configs.configs[1].cols == ["PRES", "TEMP"]
+    @test c.group_configs.configs[1].through == String[]
 
     @test length(es) == 5
     @test Pair(es[1]) == (1 => 3)

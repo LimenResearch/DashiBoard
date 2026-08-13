@@ -1,15 +1,16 @@
 function dependency_graph(c::Configuration)
     edges, cols = Edge{Int}[], OrderedSet{String}()
-    n_nodes, n_groups = length(c.nodes), length(c.groups)
+    (; node_configs, group_configs) = c
+    n_nodes, n_groups = length(node_configs), length(group_configs)
 
-    for (i, deplist) in enumerate(Iterators.flatten([c.node_deps, c.group_deps]))
+    for (i, deplist) in enumerate(Iterators.flatten([node_configs.deps, group_configs.deps]))
         # Iterate over `deps` elements and add dependency edges
         for deps::Deps in deplist
             for node_key in Iterators.flatten([deps.nodes, deps.through])
-                push!(edges, Edge(c.node_idxs[node_key], i))
+                push!(edges, Edge(node_configs.idxs[node_key], i))
             end
             for group_key in deps.groups
-                push!(edges, Edge(n_nodes + c.group_idxs[group_key], i))
+                push!(edges, Edge(n_nodes + group_configs.idxs[group_key], i))
             end
             union!(cols, deps.cols)
         end
@@ -40,9 +41,9 @@ function Pipeline(
     )
 
     validate_schema && validate_pipeline_schema(nodes, groups, cols)
-    c = Configuration(nodes, groups) |> parse_deps!
+    c = Configuration(nodes, groups)
     G, cols = dependency_graph(c)
     replace_placeholders!(c, G)
-    eg = GroupDiGraph(G, cols, reduce(vcat, c.node_outputs), c.groups)
+    eg = GroupDiGraph(G, cols, reduce(vcat, c.node_configs.outputs), c.group_configs.outputs)
     return Pipeline(c.nodes, eg)
 end

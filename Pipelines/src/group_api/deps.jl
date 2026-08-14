@@ -25,10 +25,10 @@ struct DepsParser
     cols::OrderedSet{String}
     node_idxs::Dict{String, Int}
     group_idxs::Dict{String, Int}
+    n_nodes::Int
 end
 
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
-    n_nodes = length(dp.node_idxs)
     deps::UnparsedDeps = construct(UnparsedDeps, d)
     parsed_deps = ParsedDeps(
         nodes = get_indices(dp.node_idxs, deps.nodes),
@@ -36,7 +36,7 @@ function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
         cols = deps.cols,
         through = get_indices(dp.node_idxs, deps.through)
     )
-    idxs = vcat(parsed_deps.nodes, parsed_deps.through, parsed_deps.groups .+ n_nodes)
+    idxs = vcat(parsed_deps.nodes, parsed_deps.through, parsed_deps.groups .+ dp.n_nodes)
     append!(dp.edges, Edge.(idxs .=> i))
     union!(dp.cols, parsed_deps.cols)
     return parsed_deps
@@ -65,7 +65,7 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
         group_idxs[k] = i
     end
 
-    dp = DepsParser(Edge{Int}[], OrderedSet{String}(), node_idxs, group_idxs)
+    dp = DepsParser(Edge{Int}[], OrderedSet{String}(), node_idxs, group_idxs, n_nodes)
 
     # This also stores dependency edges in `dp`
     nodes = map(dp, node_configs′, eachindex(node_configs′))
@@ -119,7 +119,10 @@ replace_placeholders(deps::ParsedDeps, c::Configuration) = to_cols(deps, c)
 
 replace_placeholders(x::Any, c::Configuration) = x
 
-function replace_placeholders!(c::Configuration, G::DiGraph, nodes, groups)
+function Configuration(G::DiGraph, nodes, groups)
+    c = Configuration(
+        similar(nodes, Node), similar(nodes, Vector{String}), similar(groups, Vector{String})
+    )
     for i in topological_sort(G)
         if i ≤ length(c.nodes)
             node = Node(replace_placeholders(nodes[i], c))

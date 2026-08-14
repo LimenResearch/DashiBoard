@@ -40,3 +40,12 @@ function to_channel(iter)
     T = eltype(iter)
     return Channel{T}(ch -> putmany!(ch, iter), n, spawn = true)
 end
+
+# graph utils
+
+function _digraph(src::AbstractVector{I}, tgt::AbstractVector{I}, N::Integer) where {I <: Integer}
+    edges::Vector{Edge{I}} = Edge{I}.(src, tgt)
+    G = DiGraph(edges)
+    add_vertices!(G, N - nv(G))
+    return G
+end

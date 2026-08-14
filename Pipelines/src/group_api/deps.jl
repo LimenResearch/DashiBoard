@@ -21,7 +21,8 @@ function is_deps(d::AbstractDict)
 end
 
 struct DepsParser
-    edges::Vector{Edge{Int}}
+    srcs::Vector{Int}
+    tgts::Vector{Int}
     cols::OrderedSet{String}
     node_idxs::Dict{String, Int}
     group_idxs::Dict{String, Int}
@@ -37,7 +38,8 @@ function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
         through = get_indices(dp.node_idxs, deps.through)
     )
     idxs = vcat(parsed_deps.nodes, parsed_deps.through, parsed_deps.groups .+ dp.n_nodes)
-    append!(dp.edges, Edge.(idxs .=> i))
+    append!(dp.srcs, idxs)
+    append!(dp.tgts, StepRangeLen(i, 0, length(idxs))) # same as `fill` but does not allocate
     union!(dp.cols, parsed_deps.cols)
     return parsed_deps
 end
@@ -65,15 +67,15 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
         group_idxs[k] = i
     end
 
-    dp = DepsParser(Edge{Int}[], OrderedSet{String}(), node_idxs, group_idxs, n_nodes)
+    dp = DepsParser(Int[], Int[], OrderedSet{String}(), node_idxs, group_idxs, n_nodes)
 
     # This also stores dependency edges in `dp`
     nodes = map(dp, node_configs′, eachindex(node_configs′))
     groups = map(dp, group_configs′, eachindex(group_configs′) .+ n_nodes)
 
     # create graph and manually add potentially missing vertices
-    G = DiGraph(dp.edges)
-    add_vertices!(G, n_nodes + n_groups - nv(G))
+    p = sortperm(dp.srcs)
+    G = _digraph(view(dp.srcs, p), view(dp.tgts, p), n_nodes + n_groups)
 
     return G, nodes, groups, collect(String, dp.cols)
 end

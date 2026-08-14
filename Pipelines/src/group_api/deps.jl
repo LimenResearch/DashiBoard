@@ -7,11 +7,11 @@
     through::Vector{String} = String[]
 end
 
-@kwarg struct ParsedDeps
-    nodes::Vector{Int} = Int[]
-    groups::Vector{Int} = Int[]
-    cols::Vector{String} = String[]
-    through::Vector{Int} = Int[]
+struct ParsedDeps
+    nodes::Vector{Int}
+    groups::Vector{Int}
+    cols::Vector{String}
+    through::Vector{Int}
 end
 
 const DEPS_NAMES = ("nodes", "groups", "cols")
@@ -32,10 +32,10 @@ end
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
     udeps::UnparsedDeps = construct(UnparsedDeps, d)
     pdeps = ParsedDeps(
-        nodes = Int[dp.node_idxs[k] for k in udeps.nodes],
-        groups = Int[dp.group_idxs[k] for k in udeps.groups],
-        cols = udeps.cols,
-        through = Int[dp.node_idxs[k] for k in udeps.through]
+        Int[dp.node_idxs[k] for k in udeps.nodes],
+        Int[dp.group_idxs[k] for k in udeps.groups],
+        udeps.cols,
+        Int[dp.node_idxs[k] for k in udeps.through]
     )
     n_inputs = length(pdeps.nodes) + length(pdeps.through) + length(pdeps.groups)
     append!(dp.srcs, pdeps.nodes, pdeps.through, pdeps.groups .+ dp.n_nodes)

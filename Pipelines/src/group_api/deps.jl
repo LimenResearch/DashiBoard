@@ -1,10 +1,17 @@
 # utils
 
-@kwarg struct Deps
+@kwarg struct UnparsedDeps
     nodes::Vector{String} = String[]
     groups::Vector{String} = String[]
     cols::Vector{String} = String[]
     through::Vector{String} = String[]
+end
+
+@kwarg struct ParsedDeps
+    nodes::Vector{Int} = Int[]
+    groups::Vector{Int} = Int[]
+    cols::Vector{String} = String[]
+    through::Vector{Int} = Int[]
 end
 
 const DEPS_NAMES = ("nodes", "groups", "cols")
@@ -14,84 +21,82 @@ function is_deps(d::AbstractDict)
 end
 
 struct DepsParser
-    list::Vector{Deps}
+    edges::Vector{Edge{Int}}
+    cols::OrderedSet{String}
+    node_idxs::Dict{String, Int}
+    group_idxs::Dict{String, Int}
 end
 
-DepsParser() = DepsParser(Deps[])
-
-function parse_once(dp::DepsParser, d::AbstractDict)
-    deps = construct(Deps, d)
-    push!(dp.list, deps)
-    return deps
+function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
+    n_nodes = length(dp.node_idxs)
+    deps::UnparsedDeps = construct(UnparsedDeps, d)
+    parsed_deps = ParsedDeps(
+        nodes = get_indices(dp.node_idxs, deps.nodes),
+        groups = get_indices(dp.group_idxs, deps.groups),
+        cols = deps.cols,
+        through = get_indices(dp.node_idxs, deps.through)
+    )
+    idxs = vcat(parsed_deps.nodes, parsed_deps.through, parsed_deps.groups .+ n_nodes)
+    append!(dp.edges, Edge.(idxs .=> i))
+    union!(dp.cols, parsed_deps.cols)
+    return parsed_deps
 end
 
-(dp::DepsParser)(d::AbstractDict) = is_deps(d) ? parse_once(dp, d) : map_into(dp, StringDict, d)
-(dp::DepsParser)(v::AbstractVector) = map_into(dp, Vector{Any}, v)
-(::DepsParser)(x::Any) = x
-
-# `Configuration` structure
-
-struct IndexableConfigs{C, V}
-    idxs::Dict{String, Int}
-    configs::Vector{C}
-    vals::Vector{V}
-    outputs::Vector{Vector{String}}
+function (dp::DepsParser)(d::AbstractDict, i::Integer)
+    return is_deps(d) ? parse_once(dp, d, i) : map_into(Fix2(dp, i), StringDict, d)
 end
 
-(adjust(::Type{T}, x)::T) where {T} = x
-(adjust(::Type{T}, x::AbstractVector)::T) where {T <: AbstractVector} = x
-(adjust(::Type{T}, x)::T) where {T <: AbstractVector} = eltype(T)[x]
+(dp::DepsParser)(v::AbstractVector, i::Integer) = map_into(Fix2(dp, i), Vector{Any}, v)
 
-function IndexableConfigs{C, V}(iter) where {C, V}
-    n = length(iter)
-    idxs = Dict{String, Int}()
-    configs = Vector{C}(undef, n)
-    vals = Vector{V}(undef, n)
-    outputs = Vector{Vector{String}}(undef, n)
+(::DepsParser)(x::Any, ::Integer) = x
 
-    for (i, (k, v)) in enumerate(iter)
-        configs[i] = adjust(C, v)
-        idxs[k] = i
+function dependency_graph(node_configs::AbstractVector, group_configs::AbstractDict)
+    n_nodes, n_groups = length(node_configs), length(group_configs)
+    node_configs′::Vector{StringDict} = node_configs
+
+    ids = get_id.(node_configs′)
+    allunique(ids) ||  throw(ArgumentError("Encountered nodes with equal `id`"))
+    node_idxs = Dict{String, Int}(zip(ids, eachindex(ids)))
+
+    group_configs′ = Vector{Vector{Any}}(undef, n_groups)
+    group_idxs = Dict{String, Int}()
+    for (i, (k, grp)) in enumerate(pairs(group_configs))
+        group_configs′[i] = grp isa AbstractVector ? grp : Any[grp]
+        group_idxs[k] = i
     end
-    return IndexableConfigs{C, V}(idxs, configs, vals, outputs)
+
+    dp = DepsParser(Edge{Int}[], OrderedSet{String}(), node_idxs, group_idxs)
+
+    # This also stores dependency edges in `dp`
+    nodes = map(dp, node_configs′, eachindex(node_configs′))
+    groups = map(dp, group_configs′, eachindex(group_configs′) .+ n_nodes)
+
+    # create graph and manually add potentially missing vertices
+    G = DiGraph(dp.edges)
+    add_vertices!(G, n_nodes + n_groups - nv(G))
+
+    return G, nodes, groups, collect(String, dp.cols)
 end
 
-IndexableConfigs{C, V}(ks, vs) where {C, V} = IndexableConfigs{C, V}(zip(ks, vs))
-
-Base.length(ic::IndexableConfigs) = length(ic.configs)
-
-get_vals(ic::IndexableConfigs, ks::AbstractVector) = ic.vals[get_indices(ic.idxs, ks)]
-get_outputs(ic::IndexableConfigs, ks::AbstractVector) = ic.outputs[get_indices(ic.idxs, ks)]
+# Machinery to replace `Deps`
 
 struct Configuration
-    nodes::IndexableConfigs{StringDict, Node}
-    groups::IndexableConfigs{Vector{Any}, Nothing}
-end
-
-function Configuration(node_configs::AbstractVector, group_configs::AbstractDict)
-    ids = get_id.(node_configs)
-    allunique(ids) || throw(ArgumentError("Encountered nodes with equal `id`"))
-    nodes = IndexableConfigs{StringDict, Node}(ids, node_configs)
-    groups = IndexableConfigs{Vector{Any}, Nothing}(pairs(group_configs))
-    return Configuration(nodes, groups)
+    nodes::Vector{Node}
+    outputs::Vector{Vector{String}}
+    groups::Vector{Vector{String}}
 end
 
 # TODO: more general definition
-function pass_through(x::AbstractVector, ks::AbstractVector, c::Configuration)
-    isempty(ks) && return x
-    nodes = get_vals(c.nodes, ks)
-    suffix = join([node.card.suffix for node in nodes], "_")
+function pass_through(x::AbstractVector, is::AbstractVector, nodes)
+    isempty(is) && return x
+    suffix = join((node.card.suffix for node in view(nodes, is)), "_")
     return join_names.(x, suffix)
 end
 
-function to_columns(d::Deps, c::Configuration)
-    nested = vcat(
-        get_outputs(c.nodes, d.nodes),
-        get_outputs(c.groups, d.groups),
-        [d.cols]
-    )
+function to_cols(d::ParsedDeps, c::Configuration)
+    nested = vcat(c.outputs[d.nodes], c.groups[d.groups], [d.cols])
     cols = reduce(vcat, nested)
-    return pass_through(cols, d.through, c)
+    return pass_through(cols, d.through, c.nodes)
 end
 
 # Nested column computations
@@ -103,26 +108,26 @@ end
 function replace_placeholders(v::AbstractVector, c::Configuration)
     res = Any[]
     for el in v
-        # append if `Deps`, else push
+        # append if `ParsedDeps`, else push
         x = replace_placeholders(el, c)
-        el isa Deps ? append!(res, x) : push!(res, x)
+        el isa ParsedDeps ? append!(res, x) : push!(res, x)
     end
     return res
 end
 
-replace_placeholders(deps::Deps, c::Configuration) = to_columns(deps, c)
+replace_placeholders(deps::ParsedDeps, c::Configuration) = to_cols(deps, c)
 
 replace_placeholders(x::Any, c::Configuration) = x
 
-function replace_placeholders!(c::Configuration, G::DiGraph)
+function replace_placeholders!(c::Configuration, G::DiGraph, nodes, groups)
     for i in topological_sort(G)
         if i ≤ length(c.nodes)
-            node = Node(replace_placeholders(c.nodes.configs[i], c))
-            c.nodes.vals[i] = node
-            c.nodes.outputs[i] = get_node_outputs(node)
+            node = Node(replace_placeholders(nodes[i], c))
+            c.nodes[i] = node
+            c.outputs[i] = get_node_outputs(node)
         else
             j = i - length(c.nodes)
-            c.groups.outputs[j] = replace_placeholders(c.groups.configs[j], c)
+            c.groups[j] = replace_placeholders(groups[j], c)
         end
     end
     return c

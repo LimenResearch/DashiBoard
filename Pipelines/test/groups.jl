@@ -1,31 +1,31 @@
 @testset "groups" begin
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
-    c = Pipelines.Configuration(d["nodes"], d["groups"])
-    g, cols = Pipelines.dependency_graph!(c)
+    g, nds, grps, cols = Pipelines.dependency_graph(d["nodes"], d["groups"])
     es = sort(collect(edges(g)))
 
-    @test c.nodes.idxs == Dict(
+    node_idxs = Dict(
         "rescale" => 1,
         "log" => 2,
         "pca" => 3,
         "partition" => 4,
     )
-    @test c.nodes.configs[1]["card"]["group_by"].cols == ["cbwd"]
-    @test c.nodes.configs[1]["card"]["inputs"][1].groups == ["weather"]
-    @test c.nodes.configs[1]["card"]["inputs"][2].cols == ["No"]
-    @test c.nodes.configs[1]["card"]["partition"].nodes == ["partition"]
+    group_idxs = Dict("weather" => 1)
 
-    @test c.nodes.configs[2]["card"]["inputs"].cols == ["No"]
+    @test nds[1]["card"]["group_by"].cols == ["cbwd"]
+    @test nds[1]["card"]["inputs"][1].groups == [group_idxs["weather"]]
+    @test nds[1]["card"]["inputs"][2].cols == ["No"]
+    @test nds[1]["card"]["partition"].nodes == [node_idxs["partition"]]
 
-    @test c.nodes.configs[3]["card"]["inputs"][1].nodes == ["log"]
-    @test c.nodes.configs[3]["card"]["inputs"][2].groups == ["weather"]
-    @test c.nodes.configs[3]["card"]["inputs"][2].through == ["rescale"]
+    @test nds[2]["card"]["inputs"].cols == ["No"]
 
-    @test c.nodes.configs[4]["card"]["order_by"].cols == ["No"]
+    @test nds[3]["card"]["inputs"][1].nodes == [node_idxs["log"]]
+    @test nds[3]["card"]["inputs"][2].groups == [group_idxs["weather"]]
+    @test nds[3]["card"]["inputs"][2].through == [node_idxs["rescale"]]
 
-    @test c.groups.idxs == Dict("weather" => 1)
-    @test only(c.groups.configs[1]).cols == ["PRES", "TEMP"]
-    @test only(c.groups.configs[1]).through == String[]
+    @test nds[4]["card"]["order_by"].cols == ["No"]
+
+    @test only(grps[1]).cols == ["PRES", "TEMP"]
+    @test only(grps[1]).through == String[]
 
     @test length(es) == 5
     @test Pair(es[1]) == (1 => 3)
@@ -38,7 +38,7 @@
 
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     d["nodes"][2]["id"] = "rescale" # artificially create ambiguous `id`
-    @test_throws ArgumentError Pipelines.Configuration(d["nodes"], d["groups"])
+    @test_throws ArgumentError Pipelines.dependency_graph(d["nodes"], d["groups"])
 end
 
 @testset "groups schema" begin

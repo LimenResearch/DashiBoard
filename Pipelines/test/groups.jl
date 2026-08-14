@@ -1,7 +1,7 @@
 @testset "groups" begin
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     c = Pipelines.Configuration(d["nodes"], d["groups"])
-    g, cols = Pipelines.dependency_graph(c)
+    g, cols = Pipelines.dependency_graph!(c)
     es = sort(collect(edges(g)))
 
     @test c.nodes.idxs == Dict(

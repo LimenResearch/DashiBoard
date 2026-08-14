@@ -29,10 +29,6 @@ end
 (dp::DepsParser)(v::AbstractVector) = map_into(dp, Vector{Any}, v)
 (::DepsParser)(x::Any) = x
 
-standardize(d::AbstractDict)::StringDict = d
-standardize(deps::Deps)::Vector{Deps} = Deps[deps]
-standardize(v::AbstractVector)::Vector{Deps} = v
-
 # `Configuration` structure
 
 struct IndexableConfigs{C, V}
@@ -40,8 +36,11 @@ struct IndexableConfigs{C, V}
     configs::Vector{C}
     vals::Vector{V}
     outputs::Vector{Vector{String}}
-    deps::Vector{Vector{Deps}}
 end
+
+(adjust(::Type{T}, x)::T) where {T} = x
+(adjust(::Type{T}, x::AbstractVector)::T) where {T <: AbstractVector} = x
+(adjust(::Type{T}, x)::T) where {T <: AbstractVector} = eltype(T)[x]
 
 function IndexableConfigs{C, V}(iter) where {C, V}
     n = length(iter)
@@ -49,16 +48,12 @@ function IndexableConfigs{C, V}(iter) where {C, V}
     configs = Vector{C}(undef, n)
     vals = Vector{V}(undef, n)
     outputs = Vector{Vector{String}}(undef, n)
-    deps = Vector{Vector{Deps}}(undef, n)
 
     for (i, (k, v)) in enumerate(iter)
-        dp = DepsParser()
-        parsed = dp(v)
-        configs[i] = standardize(parsed)
-        deps[i] = dp.list
+        configs[i] = adjust(C, v)
         idxs[k] = i
     end
-    return IndexableConfigs{C, V}(idxs, configs, vals, outputs, deps)
+    return IndexableConfigs{C, V}(idxs, configs, vals, outputs)
 end
 
 IndexableConfigs{C, V}(ks, vs) where {C, V} = IndexableConfigs{C, V}(zip(ks, vs))
@@ -70,14 +65,14 @@ get_outputs(ic::IndexableConfigs, ks::AbstractVector) = ic.outputs[get_indices(i
 
 struct Configuration
     nodes::IndexableConfigs{StringDict, Node}
-    groups::IndexableConfigs{Vector{Deps}, Nothing}
+    groups::IndexableConfigs{Vector{Any}, Nothing}
 end
 
 function Configuration(node_configs::AbstractVector, group_configs::AbstractDict)
     ids = get_id.(node_configs)
     allunique(ids) || throw(ArgumentError("Encountered nodes with equal `id`"))
     nodes = IndexableConfigs{StringDict, Node}(ids, node_configs)
-    groups = IndexableConfigs{Vector{Deps}, Nothing}(pairs(group_configs))
+    groups = IndexableConfigs{Vector{Any}, Nothing}(pairs(group_configs))
     return Configuration(nodes, groups)
 end
 

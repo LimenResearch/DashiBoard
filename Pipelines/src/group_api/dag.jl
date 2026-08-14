@@ -1,18 +1,39 @@
-function dependency_graph(c::Configuration)
+function add_edges!(
+        edges::AbstractVector, cols::AbstractSet, c::Configuration,
+        deps::Deps, i::Integer, n_nodes::Integer
+    )
+    for node_keys in (deps.nodes, deps.through), node_key in node_keys
+        push!(edges, Edge(c.nodes.idxs[node_key], i))
+    end
+    for group_key in deps.groups
+        push!(edges, Edge(n_nodes + c.groups.idxs[group_key], i))
+    end
+    union!(cols, deps.cols)
+    return deps
+end
+
+function add_edges!(
+        edges::AbstractVector, cols::AbstractSet, c::Configuration,
+        config::Union{AbstractDict, AbstractVector}, i::Integer, n_nodes::Integer
+    )
+    # Iterate over `deps` elements and add dependency edges
+    dp = DepsParser()
+    parsed = dp(config)
+    for deps::Deps in dp.list
+        add_edges!(edges, cols, c, deps, i, n_nodes)
+    end
+    return parsed
+end
+
+function dependency_graph!(c::Configuration)
     edges, cols = Edge{Int}[], OrderedSet{String}()
     n_nodes, n_groups = length(c.nodes), length(c.groups)
 
-    for (i, deplist) in enumerate(Iterators.flatten([c.nodes.deps, c.groups.deps]))
-        # Iterate over `deps` elements and add dependency edges
-        for deps::Deps in deplist
-            for node_key in Iterators.flatten([deps.nodes, deps.through])
-                push!(edges, Edge(c.nodes.idxs[node_key], i))
-            end
-            for group_key in deps.groups
-                push!(edges, Edge(n_nodes + c.groups.idxs[group_key], i))
-            end
-            union!(cols, deps.cols)
-        end
+    for i in eachindex(c.nodes.configs)
+        c.nodes.configs[i] = add_edges!(edges, cols, c, c.nodes.configs[i], i, n_nodes)
+    end
+    for i in eachindex(c.groups.configs)
+        c.groups.configs[i] = add_edges!(edges, cols, c, c.groups.configs[i], n_nodes + i, n_nodes)
     end
 
     # create graph and manually add potentially missing vertices
@@ -41,7 +62,7 @@ function Pipeline(
 
     validate_schema && validate_pipeline_schema(nodes, groups, cols)
     c = Configuration(nodes, groups)
-    G, cols = dependency_graph(c)
+    G, cols = dependency_graph!(c)
     replace_placeholders!(c, G)
     eg = GroupDiGraph(
         G, cols,

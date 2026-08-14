@@ -5,8 +5,6 @@ _map!(f::F, v::AbstractVector) where {F} = map!(f, v, v)
 
 map_into(f::F, ::Type{T}, x) where {F, T} = _map!(f, T(x))::T
 
-get_indices(d::AbstractDict{<:Any, I}, ks::AbstractVector) where {I} = I[d[k] for k in ks]
-
 to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]
 to_stringlist(s::AbstractVector) = convert(Vector{String}, s)
 

@@ -11,11 +11,11 @@ get_output_vars(eg::GroupDiGraph) = eg.output_vars
 function Pipeline(
         node_configs::AbstractVector,
         group_configs::AbstractDict,
-        cols::Union{AbstractVector, Nothing} = nothing;
+        available_cols::Union{AbstractVector, Nothing} = nothing;
         validate_schema::Bool = true
     )
 
-    validate_schema && validate_pipeline_schema(node_configs, group_configs, cols)
+    validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
     G, nodes, groups, cols = dependency_graph(node_configs, group_configs)
     c = Configuration(G, nodes, groups)
     eg = GroupDiGraph(G, cols, reduce(vcat, c.outputs), c.groups)

@@ -20,28 +20,28 @@ function is_deps(d::AbstractDict)
     return count(in(keys(d)), DEPS_NAMES) == 1 && keys(d) ⊆ (DEPS_NAMES..., "through")
 end
 
-struct DepsParser
-    srcs::Vector{Int}
-    tgts::Vector{Int}
-    cols::OrderedSet{String}
+@defaults struct DepsParser
     node_idxs::Dict{String, Int}
     group_idxs::Dict{String, Int}
     n_nodes::Int
+    srcs::Vector{Int} = Int[]
+    tgts::Vector{Int} = Int[]
+    cols::OrderedSet{String} = OrderedSet{String}()
 end
 
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
-    deps::UnparsedDeps = construct(UnparsedDeps, d)
-    parsed_deps = ParsedDeps(
-        nodes = get_indices(dp.node_idxs, deps.nodes),
-        groups = get_indices(dp.group_idxs, deps.groups),
-        cols = deps.cols,
-        through = get_indices(dp.node_idxs, deps.through)
+    udeps::UnparsedDeps = construct(UnparsedDeps, d)
+    pdeps = ParsedDeps(
+        nodes = Int[dp.node_idxs[k] for k in udeps.nodes],
+        groups = Int[dp.group_idxs[k] for k in udeps.groups],
+        cols = udeps.cols,
+        through = Int[dp.node_idxs[k] for k in udeps.through]
     )
-    idxs = vcat(parsed_deps.nodes, parsed_deps.through, parsed_deps.groups .+ dp.n_nodes)
-    append!(dp.srcs, idxs)
-    append!(dp.tgts, StepRangeLen(i, 0, length(idxs))) # same as `fill` but does not allocate
-    union!(dp.cols, parsed_deps.cols)
-    return parsed_deps
+    n_inputs = length(pdeps.nodes) + length(pdeps.through) + length(pdeps.groups)
+    append!(dp.srcs, pdeps.nodes, pdeps.through, pdeps.groups .+ dp.n_nodes)
+    append!(dp.tgts, StepRangeLen(i, 0, n_inputs)) # same as `fill` but does not allocate
+    union!(dp.cols, pdeps.cols)
+    return pdeps
 end
 
 function (dp::DepsParser)(d::AbstractDict, i::Integer)
@@ -67,7 +67,7 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
         group_idxs[k] = i
     end
 
-    dp = DepsParser(Int[], Int[], OrderedSet{String}(), node_idxs, group_idxs, n_nodes)
+    dp = DepsParser(node_idxs, group_idxs, n_nodes)
 
     # This also stores dependency edges in `dp`
     nodes = map(dp, node_configs′, eachindex(node_configs′))
@@ -80,7 +80,7 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     return G, nodes, groups, collect(String, dp.cols)
 end
 
-# Machinery to replace `Deps`
+# Machinery to replace `ParsedDeps`
 
 struct Configuration
     nodes::Vector{Node}
@@ -89,7 +89,7 @@ struct Configuration
 end
 
 # TODO: more general definition
-function pass_through(x::AbstractVector, is::AbstractVector, nodes)
+function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVector)
     isempty(is) && return x
     suffix = join((node.card.suffix for node in view(nodes, is)), "_")
     return join_names.(x, suffix)

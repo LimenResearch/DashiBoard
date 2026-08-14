@@ -36,7 +36,8 @@ using TOML: parsefile
 using RelocatableFolders: @path
 
 using JLD2: jldopen
-using StructUtils: @choosetype, @nonstruct, @kwarg, @tags, fieldtags, fielddefaults, StructUtils
+using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
+    fieldtags, fielddefaults, StructUtils
 using JSONSchema: JSONSchema
 
 using OrderedCollections: OrderedDict, OrderedSet

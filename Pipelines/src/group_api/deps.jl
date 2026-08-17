@@ -1,24 +1,5 @@
 # utils
 
-@defaults struct DepsParser
-    node_idxs::Dict{String, Int}
-    group_idxs::Dict{String, Int}
-    srcs::Vector{Int} = Int[]
-    tgts::Vector{Int} = Int[]
-    cols::OrderedSet{String} = OrderedSet{String}()
-end
-
-function append_edges!(dp::DepsParser, srcs::AbstractVector, dst::Integer)
-    append!(dp.srcs, srcs)
-    # here, `StepRangeLen` is the same as `fill` but does not allocate
-    append!(dp.tgts, StepRangeLen(dst, 0, length(srcs)))
-    return dp
-end
-
-const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
-
-is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(!=("through"), keys(d)) == 1
-
 struct Source
     cols::Vector{String}
 end
@@ -32,18 +13,40 @@ struct Deps
     through::Vector{Int}
 end
 
-function Deps(dp::DepsParser, d::AbstractDict)
-    k::String = only(Iterators.filter(!=("through"), keys(d)))
-    v::Vector{String} = d[k]
-    idx_dict = k == "nodes" ? dp.node_idxs : k == "groups" ? dp.group_idxs : nothing
-    inputs = isnothing(idx_dict) ? Source(v) : Computed(Int[idx_dict[k] for k in v])
-    through::Vector{String} = get(d, "through", String[])
-    through_idxs = Int[dp.node_idxs[k] for k in through]
-    return Deps(inputs, through_idxs)
+@defaults struct DepsParser
+    node_idxs::Dict{String, Int}
+    group_idxs::Dict{String, Int}
+    srcs::Vector{Int} = Int[]
+    tgts::Vector{Int} = Int[]
+    cols::OrderedSet{String} = OrderedSet{String}()
 end
 
-update!(dp::DepsParser, inputs::Computed, dst::Integer) = append_edges!(dp, inputs.idxs, dst)
-update!(dp::DepsParser, inputs::Source, _::Integer) = (union!(dp.cols, inputs.cols); dp)
+function append_edges!(dp::DepsParser, src::AbstractVector, dst::Integer)
+    append!(dp.srcs, src)
+    # here, `StepRangeLen` is the same as `fill` but does not allocate
+    append!(dp.tgts, StepRangeLen(dst, 0, length(src)))
+    return dp
+end
+
+update!(dp::DepsParser, src::Computed, dst::Integer) = append_edges!(dp, src.idxs, dst)
+update!(dp::DepsParser, src::Source, _::Integer) = (union!(dp.cols, src.cols); dp)
+
+# Parsing machinery
+
+const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
+
+is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(!=("through"), keys(d)) == 1
+
+function Deps(dp::DepsParser, d::AbstractDict)
+    key::String = only(Iterators.filter(!=("through"), keys(d)))
+    val::Vector{String} = d[key]
+    idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
+    inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
+
+    _through::Vector{String} = get(d, "through", String[])
+    through = Int[dp.node_idxs[k] for k in _through]
+    return Deps(inputs, through)
+end
 
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
     deps = Deps(dp, d)

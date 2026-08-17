@@ -1,7 +1,7 @@
 struct GroupDiGraph{I <: Integer} <: AbstractEnrichedDiGraph{I}
     g::DiGraph{I}
     source_vars::Vector{String}
-    output_vars::Vector{String} # consider saving node_outputs instead
+    output_vars::Vector{String} # consider saving node outputs separately instead
     groups::Vector{Vector{String}}
 end
 

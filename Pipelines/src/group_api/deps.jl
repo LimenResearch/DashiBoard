@@ -8,8 +8,7 @@
 end
 
 struct ParsedDeps
-    nodes::Vector{Int}
-    groups::Vector{Int}
+    from::Vector{Int}
     cols::Vector{String}
     through::Vector{Int}
 end
@@ -29,16 +28,19 @@ end
     cols::OrderedSet{String} = OrderedSet{String}()
 end
 
+function ParsedDeps(dp::DepsParser, udeps::UnparsedDeps)
+    nodes = Int[dp.node_idxs[k] for k in udeps.nodes]
+    groups = Int[dp.group_idxs[k] for k in udeps.groups]
+    cols = udeps.cols
+    through = Int[dp.node_idxs[k] for k in udeps.through]
+    return ParsedDeps(vcat(nodes, groups .+ dp.n_nodes), cols, through)
+end
+
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
     udeps::UnparsedDeps = construct(UnparsedDeps, d)
-    pdeps = ParsedDeps(
-        Int[dp.node_idxs[k] for k in udeps.nodes],
-        Int[dp.group_idxs[k] for k in udeps.groups],
-        udeps.cols,
-        Int[dp.node_idxs[k] for k in udeps.through]
-    )
-    n_inputs = length(pdeps.nodes) + length(pdeps.through) + length(pdeps.groups)
-    append!(dp.srcs, pdeps.nodes, pdeps.through, pdeps.groups .+ dp.n_nodes)
+    pdeps = ParsedDeps(dp, udeps)
+    n_inputs = length(pdeps.from) + length(pdeps.through)
+    append!(dp.srcs, pdeps.from, pdeps.through)
     append!(dp.tgts, StepRangeLen(i, 0, n_inputs)) # same as `fill` but does not allocate
     union!(dp.cols, pdeps.cols)
     return pdeps
@@ -84,7 +86,6 @@ end
 struct Configuration
     nodes::Vector{Node}
     outputs::Vector{Vector{String}}
-    groups::Vector{Vector{String}}
 end
 
 # TODO: more general definition
@@ -95,7 +96,7 @@ function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVect
 end
 
 function to_cols(d::ParsedDeps, c::Configuration)
-    nested = vcat(c.outputs[d.nodes], c.groups[d.groups], [d.cols])
+    nested = vcat(c.outputs[d.from], [d.cols])
     cols = reduce(vcat, nested)
     return pass_through(cols, d.through, c.nodes)
 end
@@ -121,17 +122,19 @@ replace_placeholders(deps::ParsedDeps, c::Configuration) = to_cols(deps, c)
 replace_placeholders(x::Any, c::Configuration) = x
 
 function Configuration(G::DiGraph, nodes, groups)
+    n_nodes, n_groups = length(nodes), length(groups)
     c = Configuration(
-        similar(nodes, Node), similar(nodes, Vector{String}), similar(groups, Vector{String})
+        Vector{Node}(undef, n_nodes),
+        Vector{Vector{String}}(undef, n_nodes + n_groups)
     )
     for i in topological_sort(G)
-        if i ≤ length(c.nodes)
+        if i ≤ n_nodes
             node = Node(replace_placeholders(nodes[i], c))
             c.nodes[i] = node
             c.outputs[i] = get_node_outputs(node)
         else
-            j = i - length(c.nodes)
-            c.groups[j] = replace_placeholders(groups[j], c)
+            j = i - n_nodes
+            c.outputs[i] = replace_placeholders(groups[j], c)
         end
     end
     return c

@@ -17,7 +17,8 @@ function Pipeline(
 
     validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
     G, nodes, groups, cols = dependency_graph(node_configs, group_configs)
+    n_nodes = length(nodes)
     c = Configuration(G, nodes, groups)
-    eg = GroupDiGraph(G, cols, reduce(vcat, c.outputs), c.groups)
+    eg = GroupDiGraph(G, cols, reduce(vcat, c.outputs[1:n_nodes]), c.outputs[n_nodes:end])
     return Pipeline(c.nodes, eg)
 end

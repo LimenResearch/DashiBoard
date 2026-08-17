@@ -12,14 +12,14 @@
     group_idxs = Dict("weather" => 1)
 
     @test nds[1]["card"]["group_by"].cols == ["cbwd"]
-    @test nds[1]["card"]["inputs"][1].groups == [group_idxs["weather"]]
+    @test nds[1]["card"]["inputs"][1].from == [group_idxs["weather"] + 4]
     @test nds[1]["card"]["inputs"][2].cols == ["No"]
-    @test nds[1]["card"]["partition"].nodes == [node_idxs["partition"]]
+    @test nds[1]["card"]["partition"].from == [node_idxs["partition"]]
 
     @test nds[2]["card"]["inputs"].cols == ["No"]
 
-    @test nds[3]["card"]["inputs"][1].nodes == [node_idxs["log"]]
-    @test nds[3]["card"]["inputs"][2].groups == [group_idxs["weather"]]
+    @test nds[3]["card"]["inputs"][1].from == [node_idxs["log"]]
+    @test nds[3]["card"]["inputs"][2].from == [group_idxs["weather"] + 4]
     @test nds[3]["card"]["inputs"][2].through == [node_idxs["rescale"]]
 
     @test nds[4]["card"]["order_by"].cols == ["No"]

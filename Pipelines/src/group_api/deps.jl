@@ -33,7 +33,7 @@ function ParsedDeps(dp::DepsParser, udeps::UnparsedDeps)
     groups = Int[dp.group_idxs[k] for k in udeps.groups]
     cols = udeps.cols
     through = Int[dp.node_idxs[k] for k in udeps.through]
-    return ParsedDeps(vcat(nodes, groups .+ dp.n_nodes), cols, through)
+    return ParsedDeps(vcat(nodes, groups), cols, through)
 end
 
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
@@ -66,7 +66,7 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     group_idxs = Dict{String, Int}()
     for (i, (k, grp)) in enumerate(pairs(group_configs))
         group_configs′[i] = grp isa AbstractVector ? grp : Any[grp]
-        group_idxs[k] = i
+        group_idxs[k] = i + n_nodes
     end
 
     dp = DepsParser(node_idxs, group_idxs, n_nodes)

@@ -46,7 +46,7 @@ function EnrichedDiGraph(nodes::AbstractVector{Node})
     p = sortperm(src_in)
     src::Vector{Int} = vcat(src_out, view(src_in, p))
     tgt::Vector{Int} = vcat(tgt_out, view(tgt_in, p))
-    g = isempty(src) ? DiGraph{Int}() : DiGraph(Edge.(src, tgt))
+    g = _digraph(src, tgt, length(nodes) + length(source_vars) + length(output_vars))
 
     # return enriched graph
     return EnrichedDiGraph(g, source_vars, output_vars)

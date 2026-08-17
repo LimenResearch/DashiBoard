@@ -5,8 +5,6 @@ _map!(f::F, v::AbstractVector) where {F} = map!(f, v, v)
 
 map_into(f::F, ::Type{T}, x) where {F, T} = _map!(f, T(x))::T
 
-get_indices(d::AbstractDict{<:Any, I}, ks::AbstractVector) where {I} = I[d[k] for k in ks]
-
 to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]
 to_stringlist(s::AbstractVector) = convert(Vector{String}, s)
 
@@ -39,4 +37,13 @@ function to_channel(iter)
     n = length(iter)
     T = eltype(iter)
     return Channel{T}(ch -> putmany!(ch, iter), n, spawn = true)
+end
+
+# graph utils
+
+function _digraph(src::AbstractVector{I}, tgt::AbstractVector{I}, N::Integer) where {I <: Integer}
+    edges::Vector{Edge{I}} = Edge{I}.(src, tgt)
+    G = DiGraph(edges)
+    add_vertices!(G, N - nv(G))
+    return G
 end

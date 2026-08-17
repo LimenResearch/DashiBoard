@@ -82,7 +82,7 @@ end
 
 # Machinery to replace `ParsedDeps`
 
-struct Configuration
+struct Context
     nodes::Vector{Node}
     outputs::Vector{Vector{String}}
 end
@@ -94,46 +94,40 @@ function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVect
     return join_names.(x, suffix)
 end
 
-function to_cols(d::ParsedDeps, c::Configuration)
-    nested = vcat(c.outputs[d.from], [d.cols])
-    cols = reduce(vcat, nested)
-    return pass_through(cols, d.through, c.nodes)
-end
-
 # Nested column computations
 
-function replace_placeholders(d::AbstractDict, c::Configuration)
-    return map_into(Fix2(replace_placeholders, c), StringDict, d)
+function (c::Context)(deps::ParsedDeps)
+    nested::Vector{Vector{String}} = vcat(view(c.outputs, deps.from), [deps.cols])
+    cols = reduce(vcat, nested)
+    return pass_through(cols, deps.through, c.nodes)
 end
 
-function replace_placeholders(v::AbstractVector, c::Configuration)
+(c::Context)(d::AbstractDict) = map_into(c, StringDict, d)
+
+function (c::Context)(v::AbstractVector)
     res = Any[]
     for el in v
         # append if `ParsedDeps`, else push
-        x = replace_placeholders(el, c)
-        el isa ParsedDeps ? append!(res, x) : push!(res, x)
+        el isa ParsedDeps ? append!(res, c(el)) : push!(res, c(el))
     end
     return res
 end
 
-replace_placeholders(deps::ParsedDeps, c::Configuration) = to_cols(deps, c)
+(_::Context)(x::Any) = x
 
-replace_placeholders(x::Any, c::Configuration) = x
-
-function Configuration(G::DiGraph, nodes, groups)
+function Context(G::DiGraph, nodes, groups)
     n_nodes, n_groups = length(nodes), length(groups)
-    c = Configuration(
+    c = Context(
         Vector{Node}(undef, n_nodes),
         Vector{Vector{String}}(undef, n_nodes + n_groups)
     )
     for i in topological_sort(G)
         if i ≤ n_nodes
-            node = Node(replace_placeholders(nodes[i], c))
+            node = Node(c(nodes[i]))
             c.nodes[i] = node
             c.outputs[i] = get_node_outputs(node)
         else
-            j = i - n_nodes
-            c.outputs[i] = replace_placeholders(groups[j], c)
+            c.outputs[i] = c(groups[i - n_nodes])
         end
     end
     return c

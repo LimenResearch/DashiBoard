@@ -37,7 +37,7 @@ const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
 
 is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(!=("through"), keys(d)) == 1
 
-function Deps(dp::DepsParser, d::AbstractDict)
+function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
     key::String = only(Iterators.filter(!=("through"), keys(d)))
     val::Vector{String} = d[key]
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
@@ -45,18 +45,15 @@ function Deps(dp::DepsParser, d::AbstractDict)
 
     _through::Vector{String} = get(d, "through", String[])
     through = Int[dp.node_idxs[k] for k in _through]
+
+    update!(dp, inputs, i)
+    append_edges!(dp, through, i)
+
     return Deps(inputs, through)
 end
 
-function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
-    deps = Deps(dp, d)
-    append_edges!(dp, deps.through, i)
-    update!(dp, deps.inputs, i)
-    return deps
-end
-
 function (dp::DepsParser)(d::AbstractDict, i::Integer)
-    return is_deps(d) ? parse_once(dp, d, i) : map_into(Fix2(dp, i), StringDict, d)
+    return is_deps(d) ? Deps(dp, d, i) : map_into(Fix2(dp, i), StringDict, d)
 end
 
 (dp::DepsParser)(v::AbstractVector, i::Integer) = map_into(Fix2(dp, i), Vector{Any}, v)

@@ -138,3 +138,18 @@ function Configuration(G::DiGraph, nodes, groups)
     end
     return c
 end
+
+function Pipeline(
+        node_configs::AbstractVector,
+        group_configs::AbstractDict,
+        available_cols::Union{AbstractVector, Nothing} = nothing;
+        validate_schema::Bool = true
+    )
+
+    validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
+    G, nodes, groups, cols = dependency_graph(node_configs, group_configs)
+    n_nodes = length(nodes)
+    c = Configuration(G, nodes, groups)
+    eg = EnrichedDiGraph(G, cols, reduce(vcat, c.outputs[1:n_nodes]))
+    return Pipeline(c.nodes, eg)
+end

@@ -190,7 +190,6 @@ include("dag.jl")
 include("pipeline.jl")
 
 include("group_api/deps.jl")
-include("group_api/dag.jl")
 include("group_api/schema.jl")
 
 function __init__()

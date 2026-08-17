@@ -19,10 +19,6 @@
         return Pipelines.Card(c)
     end
 
-    g = Pipelines.digraph(Pipelines.Node[])
-    @test nv(g) == 0
-    @test eltype(g) === Int
-
     nodes = [
         Pipelines.Node(trivialcard(["temp"], "pred humid"), id = "1", update = true),
         Pipelines.Node(trivialcard(["pred humid"], "pred wind"), id = "2", update = true),
@@ -31,15 +27,14 @@
     ]
 
     enriched_digraph = Pipelines.EnrichedDiGraph(nodes)
-    @test eltype(enriched_digraph.g) === Int
-    @test nv(enriched_digraph.g) == 10
+    (; g) = enriched_digraph
+    @test eltype(g) === Int
+    @test nv(g) == 10
     @test enriched_digraph.output_vars == [
         "pred humid", "pred wind", "pred temp", "wind name",
     ]
     @test enriched_digraph.source_vars == ["temp", "wind"]
-
-    g = Pipelines.digraph(nodes)[1:8]
-    order = topological_sort(g)
+    order = topological_sort(g[1:8])
     @test order == [4, 8, 3, 7, 1, 5, 2, 6]
 
     repo = Repository()
@@ -61,7 +56,7 @@
     @test Pipelines.get_output_vars(Pipelines.Pipeline(nodes)) == output_vars
 
     faulty_node = Pipelines.Node(trivialcard(["temp"], "pred temp"), id = "faulty")
-    @test_throws "pred temp" Pipelines.digraph(vcat(nodes, [faulty_node]))
+    @test_throws "pred temp" Pipelines.EnrichedDiGraph(vcat(nodes, [faulty_node]))
 
     # Test returned value of `Pipelines.train_evaljoin!`
     p = Pipelines.train_evaljoin!(repo, nodes, "tbl2", "no")
@@ -69,7 +64,8 @@
     for (n1, n2) in zip(nodes, p.nodes)
         @test n1.state === n2.state
     end
-    @test collect(edges(p.enriched_digraph.g)) == collect(edges(Pipelines.digraph(nodes)))
+    (; g) = Pipelines.EnrichedDiGraph(nodes)
+    @test collect(edges(p.enriched_digraph.g)) == collect(edges(g))
     @test p.enriched_digraph.source_vars == ["temp", "wind"]
     @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
@@ -82,21 +78,24 @@
 
     # Test returned value of `Pipelines.train_evaljoin!` when some update is not needed
     p = Pipelines.train_evaljoin!(repo, nodes, "tbl3", "no")
-    @test collect(edges(p.enriched_digraph.g)) == collect(edges(Pipelines.digraph(nodes)))
+    (; g) = Pipelines.EnrichedDiGraph(nodes)
+    @test collect(edges(p.enriched_digraph.g)) == collect(edges(g))
     @test p.enriched_digraph.source_vars == ["temp", "wind"]
     @test p.enriched_digraph.output_vars == ["pred humid", "pred wind", "pred temp", "wind name"]
 
     # original table must supply precomputed variabels
     @test_throws "pred humid" Pipelines.train_evaljoin!(repo, nodes, "tbl4", "no")
 
-    g = Pipelines.digraph(nodes)
+    (; g) = Pipelines.EnrichedDiGraph(nodes)
     hs = Pipelines.compute_height(g, nodes)
     @test hs == [-1, 0, 1, 0]
     @test Pipelines.layers(hs) == [[2, 4], [3]]
     @test isempty(Pipelines.layers(Int[]))
 
     # Empty case
-    @test Pipelines.digraph(Pipelines.Node[]) == DiGraph(0)
+    (; g) = Pipelines.EnrichedDiGraph(Pipelines.Node[])
+    @test g == DiGraph(0)
+    @test eltype(g) === Int
 
     nodes = [
         Pipelines.Node(trivialcard(["a", "c", "e"], ["f"]), id = "9", update = false, label = "No update"),

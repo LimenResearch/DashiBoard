@@ -73,9 +73,8 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     nodes = map(dp, node_configs′, eachindex(node_configs′))
     groups = map(dp, group_configs′, eachindex(group_configs′) .+ n_nodes)
 
-    # create graph and manually add potentially missing vertices
     p = sortperm(dp.srcs)
-    G = _digraph(view(dp.srcs, p), view(dp.tgts, p), n_nodes + n_groups)
+    G = digraph(view(dp.srcs, p), view(dp.tgts, p), n_nodes + n_groups)
 
     return G, nodes, groups, collect(String, dp.cols)
 end

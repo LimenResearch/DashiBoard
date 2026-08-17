@@ -41,8 +41,9 @@ end
 
 # graph utils
 
-function _digraph(src::AbstractVector{I}, tgt::AbstractVector{I}, N::Integer) where {I <: Integer}
+function digraph(src::AbstractVector{I}, tgt::AbstractVector{I}, N::Integer) where {I <: Integer}
     edges::Vector{Edge{I}} = Edge{I}.(src, tgt)
+    # create graph and manually add potentially missing vertices
     G = DiGraph(edges)
     add_vertices!(G, N - nv(G))
     return G

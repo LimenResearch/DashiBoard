@@ -46,15 +46,13 @@ function EnrichedDiGraph(nodes::AbstractVector{Node})
     p = sortperm(src_in)
     src::Vector{Int} = vcat(src_out, view(src_in, p))
     tgt::Vector{Int} = vcat(tgt_out, view(tgt_in, p))
-    g = _digraph(src, tgt, length(nodes) + length(source_vars) + length(output_vars))
+    g = digraph(src, tgt, length(nodes) + length(source_vars) + length(output_vars))
 
     # return enriched graph
     return EnrichedDiGraph(g, source_vars, output_vars)
 end
 
-digraph(nodes::AbstractVector{Node}) = EnrichedDiGraph(nodes).g
-
-##
+## Layering tools
 
 function compute_height(g::DiGraph, nodes::AbstractVector{Node})
     us::BitVector = get_update.(nodes)
@@ -83,7 +81,7 @@ function layers(hs::AbstractVector)
     return ls
 end
 
-##
+## Graph visualization
 
 # TODO: make look customizable (esp., match font with AlgebraOfGraphics)
 function graphviz(io::IO, eg::EnrichedDiGraph, nodes::AbstractVector{Node})

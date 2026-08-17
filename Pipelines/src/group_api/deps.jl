@@ -35,16 +35,16 @@ update!(dp::DepsParser, src::Source, _::Integer) = (union!(dp.cols, src.cols); d
 
 const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
 
-is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(!=("through"), keys(d)) == 1
+not_through(s) = !isequal(s, "through")
+get_through(d::AbstractDict)::Vector{String} = get(d, "through", String[])
+
+is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(not_through, keys(d)) == 1
 
 function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
-    key::String = only(Iterators.filter(!=("through"), keys(d)))
-    val::Vector{String} = d[key]
+    key::String, val::Vector{String} = only(Iterators.filter(not_through ∘ first, pairs(d)))
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
     inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
-
-    _through::Vector{String} = get(d, "through", String[])
-    through = Int[dp.node_idxs[k] for k in _through]
+    through = Int[dp.node_idxs[k] for k in get_through(d)]
 
     update!(dp, inputs, i)
     append_edges!(dp, through, i)
@@ -103,8 +103,8 @@ end
 
 # Nested column computations
 
-get_cols(::Context, inputs::Source)::Vector{String} = inputs.cols
-get_cols(c::Context, inputs::Computed)::Vector{String} = reduce(vcat, view(c.outputs, inputs.idxs))
+get_cols(::Context, inputs::Source) = inputs.cols
+get_cols(c::Context, inputs::Computed) = reduce(vcat, view(c.outputs, inputs.idxs))
 
 (c::Context)(deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
 

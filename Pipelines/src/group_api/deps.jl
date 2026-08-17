@@ -38,8 +38,8 @@ end
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
     udeps::UnparsedDeps = construct(UnparsedDeps, d)
     pdeps = ParsedDeps(dp, udeps)
-    N = length(pdeps.from) + length(pdeps.through)
-    append!(dp.srcs, pdeps.from, pdeps.through)
+    N = length(pdeps.through) + length(pdeps.from)
+    append!(dp.srcs, pdeps.through, pdeps.from)
     append!(dp.tgts, StepRangeLen(i, 0, N)) # same as `fill` but does not allocate
     union!(dp.cols, pdeps.cols)
     return pdeps

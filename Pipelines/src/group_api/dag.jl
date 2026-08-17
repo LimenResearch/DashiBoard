@@ -19,10 +19,8 @@ function Pipeline(
     G, nodes, groups, cols = dependency_graph(node_configs, group_configs)
     n_nodes = length(nodes)
     c = Context(G, nodes, groups)
-    eg = GroupDiGraph(
-        G, cols,
-        reduce(vcat, c.outputs[1:n_nodes]),
-        c.outputs[(n_nodes + 1):end]
-    )
+    output_vars = reduce(vcat, view(c.outputs, 1:n_nodes))
+    group_outputs = c.outputs[(n_nodes + 1):end]
+    eg = GroupDiGraph(G, cols, output_vars, group_outputs)
     return Pipeline(c.nodes, eg)
 end

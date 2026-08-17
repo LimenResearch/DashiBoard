@@ -1,24 +1,5 @@
 # utils
 
-@kwarg struct UnparsedDeps
-    nodes::Vector{String} = String[]
-    groups::Vector{String} = String[]
-    cols::Vector{String} = String[]
-    through::Vector{String} = String[]
-end
-
-struct ParsedDeps
-    from::Vector{Int}
-    cols::Vector{String}
-    through::Vector{Int}
-end
-
-const DEPS_NAMES = ("nodes", "groups", "cols")
-
-function is_deps(d::AbstractDict)
-    return count(in(keys(d)), DEPS_NAMES) == 1 && keys(d) ⊆ (DEPS_NAMES..., "through")
-end
-
 @defaults struct DepsParser
     node_idxs::Dict{String, Int}
     group_idxs::Dict{String, Int}
@@ -27,22 +8,48 @@ end
     cols::OrderedSet{String} = OrderedSet{String}()
 end
 
-function ParsedDeps(dp::DepsParser, udeps::UnparsedDeps)
-    nodes = Int[dp.node_idxs[k] for k in udeps.nodes]
-    groups = Int[dp.group_idxs[k] for k in udeps.groups]
-    cols = udeps.cols
-    through = Int[dp.node_idxs[k] for k in udeps.through]
-    return ParsedDeps(vcat(nodes, groups), cols, through)
+function append_edges!(dp::DepsParser, srcs::AbstractVector, dst::Integer)
+    append!(dp.srcs, srcs)
+    # here, `StepRangeLen` is the same as `fill` but does not allocate
+    append!(dp.tgts, StepRangeLen(dst, 0, length(srcs)))
+    return dp
 end
 
+const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
+
+is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(!=("through"), keys(d)) == 1
+
+struct Source
+    cols::Vector{String}
+end
+
+struct Computed
+    idxs::Vector{Int}
+end
+
+struct Deps
+    inputs::Union{Source, Computed}
+    through::Vector{Int}
+end
+
+function Deps(dp::DepsParser, d::AbstractDict)
+    k::String = only(Iterators.filter(!=("through"), keys(d)))
+    v::Vector{String} = d[k]
+    idx_dict = k == "nodes" ? dp.node_idxs : k == "groups" ? dp.group_idxs : nothing
+    inputs = isnothing(idx_dict) ? Source(v) : Computed(Int[idx_dict[k] for k in v])
+    through::Vector{String} = get(d, "through", String[])
+    through_idxs = Int[dp.node_idxs[k] for k in through]
+    return Deps(inputs, through_idxs)
+end
+
+update!(dp::DepsParser, inputs::Computed, dst::Integer) = append_edges!(dp, inputs.idxs, dst)
+update!(dp::DepsParser, inputs::Source, _::Integer) = (union!(dp.cols, inputs.cols); dp)
+
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
-    udeps::UnparsedDeps = construct(UnparsedDeps, d)
-    pdeps = ParsedDeps(dp, udeps)
-    N = length(pdeps.through) + length(pdeps.from)
-    append!(dp.srcs, pdeps.through, pdeps.from)
-    append!(dp.tgts, StepRangeLen(i, 0, N)) # same as `fill` but does not allocate
-    union!(dp.cols, pdeps.cols)
-    return pdeps
+    deps = Deps(dp, d)
+    append_edges!(dp, deps.through, i)
+    update!(dp, deps.inputs, i)
+    return deps
 end
 
 function (dp::DepsParser)(d::AbstractDict, i::Integer)
@@ -80,7 +87,7 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     return G, nodes, groups, collect(String, dp.cols)
 end
 
-# Machinery to replace `ParsedDeps`
+# Machinery to replace `Deps`
 
 struct Context
     nodes::Vector{Node}
@@ -96,19 +103,18 @@ end
 
 # Nested column computations
 
-function (c::Context)(deps::ParsedDeps)
-    nested::Vector{Vector{String}} = vcat(view(c.outputs, deps.from), [deps.cols])
-    cols = reduce(vcat, nested)
-    return pass_through(cols, deps.through, c.nodes)
-end
+get_cols(::Context, inputs::Source)::Vector{String} = inputs.cols
+get_cols(c::Context, inputs::Computed)::Vector{String} = reduce(vcat, view(c.outputs, inputs.idxs))
+
+(c::Context)(deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
 
 (c::Context)(d::AbstractDict) = map_into(c, StringDict, d)
 
 function (c::Context)(v::AbstractVector)
     res = Any[]
     for el in v
-        # append if `ParsedDeps`, else push
-        el isa ParsedDeps ? append!(res, c(el)) : push!(res, c(el))
+        # append if `Deps`, else push
+        el isa Deps ? append!(res, c(el)) : push!(res, c(el))
     end
     return res
 end

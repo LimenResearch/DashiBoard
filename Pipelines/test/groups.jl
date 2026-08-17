@@ -11,20 +11,20 @@
     )
     group_idxs = Dict("weather" => 5)
 
-    @test nds[1]["card"]["group_by"].cols == ["cbwd"]
-    @test nds[1]["card"]["inputs"][1].from == [group_idxs["weather"]]
-    @test nds[1]["card"]["inputs"][2].cols == ["No"]
-    @test nds[1]["card"]["partition"].from == [node_idxs["partition"]]
+    @test nds[1]["card"]["group_by"].inputs.cols == ["cbwd"]
+    @test nds[1]["card"]["inputs"][1].inputs.idxs == [group_idxs["weather"]]
+    @test nds[1]["card"]["inputs"][2].inputs.cols == ["No"]
+    @test nds[1]["card"]["partition"].inputs.idxs == [node_idxs["partition"]]
 
-    @test nds[2]["card"]["inputs"].cols == ["No"]
+    @test nds[2]["card"]["inputs"].inputs.cols == ["No"]
 
-    @test nds[3]["card"]["inputs"][1].from == [node_idxs["log"]]
-    @test nds[3]["card"]["inputs"][2].from == [group_idxs["weather"]]
+    @test nds[3]["card"]["inputs"][1].inputs.idxs == [node_idxs["log"]]
+    @test nds[3]["card"]["inputs"][2].inputs.idxs == [group_idxs["weather"]]
     @test nds[3]["card"]["inputs"][2].through == [node_idxs["rescale"]]
 
-    @test nds[4]["card"]["order_by"].cols == ["No"]
+    @test nds[4]["card"]["order_by"].inputs.cols == ["No"]
 
-    @test only(grps[1]).cols == ["PRES", "TEMP"]
+    @test only(grps[1]).inputs.cols == ["PRES", "TEMP"]
     @test only(grps[1]).through == String[]
 
     @test length(es) == 5

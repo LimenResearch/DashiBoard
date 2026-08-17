@@ -1,20 +1,21 @@
 ## Pipeline API
 
-struct Pipeline{EG <: AbstractEnrichedDiGraph}
+struct Pipeline{I <: Integer, EG <: AbstractEnrichedDiGraph{I}}
     nodes::Vector{Node}
     enriched_digraph::EG
-    precomputed_nodes::Vector{Int}
-    layers::Vector{Vector{Int}}
+    precomputed_nodes::Vector{I}
+    layers::Vector{Vector{I}}
 end
 
 function Pipeline(
         nodes::AbstractVector{Node},
-        enriched_digraph::EG
-    ) where {EG <: AbstractEnrichedDiGraph}
+        enriched_digraph::AbstractEnrichedDiGraph{I}
+    ) where {I <: Integer}
 
     hs = compute_height(enriched_digraph.g, get_update.(nodes))
     precomputed_nodes = findall(==(-1), hs)
-    return Pipeline{EG}(
+    EG = typeof(enriched_digraph)
+    return Pipeline{I, EG}(
         nodes,
         enriched_digraph,
         precomputed_nodes,

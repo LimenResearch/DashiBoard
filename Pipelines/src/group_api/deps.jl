@@ -1,51 +1,59 @@
 # utils
 
-@kwarg struct UnparsedDeps
-    nodes::Vector{String} = String[]
-    groups::Vector{String} = String[]
-    cols::Vector{String} = String[]
-    through::Vector{String} = String[]
-end
-
-struct ParsedDeps
-    nodes::Vector{Int}
-    groups::Vector{Int}
+struct Source
     cols::Vector{String}
-    through::Vector{Int}
 end
 
-const DEPS_NAMES = ("nodes", "groups", "cols")
+struct Computed
+    idxs::Vector{Int}
+end
 
-function is_deps(d::AbstractDict)
-    return count(in(keys(d)), DEPS_NAMES) == 1 && keys(d) ⊆ (DEPS_NAMES..., "through")
+struct Deps
+    inputs::Union{Source, Computed}
+    through::Vector{Int}
 end
 
 @defaults struct DepsParser
     node_idxs::Dict{String, Int}
     group_idxs::Dict{String, Int}
-    n_nodes::Int
     srcs::Vector{Int} = Int[]
     tgts::Vector{Int} = Int[]
     cols::OrderedSet{String} = OrderedSet{String}()
 end
 
-function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
-    udeps::UnparsedDeps = construct(UnparsedDeps, d)
-    pdeps = ParsedDeps(
-        Int[dp.node_idxs[k] for k in udeps.nodes],
-        Int[dp.group_idxs[k] for k in udeps.groups],
-        udeps.cols,
-        Int[dp.node_idxs[k] for k in udeps.through]
-    )
-    n_inputs = length(pdeps.nodes) + length(pdeps.through) + length(pdeps.groups)
-    append!(dp.srcs, pdeps.nodes, pdeps.through, pdeps.groups .+ dp.n_nodes)
-    append!(dp.tgts, StepRangeLen(i, 0, n_inputs)) # same as `fill` but does not allocate
-    union!(dp.cols, pdeps.cols)
-    return pdeps
+function append_edges!(dp::DepsParser, src::AbstractVector, dst::Integer)
+    append!(dp.srcs, src)
+    # here, `StepRangeLen` is the same as `fill` but does not allocate
+    append!(dp.tgts, StepRangeLen(dst, 0, length(src)))
+    return dp
+end
+
+update!(dp::DepsParser, src::Computed, dst::Integer) = append_edges!(dp, src.idxs, dst)
+update!(dp::DepsParser, src::Source, _::Integer) = (union!(dp.cols, src.cols); dp)
+
+# Parsing machinery
+
+const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
+
+not_through(s) = !isequal(s, "through")
+get_through(d::AbstractDict)::Vector{String} = get(d, "through", String[])
+
+is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(not_through, keys(d)) == 1
+
+function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
+    key::String, val::Vector{String} = only(Iterators.filter(not_through ∘ first, pairs(d)))
+    idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
+    inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
+    through = Int[dp.node_idxs[k] for k in get_through(d)]
+
+    update!(dp, inputs, i)
+    append_edges!(dp, through, i)
+
+    return Deps(inputs, through)
 end
 
 function (dp::DepsParser)(d::AbstractDict, i::Integer)
-    return is_deps(d) ? parse_once(dp, d, i) : map_into(Fix2(dp, i), StringDict, d)
+    return is_deps(d) ? Deps(dp, d, i) : map_into(Fix2(dp, i), StringDict, d)
 end
 
 (dp::DepsParser)(v::AbstractVector, i::Integer) = map_into(Fix2(dp, i), Vector{Any}, v)
@@ -64,10 +72,10 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     group_idxs = Dict{String, Int}()
     for (i, (k, grp)) in enumerate(pairs(group_configs))
         group_configs′[i] = grp isa AbstractVector ? grp : Any[grp]
-        group_idxs[k] = i
+        group_idxs[k] = i + n_nodes
     end
 
-    dp = DepsParser(node_idxs, group_idxs, n_nodes)
+    dp = DepsParser(node_idxs, group_idxs)
 
     # This also stores dependency edges in `dp`
     nodes = map(dp, node_configs′, eachindex(node_configs′))
@@ -79,12 +87,11 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     return G, nodes, groups, collect(String, dp.cols)
 end
 
-# Machinery to replace `ParsedDeps`
+# Machinery to replace `Deps`
 
-struct Configuration
+struct Context
     nodes::Vector{Node}
     outputs::Vector{Vector{String}}
-    groups::Vector{Vector{String}}
 end
 
 # TODO: more general definition
@@ -94,44 +101,39 @@ function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVect
     return join_names.(x, suffix)
 end
 
-function to_cols(d::ParsedDeps, c::Configuration)
-    nested = vcat(c.outputs[d.nodes], c.groups[d.groups], [d.cols])
-    cols = reduce(vcat, nested)
-    return pass_through(cols, d.through, c.nodes)
-end
-
 # Nested column computations
 
-function replace_placeholders(d::AbstractDict, c::Configuration)
-    return map_into(Fix2(replace_placeholders, c), StringDict, d)
-end
+get_cols(::Context, inputs::Source) = inputs.cols
+get_cols(c::Context, inputs::Computed) = reduce(vcat, view(c.outputs, inputs.idxs))
 
-function replace_placeholders(v::AbstractVector, c::Configuration)
+(c::Context)(deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
+
+(c::Context)(d::AbstractDict) = map_into(c, StringDict, d)
+
+function (c::Context)(v::AbstractVector)
     res = Any[]
     for el in v
-        # append if `ParsedDeps`, else push
-        x = replace_placeholders(el, c)
-        el isa ParsedDeps ? append!(res, x) : push!(res, x)
+        # append if `Deps`, else push
+        el isa Deps ? append!(res, c(el)) : push!(res, c(el))
     end
     return res
 end
 
-replace_placeholders(deps::ParsedDeps, c::Configuration) = to_cols(deps, c)
+(_::Context)(x::Any) = x
 
-replace_placeholders(x::Any, c::Configuration) = x
-
-function Configuration(G::DiGraph, nodes, groups)
-    c = Configuration(
-        similar(nodes, Node), similar(nodes, Vector{String}), similar(groups, Vector{String})
+function Context(G::DiGraph, nodes, groups)
+    n_nodes, n_groups = length(nodes), length(groups)
+    c = Context(
+        Vector{Node}(undef, n_nodes),
+        Vector{Vector{String}}(undef, n_nodes + n_groups)
     )
     for i in topological_sort(G)
-        if i ≤ length(c.nodes)
-            node = Node(replace_placeholders(nodes[i], c))
+        if i ≤ n_nodes
+            node = Node(c(nodes[i]))
             c.nodes[i] = node
             c.outputs[i] = get_node_outputs(node)
         else
-            j = i - length(c.nodes)
-            c.groups[j] = replace_placeholders(groups[j], c)
+            c.outputs[i] = c(groups[i - n_nodes])
         end
     end
     return c

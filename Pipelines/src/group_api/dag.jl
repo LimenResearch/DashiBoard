@@ -1,7 +1,7 @@
 struct GroupDiGraph{I <: Integer} <: AbstractEnrichedDiGraph{I}
     g::DiGraph{I}
     source_vars::Vector{String}
-    output_vars::Vector{String} # consider saving node_outputs instead
+    output_vars::Vector{String} # consider saving node outputs separately instead
     groups::Vector{Vector{String}}
 end
 
@@ -17,7 +17,10 @@ function Pipeline(
 
     validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
     G, nodes, groups, cols = dependency_graph(node_configs, group_configs)
-    c = Configuration(G, nodes, groups)
-    eg = GroupDiGraph(G, cols, reduce(vcat, c.outputs), c.groups)
+    n_nodes = length(nodes)
+    c = Context(G, nodes, groups)
+    output_vars = reduce(vcat, view(c.outputs, 1:n_nodes))
+    group_outputs = c.outputs[(n_nodes + 1):end]
+    eg = GroupDiGraph(G, cols, output_vars, group_outputs)
     return Pipeline(c.nodes, eg)
 end

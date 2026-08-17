@@ -22,7 +22,6 @@ end
 @defaults struct DepsParser
     node_idxs::Dict{String, Int}
     group_idxs::Dict{String, Int}
-    n_nodes::Int
     srcs::Vector{Int} = Int[]
     tgts::Vector{Int} = Int[]
     cols::OrderedSet{String} = OrderedSet{String}()
@@ -39,9 +38,9 @@ end
 function parse_once(dp::DepsParser, d::AbstractDict, i::Integer)
     udeps::UnparsedDeps = construct(UnparsedDeps, d)
     pdeps = ParsedDeps(dp, udeps)
-    n_inputs = length(pdeps.from) + length(pdeps.through)
+    N = length(pdeps.from) + length(pdeps.through)
     append!(dp.srcs, pdeps.from, pdeps.through)
-    append!(dp.tgts, StepRangeLen(i, 0, n_inputs)) # same as `fill` but does not allocate
+    append!(dp.tgts, StepRangeLen(i, 0, N)) # same as `fill` but does not allocate
     union!(dp.cols, pdeps.cols)
     return pdeps
 end
@@ -69,7 +68,7 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
         group_idxs[k] = i + n_nodes
     end
 
-    dp = DepsParser(node_idxs, group_idxs, n_nodes)
+    dp = DepsParser(node_idxs, group_idxs)
 
     # This also stores dependency edges in `dp`
     nodes = map(dp, node_configs′, eachindex(node_configs′))

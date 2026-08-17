@@ -1,4 +1,6 @@
-struct EnrichedDiGraph{I <: Integer}
+abstract type AbstractEnrichedDiGraph{I <: Integer} end
+
+struct EnrichedDiGraph{I <: Integer} <: AbstractEnrichedDiGraph{I}
     g::DiGraph{I}
     source_vars::Vector{String}
     output_vars::Vector{String}

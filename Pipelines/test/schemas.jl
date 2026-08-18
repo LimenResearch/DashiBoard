@@ -64,22 +64,30 @@ end
     _pipeline_schema_validate(schema, d["kmeans"])
     _pipeline_schema_validate(schema, d["kmeansCityblock"])
     _pipeline_schema_validate(schema, d["kmeansWeighted"])
+    _pipeline_schema_validate(schema, d["kmeansInit"])
     _pipeline_schema_validate(schema, d["dbscan"])
     _pipeline_schema_validate(schema, d["dbscanCityblock"])
     _pipeline_schema_validate(schema, d["hasPartition"])
+    # kmeans seeding is one of Clustering.jl's three strategies
+    wrong_init = deepcopy(d["kmeans"])
+    wrong_init["method"]["init"] = "not_an_init"
+    _pipeline_schema_invalidate(schema, wrong_init)
 
+    # the faulty configs live in code: the dissimilarity sits inside `method`,
+    # so the mutation goes through it — a top-level "dissimilarity" key would
+    # be refused as a spurious property before the type were ever looked at
     wrong_dissimilarity = deepcopy(d["kmeansCityblock"])
-    wrong_dissimilarity["dissimilarity"] = Dict("type" => "not_a_dissimilarity")
+    wrong_dissimilarity["method"]["dissimilarity"] = Dict("type" => "not_a_dissimilarity")
     _pipeline_schema_invalidate(schema, wrong_dissimilarity)
 
     # minkowski is a true metric only for p ≥ 1
     wrong_minkowski_p = deepcopy(d["kmeansCityblock"])
-    wrong_minkowski_p["dissimilarity"] = Dict("type" => "minkowski", "p" => 0.5)
+    wrong_minkowski_p["method"]["dissimilarity"] = Dict("type" => "minkowski", "p" => 0.5)
     _pipeline_schema_invalidate(schema, wrong_minkowski_p)
 
     # dbscan accepts true metrics only (KD-tree): sqeuclidean is refused
     wrong_metric = deepcopy(d["dbscanCityblock"])
-    wrong_metric["dissimilarity"] = Dict("type" => "sqeuclidean")
+    wrong_metric["method"]["dissimilarity"] = Dict("type" => "sqeuclidean")
     _pipeline_schema_invalidate(schema, wrong_metric)
 
     wrong_input = merge(d["dbscan"], Dict("inputs" => ["temp", "PRES"]))
@@ -88,6 +96,28 @@ end
     spurious_property = deepcopy(d["dbscan"])
     spurious_property["method"]["minneighbors"] = 10
     _pipeline_schema_invalidate(schema, spurious_property)
+    # the reconciliation options: thresholds in (0, 1], memory ≥ 1
+    reconcile = merge(
+        d["reconcile"],
+        Dict(
+            "inputs" => ["TEMP", "PRES"], "match_threshold" => 0.75,
+            "split_threshold" => 0.25, "lineage" => true, "memory" => 2,
+        ),
+    )
+    _pipeline_schema_validate(schema, reconcile)
+    _pipeline_schema_invalidate(schema, merge(reconcile, Dict("match_threshold" => 1.5)))
+    _pipeline_schema_invalidate(schema, merge(reconcile, Dict("split_threshold" => 0)))
+    _pipeline_schema_invalidate(schema, merge(reconcile, Dict("memory" => 0)))
+    # the conjunctive metric is a true metric, so dbscan's field accepts it;
+    # radii are positive and required
+    conjunctive = merge(d["conjunctive"], Dict("inputs" => ["TEMP", "PRES", "Iws"]))
+    _pipeline_schema_validate(schema, conjunctive)
+    zero_radius = deepcopy(conjunctive)
+    zero_radius["method"]["dissimilarity"]["radii"] = [5.0, 0.0]
+    _pipeline_schema_invalidate(schema, zero_radius)
+    no_radii = deepcopy(conjunctive)
+    delete!(no_radii["method"]["dissimilarity"], "radii")
+    _pipeline_schema_invalidate(schema, no_radii)
 end
 
 @testset "dimensionality reduction schema" begin

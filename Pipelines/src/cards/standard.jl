@@ -1,6 +1,13 @@
 # StandardCard interface:
 # - `_train(c, tbl, id; weights) -> model`
-# - `(c)(model, tbl, id) -> new_tbl, new_id`
+# - `(c)(model, tbl, id) -> new_tbl`
+#
+# A card whose evaluation also rolls its state forward returns
+# `(new_tbl, state)`; `evaluate` then returns `(columns, state)` and the node
+# stores it (see `_persist_state!` in node.jl). Everything else is untouched.
+
+_with_state(prediction) = (prediction, nothing)
+_with_state((prediction, state)::Tuple{SimpleTable, CardState}) = (prediction, state)
 
 # Implementation of Card methods
 
@@ -39,8 +46,9 @@ function evaluate(
     t = DBInterface.execute(fromtable, repository, q; schema)
 
     model = jlddeserialize(state.content)
-    pred_table = c(model, t, id_var)
+    pred_table, new_state = _with_state(c(model, t, id_var))
     load_table(repository, pred_table, destination; schema)
     cols = String[string(k) for k in Tables.columnnames(Tables.columns(pred_table))]
-    return setdiff(cols, [id_var])
+    columns = setdiff(cols, [id_var])
+    return isnothing(new_state) ? columns : (columns, new_state)
 end

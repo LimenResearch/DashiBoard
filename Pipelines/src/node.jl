@@ -168,6 +168,10 @@ end
 Evaluate the card corresponding to a given `node` (using the node's state)
 on table `source` with primary column `id_var`.
 Then save the output in table `destination`.
+
+A card that rolls its state forward as it evaluates may return
+`(columns, state)` instead of `columns`; the new state is then stored in the
+node. See `_persist_state!`.
 """
 function evaluate(
         repository::Repository, node::Node,
@@ -175,9 +179,31 @@ function evaluate(
         schema::Union{AbstractString, Nothing} = nothing
     )
     card, state = get_card(node), get_state(node)
-    return if get_invert(node)
+    result = if get_invert(node)
         evaluate(repository, card, state, sd, id_var; schema, invert = true)
     else
         evaluate(repository, card, state, sd, id_var; schema)
     end
+    return _persist_state!(node, result)
+end
+
+"""
+    _persist_state!(node::Node, result)
+
+Unwrap what a card's `evaluate` returned. Cards return their output columns and
+this passes them through untouched; a card that also rolls its state forward
+returns `(columns, state)`, and that state is stored in `node`.
+
+The pass-through is untyped because it must accept whatever any card returns.
+The tuple method is typed exactly, since the only cards producing one are those
+opting into this behaviour: `CardState` is what [`set_state!`](@ref) can store,
+and `Vector{String}` is the column contract `evaljoin` relies on. Anything else
+— including a tuple of other types — falls through to the pass-through rather
+than being mistaken for a state update.
+"""
+_persist_state!(::Node, result) = result
+
+function _persist_state!(node::Node, (columns, state)::Tuple{Vector{String}, CardState})
+    set_state!(node, state)
+    return columns
 end

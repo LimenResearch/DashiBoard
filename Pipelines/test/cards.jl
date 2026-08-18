@@ -314,6 +314,19 @@ end
     )
     @test assignments(R) == df.cbcluster
 
+    # the configured seeding reaches the fit
+    card = Pipelines.Card(d["kmeansInit"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+    train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+    rng = StreamlinerCore.get_rng(1234)
+    R = kmeans(
+        [train_df.TEMP train_df.PRES train_df.Iws]', 3;
+        maxiter = 100, tol = 1.0e-6, rng, weights = train_df.Iws, init = :rand,
+    )
+    @test assignments(R) == df.initcluster
+
     card = Pipelines.Card(d["dbscan"])
     @test !Pipelines.invertible(card)
 
@@ -373,6 +386,260 @@ end
     R = affinityprop(S; maxiter = 200, tol = 1.0e-6, damp = 0.5)
     @test R.converged
     @test df.apcluster == assignments(R)
+
+    # the same fit WITHOUT the hand-deduplication: duplicates are collapsed
+    # into count weights inside the method, so identical points no longer
+    # keep the messages oscillating and every row still comes back labeled
+    DBInterface.execute(
+        Returns(nothing),
+        repo,
+        "CREATE OR REPLACE TABLE cl_dup AS (FROM selection LIMIT 200);"
+    )
+    counts = DBInterface.execute(
+        DataFrame, repo,
+        "SELECT count(*) AS n, count(DISTINCT (\"TEMP\", \"PRES\")) AS distinct_points FROM cl_dup"
+    )
+    @test counts.distinct_points[1] < counts.n[1]   # otherwise the test is vacuous
+
+    node = Node(Pipelines.Card(d["affinity"]))
+    Pipelines.train_evaljoin!(repo, node, "cl_dup" => "clustering_dup", "No")
+    dup = DBInterface.execute(DataFrame, repo, "FROM clustering_dup")
+    @test nrow(dup) == counts.n[1]
+    @test all(>(0), dup.apcluster)
+    # identical points must share a cluster
+    per_point = DBInterface.execute(
+        DataFrame, repo,
+        "SELECT count(DISTINCT apcluster) AS k FROM clustering_dup GROUP BY \"TEMP\", \"PRES\""
+    )
+    @test all(==(1), per_point.k)
+end
+
+@testset "cluster reconciliation" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
+
+    # The matcher on hand-written fits, one case per MONIC transition
+    # (survival, absorption, split, disappearance, emergence). Density refits
+    # can only grow clusters — an added point never separates two others — so
+    # the split and disappearance branches are exercised here directly.
+    relabel = Pipelines._relabel_map
+
+    # survival: every cluster keeps its label, noise stays noise
+    m, highest = relabel([1, 1, 2, 2, 0], [1, 1, 2, 2, 0], 0.5, 0.25, 2)
+    @test m == Dict(0 => 0, 1 => 1, 2 => 2)
+    @test highest == 2
+
+    # survival follows membership, not the refit's numbering
+    m, _ = relabel([2, 2, 1, 1], [1, 1, 2, 2], 0.5, 0.25, 2)
+    @test m[2] == 1 && m[1] == 2
+
+    # survival preempts split: the best match holds ≥ match_threshold of the
+    # stored cluster on its own, so the smaller shard is an emergence
+    m, highest = relabel([1, 1, 1, 4, 4, 2, 2], [1, 1, 1, 1, 1, 2, 2], 0.5, 0.25, 2)
+    @test m[1] == 1 && m[2] == 2 && m[4] == 3
+    @test highest == 3
+
+    # split: no single piece reaches the match_threshold, but the pieces holding
+    # ≥ split_threshold jointly do — ALL of them are descendants and keep
+    # the label, so an event seen as several pieces keeps one name
+    m, highest = relabel([1, 1, 1, 4, 4, 2, 2], [1, 1, 1, 1, 1, 2, 2], 0.7, 0.25, 2)
+    @test m[1] == 1 && m[4] == 1 && m[2] == 2
+    @test highest == 2
+
+    # a shard below split_threshold is no descendant: it emerges fresh
+    m, _ = relabel([1, 1, 1, 1, 4, 4, 4, 4, 4, 6], fill(1, 10), 0.6, 0.25, 2)
+    @test m[1] == 1 && m[4] == 1 && m[6] == 3
+
+    # absorption: the union is named by the dominant contributor...
+    m, _ = relabel([7, 7, 7, 7, 7], [1, 1, 1, 2, 2], 0.5, 0.25, 7)
+    @test m[7] == 1
+    # ...and equal contributions resolve to the lowest label
+    m, _ = relabel([1, 1, 1, 1], [1, 1, 2, 2], 0.5, 0.25, 2)
+    @test m[1] == 1
+
+    # disappearance: members scattered below split_threshold leave no heir,
+    # and the freed number is never reissued — fresh labels continue past
+    # the highest ever issued
+    m, highest = relabel([3, 4, 5, 6, 7], fill(1, 5), 0.5, 0.25, 9)
+    @test [m[n] for n in 3:7] == [10, 11, 12, 13, 14]
+    @test highest == 14
+
+    # emergence: rows the stored fit never saw cannot claim a label
+    m, _ = relabel([1, 1, 2, 2], [1, 1], 0.5, 0.25, 2)
+    @test m[1] == 1 && m[2] == 3
+    m, highest = relabel([1, 1, 2, 2], [1, 1], 0.5, 0.25, 7)
+    @test m[2] == 8 && highest == 8
+
+    # `split_threshold` is a fraction bounded by `match_threshold`
+    @test_throws ArgumentError relabel([1], [1], 0.5, 0.6, 1)
+    @test_throws ArgumentError relabel([1], [1], 0.5, 0.0, 1)
+
+    # The shared refit-and-reconcile evaluation, on three tight well-separated
+    # blobs plus a fourth far away to add later.
+    blob(cx, cy, k) = DataFrame(
+        id = k .+ (1:9),
+        x = [cx + 0.1 * (i % 3) for i in 1:9],
+        y = [cy + 0.1 * (i ÷ 3) for i in 1:9],
+    )
+    base = reduce(vcat, [blob(0.0, 0.0, 0), blob(10.0, 0.0, 100), blob(0.0, 10.0, 200)])
+    grown = vcat(base, blob(30.0, 30.0, 300))
+    DuckDBUtils.load_table(repo, base, "recon_base")
+    DuckDBUtils.load_table(repo, grown, "recon_grown")
+
+    reconcile_state(node) = Pipelines.jlddeserialize(Pipelines.get_state(node).content)
+
+    node = Node(Pipelines.Card(d["reconcile"]))
+    Pipelines.train_evaljoin!(repo, node, "recon_base" => "recon_out", "id")
+    fitted = DBInterface.execute(DataFrame, repo, "FROM recon_out ORDER BY id").cluster
+    @test sort(unique(fitted)) == [1, 2, 3]
+
+    # refitting on unchanged data produces no transitions
+    Pipelines.evaljoin(repo, node, "recon_base" => "recon_again", "id")
+    again = DBInterface.execute(DataFrame, repo, "FROM recon_again ORDER BY id")
+    @test again.cluster == fitted
+
+    # a far-away blob is an emergence: one fresh label, old labels untouched
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_emerged", "id")
+    emerged = DBInterface.execute(DataFrame, repo, "FROM recon_emerged ORDER BY id")
+    @test emerged.cluster[emerged.id .< 300] == fitted
+    @test unique(emerged.cluster[emerged.id .> 300]) == [maximum(fitted) + 1]
+    # with lineage off both evaluations left the state alone
+    @test reconcile_state(node).iteration == 1
+    @test length(reconcile_state(node).members["label"]) == nrow(base)
+
+    # lineage on: an evaluation that admits rows rolls the members forward,
+    # stamping the iteration they arrived in
+    node = Node(Pipelines.Card(merge(d["reconcile"], Dict("lineage" => true))))
+    Pipelines.train_evaljoin!(repo, node, "recon_base" => "recon_out", "id")
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_emerged", "id")
+    st = reconcile_state(node)
+    @test st.iteration == 2
+    @test length(st.members["label"]) == nrow(grown)
+    @test sort(unique(st.members["iteration_origin"])) == [1, 2]
+
+    # ...but one that admits nothing is a no-op: iterations measure growth,
+    # so re-running an evaluation cannot age the members
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_noop", "id")
+    @test reconcile_state(node).iteration == 2
+
+    # memory keeps only the newest iterations, without reissuing freed labels
+    node = Node(Pipelines.Card(merge(d["reconcile"], Dict("lineage" => true, "memory" => 1))))
+    Pipelines.train_evaljoin!(repo, node, "recon_base" => "recon_out", "id")
+    Pipelines.evaljoin(repo, node, "recon_grown" => "recon_emerged", "id")
+    st = reconcile_state(node)
+    @test unique(st.members["iteration_origin"]) == [2]
+    @test length(st.members["label"]) == nrow(grown) - nrow(base)
+    @test st.highest_label == maximum(fitted) + 1
+end
+
+@testset "conjunctive metric" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "cluster.json"))
+
+    # the metric itself: the largest within-block Euclidean over its radius
+    conj = Pipelines.get_dissimilarity(
+        Pipelines.ConjunctiveMethod(blocks = [1, 1, 2], radii = [5.0, 60.0])
+    )
+    @test conj([0.0, 0.0, 0.0], [3.0, 4.0, 0.0]) == 1.0     # 5 km at radius 5
+    @test conj([0.0, 0.0, 0.0], [0.0, 0.0, 60.0]) == 1.0    # 60 min at radius 60
+    @test conj([0.0, 0.0, 0.0], [3.0, 4.0, 30.0]) == 1.0    # max never trades
+    @test conj([0.0, 0.0, 0.0], [0.0, 3.0, 30.0]) == 0.6
+    @test conj([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]) == 0.0
+
+    # malformed specs stop at the gate
+    @test_throws ArgumentError Pipelines.get_dissimilarity(
+        Pipelines.ConjunctiveMethod(blocks = [1, 3], radii = [1.0, 2.0])    # gapped numbering
+    )
+    @test_throws ArgumentError Pipelines.get_dissimilarity(
+        Pipelines.ConjunctiveMethod(blocks = [1, 1], radii = [0.0])         # not a radius
+    )
+    @test_throws DimensionMismatch conj([0.0, 0.0], [1.0, 1.0])             # two coordinates for three
+
+    #=
+    Two groups with IDENTICAL internal distance structure: P holds one place
+    across 40 minutes, Q holds one minute across 40 km. Every Minkowski metric
+    sees two isometric sets and must label them alike, whatever its
+    parameters. The conjunctive metric is not obliged to, and that is the
+    whole point of it: within 5 km AND within 60 minutes makes P one
+    neighbourhood and Q five isolated points.
+    =#
+    steps = collect(0.0:10.0:40.0)
+    pq = DataFrame(
+        id = 1:10,
+        x = vcat(zeros(5), steps),
+        y = vcat(zeros(5), fill(1000.0, 5)),
+        z = vcat(steps, zeros(5)),
+    )
+    DuckDBUtils.load_table(repo, pq, "conj_pq")
+
+    node = Node(Pipelines.Card(d["conjunctive"]))
+    Pipelines.train_evaljoin!(repo, node, "conj_pq" => "conj_out", "id")
+    labels = DBInterface.execute(DataFrame, repo, "FROM conj_out ORDER BY id").cluster
+    @test labels[1:5] == fill(1, 5)
+    @test labels[6:10] == zeros(Int, 5)
+
+    euclid = merge(
+        d["conjunctive"],
+        Dict("method" => Dict(
+            "type" => "dbscan", "radius" => 25.0, "min_neighbors" => 3, "min_cluster_size" => 3,
+        )),
+    )
+    node = Node(Pipelines.Card(euclid))
+    Pipelines.train_evaljoin!(repo, node, "conj_pq" => "conj_out", "id")
+    labels = DBInterface.execute(DataFrame, repo, "FROM conj_out ORDER BY id").cluster
+    @test labels[1:5] == fill(1, 5)
+    @test labels[6:10] == fill(2, 5)
+
+    # the same dissimilarity reaches kmeans through the shared field — which
+    # method-local options never could
+    kmconj = merge(
+        d["conjunctive"],
+        Dict("method" => Dict(
+            "type" => "kmeans", "classes" => 2, "seed" => 1234,
+            "dissimilarity" => d["conjunctive"]["method"]["dissimilarity"],
+        )),
+    )
+    node = Node(Pipelines.Card(kmconj))
+    Pipelines.train_evaljoin!(repo, node, "conj_pq" => "conj_out", "id")
+    labels = DBInterface.execute(DataFrame, repo, "FROM conj_out ORDER BY id").cluster
+    @test allunique(labels[[1, 6]]) && labels[1:5] == fill(labels[1], 5) && labels[6:10] == fill(labels[6], 5)
+
+    # one block of radius 1 IS the Euclidean default; and dividing every
+    # radius and the cut by the same factor leaves the labeling alone
+    xy = DataFrame(
+        id = 1:18,
+        x = [cx + 0.1 * (i % 3) for cx in (0.0, 10.0) for i in 1:9],
+        y = [0.1 * (i ÷ 3) for _ in (0.0, 10.0) for i in 1:9],
+    )
+    DuckDBUtils.load_table(repo, xy, "conj_xy")
+    node = Node(Pipelines.Card(d["reconcile"]))
+    Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_base", "id")
+    base = DBInterface.execute(DataFrame, repo, "FROM conj_base ORDER BY id").cluster
+    @test sort(unique(base)) == [1, 2]
+
+    unit_block = Dict("type" => "conjunctive", "blocks" => [1, 1], "radii" => [1.0])
+    unit = merge(d["reconcile"], Dict("method" => merge(d["reconcile"]["method"], Dict("dissimilarity" => unit_block))))
+    node = Node(Pipelines.Card(unit))
+    Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_unit", "id")
+    @test DBInterface.execute(DataFrame, repo, "FROM conj_unit ORDER BY id").cluster == base
+
+    scaled_block = Dict("type" => "conjunctive", "blocks" => [1, 1], "radii" => [2.0])
+    scaled = merge(
+        d["reconcile"],
+        Dict("method" => merge(d["reconcile"]["method"], Dict("radius" => 0.5, "dissimilarity" => scaled_block))),
+    )
+    node = Node(Pipelines.Card(scaled))
+    Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_scaled", "id")
+    @test DBInterface.execute(DataFrame, repo, "FROM conj_scaled ORDER BY id").cluster == base
+
+    # a block per input is required once the metric meets the data
+    bad = merge(
+        d["reconcile"],
+        Dict("method" => merge(
+            d["reconcile"]["method"],
+            Dict("dissimilarity" => d["conjunctive"]["method"]["dissimilarity"]),
+        )),
+    )
+    node = Node(Pipelines.Card(bad))
+    @test_throws DimensionMismatch Pipelines.train_evaljoin!(repo, node, "conj_xy" => "conj_bad", "id")
 end
 
 @testset "dimensionality reduction" begin

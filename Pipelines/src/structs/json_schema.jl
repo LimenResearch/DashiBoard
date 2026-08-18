@@ -8,7 +8,10 @@ function schema_from_type(T::Type)
     end
 
     # we consider nullable types, which correspond to optional fields with no default
-    type = (T <: Union{Integer, Nothing}) ? "integer" :
+    # `Bool <: Integer` in Julia, so it must be recognized before the integer
+    # branch or a boolean field would demand an integer and reject its own value
+    type = (T <: Union{Bool, Nothing}) ? "boolean" :
+        (T <: Union{Integer, Nothing}) ? "integer" :
         (T <: Union{Number, Nothing}) ? "number" :
         (T <: Union{AbstractString, Symbol, Nothing}) ? "string" :
         (T <: Union{AbstractVector, Nothing}) ? "array" :

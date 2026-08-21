@@ -7,6 +7,7 @@ Base.setindex!(ref::StateRef, state::CardState) = setfield!(ref, 1, state)
 struct Node
     card::Card
     id::String
+    parent_id::Union{String, Nothing}
     update::Bool
     train::Bool
     invert::Bool
@@ -15,6 +16,7 @@ struct Node
     function Node(
             card::Card,
             id::AbstractString,
+            parent_id::Union{AbstractString, Nothing},
             update::Bool,
             train::Bool,
             invert::Bool,
@@ -25,7 +27,7 @@ struct Node
             invertible(card) || throw(ArgumentError("Card `$(card)` is not invertible"))
             train && throw(ArgumentError("Cannot train an inverted node"))
         end
-        return new(card, id, update, train, invert, label, state)
+        return new(card, id, parent_id, update, train, invert, label, state)
     end
 end
 
@@ -33,6 +35,7 @@ function update_node(
         n::Node;
         card::Card = n.card,
         id::AbstractString = n.id,
+        parent_id::Union{AbstractString, Nothing} = n.parent_id,
         update::Bool = n.update,
         train::Bool = n.train,
         invert::Bool = n.invert,
@@ -40,13 +43,14 @@ function update_node(
         state::StateRef = n.state
     )
 
-    return Node(card, id, update, train, invert, label, state)
+    return Node(card, id, parent_id, update, train, invert, label, state)
 end
 
 """
     Node(
         card::Card, state = CardState();
         id::AbstractString = "",
+        parent_id::Union{AbstractString, Nothing} = nothing,
         update::Bool = true, train::Bool = true,
         label::AbstractString = get_default_label(card)
     )
@@ -56,10 +60,11 @@ Generate a `Node` object from a [`Card`](@ref).
 function Node(
         card::Card, state::CardState = CardState();
         id::AbstractString = "",
+        parent_id::Union{AbstractString, Nothing} = nothing,
         update::Bool = true, train::Bool = true,
         label::AbstractString = get_default_label(card)
     )
-    return Node(card, id, update, train, false, label, StateRef(state))
+    return Node(card, id, parent_id, update, train, false, label, StateRef(state))
 end
 
 get_id(d::AbstractDict)::String = get(d, "id", "")

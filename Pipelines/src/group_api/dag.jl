@@ -16,6 +16,7 @@ function Pipeline(
     )
 
     validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
+    complete_node_configs = complete_node_list(node_configs)
     G, nodes, groups, cols = dependency_graph(node_configs, group_configs)
     n_nodes = length(nodes)
     c = Context(G, nodes, groups)

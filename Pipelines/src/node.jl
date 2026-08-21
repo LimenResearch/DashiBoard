@@ -186,3 +186,18 @@ function evaluate(
         evaluate(repository, card, state, sd, id_var; schema)
     end
 end
+
+# Tools to generate more than one node from a config
+# Currently only supported for the new `Pipeline(nodes, groups, [cols = nothing])` method
+# TODO: add test for nontrivial case
+
+node_list(::Type, d::AbstractDict) = StringDict[d]
+
+function node_list(d::AbstractDict)
+    key = d["card"]["type"]
+    return node_list(CARD_SPECS[key].type, d)
+end
+
+function complete_node_list(ds::AbstractVector)
+    return mapfoldl(node_list, append!, ds, init = StringDict[])
+end

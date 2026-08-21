@@ -119,6 +119,13 @@ Run a Streamliner model, predicting `targets` from `inputs`.
     suffix::String = "hat" & (dashi = json_string(minLength = 1),)
 end
 
+node_list(::Type, ::Type{StreamlinerCard}, d::AbstractDict) = StringDict[d]
+
+function node_list(::Type{StreamlinerCard}, d::AbstractDict)
+    f = get(d["funnel"], "type", "")
+    return node_list(PARSER[].funnels, StreamlinerCard, d)
+end
+
 ## StreamingCard interface
 
 function input_vars(sc::StreamlinerCard)

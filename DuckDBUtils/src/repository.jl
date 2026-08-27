@@ -297,7 +297,7 @@ function with_table_names(
         f(names)
     finally
         release_numbers(d, key, is)
-        cleanup && foreach(name -> delete_table(r, name; virtual), names)
+        cleanup && foreach(name -> delete_table(r, name; schema, virtual), names)
     end
 end
 

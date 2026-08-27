@@ -3,7 +3,7 @@ const NamedParams = Union{NamedTuple, AbstractDict}
 const Params = Union{NamedParams, UnnamedParams}
 
 const DEFAULT_SCHEMA = "main"
-const DEFAULT_EXT = "arrow"
+const DEFAULT_FORMAT = "arrow"
 
 const REPO_ID_COUNTER = Base.Threads.Atomic{UInt64}(UInt64(0))
 
@@ -91,7 +91,7 @@ The keyword argument `limit` denotes the maximum number of simultaneous connecti
 A repository reserves tables of the form `_table_{number}` (with number in `1..table_limit`)
 and views of the form `_view_{number}` (with number in `1..view_limit`) in each schema
 as temporary helpers for computations.
-It is also allowed to store files `_{repo_id}_file_{number}.{ext}` (with number in `1..file_limit`)
+It is also allowed to store files `_{repo_id}_file_{number}.{format}` (with number in `1..file_limit`)
 in a dedicated scratch space.
 
 Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
@@ -301,7 +301,7 @@ end
     with_table_names(
         f, r::Repository, n::Integer;
         schema::Union{AbstractString, Nothing} = nothing,
-        ext::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
         file_based::Bool = false,
         cleanup::Bool = true
@@ -322,16 +322,16 @@ See also [`with_table_name`](@ref).
 function with_table_names(
         f, r::Repository, n::Integer;
         schema::Union{AbstractString, Nothing} = nothing,
-        ext::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
         file_based::Bool = false,
         cleanup::Bool = true
     )
     d = file_based ? r.private_files : virtual ? r.private_views : r.private_tables
-    _schema, _ext = something(schema, DEFAULT_SCHEMA), something(ext, DEFAULT_EXT)
-    key = file_based ? _ext : _schema
+    _schema, _format = something(schema, DEFAULT_SCHEMA), something(format, DEFAULT_FORMAT)
+    key = file_based ? _format : _schema
     prefix = file_based ? "_$(r.id)_file_" : virtual ? "_view_" : "_table_"
-    postfix = file_based ? ".$(_ext)" : ""
+    postfix = file_based ? ".$(_format)" : ""
 
     is = acquire_numbers(d, key, n)
     names = string.(prefix, is, postfix)
@@ -347,7 +347,7 @@ end
     with_table_name(
         f, r::Repository;
         schema::Union{AbstractString, Nothing} = nothing,
-        ext::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
         file_based::Bool = false,
         cleanup::Bool = true
@@ -369,10 +369,10 @@ See also [`with_table_names`](@ref).
 function with_table_name(
         f, r::Repository;
         schema::Union{AbstractString, Nothing} = nothing,
-        ext::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
         file_based::Bool = false,
         cleanup::Bool = true
     )
-    return with_table_names(f ∘ only, r, 1; schema, ext, virtual, file_based, cleanup)
+    return with_table_names(f ∘ only, r, 1; schema, format, virtual, file_based, cleanup)
 end

@@ -135,6 +135,7 @@ Delete table `name` in schema `schema` in `repository.db`.
 Use `virtual = true` to delete a view instead of a table.
 
 Use `file_based = true` to delete a locally saved table.
+If `file_based = true` is set, the `virtual` argument is ignored.
 """
 function delete_table(
         repository::Repository,

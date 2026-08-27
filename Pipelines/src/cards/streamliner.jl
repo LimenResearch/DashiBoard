@@ -218,10 +218,16 @@ function evaluate(
             partition = nothing, require_targets = false, unique_values
         )
 
-        table_keys = SC.get_helper_table_keys(funnel)
-        with_table_names(repository, length(table_keys); schema) do table_names
-            SC.initialize_helper_tables!(data, Dict(table_keys .=> table_names))
-            SC.evaluate(dir, model, data, streaming; destination, suffix)
+        helper_keys = SC.get_helper_table_keys(funnel)
+        with_table_names(repository, length(helper_keys.tables); schema) do table_names
+            with_table_names(repository, length(helper_keys.tables); schema, file_based = true) do file_names
+                SC.initialize_helper_tables!(
+                    data,
+                    tables = Dict(helper_keys.tables .=> table_names),
+                    files = Dict(helper_keys.files .=> file_names)
+                )
+                SC.evaluate(dir, model, data, streaming; destination, suffix)
+            end
         end
     end
 end

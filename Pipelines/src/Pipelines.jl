@@ -46,6 +46,7 @@ using DBInterface: DBInterface
 
 using DuckDBUtils: DuckDBUtils,
     Repository,
+    get_scratch_space,
     in_schema,
     render_params,
     get_catalog,

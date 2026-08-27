@@ -25,6 +25,8 @@ public SQLMacro, execute_with_macros
 public render_params, in_schema, query, transaction
 
 using Base: front, Fix1, Fix2
+using Scratch: @get_scratch!
+
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, SQLDialect, LIT
 using DuckDB: DuckDB,
     query,
@@ -41,9 +43,16 @@ using ConcurrentUtilities: Pool, acquire, release, drain!, Pools
 using Tables: Tables
 using OrderedCollections: OrderedDict
 
+scratch_space::String = ""
+
 include("repository.jl")
 include("table.jl")
 include("macro.jl")
 include("batches.jl")
+
+function __init__()
+    scratch_space = @get_scratch!("tables")
+    return
+end
 
 end

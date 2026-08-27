@@ -126,28 +126,38 @@ end
         repository::Repository,
         name::AbstractString;
         schema::Union{AbstractString, Nothing} = nothing,
-        virtual::Bool = false
+        virtual::Bool = false,
+        file_based::Bool = false,
     )
 
 Delete table `name` in schema `schema` in `repository.db`.
 
 Use `virtual = true` to delete a view instead of a table.
+
+Use `file_based = true` to delete a locally saved table.
 """
 function delete_table(
         repository::Repository,
         name::AbstractString;
         schema::Union{AbstractString, Nothing} = nothing,
-        virtual::Bool = false
+        virtual::Bool = false,
+        file_based::Bool = false
     )
 
-    sql = string(
-        "DROP",
-        " ",
-        virtual ? "VIEW" : "TABLE",
-        " IF EXISTS ",
-        in_schema(name, schema)
-    )
-    return DBInterface.execute(Returns(nothing), repository, sql)
+    if file_based
+        rm(joinpath(scratch_space, name), force = true)
+    else
+        sql = string(
+            "DROP",
+            " ",
+            virtual ? "VIEW" : "TABLE",
+            " IF EXISTS ",
+            in_schema(name, schema)
+        )
+        DBInterface.execute(Returns(nothing), repository, sql)
+    end
+
+    return
 end
 
 """

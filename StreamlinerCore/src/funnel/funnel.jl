@@ -1,6 +1,6 @@
 abstract type Funnel end
 
-get_helper_table_keys(::Funnel) = String[]
+get_helper_table_keys(::Funnel) = (tables = String[], files = String[])
 
 @kwdef struct TableSpec
     repository::Repository
@@ -16,6 +16,7 @@ mutable struct FunneledData{F <: Funnel, N} <: AbstractData{N}
     const require_targets::Bool
     unique_values::Dict{String, AbstractVector}
     helper_tables::Union{Dict{String, String}, Nothing}
+    helper_files::Union{Dict{String, String}, Nothing}
 end
 
 function FunneledData(
@@ -23,29 +24,32 @@ function FunneledData(
         partition::Union{AbstractString, Nothing},
         require_targets::Bool = true,
         unique_values::AbstractDict = Dict{String, AbstractVector}(),
-        helper_tables::Union{AbstractDict, Nothing} = nothing
+        helper_tables::Union{AbstractDict, Nothing} = nothing,
+        helper_files::Union{AbstractDict, Nothing} = nothing
     ) where {F <: Funnel, N}
 
     return FunneledData{F, N}(
         table_spec, funnel, partition,
-        require_targets, unique_values, helper_tables
+        require_targets, unique_values,
+        helper_tables, helper_files
     )
 end
 
-function initialize_helper_tables!(data::FunneledData, d::AbstractDict)
+function initialize_helper_tables!(data::FunneledData; tables::AbstractDict, files::AbstractDict)
     # check that keys of `d` match `get_helper_table_keys(data.funnel)`
     expected_keys = get_helper_table_keys(data.funnel)
-    if !issetequal(expected_keys, keys(d))
-        throw(
-            ArgumentError(
-                """
-                Incorrect keys: expected $(expected_keys), found $(collect(keys(d))).
-                """
-            )
-        )
+    if !issetequal(expected_keys.tables, keys(tables))
+        msg = "Incorrect table keys: expected $(expected_keys), found $(collect(keys(d)))."
+        throw(ArgumentError(msg))
+    end
+    if !issetequal(expected_keys.files, keys(files))
+        msg = "Incorrect file keys: expected $(expected_keys), found $(collect(keys(d)))."
+        throw(ArgumentError(msg))
     end
 
-    data.helper_tables = d
+    data.helper_tables = tables
+    data.helper_files = files
+
     return initialize_helper_tables(data)
 end
 

@@ -68,15 +68,13 @@ struct Repository
     private_tables::MultiDict
     private_views::MultiDict
     private_files::MultiDict
-    scratch_space::String
     function Repository(
             db::DuckDB.DB, connections::Connections,
             private_tables::MultiDict, private_views::MultiDict,
             private_files::MultiDict
         )
         id = Base.Threads.atomic_add!(REPO_ID_COUNTER, UInt64(1))
-        scratch_space = @get_scratch!("repository_$(id)")
-        return new(id, db, connections, private_tables, private_views, private_files, scratch_space)
+        return new(id, db, connections, private_tables, private_views, private_files)
     end
 end
 
@@ -92,7 +90,7 @@ A repository reserves tables of the form `_table_{number}` (with number in `1..t
 and views of the form `_view_{number}` (with number in `1..view_limit`) in each schema
 as temporary helpers for computations.
 It is also allowed to store files `_{repo_id}_file_{number}.{format}` (with number in `1..file_limit`)
-in a dedicated scratch space.
+in a dedicated scratch space available as `get_scratch_space`.
 
 Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
 to run a function on the result of a query `sql` on an available connection in the pool.

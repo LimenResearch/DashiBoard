@@ -24,6 +24,8 @@ public SQLMacro, execute_with_macros
 
 public render_params, in_schema, query, transaction
 
+public get_scratch_space
+
 using Base: front, Fix1, Fix2
 using Scratch: @get_scratch!
 
@@ -45,13 +47,15 @@ using OrderedCollections: OrderedDict
 
 scratch_space::String = ""
 
+get_scratch_space() = scratch_space
+
 include("repository.jl")
 include("table.jl")
 include("macro.jl")
 include("batches.jl")
 
 function __init__()
-    scratch_space = @get_scratch!("tables")
+    global scratch_space = @get_scratch!("tables")
     return
 end
 

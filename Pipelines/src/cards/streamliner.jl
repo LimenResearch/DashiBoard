@@ -170,7 +170,7 @@ function train(
     return mktempdir() do dir
         helper_keys = SC.get_helper_table_keys(funnel)
         result = with_table_names(repository, length(helper_keys.tables); schema) do table_names
-            with_table_names(repository, length(helper_keys.tables); schema, file_based = true) do file_names
+            with_table_names(repository, length(helper_keys.files); schema, file_based = true) do file_names
                 SC.initialize_helper_tables!(
                     data,
                     tables = Dict(helper_keys.tables .=> table_names),
@@ -220,7 +220,7 @@ function evaluate(
 
         helper_keys = SC.get_helper_table_keys(funnel)
         with_table_names(repository, length(helper_keys.tables); schema) do table_names
-            with_table_names(repository, length(helper_keys.tables); schema, file_based = true) do file_names
+            with_table_names(repository, length(helper_keys.files); schema, file_based = true) do file_names
                 SC.initialize_helper_tables!(
                     data,
                     tables = Dict(helper_keys.tables .=> table_names),

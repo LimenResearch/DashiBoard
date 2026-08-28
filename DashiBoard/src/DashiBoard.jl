@@ -40,7 +40,6 @@ import AlgebraOfGraphics, CairoMakie
 
 const cache_directory() = @get_scratch!("cache")
 
-# TODO: allow db to live in other folders
 const REPOSITORY = Ref{Repository}()
 
 const ID_VAR = ScopedValue("_id")

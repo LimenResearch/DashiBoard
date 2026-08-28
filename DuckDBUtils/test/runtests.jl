@@ -1,4 +1,5 @@
 using DuckDB, DuckDBUtils, DBInterface, Tables
+using DuckDBUtils: to_sql
 using FunSQL: From, Where, Get, Var, Select, Fun
 using OrderedCollections: OrderedDict
 using Test
@@ -266,4 +267,29 @@ end
         @test s == chomp(expected)
         DBInterface.close!(result)
     end
+end
+
+@testset "files" begin
+    r = Repository()
+    x = (a = [1, 2], b = ["a", missing])
+    DuckDBUtils.query(
+        Returns(nothing), r,
+        """
+        INSTALL arrow FROM community;
+        LOAD arrow;
+        """
+    )
+    full_name = ""
+    DuckDBUtils.with_table_name(r, file_based = true) do name
+        full_name = DuckDBUtils.get_scratch_file(name)
+        DuckDBUtils.with_table(r, x) do tbl_name
+            DBInterface.execute(Returns(nothing), r, "COPY $(to_sql(Symbol(tbl_name))) TO $(to_sql(full_name));")
+            @test isfile(full_name)
+            tbl = DBInterface.execute(Tables.columntable, r, "FROM read_arrow($(to_sql(full_name)));")
+            @test isequal(tbl.a, [1, 2])
+            @test isequal(tbl.b, ["a", missing])
+        end
+    end
+    @test startswith(full_name, DuckDBUtils.get_scratch_space())
+    @test !isfile(full_name)
 end

@@ -174,7 +174,7 @@ function train(
                 SC.initialize_helper_tables!(
                     data,
                     tables = Dict(helper_keys.tables .=> table_names),
-                    files = Dict(helper_keys.files .=> joinpath.(get_scratch_space(), file_names))
+                    files = Dict(helper_keys.files .=> get_scratch_file.(file_names))
                 )
                 SC.train(dir, model, data, training)
             end
@@ -224,7 +224,7 @@ function evaluate(
                 SC.initialize_helper_tables!(
                     data,
                     tables = Dict(helper_keys.tables .=> table_names),
-                    files = Dict(helper_keys.files .=> joinpath.(get_scratch_space(), file_names))
+                    files = Dict(helper_keys.files .=> get_scratch_file.(file_names))
                 )
                 SC.evaluate(dir, model, data, streaming; destination, suffix)
             end

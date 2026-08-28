@@ -24,7 +24,7 @@ public SQLMacro, execute_with_macros
 
 public render_params, in_schema, query, transaction
 
-public get_scratch_space
+public get_scratch_space, get_scratch_file
 
 using Base: front, Fix1, Fix2
 using Scratch: @get_scratch!
@@ -48,6 +48,8 @@ using OrderedCollections: OrderedDict
 scratch_space::String = ""
 
 get_scratch_space() = scratch_space
+
+get_scratch_file(file::AbstractString) = joinpath(get_scratch_space(), file)
 
 include("repository.jl")
 include("table.jl")

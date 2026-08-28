@@ -90,7 +90,7 @@ A repository reserves tables of the form `_table_{number}` (with number in `1..t
 and views of the form `_view_{number}` (with number in `1..view_limit`) in each schema
 as temporary helpers for computations.
 It is also allowed to store files `_{repo_id}_file_{number}.{format}` (with number in `1..file_limit`)
-in a dedicated scratch space available as `get_scratch_space`.
+in a dedicated scratch space available as `get_scratch_space()`.
 
 Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
 to run a function on the result of a query `sql` on an available connection in the pool.

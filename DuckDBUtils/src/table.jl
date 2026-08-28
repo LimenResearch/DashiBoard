@@ -146,7 +146,7 @@ function delete_table(
     )
 
     if file_based
-        rm(joinpath(get_scratch_space(), name), force = true)
+        rm(get_scratch_file(name), force = true)
     else
         sql = string(
             "DROP",

@@ -16,7 +16,7 @@
         targets = StreamlinerCore.RichColumn.(["Iws"])
     )
 
-    @test StreamlinerCore.get_helper_table_keys(funnel) == String[]
+    @test StreamlinerCore.get_helper_table_keys(funnel) == (tables = String[], files = String[])
 
     @test StreamlinerCore.get_metadata(funnel) == Dict(
         "order_by" => ["No"],
@@ -37,11 +37,17 @@
     @test isnothing(data.helper_tables)
 
     helper_tables = Dict("fake_key" => "table_name")
-    @test_throws ArgumentError StreamlinerCore.initialize_helper_tables!(data, helper_tables)
+    helper_files = Dict("fake_key" => "table_name")
+    @test_throws ArgumentError StreamlinerCore.initialize_helper_tables!(
+        data, tables = helper_tables, files = helper_files
+    )
 
     helper_tables = Dict()
-    StreamlinerCore.initialize_helper_tables!(data, Dict())
+    helper_files = Dict()
+
+    StreamlinerCore.initialize_helper_tables!(data, tables = helper_tables, files = helper_files)
     @test data.helper_tables == Dict()
+    @test data.helper_files == Dict()
 
     df = DBInterface.execute(DataFrame, repo, "FROM schm.split ORDER BY No")
 

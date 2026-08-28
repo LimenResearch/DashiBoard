@@ -3,6 +3,9 @@ const NamedParams = Union{NamedTuple, AbstractDict}
 const Params = Union{NamedParams, UnnamedParams}
 
 const DEFAULT_SCHEMA = "main"
+const DEFAULT_FORMAT = "arrows"
+
+const REPO_ID_COUNTER = Base.Threads.Atomic{UInt64}(UInt64(0))
 
 struct MultiDict
     dict::Dict{String, Set{Int}}
@@ -59,10 +62,20 @@ end
 drain_connections!(connections::Connections) = drain!(connections.pool)
 
 struct Repository
+    id::UInt64
     db::DuckDB.DB
     connections::Connections
     private_tables::MultiDict
     private_views::MultiDict
+    private_files::MultiDict
+    function Repository(
+            db::DuckDB.DB, connections::Connections,
+            private_tables::MultiDict, private_views::MultiDict,
+            private_files::MultiDict
+        )
+        id = Base.Threads.atomic_add!(REPO_ID_COUNTER, UInt64(1))
+        return new(id, db, connections, private_tables, private_views, private_files)
+    end
 end
 
 """
@@ -74,17 +87,34 @@ connections.
 The keyword argument `limit` denotes the maximum number of simultaneous connections to the database.
 
 A repository reserves tables of the form `_table_{number}` (with number in `1..table_limit`)
-and views of the form `_view_{number}` (with number in `1..view_limit`) as temporary helpers for computations.
+and views of the form `_view_{number}` (with number in `1..view_limit`) in each schema
+as temporary helpers for computations.
+It is also allowed to store files `_{repo_id}_file_{number}.{format}` (with number in `1..file_limit`)
+in a dedicated scratch space available as `get_scratch_space()`.
 
 Use `DBInterface.execute(f::Base.Callable, repository::Repository, sql::AbstractString, [params])`
 to run a function on the result of a query `sql` on an available connection in the pool.
 """
-function Repository(db::DuckDB.DB = DuckDB.DB(); limit::Integer = 4096, table_limit::Integer = 4096, view_limit::Integer = 4096)
-    return Repository(db, Connections(limit), MultiDict(table_limit), MultiDict(view_limit))
+function Repository(
+        db::DuckDB.DB = DuckDB.DB();
+        limit::Integer = 4096, table_limit::Integer = 4096,
+        view_limit::Integer = 4096, file_limit::Integer = 4096
+    )
+    return Repository(
+        db,
+        Connections(limit),
+        MultiDict(table_limit),
+        MultiDict(view_limit),
+        MultiDict(file_limit)
+    )
 end
 
-function Repository(path::AbstractString; limit::Integer = 4096, table_limit::Integer = 4096, view_limit::Integer = 4096)
-    return Repository(DuckDB.DB(path); limit, table_limit, view_limit)
+function Repository(
+        path::AbstractString;
+        limit::Integer = 4096, table_limit::Integer = 4096,
+        view_limit::Integer = 4096, file_limit::Integer = 4096
+    )
+    return Repository(DuckDB.DB(path); limit, table_limit, view_limit, file_limit)
 end
 
 function Base.show(io::IO, repository::Repository)
@@ -269,7 +299,9 @@ end
     with_table_names(
         f, r::Repository, n::Integer;
         schema::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
+        file_based::Bool = false,
         cleanup::Bool = true
     )
 
@@ -278,6 +310,9 @@ then unreserve the table names.
 
 Use `virtual = true` to reserve names for SQL views rather than tables.
 
+Use `file_based = true` to reserve names for locally saved `arrow` files rather than tables.
+If `file_based = true` is set, the `virtual` argument is ignored.
+
 The tables are automatically deleted if `cleanup = true` (default).
 
 See also [`with_table_name`](@ref).
@@ -285,19 +320,24 @@ See also [`with_table_name`](@ref).
 function with_table_names(
         f, r::Repository, n::Integer;
         schema::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
+        file_based::Bool = false,
         cleanup::Bool = true
     )
-    prefix = virtual ? "view" : "table"
-    d = virtual ? r.private_views : r.private_tables
-    key = something(schema, DEFAULT_SCHEMA)
+    d = file_based ? r.private_files : virtual ? r.private_views : r.private_tables
+    _schema, _format = something(schema, DEFAULT_SCHEMA), something(format, DEFAULT_FORMAT)
+    key = file_based ? _format : _schema
+    prefix = file_based ? "_$(r.id)_file_" : virtual ? "_view_" : "_table_"
+    postfix = file_based ? ".$(_format)" : ""
+
     is = acquire_numbers(d, key, n)
-    names = string.("_", prefix, "_", is)
+    names = string.(prefix, is, postfix)
     return try
         f(names)
     finally
         release_numbers(d, key, is)
-        cleanup && foreach(name -> delete_table(r, name; schema, virtual), names)
+        cleanup && foreach(name -> delete_table(r, name; schema, virtual, file_based), names)
     end
 end
 
@@ -305,7 +345,9 @@ end
     with_table_name(
         f, r::Repository;
         schema::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
+        file_based::Bool = false,
         cleanup::Bool = true
     )
 
@@ -314,6 +356,10 @@ then unreserve the table name.
 
 Use `virtual = true` to reserve a name for a SQL view rather than a table.
 
+
+Use `file_based = true` to reserve a name for a locally save `arrow` file rather than a table.
+If `file_based = true` is set, the `virtual` argument is ignored.
+
 The tables are automatically deleted if `cleanup = true` (default).
 
 See also [`with_table_names`](@ref).
@@ -321,8 +367,10 @@ See also [`with_table_names`](@ref).
 function with_table_name(
         f, r::Repository;
         schema::Union{AbstractString, Nothing} = nothing,
+        format::Union{AbstractString, Nothing} = nothing,
         virtual::Bool = false,
+        file_based::Bool = false,
         cleanup::Bool = true
     )
-    return with_table_names(f ∘ only, r, 1; schema, virtual, cleanup)
+    return with_table_names(f ∘ only, r, 1; schema, format, virtual, file_based, cleanup)
 end

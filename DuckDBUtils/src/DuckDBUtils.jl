@@ -24,7 +24,11 @@ public SQLMacro, execute_with_macros
 
 public render_params, in_schema, query, transaction
 
+public get_scratch_space, get_scratch_file
+
 using Base: front, Fix1, Fix2
+using Scratch: @get_scratch!
+
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, SQLDialect, LIT
 using DuckDB: DuckDB,
     query,
@@ -40,6 +44,12 @@ using DBInterface: DBInterface
 using ConcurrentUtilities: Pool, acquire, release, drain!, Pools
 using Tables: Tables
 using OrderedCollections: OrderedDict
+
+# we use `OncePerProcess` to set a "global const" exactly once
+const scratch_space = Base.OncePerProcess{String}(() -> @get_scratch!("tables"))
+
+get_scratch_space() = scratch_space()
+get_scratch_file(file::AbstractString) = joinpath(get_scratch_space(), file)
 
 include("repository.jl")
 include("table.jl")

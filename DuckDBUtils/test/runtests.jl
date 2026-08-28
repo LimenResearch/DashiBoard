@@ -292,4 +292,7 @@ end
     end
     @test startswith(full_name, DuckDBUtils.get_scratch_space())
     @test !isfile(full_name)
+
+    @test_throws "Invalid file" DuckDBUtils.get_scratch_file("..")
+    @test_throws "already a directory" DuckDBUtils.get_scratch_file(".")
 end

@@ -49,7 +49,17 @@ using OrderedCollections: OrderedDict
 const scratch_space = Base.OncePerProcess{String}(() -> @get_scratch!("tables"))
 
 get_scratch_space() = scratch_space()
-get_scratch_file(file::AbstractString) = joinpath(get_scratch_space(), file)
+
+function get_scratch_file(file::AbstractString)
+    path = abspath(joinpath(get_scratch_space(), file))
+    if !startswith(path, get_scratch_space())
+        throw(ArgumentError("Invalid file $(file), please pass a valid filename."))
+    end
+    if isdir(path)
+        throw(ArgumentError("$(path) is already a directory."))
+    end
+    return paths
+end
 
 include("repository.jl")
 include("table.jl")

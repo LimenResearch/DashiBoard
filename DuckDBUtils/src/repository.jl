@@ -3,7 +3,7 @@ const NamedParams = Union{NamedTuple, AbstractDict}
 const Params = Union{NamedParams, UnnamedParams}
 
 const DEFAULT_SCHEMA = "main"
-const DEFAULT_FORMAT = "arrow"
+const DEFAULT_FORMAT = "arrows"
 
 const REPO_ID_COUNTER = Base.Threads.Atomic{UInt64}(UInt64(0))
 

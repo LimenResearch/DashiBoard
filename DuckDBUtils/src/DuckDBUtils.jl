@@ -45,20 +45,15 @@ using ConcurrentUtilities: Pool, acquire, release, drain!, Pools
 using Tables: Tables
 using OrderedCollections: OrderedDict
 
-scratch_space::String = ""
+# we use `OncePerProcess` to set a "global const" exactly once
+const scratch_space = Base.OncePerProcess{String}(() -> @get_scratch!("tables"))
 
-get_scratch_space() = scratch_space
-
+get_scratch_space() = scratch_space()
 get_scratch_file(file::AbstractString) = joinpath(get_scratch_space(), file)
 
 include("repository.jl")
 include("table.jl")
 include("macro.jl")
 include("batches.jl")
-
-function __init__()
-    global scratch_space = @get_scratch!("tables")
-    return
-end
 
 end

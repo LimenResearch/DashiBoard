@@ -39,11 +39,11 @@ function initialize_helper_tables!(data::FunneledData; tables::AbstractDict, fil
     # check that keys of `d` match `get_helper_table_keys(data.funnel)`
     expected_keys = get_helper_table_keys(data.funnel)
     if !issetequal(expected_keys.tables, keys(tables))
-        msg = "Incorrect table keys: expected $(expected_keys), found $(collect(keys(d)))."
+        msg = "Incorrect table keys: expected $(expected_keys), found $(collect(keys(tables)))."
         throw(ArgumentError(msg))
     end
     if !issetequal(expected_keys.files, keys(files))
-        msg = "Incorrect file keys: expected $(expected_keys), found $(collect(keys(d)))."
+        msg = "Incorrect file keys: expected $(expected_keys), found $(collect(keys(files)))."
         throw(ArgumentError(msg))
     end
 

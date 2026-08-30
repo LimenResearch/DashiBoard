@@ -58,7 +58,7 @@ function get_scratch_file(file::AbstractString)
     if isdir(path)
         throw(ArgumentError("$(path) is already a directory."))
     end
-    return paths
+    return path
 end
 
 include("repository.jl")

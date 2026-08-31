@@ -18,12 +18,6 @@ export default function App() {
             >
               Home
             </a>
-            <a
-              class="mx-0.5 inline-block rounded-lg px-3 py-1.5 font-semibold text-sky-300 no-underline transition-colors hover:bg-white/10 hover:text-sky-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-600"
-              href={paths.users(1)}
-            >
-              Users
-            </a>
           </nav>
           <Loading fallback={<main class="px-4 py-12">Loading…</main>}>
             {props.children}

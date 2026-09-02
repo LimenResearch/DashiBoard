@@ -39,9 +39,12 @@ using JLD2: jldopen
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
     fieldtags, fielddefaults, StructUtils
 using JSONSchema: JSONSchema
-using DashiBase: DashiBase, DashiStyle, json_schema, construct, enum_instances, to_config, Property,
-    TaggedObjectIR, ObjectIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
-    VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF
+
+using DashiBase: DashiBase, DashiStyle, json_schema, construct, enum_instances, to_config,
+    AbstractMethod, @options, lift_simple_method, lower_simple_method,
+    Property, TaggedObjectIR, ObjectIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
+    VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,
+    StringDict, SymbolDict
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
@@ -153,9 +156,6 @@ using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using Dates: hour, minute
 
-const StringDict = Dict{String, Any}
-const SymbolDict = Dict{Symbol, Any}
-
 # Alias to potentially support richer primary keys in the future
 const AbstractPrimaryKey = AbstractString
 const PrimaryKey = String
@@ -173,7 +173,6 @@ include("utils.jl")
 include("dict_helpers.jl")
 include("card_schema.jl")
 include("card.jl")
-include("method.jl")
 include("dissimilarities.jl")
 
 include("cards/standard.jl")

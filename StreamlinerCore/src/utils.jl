@@ -1,10 +1,3 @@
-# Shorthands
-
-const StringDict = Dict{String, Any}
-const SymbolDict = Dict{Symbol, Any}
-
-const Maybe{T} = Union{T, Nothing}
-
 # Helper to convert lists (as one has in TOML / BSON) to tuples
 
 tuplify_list(v) = v isa AbstractVector ? Tuple(v) : v

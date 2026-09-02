@@ -1,4 +1,4 @@
-# ObjectIR
+# Abstract type and basic definitions for IR
 
 abstract type AbstractIR end
 
@@ -6,16 +6,30 @@ Base.show(io::IO, s::AbstractIR) = JSON.json(io, s, omit_null = true)
 
 omit_null!(d::AbstractDict) = filter!(!isnothing ∘ last, d)
 
-_json_schema(s::AbstractIR) = to_config(s)
+maybe_json_schema(s) = s isa AbstractIR ? json_schema(s) : s
 
 """
     json_schema(s::AbstractIR)
 
 Return JSON schema (as a potentially nested dictionary) from an `AbstractIR` `s`.
 """
-json_schema(s::AbstractIR) = omit_null!(_json_schema(s))
+function json_schema(s::AbstractIR)
+    schema = StructUtils.make(StringDict, s)
+    map!(maybe_json_schema, values(schema))
+    return omit_null!(schema)
+end
 
-StructUtils.lower(::DashiStyle, s::AbstractIR) = json_schema(s)
+struct Property
+    key::String
+    value::AbstractIR
+    required::Bool
+end
+
+function Property((key, value)::Pair{<:AbstractString, <:AbstractIR}; required::Bool = true)
+    return Property(key, value, required)
+end
+
+# Building blocks of IR
 
 struct TrivialIR <: AbstractIR end
 
@@ -48,14 +62,18 @@ end
     var"$ref"::String
 end
 
-struct Property
-    key::String
-    value::AbstractIR
-    required::Bool
+@kwarg struct ArrayIR{T, IR <: AbstractIR} <: AbstractIR
+    type::String = "array"
+    title::Maybe{String} = nothing
+    description::Maybe{String} = nothing
+    default::Maybe{Vector{T}} = nothing
+    items::IR
+    minItems::Maybe{Int} = nothing
+    maxItems::Maybe{Int} = nothing
 end
 
-function Property((key, value)::Pair{<:AbstractString, <:AbstractIR}; required::Bool = true)
-    return Property(key, value, required)
+function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}
+    return ArrayIR{T, IR}(; items, kwargs...)
 end
 
 @kwarg struct ObjectIR <: AbstractIR
@@ -66,10 +84,10 @@ end
     additionalProperties::Bool = false
 end
 
-function _json_schema(o::ObjectIR)
+function json_schema(o::ObjectIR)
     properties = Dict{String, Any}(prop.key => json_schema(prop.value) for prop in o.properties)
     required = String[prop.key for prop in o.properties if prop.required]
-    return StringDict(
+    schema = StringDict(
         "type" => "object",
         "title" => o.title,
         "description" => o.description,
@@ -77,6 +95,7 @@ function _json_schema(o::ObjectIR)
         "additionalProperties" => o.additionalProperties,
         "required" => required
     )
+    return omit_null!(schema)
 end
 
 @kwarg struct TaggedObjectIR <: AbstractIR
@@ -88,7 +107,7 @@ end
     default_option::Maybe{String} = nothing
 end
 
-function _json_schema(to::TaggedObjectIR)
+function json_schema(to::TaggedObjectIR)
     required = isnothing(to.default_option) ? ["type"] : String[]
     properties = StringDict(
         "type" => json_schema(StringIR(enum = to.options, default = to.default_option))
@@ -104,7 +123,7 @@ function _json_schema(to::TaggedObjectIR)
             "then" => schema,
         )
     end
-    return StringDict(
+    schema = StringDict(
         "type" => "object",
         "title" => to.title,
         "description" => to.description,
@@ -112,29 +131,16 @@ function _json_schema(to::TaggedObjectIR)
         "required" => required,
         "allOf" => allOf
     )
-end
-
-@kwarg struct ArrayIR{T, IR <: AbstractIR} <: AbstractIR
-    type::String = "array"
-    title::Maybe{String} = nothing
-    description::Maybe{String} = nothing
-    default::Maybe{Vector{T}} = nothing
-    items::IR
-    minItems::Maybe{Int} = nothing
-    maxItems::Maybe{Int} = nothing
-end
-
-function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}
-    return ArrayIR{T, IR}(; items, kwargs...)
+    return omit_null!(schema)
 end
 
 const IR_DICT = Dict{String, Type}(
     "integer" => IntegerIR,
     "number" => NumberIR,
     "string" => StringIR,
+    "array" => ArrayIR,
     "object" => ObjectIR,
     "tagged_object" => TaggedObjectIR,
-    "array" => ArrayIR,
 )
 
 choose_IR(x) = IR_DICT[x["type"]]

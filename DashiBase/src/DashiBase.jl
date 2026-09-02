@@ -8,5 +8,6 @@ const StringDict = Dict{String, Any}
 include("style.jl")
 include("IR.jl")
 include("auto_IR.jl")
+include("definitions.jl")
 
 end # module DashiBase

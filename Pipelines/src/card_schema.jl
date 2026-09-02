@@ -64,13 +64,3 @@ function card_schema(key::AbstractString; additionalProperties::Bool = false)::S
     get!(schema, "additionalProperties", additionalProperties)
     return schema
 end
-
-# Definitions
-
-const VARIABLE_DEF = ReferenceIR(raw"#/$defs/variable")
-const VARIABLES_DEF = ReferenceIR(raw"#/$defs/variables")
-const NONEMPTY_VARIABLES_DEF = ReferenceIR(raw"#/$defs/nonempty_variables")
-
-const NODE_DEF = ReferenceIR(raw"#/$defs/node")
-const GROUP_DEF = ReferenceIR(raw"#/$defs/group")
-const COL_DEF = ReferenceIR(raw"#/$defs/col")

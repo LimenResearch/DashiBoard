@@ -39,8 +39,9 @@ using JLD2: jldopen
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
     fieldtags, fielddefaults, StructUtils
 using JSONSchema: JSONSchema
-using DashiBase: DashiBase, DashiStyle, emit_json, construct, to_config, Property,
-    TaggedObjectIR, ObjectIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR
+using DashiBase: DashiBase, DashiStyle, emit_json, construct, enum_instances, to_config, Property,
+    TaggedObjectIR, ObjectIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
+    VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables

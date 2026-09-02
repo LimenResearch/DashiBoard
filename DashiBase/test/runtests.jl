@@ -1,5 +1,5 @@
 using Test, DashiBase
-using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ObjectIR
+using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ObjectIR, Maybe
 using JSON: JSON
 
 module StructTest
@@ -17,13 +17,13 @@ end
 @testset "auto_property" begin
     instances = enum_instances(StructTest.Fruit)
     @test instances == ["apple", "orange", "kiwi"]
-    instances = enum_instances(Union{StructTest.Fruit, Nothing})
+    instances = enum_instances(Maybe{StructTest.Fruit})
     @test instances == ["apple", "orange", "kiwi"]
 
     @test_throws ArgumentError auto_property(Nothing, "k" => nothing)
 
     prop = auto_property(
-        Union{StructTest.Fruit, Nothing},
+        Maybe{StructTest.Fruit},
         "k" => DashiBase.StringIR(title = "fruits"),
         default = StructTest.orange
     )
@@ -49,7 +49,7 @@ end
     @test prop.required
 
     prop = auto_property(
-        Union{StructTest.Fruit, Nothing},
+        Maybe{StructTest.Fruit},
         "k" => DashiBase.StringIR(title = "fruits"),
         default = nothing
     )
@@ -67,7 +67,7 @@ end
         extras = T === AbstractVector ? ["items" => Dict()] :
             T === Vector{String} ? ["items" => Dict("type" => "string")] : []
 
-        prop = auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = def)
+        prop = auto_property(Maybe{T}, "k" => DashiBase.TrivialIR(), default = def)
         @test DashiBase.json_schema(prop.value) == Dict{String, Any}(
             "type" => s, "default" => ldef, extras...
         )
@@ -77,7 +77,7 @@ end
         @test DashiBase.json_schema(prop.value) == Dict{String, Any}("type" => s, extras...)
         @test prop.required
 
-        prop = auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = nothing)
+        prop = auto_property(Maybe{T}, "k" => DashiBase.TrivialIR(), default = nothing)
         @test !prop.required
     end
 

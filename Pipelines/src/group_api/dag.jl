@@ -11,7 +11,7 @@ get_output_vars(eg::GroupDiGraph) = eg.output_vars
 function Pipeline(
         node_configs::AbstractVector,
         group_configs::AbstractDict,
-        available_cols::Union{AbstractVector, Nothing} = nothing;
+        available_cols::Maybe{AbstractVector} = nothing;
         validate_schema::Bool = true
     )
 

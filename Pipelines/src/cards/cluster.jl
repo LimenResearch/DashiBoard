@@ -22,7 +22,7 @@ usual convergence guarantee.
     classes::Int & (dashi = IntegerIR(minimum = 1),)
     iterations::Int = 100 & (dashi = IntegerIR(minimum = 1),)
     tol::Float64 = 1.0e-6 & (dashi = NumberIR(exclusiveMinimum = 0),)
-    seed::Union{Int, Nothing} = nothing & (dashi = IntegerIR(minimum = 0),)
+    seed::Maybe{Int} = nothing & (dashi = IntegerIR(minimum = 0),)
 end
 
 function (m::KMeansMethod)(X; weights)
@@ -108,8 +108,8 @@ Save resulting column as `output`.
 @kwarg struct ClusterCard{M <: ClusteringMethod} <: StandardCard
     method::M
     inputs::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
-    weights::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
-    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    weights::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     output::String = "cluster" & (dashi = StringIR(minLength = 1),)
 end
 

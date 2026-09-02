@@ -4,7 +4,7 @@ abstract type AbstractMethod end
 
 function choose_method(
         d::AbstractDict, methods::AbstractDict;
-        default::Union{AbstractString, Nothing} = nothing
+        default::Maybe{AbstractString} = nothing
     )
     method::String = isnothing(default) ? d["type"] : get(d, "type", default)
     M = get(methods, method, nothing)
@@ -59,7 +59,7 @@ end
 
 function lift_simple_method(
         d::AbstractDict, methods::AbstractDict;
-        default::Union{AbstractString, Nothing} = nothing
+        default::Maybe{AbstractString} = nothing
     )
     return choose_method(d, methods; default)
 end

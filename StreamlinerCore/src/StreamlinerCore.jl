@@ -19,7 +19,8 @@ public get_helpers_in, get_helpers_out, get_order_by,
     get_inputs, get_constant_inputs, get_input_paths,
     get_targets, get_constant_targets, get_target_paths
 
-using DashiBase: DashiBase, DashiStyle, ObjectIR, TaggedObjectIR, Property
+using DashiBase: DashiBase, DashiStyle, ObjectIR, TaggedObjectIR, Property,
+    StringDict, SymbolDict, Maybe
 
 using DuckDBUtils: DuckDBUtils,
     Repository,

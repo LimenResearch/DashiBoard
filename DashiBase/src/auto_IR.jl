@@ -1,4 +1,4 @@
-to_nt(ir::I) where {I <: AbstractIR} = NamedTuple{fieldnames(I)}(ntuple(Base.Fix1(getfield, ir), fieldcount(I)))
+to_nt(ir::I) where {I <: AbstractIR} = NamedTuple{fieldnames(I)}(ntuple(Fix1(getfield, ir), fieldcount(I)))
 
 find_value(x1, x2) = something(x2, x1, Some(nothing))
 
@@ -16,8 +16,8 @@ end
 
 # generic IR utils
 
-_eltype(::Type{V}) where {V <: Union{AbstractVector, Nothing}} = Any
-_eltype(::Type{V}) where {V <: Union{AbstractVector{T}, Nothing}} where {T} = T
+_eltype(::Type{V}) where {V <: Maybe{AbstractVector}} = Any
+_eltype(::Type{V}) where {V <: Maybe{AbstractVector{T}}} where {T} = T
 
 function IR_from_type(T::Type, _default)::AbstractIR
     if T <: Nothing
@@ -27,18 +27,19 @@ function IR_from_type(T::Type, _default)::AbstractIR
     default = StructUtils.lower(DashiStyle(), _default)
 
     # we consider nullable types, which correspond to optional fields with no default
-    return (T <: Union{Integer, Nothing}) ? IntegerIR(; default) :
-        (T <: Union{Number, Nothing}) ? NumberIR(; default) :
-        (T <: Union{AbstractString, Symbol, Nothing}) ? StringIR(; default) :
-        (T <: Union{Enum, Nothing}) ? StringIR(; default, enum = enum_instances(T)) :
-        (T <: Union{AbstractVector, Nothing}) ? ArrayIR{_eltype(T)}(; default) :
+    return (T <: Maybe{Integer}) ? IntegerIR(; default) :
+        (T <: Maybe{Number}) ? NumberIR(; default) :
+        (T <: Maybe{AbstractString}) ? StringIR(; default) :
+        (T <: Maybe{Symbol}) ? StringIR(; default) :
+        (T <: Maybe{Enum}) ? StringIR(; default, enum = enum_instances(T)) :
+        (T <: Maybe{AbstractVector}) ? ArrayIR{_eltype(T)}(; default) :
         TrivialIR()
 end
 
 # schema for composite structures
 
 function auto_property(
-        ::Type{T}, (key, config)::Pair{<:AbstractString, <:Union{AbstractIR, Nothing}};
+        ::Type{T}, (key, config)::Pair{<:AbstractString, <:Maybe{AbstractIR}};
         default = nothing
     ) where {T}
     value = merge_IR(IR_from_type(T, default), something(config, TrivialIR()))

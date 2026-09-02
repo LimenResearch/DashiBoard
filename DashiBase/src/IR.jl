@@ -21,14 +21,14 @@ struct TrivialIR <: AbstractIR end
 
 @kwarg struct NumericIR{T <: Real} <: AbstractIR
     type::String = T <: Integer ? "integer" : "number"
-    title::Union{String, Nothing} = nothing
-    description::Union{String, Nothing} = nothing
-    default::Union{T, Nothing} = nothing
-    enum::Union{Vector{T}, Nothing} = nothing
-    minimum::Union{Int, Nothing} = nothing
-    maximum::Union{Int, Nothing} = nothing
-    exclusiveMinimum::Union{Int, Nothing} = nothing
-    exclusiveMaximum::Union{Int, Nothing} = nothing
+    title::Maybe{String} = nothing
+    description::Maybe{String} = nothing
+    default::Maybe{T} = nothing
+    enum::Maybe{Vector{T}} = nothing
+    minimum::Maybe{Int} = nothing
+    maximum::Maybe{Int} = nothing
+    exclusiveMinimum::Maybe{Int} = nothing
+    exclusiveMaximum::Maybe{Int} = nothing
 end
 
 const IntegerIR = NumericIR{Int}
@@ -36,12 +36,12 @@ const NumberIR = NumericIR{Float64}
 
 @kwarg struct StringIR <: AbstractIR
     type::String = "string"
-    title::Union{String, Nothing} = nothing
-    description::Union{String, Nothing} = nothing
-    default::Union{String, Nothing} = nothing
-    minLength::Union{Int, Nothing} = nothing
-    maxLength::Union{Int, Nothing} = nothing
-    enum::Union{Vector{String}, Nothing} = nothing
+    title::Maybe{String} = nothing
+    description::Maybe{String} = nothing
+    default::Maybe{String} = nothing
+    minLength::Maybe{Int} = nothing
+    maxLength::Maybe{Int} = nothing
+    enum::Maybe{Vector{String}} = nothing
 end
 
 @kwarg struct ReferenceIR <: AbstractIR
@@ -60,8 +60,8 @@ end
 
 @kwarg struct ObjectIR <: AbstractIR
     type::String = "object"
-    title::Union{String, Nothing} = nothing
-    description::Union{String, Nothing} = nothing
+    title::Maybe{String} = nothing
+    description::Maybe{String} = nothing
     properties::Vector{Property} = Property[]
     additionalProperties::Bool = false
 end
@@ -81,11 +81,11 @@ end
 
 @kwarg struct TaggedObjectIR <: AbstractIR
     type::String = "tagged_object"
-    title::Union{String, Nothing} = nothing
-    description::Union{String, Nothing} = nothing
+    title::Maybe{String} = nothing
+    description::Maybe{String} = nothing
     objects::Dict{String, ObjectIR} = Dict{String, ObjectIR}()
     options::Vector{String} = collect(String, keys(objects))
-    default_option::Union{String, Nothing} = nothing
+    default_option::Maybe{String} = nothing
 end
 
 function _json_schema(to::TaggedObjectIR)
@@ -116,12 +116,12 @@ end
 
 @kwarg struct ArrayIR{T, IR <: AbstractIR} <: AbstractIR
     type::String = "array"
-    title::Union{String, Nothing} = nothing
-    description::Union{String, Nothing} = nothing
-    default::Union{Vector{T}, Nothing} = nothing
+    title::Maybe{String} = nothing
+    description::Maybe{String} = nothing
+    default::Maybe{Vector{T}} = nothing
     items::IR
-    minItems::Union{Int, Nothing} = nothing
-    maxItems::Union{Int, Nothing} = nothing
+    minItems::Maybe{Int} = nothing
+    maxItems::Maybe{Int} = nothing
 end
 
 function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}

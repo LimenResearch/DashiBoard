@@ -2,7 +2,7 @@
 
 function table_schema(
         repository::Repository, tbl::AbstractString;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
     query = From(tbl) |> Limit(0)
     return DBInterface.execute(Tables.schema, repository, query; schema)
@@ -61,7 +61,7 @@ The summary of a variable depends on its type, according to the following rules.
 """
 function summarize(
         repository::Repository, tbl::AbstractString;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     tbl_schema = table_schema(repository, tbl; schema)

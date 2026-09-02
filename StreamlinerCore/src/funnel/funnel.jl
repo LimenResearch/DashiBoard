@@ -4,7 +4,7 @@ get_helper_table_keys(::Funnel) = (tables = String[], files = String[])
 
 @kwdef struct TableSpec
     repository::Repository
-    schema::Union{String, Nothing}
+    schema::Maybe{String}
     table::String
     id_var::String
 end
@@ -12,20 +12,20 @@ end
 mutable struct FunneledData{F <: Funnel, N} <: AbstractData{N}
     const table_spec::TableSpec
     const funnel::F
-    const partition::Union{String, Nothing}
+    const partition::Maybe{String}
     const require_targets::Bool
     unique_values::Dict{String, AbstractVector}
-    helper_tables::Union{Dict{String, String}, Nothing}
-    helper_files::Union{Dict{String, String}, Nothing}
+    helper_tables::Maybe{Dict{String, String}}
+    helper_files::Maybe{Dict{String, String}}
 end
 
 function FunneledData(
         ::Val{N}, funnel::F, table_spec::TableSpec;
-        partition::Union{AbstractString, Nothing},
+        partition::Maybe{AbstractString},
         require_targets::Bool = true,
         unique_values::AbstractDict = Dict{String, AbstractVector}(),
-        helper_tables::Union{AbstractDict, Nothing} = nothing,
-        helper_files::Union{AbstractDict, Nothing} = nothing
+        helper_tables::Maybe{AbstractDict} = nothing,
+        helper_files::Maybe{AbstractDict} = nothing
     ) where {F <: Funnel, N}
 
     return FunneledData{F, N}(
@@ -80,9 +80,9 @@ initialize_helper_tables(data::FunneledData) = data
 @kwdef struct DBFunnel <: Funnel
     order_by::Vector{String}
     inputs::Vector{RichColumn}
-    input_paths::Union{String, Nothing} = nothing
+    input_paths::Maybe{String} = nothing
     targets::Vector{RichColumn}
-    target_paths::Union{String, Nothing} = nothing
+    target_paths::Maybe{String} = nothing
 end
 
 get_helpers_in(dbf::DBFunnel) = String[]
@@ -100,9 +100,9 @@ get_target_paths(dbf::DBFunnel) = dbf.target_paths
 function DBFunnel(d::AbstractDict)
     order_by::Vector{String} = get(d, "order_by", String[])
     inputs::Vector{RichColumn} = RichColumn.(get(d, "inputs", []))
-    input_paths::Union{String, Nothing} = get(d, "input_paths", nothing)
+    input_paths::Maybe{String} = get(d, "input_paths", nothing)
     targets::Vector{RichColumn} = RichColumn.(get(d, "targets", []))
-    target_paths::Union{String, Nothing} = get(d, "target_paths", nothing)
+    target_paths::Maybe{String} = get(d, "target_paths", nothing)
 
     # validation
     if isempty(order_by)
@@ -165,7 +165,7 @@ function (p::Processor)(cols)
     (; funnel, require_targets, unique_values) = p.data
     (; inputs, targets) = funnel
     input::Array{Float32, 2} = encode_transform(cols, inputs, unique_values)
-    target::Union{Array{Float32, 2}, Nothing} = if require_targets
+    target::Maybe{Array{Float32, 2}} = if require_targets
         encode_transform(cols, targets, unique_values)
     else
         nothing

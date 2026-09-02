@@ -37,7 +37,7 @@ OutputVariables(wfc::WindowFunctionCard) = OutputVariables([wfc.output])
 
 function train(
         ::Repository, ::WindowFunctionCard, ::AbstractString, ::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
     return CardState()
 end
@@ -48,7 +48,7 @@ function evaluate(
         ::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     query = From(source) |>

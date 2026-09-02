@@ -195,8 +195,8 @@ Run a Generalized Linear Model (GLM) based on `formula`.
         lift = lift_formula,
         lower = lower_formula,
     )
-    weights::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
-    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    weights::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 
@@ -236,8 +236,8 @@ To use this card, you must load the MixedModels.jl package first.
         lift = lift_mixed_formula,
         lower = lower_mixed_formula,
     )
-    weights::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
-    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    weights::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 

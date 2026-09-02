@@ -197,8 +197,6 @@ end
 
 OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
 
-function get_metadata end
-
 ## Training and evaluation
 
 """

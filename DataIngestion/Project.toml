@@ -1,11 +1,6 @@
 name = "DataIngestion"
 uuid = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
-authors = [
-    "Limen Research",
-    "Mattia G. Bergomi",
-    "Dario Sarra",
-    "Pietro Vertechi",
-]
+authors = ["Limen Research", "Mattia G. Bergomi", "Dario Sarra", "Pietro Vertechi"]
 version = "2.0.0"
 
 [deps]

@@ -1,4 +1,4 @@
-to_nt(ir::I) where {I <: AbstractIR} = NamedTuple{fieldnames(I)}(ntuple(Base.Fix1(getfield, ir), fieldcount(I)))
+to_nt(ir::I) where {I <: AbstractIR} = NamedTuple{fieldnames(I)}(ntuple(Fix1(getfield, ir), fieldcount(I)))
 
 find_value(x1, x2) = something(x2, x1, Some(nothing))
 

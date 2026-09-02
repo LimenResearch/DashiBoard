@@ -1,8 +1,8 @@
 struct RangeSelector
-    first::Union{Int, Nothing}
-    last::Union{Int, Nothing}
-    min::Union{Int, Nothing}
-    max::Union{Int, Nothing}
+    first::Maybe{Int}
+    last::Maybe{Int}
+    min::Maybe{Int}
+    max::Maybe{Int}
 end
 
 function range_selector(;

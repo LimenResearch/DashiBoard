@@ -141,7 +141,7 @@ function select(
         repository::Repository,
         filters::AbstractVector,
         (src, tgt)::Pair = TABLE_NAMES.source => TABLE_NAMES.selection;
-        schema::Union{AbstractString, Nothing} = nothing,
+        schema::Maybe{AbstractString} = nothing,
         transform::Union{SQLNode, typeof(identity)} = identity
     )
     query, params = selection_query(filters)

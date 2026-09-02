@@ -2,6 +2,7 @@ module DashiBase
 
 using StructUtils: StructUtils, @kwarg, fielddefaults, fieldtags
 using JSON: JSON
+using Base: Fix1
 
 const StringDict = Dict{String, Any}
 const SymbolDict = Dict{Symbol, Any}

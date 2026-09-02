@@ -32,7 +32,7 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
 
-using TOML: parsefile
+using TOML: TOML
 using RelocatableFolders: @path
 
 using JLD2: jldopen
@@ -136,6 +136,8 @@ using StreamlinerCore:
     Parser,
     default_parser,
     PARSER,
+    MODEL_DIR,
+    TRAINING_DIR,
     metricname,
     get_rng,
     StreamlinerCore as SC
@@ -161,7 +163,7 @@ const PrimaryKey = String
 function parse_toml_config(args...)::StringDict
     fs..., l = args
     path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
-    return parsefile(path)
+    return TOML.parsefile(path)
 end
 
 include("tables.jl")

@@ -7,28 +7,6 @@ end
 
 additional_conditions(::Type) = StringDict[]
 
-# schema utils for Streamliner cards
-
-function StreamlinerIR(configs::AbstractVector)
-    properties = map(configs) do config
-        c = StringDict(config)
-        key::String = pop!(c, "key")
-        value = StructUtils.make(DashiBase.AbstractIR, c)
-        # potentially allow a custom keyword for this
-        is_required = !haskey(c, "default")
-        return Property(key => value, required = is_required)
-    end
-    return ObjectIR(; properties)
-end
-
-# Compute schemas used for model or training in Streamliner,
-# e.g., `TaggedStreamlinerIR(model_dir)`
-function TaggedStreamlinerIR(dir)
-    vals = available_streamliner_configs(dir)
-    objects = OrderedDict{String, ObjectIR}(x => StreamlinerIR(parse_properties(dir, x)) for x in vals)
-    return TaggedObjectIR(; objects)
-end
-
 # Card schema
 
 function schema_definitions(variables::AbstractVector)

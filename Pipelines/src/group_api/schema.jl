@@ -7,9 +7,9 @@ const COL_DEF = ReferenceIR(raw"#/$defs/col")
 # schema definitions
 
 @kwarg struct VariableConfig
-    nodes::Union{Vector{String}, Nothing} = nothing
-    groups::Union{Vector{String}, Nothing} = nothing
-    cols::Union{Vector{String}, Nothing} = nothing
+    nodes::Maybe{Vector{String}} = nothing
+    groups::Maybe{Vector{String}} = nothing
+    cols::Maybe{Vector{String}} = nothing
 end
 
 # schema for a `{nodes: [...]}`, `{groups: [...]}`, `{cols: [...]}`
@@ -99,7 +99,7 @@ end
 function validate_pipeline_schema(
         nodes::AbstractVector,
         groups::AbstractDict,
-        cols::Union{AbstractVector, Nothing} = nothing
+        cols::Maybe{AbstractVector} = nothing
     )
     variable_config = VariableConfig(
         nodes = get_id.(nodes), groups = collect(String, keys(groups)), cols = cols

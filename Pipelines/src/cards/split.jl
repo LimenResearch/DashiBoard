@@ -86,7 +86,7 @@ OutputVariables(sc::SplitCard) = OutputVariables([sc.output])
 
 function train(
         ::Repository, ::SplitCard, ::AbstractString, ::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
     return CardState()
 end
@@ -97,7 +97,7 @@ function evaluate(
         ::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     query = From(source) |>

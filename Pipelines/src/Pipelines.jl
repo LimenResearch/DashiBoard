@@ -41,10 +41,10 @@ using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
 using JSONSchema: JSONSchema
 
 using DashiBase: DashiBase, DashiStyle, json_schema, construct, enum_instances, to_config,
-    AbstractMethod, @options, lift_simple_method, lower_simple_method,
+    AbstractMethod, @options, lift_simple_method, lower_simple_method, get_metadata,
     Property, TaggedObjectIR, ObjectIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
     VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,
-    StringDict, SymbolDict
+    StringDict, SymbolDict, Maybe
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables

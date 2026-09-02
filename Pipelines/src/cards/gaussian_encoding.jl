@@ -100,7 +100,7 @@ OutputVariables(gec::GaussianEncodingCard) = OutputVariables(join_names.(gec.inp
 
 function train(
         ::Repository, gec::GaussianEncodingCard, ::AbstractString, ::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
     μs = range(start = 0, step = 1 / gec.n_components, length = gec.n_components)
     σ = step(μs) * gec.lambda
@@ -124,7 +124,7 @@ function evaluate(
         state::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     params_tbl = jlddeserialize(state.content)

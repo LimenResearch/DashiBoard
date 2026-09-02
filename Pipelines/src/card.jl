@@ -1,7 +1,7 @@
 ## Card state type
 
 @kwdef struct CardState
-    content::Union{Vector{UInt8}, Nothing} = nothing
+    content::Maybe{Vector{UInt8}} = nothing
     metadata::StringDict = StringDict()
 end
 
@@ -186,8 +186,8 @@ end
     inputs::Vector{String} = String[]
     inverse_inputs::Vector{String} = String[]
     targets::Vector{String} = String[]
-    weights::Union{String, Nothing} = nothing
-    partition::Union{String, Nothing} = nothing
+    weights::Maybe{String} = nothing
+    partition::Maybe{String} = nothing
 end
 
 struct OutputVariables

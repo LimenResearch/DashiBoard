@@ -22,7 +22,7 @@ Run a Streamliner model, predicting `targets` from `inputs`.
             additionalProperties = true
         ),
     )
-    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 
@@ -66,7 +66,7 @@ function train(
         sc::StreamlinerCard,
         source::AbstractString,
         id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     (; model, training, funnel, partition) = sc
@@ -104,7 +104,7 @@ function evaluate(
         state::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     isnothing(state.content) && throw(ArgumentError("Invalid state"))

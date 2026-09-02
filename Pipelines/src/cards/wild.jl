@@ -56,9 +56,9 @@ Pipelines.register_wild_card(:trivial, "Trivial"; settings)
     order_by::Vector{String} = String[]
     inputs::Vector{String}
     targets::Vector{String} = String[]
-    weights::Union{String, Nothing} = nothing
-    partition::Union{String, Nothing} = nothing
-    suffix::Union{String, Nothing} = nothing
+    weights::Maybe{String} = nothing
+    partition::Maybe{String} = nothing
+    suffix::Maybe{String} = nothing
     outputs::Vector{String} = join_names(targets, suffix)
 end
 

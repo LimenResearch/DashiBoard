@@ -152,7 +152,7 @@ See also [`evaljoin`](@ref), [`train_evaljoin!`](@ref).
 function train!(
         repository::Repository, node::Node,
         table::AbstractString, id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
     get_train(node) && set_state!(node, train(repository, get_card(node), table, id_var; schema))
     return
@@ -172,7 +172,7 @@ Then save the output in table `destination`.
 function evaluate(
         repository::Repository, node::Node,
         sd::Pair, id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
     card, state = get_card(node), get_state(node)
     return if get_invert(node)

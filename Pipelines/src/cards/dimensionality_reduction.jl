@@ -46,7 +46,7 @@ Save resulting column as `output`.
 @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
     method::M
     inputs::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
-    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     n_components::Int & (dashi = IntegerIR(minimum = 1),)
     output::String = "component" & (dashi = StringIR(minLength = 1),)
 end

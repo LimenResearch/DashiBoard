@@ -91,7 +91,7 @@ Interpolate `targets` based on `input`.
     method::M
     input::String & (dashi = VARIABLE_DEF,)
     targets::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
-    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 

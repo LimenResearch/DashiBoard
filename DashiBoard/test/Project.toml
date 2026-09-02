@@ -3,6 +3,7 @@ Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
 ChainRulesTestUtils = "cdddcdb0-9152-4a09-a978-84456f9df70a"
 Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
+DashiBase = "b2406810-cf54-4e58-91cb-2ebd7b47efe7"
 DashiBoard = "a38468e0-6083-4ddb-9a62-f888bd36c420"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
@@ -38,6 +39,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [sources]
 DashiBoard = {path = ".."}
+DashiBase = {path = "../../DashiBase"}
 DataIngestion = {path = "../../DataIngestion"}
 DuckDBUtils = {path = "../../DuckDBUtils"}
 Pipelines = {path = "../../Pipelines"}

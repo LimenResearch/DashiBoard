@@ -156,7 +156,7 @@ function read_wdgs(dir)
     for fn in readdir(dir)
         k, ext = splitext(fn)
         ext == ".toml" || continue
-        content = parsefile(joinpath(dir, fn))
+        content = TOML.parsefile(joinpath(dir, fn))
         d[k] = StringDict("widgets" => get(content, "widgets", []))
     end
     return d

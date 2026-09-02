@@ -16,6 +16,9 @@ end
 
 # generic IR utils
 
+_eltype(::Type{V}) where {V <: Union{AbstractVector, Nothing}} = Any
+_eltype(::Type{V}) where {V <: Union{AbstractVector{T}, Nothing}} where {T} = T
+
 function IR_from_type(T::Type, _default)::AbstractIR
     if T <: Nothing
         throw(ArgumentError("Type `Nothing` not supported, did you mean `Union{T, Nothing}`?"))
@@ -28,24 +31,28 @@ function IR_from_type(T::Type, _default)::AbstractIR
         (T <: Union{Number, Nothing}) ? NumberIR(; default) :
         (T <: Union{AbstractString, Symbol, Nothing}) ? StringIR(; default) :
         (T <: Union{Enum, Nothing}) ? StringIR(; default, enum = enum_instances(T)) :
+        (T <: Union{AbstractVector, Nothing}) ? ArrayIR{_eltype(T)}(; default) :
         TrivialIR()
 end
 
 # schema for composite structures
 
+function auto_property(
+        ::Type{T}, (key, config)::Pair{<:AbstractString, <:Union{AbstractIR, Nothing}};
+        default = nothing
+    ) where {T}
+    value = merge_IR(IR_from_type(T, default), something(config, TrivialIR()))
+    is_required = isnothing(default) && !(Nothing <: T)
+    return Property(key => value; required = is_required)
+end
+
 function ObjectIR(::Type{T}) where {T}
-    properties = Property[]
     tags = fieldtags(DashiStyle(), T)
     defaults = fielddefaults(DashiStyle(), T)
-
-    for field in fieldnames(T)
-        key = string(field)
+    properties::Vector{Property} = map(collect(fieldnames(T)), collect(fieldtypes(T))) do field, S
         config = get_dashi(get(tags, field, nothing))
         default = get(defaults, field, nothing)
-        S = fieldtype(T, field)
-        schema = merge_IR(IR_from_type(S, default), something(config, TrivialIR()))
-        is_required = isnothing(default) && !(Nothing <: S)
-        push!(properties, Property(key => schema, required = is_required))
+        auto_property(S, string(field) => config; default)
     end
     return ObjectIR(; properties)
 end

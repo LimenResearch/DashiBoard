@@ -33,6 +33,7 @@ NumberIR(::Type{T} = Float64; kwargs...) where {T <: Real} = NumericIR{T}(; type
 IntegerIR(::Type{T} = Int; kwargs...) where {T <: Integer} = NumericIR{T}(; type = "integer", kwargs...)
 
 @kwarg struct StringIR <: AbstractIR
+    type::String = "string"
     title::Union{String, Nothing} = nothing
     description::Union{String, Nothing} = nothing
     default::Union{String, Nothing} = nothing
@@ -51,7 +52,9 @@ struct Property
     required::Bool
 end
 
-Property((key, value)::Pair; required::Bool = true) = Property(key, value, required)
+function Property((key, value)::Pair{<:AbstractString, <:AbstractIR}; required::Bool = true)
+    return Property(key, value, required)
+end
 
 @kwarg struct ObjectIR <: AbstractIR
     type::String = "object"

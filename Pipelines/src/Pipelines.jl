@@ -39,6 +39,8 @@ using JLD2: jldopen
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
     fieldtags, fielddefaults, StructUtils
 using JSONSchema: JSONSchema
+using DashiBase: DashiBase, DashiStyle, emit_json, construct, to_config, Property,
+    TaggedObjectIR, ObjectIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
@@ -165,11 +167,8 @@ include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
 
-include("structs/style.jl")
-include("structs/json_schema.jl")
-include("structs/card_schema.jl")
-
 include("dict_helpers.jl")
+include("card_schema.jl")
 include("card.jl")
 include("method.jl")
 include("dissimilarities.jl")

@@ -35,8 +35,19 @@ macro options(T, methods, default = nothing)
             return StructUtils.make(DashiStyle(), S, c, tags)
         end
 
-        function Pipelines.schema_from_type(::Type{$(esc(T))})
-            return tagged_composite_schema($(esc(methods)), default = $(esc(default)))
+        function DashiBase.IR_from_type(::Type{$(esc(T))}, _default)
+            local default_option = if isnothing(_default)
+                $(esc(default))
+            elseif isnothing($(esc(default)))
+                findfirst(==(_default), $(esc(methods)))
+            elseif _default isa $(esc(methods))[$(esc(default))]
+                $(esc(default))
+            else
+                throw(ArgumentError("Inconsistent defaults"))
+            end
+            local objects = Dict{String, ObjectIR}(k => ObjectIR(m) for (k, m) in pairs($(esc(methods))))
+
+            return TaggedObjectIR(; objects, default_option)
         end
 
         StructUtils.lower(::DashiStyle, c::$(esc(T))) = get_metadata(c, $(esc(methods)))

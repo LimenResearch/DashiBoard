@@ -104,16 +104,16 @@ The resulting rescaled variable is added to the table under the name
 """
 @kwarg struct RescaleCard <: SQLCard
     method::Rescaler & (
-        dashi = match_property("type" => keys(RESCALERS), additionalProperties = false),
+        dashi = EmptyTaggedObjectIR(objects = RESCALERS),
         lift = Fix2(lift_simple_method, RESCALERS),
         lower = Fix2(lower_simple_method, RESCALERS),
     )
-    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
-    inputs::Vector{String} & (dashi = JSON_VARIABLES,)
-    targets::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    suffix::String = "rescaled" & (dashi = json_string(minLength = 1),)
-    target_suffix::Union{String, Nothing} = nothing & (dashi = json_string(minLength = 1),)
+    group_by::Vector{String} = String[] & (dashi = VARIABLES_DEF,)
+    inputs::Vector{String} & (dashi = VARIABLES_DEF,)
+    targets::Vector{String} = String[] & (dashi = VARIABLES_DEF,)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    suffix::String = "rescaled" & (dashi = StringIR(minLength = 1),)
+    target_suffix::Union{String, Nothing} = nothing & (dashi = StringIR(minLength = 1),)
 end
 
 ## SQLCard interface

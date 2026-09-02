@@ -90,34 +90,34 @@ function wild_card_schema(settings::Any)
     required = String["inputs"]
 
     properties = StringDict(
-        "inputs" => JSON_VARIABLES,
-        "suffix" => json_string(minLength = 1)
+        "inputs" => VARIABLES_DEF,
+        "suffix" => StringIR(minLength = 1)
     )
 
     if settings.needs_order
         push!(required, "order_by")
-        properties["order_by"] = JSON_NONEMPTY_VARIABLES
+        properties["order_by"] = NONEMPTY_VARIABLES_DEF
     else
-        properties["order_by"] = JSON_VARIABLES
+        properties["order_by"] = VARIABLES_DEF
     end
 
     if settings.needs_targets
         push!(required, "targets")
         push!(required, "suffix")
-        properties["targets"] = JSON_NONEMPTY_VARIABLES
-        properties["outputs"] = json_array(items = json_string(minLength = 1))
+        properties["targets"] = NONEMPTY_VARIABLES_DEF
+        properties["outputs"] = ArrayIR{String}(items = StringIR(minLength = 1))
     else
         push!(required, "outputs")
-        properties["targets"] = JSON_VARIABLES
-        properties["outputs"] = JSON_NONEMPTY_VARIABLES
+        properties["targets"] = VARIABLES_DEF
+        properties["outputs"] = NONEMPTY_VARIABLES_DEF
     end
 
     if settings.allows_weights
-        properties["weights"] = JSON_VARIABLE
+        properties["weights"] = VARIABLE_DEF
     end
 
     if settings.allows_partition
-        properties["partition"] = JSON_VARIABLE
+        properties["partition"] = VARIABLE_DEF
     end
 
     return json_object(; properties, required)

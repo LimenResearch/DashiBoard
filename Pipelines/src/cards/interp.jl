@@ -11,7 +11,7 @@ end
 ## Constant interpolation
 
 @kwarg struct ConstantInterpolationMethod <: InterpolationMethod
-    dir::Symbol & (dashi = json_string(enum = ["left", "right"]),)
+    dir::Symbol & (dashi = StringIR(enum = ["left", "right"]),)
     extrapolation_left::ExtrapolationType.T = ExtrapolationType.None
     extrapolation_right::ExtrapolationType.T = ExtrapolationType.None
 end
@@ -89,10 +89,10 @@ Interpolate `targets` based on `input`.
 """
 @kwarg struct InterpCard{M <: InterpolationMethod} <: StandardCard
     method::M
-    input::String & (dashi = JSON_VARIABLE,)
-    targets::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
+    input::String & (dashi = VARIABLE_DEF,)
+    targets::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 
 ## StandardCard interface

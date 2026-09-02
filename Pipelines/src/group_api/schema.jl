@@ -11,24 +11,25 @@ end
 function variable_item_schema(; singular::Bool = false)
     minItems, maxItems = 1, singular ? 1 : nothing
 
-    properties = StringDict(
-        "nodes" => json_array(; items = JSON_NODE, minItems, maxItems),
-        "groups" => json_array(; items = JSON_GROUP, minItems, maxItems),
-        "cols" => json_array(; items = JSON_COL, minItems, maxItems),
-        "through" => json_array(; items = JSON_NODE, default = [])
-    )
+    properties = [
+        Property("nodes" => ArrayIR{String}(; items = NODE_DEF, minItems, maxItems)),
+        Property("groups" => ArrayIR{String}(; items = GROUP_DEF, minItems, maxItems)),
+        Property("cols" => ArrayIR{String}(; items = COL_DEF, minItems, maxItems)),
+        Property("through" => ArrayIR{String}(; items = NODE_DEF, default = [])),
+    ]
+
     oneOf = [
         json_config(required = ["nodes"]),
         json_config(required = ["groups"]),
         json_config(required = ["cols"]),
     ]
-    return json_object(; properties, additionalProperties = false, oneOf)
+    return ObjectIR(; properties, additionalProperties = false, extra = StringDict("oneOf" => oneOf))
 end
 
 function schema_definitions(variable_config::VariableConfig)
-    node_schema = json_string(enum = variable_config.nodes)
-    group_schema = json_string(enum = variable_config.groups)
-    col_schema = json_string(enum = variable_config.cols)
+    node_schema = StringIR(enum = variable_config.nodes)
+    group_schema = StringIR(enum = variable_config.groups)
+    col_schema = StringIR(enum = variable_config.cols)
 
     item_schema = variable_item_schema()
     singular_item_schema = variable_item_schema(singular = true)
@@ -47,7 +48,7 @@ function schema_definitions(variable_config::VariableConfig)
     )
 end
 
-group_schema() = copy(JSON_VARIABLES)
+group_schema() = copy(VARIABLES_DEF)
 
 function group_schema(variable_config::VariableConfig)
     schema = group_schema()

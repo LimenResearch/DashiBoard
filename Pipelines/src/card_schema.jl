@@ -1,3 +1,12 @@
+# general schema utils
+
+function EmptyTaggedObjectIR(; objects::AbstractDict, additionalProperties::Bool = false, kwargs...)
+    objects = Dict{String, ObjectIR}(k => ObjectIR(; additionalProperties) for k in keys(objects))
+    return TaggedObjectIR(; objects, kwargs...)
+end
+
+additional_conditions(::Type) = StringDict[]
+
 # schema utils for Streamliner cards
 
 function streamliner_schema(configs::AbstractVector; additionalProperties::Bool = false)
@@ -25,13 +34,13 @@ end
 # Card schema
 
 function schema_definitions(variables::AbstractVector)
-    variable_schema = json_string(enum = variables)
-    variables_schema = json_array(items = JSON_VARIABLE, default = [])
-    nonempty_variables_schema = json_array(items = JSON_VARIABLE, minItems = 1)
+    variable_schema = StringIR(enum = variables)
+    variables_schema = ArrayIR{String}(items = VARIABLE_DEF, default = String[])
+    nonempty_variables_schema = ArrayIR{String}(items = VARIABLE_DEF, minItems = 1)
     return StringDict(
-        "variable" => variable_schema,
-        "variables" => variables_schema,
-        "nonempty_variables" => nonempty_variables_schema,
+        "variable" => emit_json(variable_schema),
+        "variables" => emit_json(variables_schema),
+        "nonempty_variables" => emit_json(nonempty_variables_schema),
     )
 end
 
@@ -47,9 +56,10 @@ end
 function card_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
     spec = get_spec(key)
     T = spec.type
-    schema::StringDict = (T <: WildCard) ? wild_card_schema(spec.settings) : composite_schema(T)
+    schema::StringDict = (T <: WildCard) ? wild_card_schema(spec.settings) : emit_json(ObjectIR(T))
+    append!(get!(schema, "allOf", StringDict[]), additional_conditions(T))
     # set defaults if not provided by card schema implementation
-    schema["properties"]["type"] = json_const(key)
+    schema["properties"]["type"] = StringDict("const" => key)
     ("type" in schema["required"]) || push!(schema["required"], "type")
     get!(schema, "title", spec.label)
     get!(schema, "additionalProperties", additionalProperties)
@@ -58,10 +68,10 @@ end
 
 # Definitions
 
-const JSON_VARIABLE = json_config(var"$ref" = raw"#/$defs/variable")
-const JSON_VARIABLES = json_config(var"$ref" = raw"#/$defs/variables")
-const JSON_NONEMPTY_VARIABLES = json_config(var"$ref" = raw"#/$defs/nonempty_variables")
+const VARIABLE_DEF = ReferenceIR(raw"#/$defs/variable")
+const VARIABLES_DEF = ReferenceIR(raw"#/$defs/variables")
+const NONEMPTY_VARIABLES_DEF = ReferenceIR(raw"#/$defs/nonempty_variables")
 
-const JSON_NODE = json_config(var"$ref" = raw"#/$defs/node")
-const JSON_GROUP = json_config(var"$ref" = raw"#/$defs/group")
-const JSON_COL = json_config(var"$ref" = raw"#/$defs/col")
+const NODE_DEF = ReferenceIR(raw"#/$defs/node")
+const GROUP_DEF = ReferenceIR(raw"#/$defs/group")
+const COL_DEF = ReferenceIR(raw"#/$defs/col")

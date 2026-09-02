@@ -20,13 +20,13 @@ Add new column with output of window function.
 """
 @kwarg struct WindowFunctionCard <: SQLCard
     method::AggClosure & (
-        dashi = match_property("type" => keys(WINDOW_FUNCTIONS), additionalProperties = false),
+        dashi = EmptyTaggedObjectIR(objects = WINDOW_FUNCTIONS),
         lift = Fix2(lift_simple_method, WINDOW_FUNCTIONS),
         lower = Fix2(lower_simple_method, WINDOW_FUNCTIONS),
     )
-    order_by::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
-    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
-    output::String & (dashi = json_string(minLength = 1),)
+    order_by::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
+    group_by::Vector{String} = String[] & (dashi = VARIABLES_DEF,)
+    output::String & (dashi = StringIR(minLength = 1),)
 end
 
 ## SQLCard interface

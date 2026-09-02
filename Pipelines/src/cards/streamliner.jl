@@ -113,10 +113,14 @@ Run a Streamliner model, predicting `targets` from `inputs`.
     training::T
     funnel::F & (
         # TODO: make schema more specific
-        dashi = match_property("type" => keys(PARSER[].funnels), default = ""),
+        dashi = EmptyTaggedObjectIR(
+            objects = PARSER[].funnels,
+            default_option = "",
+            additionalProperties = true
+        ),
     )
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 
 ## StreamingCard interface

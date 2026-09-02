@@ -11,10 +11,10 @@ function to_config(x)
 end
 
 function StructUtils.lift(::DashiStyle, ::Type{String}, x::AbstractVector, tags)
-    if get_dashi(tags) != JSON_VARIABLE
+    if get_dashi(tags) != VARIABLE_DEF
         msg = """
         Automatic vector to string conversion is only allowed for fields
-        with schema `$(JSON_VARIABLE)`.
+        with schema `$(VARIABLE_DEF)`.
         """
         throw(ArgumentError(msg))
     elseif length(x) != 1

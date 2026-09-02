@@ -7,17 +7,17 @@ abstract type UnorderedSplittingMethod <: SplittingMethod end
 # TODO: add unordered methods
 
 @tags struct PercentileMethod <: OrderedSplittingMethod
-    percentile::Float64 & (dashi = json_number(minimum = 0, maximum = 1),)
+    percentile::Float64 & (dashi = NumberIR(minimum = 0, maximum = 1),)
 end
 
 get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1, 2)
 
 @kwarg struct TilesMethod <: OrderedSplittingMethod
     tiles::Vector{Int} & (
-        dashi = json_array(items = json_integer(enum = [1, 2]), minItems = 1),
+        dashi = ArrayIR{Int}(items = IntegerIR(enum = [1, 2]), minItems = 1),
     )
-    repeat::Int = 1 & (dashi = json_integer(minimum = 1),)
-    tail::Int = 0 & (dashi = json_integer(minimum = 0),)
+    repeat::Int = 1 & (dashi = IntegerIR(minimum = 1),)
+    tail::Int = 0 & (dashi = IntegerIR(minimum = 0),)
 end
 
 function get_sql(m::TilesMethod)
@@ -51,18 +51,31 @@ Currently supported methods are
 """
 @kwarg struct SplitCard{M <: SplittingMethod} <: SQLCard
     method::M
-    order_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
-    group_by::Vector{String} = String[] & (dashi = JSON_VARIABLES,)
-    output::String = "partition" & (dashi = json_string(minLength = 1),)
+    order_by::Vector{String} = String[] & (dashi = VARIABLES_DEF,)
+    group_by::Vector{String} = String[] & (dashi = VARIABLES_DEF,)
+    output::String = "partition" & (dashi = StringIR(minLength = 1),)
 end
 
+# FIXME: better solution to this escape hatch?
 function additional_conditions(::Type{SplitCard})
     enum = findall(T -> T <: OrderedSplittingMethod, SPLITTING_METHODS)
-    schema = conditional_schema(
-        match_property("method" => match_property("type" => enum, is_condition = true), is_condition = true),
-        match_property("order_by" => JSON_NONEMPTY_VARIABLES)
+    schema = StringDict(
+        "if" => StringDict(
+            "properties" => StringDict(
+                "method" => StringDict(
+                    "properties" => StringDict(
+                        "type" => json_schema(StringIR(; enum))
+                    )
+                )
+            ),
+        ),
+        "then" => StringDict(
+            "properties" => StringDict(
+                "order_by" => json_schema(NONEMPTY_VARIABLES_DEF)
+            )
+        )
     )
-    return Any[schema]
+    return StringDict[schema]
 end
 
 ## SQLCard interface

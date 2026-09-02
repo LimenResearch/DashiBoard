@@ -1,11 +1,12 @@
 name = "Pipelines"
 uuid = "12f58945-0960-453a-85e3-e4614e9748b9"
 version = "2.0.0"
-authors = ["Limen Research", "Mattia G. Bergomi", "Pietro Vertechi"]
+authors = ["Limen Research", "Mattia G. Bergomi", "Dario Sarra", "Pietro Vertechi"]
 
 [deps]
 Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
+DashiBase = "b2406810-cf54-4e58-91cb-2ebd7b47efe7"
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
@@ -34,6 +35,7 @@ CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 MixedModels = "ff71e718-51f3-5ec2-a782-8ffcbfa3c316"
 
 [sources]
+DashiBase = {path = "../DashiBase"}
 DuckDBUtils = {path = "../DuckDBUtils"}
 StreamlinerCore = {path = "../StreamlinerCore"}
 
@@ -61,7 +63,7 @@ RelocatableFolders = "1.0.1"
 StatsAPI = "1.7.0"
 StatsBase = "0.34"
 StatsModels = "0.7.4"
-StructUtils = "2.0.3"
+StructUtils = "2.8.5"
 TOML = "1.0.3"
 Tables = "1.12.0"
 julia = "1.12"

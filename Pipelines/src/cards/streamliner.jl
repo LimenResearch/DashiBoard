@@ -1,100 +1,3 @@
-const MODEL_DIR = ScopedValue{String}()
-const TRAINING_DIR = ScopedValue{String}()
-
-function available_streamliner_configs(dir)
-    return String[
-        fn for (fn, ext) in Iterators.map(splitext, readdir(dir)) if ext == ".toml"
-    ]
-end
-
-function parse_without_widgets(dir, x)
-    file = string(x, ".toml")
-    c = parsefile(joinpath(dir, file))
-    delete!(c, "widgets")
-    delete!(c, "properties")
-    return c
-end
-
-function parse_properties(dir, x)::Vector{StringDict}
-    file = string(x, ".toml")
-    c = parsefile(joinpath(dir, file))
-    return get(c, "properties", StringDict[])
-end
-
-## Model, Training, and Funnel implementations
-
-function get_streamliner_model(d::AbstractDict)
-    model_name::String = d["type"]
-    model = parse_without_widgets(MODEL_DIR[], model_name)
-    return Model(PARSER[], model, d)
-end
-
-StructUtils.structlike(::DashiStyle, ::Type{<:Model}) = false
-
-function StructUtils.lift(::DashiStyle, ::Type{Model}, d::AbstractDict)
-    return if isassigned(MODEL_DIR)
-        get_streamliner_model(d), nothing
-    else
-        Model(PARSER[], d), nothing
-    end
-end
-
-StructUtils.lower(::DashiStyle, model::Model) = SC.get_metadata(model)
-
-function schema_from_type(::Type{Model})
-    # TODO: here and for `Training` decide more carefully
-    #  how to distinguish between the two cases
-    # Same for the lifting method
-    return if isassigned(MODEL_DIR)
-        tagged_streamliner_schema(MODEL_DIR[], "model")
-    else
-        json_object()
-    end
-end
-
-function get_streamliner_training(d::AbstractDict)
-    training_name::String = d["type"]
-    training = parse_without_widgets(TRAINING_DIR[], training_name)
-    return Training(PARSER[], training, d)
-end
-
-StructUtils.structlike(::DashiStyle, ::Type{<:Training}) = false
-
-function StructUtils.lift(::DashiStyle, ::Type{Training}, d::AbstractDict)
-    return if isassigned(TRAINING_DIR)
-        get_streamliner_training(d), nothing
-    else
-        Training(PARSER[], d), nothing
-    end
-end
-
-StructUtils.lower(::DashiStyle, training::Training) = SC.get_metadata(training)
-
-function schema_from_type(::Type{Training})
-    return if isassigned(TRAINING_DIR)
-        tagged_streamliner_schema(TRAINING_DIR[], "training")
-    else
-        json_object()
-    end
-end
-
-function get_streamliner_funnel(d::AbstractDict)
-    funnel_name::String = get(d, "type", "")
-    return PARSER[].funnels[funnel_name](d)
-end
-
-StructUtils.structlike(::DashiStyle, ::Type{<:Funnel}) = false
-
-function StructUtils.lift(::DashiStyle, ::Type{Funnel}, d::AbstractDict)
-    return get_streamliner_funnel(d), nothing
-end
-
-function StructUtils.lower(::DashiStyle, funnel::Funnel)
-    d = SC.get_metadata(funnel)
-    d["type"] = findfirst(Fix1(isa, funnel), PARSER[].funnels)
-    return d
-end
-
 ## Streamliner Card
 
 """
@@ -113,10 +16,14 @@ Run a Streamliner model, predicting `targets` from `inputs`.
     training::T
     funnel::F & (
         # TODO: make schema more specific
-        dashi = match_property("type" => keys(PARSER[].funnels), default = ""),
+        dashi = EmptyTaggedObjectIR(
+            objects = PARSER[].funnels,
+            default_option = "",
+            additionalProperties = true
+        ),
     )
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 
 ## StreamingCard interface
@@ -249,7 +156,7 @@ function read_wdgs(dir)
     for fn in readdir(dir)
         k, ext = splitext(fn)
         ext == ".toml" || continue
-        content = parsefile(joinpath(dir, fn))
+        content = TOML.parsefile(joinpath(dir, fn))
         d[k] = StringDict("widgets" => get(content, "widgets", []))
     end
     return d

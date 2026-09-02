@@ -84,43 +84,42 @@ function register_wild_card(key::Symbol, label::AbstractString; settings::WildCa
     return register_card(string(key) => spec)
 end
 
-## Card schema
+## IR
 
-function wild_card_schema(settings::Any)
-    required = String["inputs"]
-
-    properties = StringDict(
-        "inputs" => JSON_VARIABLES,
-        "suffix" => json_string(minLength = 1)
-    )
-
-    if settings.needs_order
-        push!(required, "order_by")
-        properties["order_by"] = JSON_NONEMPTY_VARIABLES
+function WildCardIR(settings::Any)
+    input_property = Property("inputs" => VARIABLES_DEF, required = true)
+    order_by_property = if settings.needs_order
+        Property("order_by" => NONEMPTY_VARIABLES_DEF, required = true)
     else
-        properties["order_by"] = JSON_VARIABLES
+        Property("order_by" => VARIABLES_DEF, required = false)
     end
 
-    if settings.needs_targets
-        push!(required, "targets")
-        push!(required, "suffix")
-        properties["targets"] = JSON_NONEMPTY_VARIABLES
-        properties["outputs"] = json_array(items = json_string(minLength = 1))
+    output_array = ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1)
+    output_properties = if settings.needs_targets
+        Property[
+            Property("targets" => NONEMPTY_VARIABLES_DEF, required = true),
+            Property("suffix" => StringIR(minLength = 1), required = true),
+            Property("outputs" => output_array, required = false),
+        ]
     else
-        push!(required, "outputs")
-        properties["targets"] = JSON_VARIABLES
-        properties["outputs"] = JSON_NONEMPTY_VARIABLES
+        Property[
+            Property("targets" => VARIABLES_DEF, required = false),
+            Property("outputs" => output_array, required = true),
+        ]
     end
+
+    properties = Property[input_property, order_by_property]
+    append!(properties, output_properties)
 
     if settings.allows_weights
-        properties["weights"] = JSON_VARIABLE
+        push!(properties, Property("weights" => VARIABLE_DEF, required = false))
     end
 
     if settings.allows_partition
-        properties["partition"] = JSON_VARIABLE
+        push!(properties, Property("partition" => VARIABLE_DEF, required = false))
     end
 
-    return json_object(; properties, required)
+    return ObjectIR(; properties)
 end
 
 ## UI representation

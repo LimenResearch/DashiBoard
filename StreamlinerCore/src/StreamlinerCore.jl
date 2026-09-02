@@ -6,7 +6,7 @@ export get_templates, get_metadata, get_nsamples
 export stream, finetune, train, loadmodel, validate, evaluate, ingest, summarize
 
 public instantiate, requires_shape, requires_format
-public Parser, PARSER, MODEL_CONTEXT
+public Parser, PARSER, MODEL_CONTEXT, MODEL_DIR, TRAINING_DIR
 public has_weights, output_path, stats_path, stats_tensor, metricname
 public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
@@ -18,6 +18,8 @@ public RichColumn, colname, compute_unique_values!,
 public get_helpers_in, get_helpers_out, get_order_by,
     get_inputs, get_constant_inputs, get_input_paths,
     get_targets, get_constant_targets, get_target_paths
+
+using DashiBase: DashiBase, DashiStyle, ObjectIR, TaggedObjectIR, Property
 
 using DuckDBUtils: DuckDBUtils,
     Repository,
@@ -33,6 +35,8 @@ using DuckDBUtils: DuckDBUtils,
 using FunSQL: Agg, Fun, Lit, Var, Get, From, Group, Select, Where, Order, Limit
 using DBInterface: DBInterface
 
+using StructUtils: StructUtils
+using OrderedCollections: OrderedDict
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std
 using Random: AbstractRNG, Xoshiro, seed!
@@ -121,5 +125,6 @@ include("interface/evaluate.jl")
 include("interface/summarize.jl")
 
 include("defaults.jl")
+include("schema.jl")
 
 end

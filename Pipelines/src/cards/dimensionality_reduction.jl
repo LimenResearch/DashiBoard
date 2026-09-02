@@ -5,15 +5,15 @@ struct PCAMethod <: ProjectionMethod end
 (::PCAMethod)(X, n) = fit(PCA, X; maxoutdim = n)
 
 @kwarg struct PPCAMethod <: ProjectionMethod
-    iterations::Int = 1000 & (dashi = json_integer(minimum = 1),)
-    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
+    iterations::Int = 1000 & (dashi = IntegerIR(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = NumberIR(exclusiveMinimum = 0),)
 end
 
 (m::PPCAMethod)(X, n) = fit(PPCA, X; maxoutdim = n, maxiter = m.iterations, m.tol)
 
 @kwarg struct FactorAnalysisMethod <: ProjectionMethod
-    iterations::Int = 1000 & (dashi = json_integer(minimum = 1),)
-    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
+    iterations::Int = 1000 & (dashi = IntegerIR(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = NumberIR(exclusiveMinimum = 0),)
 end
 
 (m::FactorAnalysisMethod)(X, n) = fit(FactorAnalysis, X; maxoutdim = n, maxiter = m.iterations, m.tol)
@@ -45,10 +45,10 @@ Save resulting column as `output`.
 """
 @kwarg struct DimensionalityReductionCard{M <: ProjectionMethod} <: StandardCard
     method::M
-    inputs::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    n_components::Int & (dashi = json_integer(minimum = 1),)
-    output::String = "component" & (dashi = json_string(minLength = 1),)
+    inputs::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    n_components::Int & (dashi = IntegerIR(minimum = 1),)
+    output::String = "component" & (dashi = StringIR(minLength = 1),)
 end
 
 ## StandardCard interface

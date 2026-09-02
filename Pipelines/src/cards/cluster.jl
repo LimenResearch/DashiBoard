@@ -19,10 +19,10 @@ usual convergence guarantee.
 """
 @kwarg struct KMeansMethod{D <: DissimilarityMethod} <: ClusteringMethod
     dissimilarity::D = SqEuclideanMethod()
-    classes::Int & (dashi = json_integer(minimum = 1),)
-    iterations::Int = 100 & (dashi = json_integer(minimum = 1),)
-    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
-    seed::Union{Int, Nothing} = nothing & (dashi = json_integer(minimum = 0),)
+    classes::Int & (dashi = IntegerIR(minimum = 1),)
+    iterations::Int = 100 & (dashi = IntegerIR(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = NumberIR(exclusiveMinimum = 0),)
+    seed::Union{Int, Nothing} = nothing & (dashi = IntegerIR(minimum = 0),)
 end
 
 function (m::KMeansMethod)(X; weights)
@@ -42,9 +42,9 @@ inequality — so parsing and the schema only accept true metrics.
 """
 @kwarg struct DBSCANMethod{D <: MetricMethod} <: ClusteringMethod
     dissimilarity::D = EuclideanMethod()
-    radius::Float64 & (dashi = json_number(exclusiveMinimum = 0),)
-    min_neighbors::Int = 1 & (dashi = json_integer(minimum = 1),)
-    min_cluster_size::Int = 1 & (dashi = json_integer(minimum = 1),)
+    radius::Float64 & (dashi = NumberIR(exclusiveMinimum = 0),)
+    min_neighbors::Int = 1 & (dashi = IntegerIR(minimum = 1),)
+    min_cluster_size::Int = 1 & (dashi = IntegerIR(minimum = 1),)
 end
 
 function (m::DBSCANMethod)(X; weights)
@@ -68,9 +68,9 @@ the median of its similarities, the classic default for a moderate number
 of clusters.
 """
 @kwarg struct AffinityPropagationMethod <: ClusteringMethod
-    damp::Float64 = 0.5 & (dashi = json_number(minimum = 0, exclusiveMaximum = 1),)
-    maxiter::Int = 200 & (dashi = json_integer(minimum = 1),)
-    tol::Float64 = 1.0e-6 & (dashi = json_number(exclusiveMinimum = 0),)
+    damp::Float64 = 0.5 & (dashi = NumberIR(minimum = 0, exclusiveMaximum = 1),)
+    maxiter::Int = 200 & (dashi = IntegerIR(minimum = 1),)
+    tol::Float64 = 1.0e-6 & (dashi = NumberIR(exclusiveMinimum = 0),)
 end
 
 function (m::AffinityPropagationMethod)(X; weights)
@@ -107,10 +107,10 @@ Save resulting column as `output`.
 """
 @kwarg struct ClusterCard{M <: ClusteringMethod} <: StandardCard
     method::M
-    inputs::Vector{String} & (dashi = JSON_NONEMPTY_VARIABLES,)
-    weights::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    output::String = "cluster" & (dashi = json_string(minLength = 1),)
+    inputs::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
+    weights::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    output::String = "cluster" & (dashi = StringIR(minLength = 1),)
 end
 
 ## StandardCard interface

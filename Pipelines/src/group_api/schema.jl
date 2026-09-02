@@ -1,3 +1,9 @@
+# definitions
+
+const NODE_DEF = ReferenceIR(raw"#/$defs/node")
+const GROUP_DEF = ReferenceIR(raw"#/$defs/group")
+const COL_DEF = ReferenceIR(raw"#/$defs/col")
+
 # schema definitions
 
 @kwarg struct VariableConfig
@@ -11,24 +17,46 @@ end
 function variable_item_schema(; singular::Bool = false)
     minItems, maxItems = 1, singular ? 1 : nothing
 
-    properties = StringDict(
-        "nodes" => json_array(; items = JSON_NODE, minItems, maxItems),
-        "groups" => json_array(; items = JSON_GROUP, minItems, maxItems),
-        "cols" => json_array(; items = JSON_COL, minItems, maxItems),
-        "through" => json_array(; items = JSON_NODE, default = [])
-    )
-    oneOf = [
-        json_config(required = ["nodes"]),
-        json_config(required = ["groups"]),
-        json_config(required = ["cols"]),
+    properties = [
+        Property("nodes" => ArrayIR{String}(; items = NODE_DEF, minItems, maxItems), required = false),
+        Property("groups" => ArrayIR{String}(; items = GROUP_DEF, minItems, maxItems), required = false),
+        Property("cols" => ArrayIR{String}(; items = COL_DEF, minItems, maxItems), required = false),
+        Property("through" => ArrayIR{String}(; items = NODE_DEF, default = []), required = false),
     ]
-    return json_object(; properties, additionalProperties = false, oneOf)
+
+    object = ObjectIR(; properties)
+
+    schema::StringDict = json_schema(object)
+    schema["oneOf"] = [
+        StringDict("required" => ["nodes"]),
+        StringDict("required" => ["groups"]),
+        StringDict("required" => ["cols"]),
+    ]
+    return schema
+end
+
+function one_or_many_schema(
+        schema::AbstractDict;
+        minItems = nothing, maxItems = nothing, default = nothing
+    )
+    obj_schema::StringDict = schema
+    arr_schema = StringDict(
+        "type" => "array",
+        "items" => obj_schema,
+        "minItems" => minItems,
+        "maxItems" => maxItems,
+        "default" => default,
+    )
+    DashiBase.omit_null!(arr_schema)
+    obj = StringDict("if" => StringDict("type" => "object"), "then" => obj_schema)
+    arr = StringDict("if" => StringDict("type" => "array"), "then" => arr_schema)
+    return StringDict("type" => ["object", "array"], "allOf" => [obj, arr])
 end
 
 function schema_definitions(variable_config::VariableConfig)
-    node_schema = json_string(enum = variable_config.nodes)
-    group_schema = json_string(enum = variable_config.groups)
-    col_schema = json_string(enum = variable_config.cols)
+    node_schema = StringIR(enum = variable_config.nodes) |> json_schema
+    group_schema = StringIR(enum = variable_config.groups) |> json_schema
+    col_schema = StringIR(enum = variable_config.cols) |> json_schema
 
     item_schema = variable_item_schema()
     singular_item_schema = variable_item_schema(singular = true)
@@ -47,7 +75,7 @@ function schema_definitions(variable_config::VariableConfig)
     )
 end
 
-group_schema() = copy(JSON_VARIABLES)
+group_schema() = json_schema(VARIABLES_DEF)
 
 function group_schema(variable_config::VariableConfig)
     schema = group_schema()

@@ -1,0 +1,7 @@
+[deps]
+DashiBase = "b2406810-cf54-4e58-91cb-2ebd7b47efe7"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+StructUtils = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
+
+[sources]
+DashiBase = {path = ".."}

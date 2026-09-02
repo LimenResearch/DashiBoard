@@ -1,23 +1,22 @@
 # Formula schema
 
-function formula_schema()
-    properties = StringDict(
-        "target" => JSON_VARIABLE,
-        "inputs" => json_array() # TODO: make more specific
-    )
-    required = ["target", "inputs"]
-    return json_object(; properties, additionalProperties = false, required)
+function formula_IR()
+    properties = [
+        Property("target" => VARIABLE_DEF, required = true),
+        # TODO: make more specific
+        Property("inputs" => ArrayIR{Any}(), required = true),
+    ]
+    return ObjectIR(; properties)
 end
 
-function mixed_formula_schema()
-    properties = StringDict(
-        "target" => JSON_VARIABLE,
-        "fixed_effect_terms" => json_array(),
-        "random_effect_terms" => json_array(),
-        "grouping_factor" => JSON_VARIABLE
-    )
-    required = ["target", "fixed_effect_terms", "random_effect_terms", "grouping_factor"]
-    return json_object(; properties, additionalProperties = false, required)
+function mixed_formula_IR()
+    properties = [
+        Property("target" => VARIABLE_DEF, required = true),
+        Property("fixed_effect_terms" => ArrayIR{Any}(), required = true),
+        Property("random_effect_terms" => ArrayIR{Any}(), required = true),
+        Property("grouping_factor" => VARIABLE_DEF, required = true),
+    ]
+    return ObjectIR(; properties)
 end
 
 # Lower formula
@@ -187,16 +186,18 @@ OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
 Run a Generalized Linear Model (GLM) based on `formula`.
 """
 @kwarg struct GLMCard{D <: Distribution, L <: Link} <: AbstractGLMCard
-    distribution::D = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
-    link::L = canonicallink(distribution) & (dashi = json_string(enum = keys(LINK_TYPES), default = nothing),)
+    distribution::D = Normal() & (dashi = StringIR(enum = collect(keys(NOISE_MODELS))),)
+    link::L = canonicallink(distribution) & (
+        dashi = StringIR(enum = collect(keys(LINK_TYPES)), default = nothing),
+    )
     formula::FormulaTerm & (
-        dashi = formula_schema(),
+        dashi = formula_IR(),
         lift = lift_formula,
         lower = lower_formula,
     )
-    weights::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
+    weights::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 
 has_grouping_factor(::Type{GLMCard}) = false
@@ -226,16 +227,18 @@ Run a Mixed Model based on `formula`.
 To use this card, you must load the MixedModels.jl package first.
 """
 @kwarg struct MixedModelCard{D <: Distribution, L <: Link} <: AbstractGLMCard
-    distribution::D = Normal() & (dashi = json_string(enum = keys(NOISE_MODELS)),)
-    link::L = canonicallink(distribution) & (dashi = json_string(enum = keys(LINK_TYPES), default = nothing),)
+    distribution::D = Normal() & (dashi = StringIR(enum = collect(keys(NOISE_MODELS))),)
+    link::L = canonicallink(distribution) & (
+        dashi = StringIR(enum = collect(keys(LINK_TYPES)), default = nothing),
+    )
     formula::FormulaTerm & (
-        dashi = mixed_formula_schema(),
+        dashi = mixed_formula_IR(),
         lift = lift_mixed_formula,
         lower = lower_mixed_formula,
     )
-    weights::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    partition::Union{String, Nothing} = nothing & (dashi = JSON_VARIABLE,)
-    suffix::String = "hat" & (dashi = json_string(minLength = 1),)
+    weights::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    partition::Union{String, Nothing} = nothing & (dashi = VARIABLE_DEF,)
+    suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
 end
 
 has_grouping_factor(::Type{MixedModelCard}) = true

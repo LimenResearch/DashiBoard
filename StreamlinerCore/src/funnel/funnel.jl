@@ -2,7 +2,7 @@ abstract type Funnel end
 
 get_helper_table_keys(::Funnel) = (tables = String[], files = String[])
 
-@kwdef struct TableSpec
+@kwarg struct TableSpec
     repository::Repository
     schema::Maybe{String}
     table::String
@@ -77,7 +77,7 @@ initialize_helper_tables(data::FunneledData) = data
 # - `initialize_helper_tables` on `data::FunneledData{FunnelType}` (optional)
 
 # TODO: integrate with StructUtils tags to get fully specified schema
-@kwdef struct DBFunnel <: Funnel
+@kwarg struct DBFunnel <: Funnel
     order_by::Vector{String}
     inputs::Vector{RichColumn}
     input_paths::Maybe{String} = nothing

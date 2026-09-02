@@ -104,7 +104,7 @@ end
 ## Widget configurations
 
 # Configuration used to describe custom widgets to use for a given card type.
-@kwdef struct CardWidgetConfigs
+@kwarg struct CardWidgetConfigs
     widget_configs::StringDict = StringDict()
     methods::StringDict = StringDict()
 end

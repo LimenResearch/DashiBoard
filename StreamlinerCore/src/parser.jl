@@ -25,7 +25,7 @@ A `parser` object is also required to use interface functions that read from the
 
 See [`default_parser`](@ref) for more advanced uses.
 """
-@kwdef struct Parser
+@kwarg struct Parser
     models::StringDict = StringDict()
     layers::StringDict = StringDict()
     sigmas::StringDict = StringDict()

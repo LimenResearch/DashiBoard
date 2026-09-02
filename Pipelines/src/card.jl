@@ -1,6 +1,6 @@
 ## Card state type
 
-@kwdef struct CardState
+@kwarg struct CardState
     content::Maybe{Vector{UInt8}} = nothing
     metadata::StringDict = StringDict()
 end
@@ -179,7 +179,7 @@ end
 
 ## Encode how a given card uses table variables
 
-@kwdef struct SourceVariables
+@kwarg struct SourceVariables
     order_by::Vector{String} = String[]
     group_by::Vector{String} = String[]
     helpers::Vector{String} = String[]

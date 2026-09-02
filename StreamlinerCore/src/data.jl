@@ -42,7 +42,7 @@ abstract type AbstractData{N} end
 
 @enumx DataPartition training = 1 validation = 2
 
-@kwdef struct Streaming
+@kwarg struct Streaming
     device::Any
     batchsize::Maybe{Int}
     shuffle::Bool = false

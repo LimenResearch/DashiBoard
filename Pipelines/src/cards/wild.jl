@@ -1,4 +1,4 @@
-@kwdef struct WildCardSettings
+@kwarg struct WildCardSettings
     needs_order::Bool
     needs_targets::Bool
     allows_weights::Bool

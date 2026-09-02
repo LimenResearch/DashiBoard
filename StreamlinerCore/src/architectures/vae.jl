@@ -40,7 +40,7 @@ end
 
 # loss
 
-@kwdef struct VAELoss{A, B <: Real}
+@kwarg struct VAELoss{A, B <: Real}
     agg::A = mean
     beta::B = 1
 end

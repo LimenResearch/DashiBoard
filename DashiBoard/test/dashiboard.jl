@@ -59,7 +59,6 @@ mktempdir() do data_dir
     @testset "request" begin
         url = "http://127.0.0.1:$(port)/"
 
-        # FIXME: cleanup content-length over chunked!!
         body = read(joinpath(@__DIR__, "static", "card-widgets.json"), String)
         resp = HTTP.post(url * "get-card-widgets", body = body)
         configs = JSON.parse(resp.body)

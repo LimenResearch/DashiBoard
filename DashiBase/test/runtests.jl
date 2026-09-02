@@ -27,7 +27,7 @@ end
         default = StructTest.orange
     )
     @test prop.key == "k"
-    @test DashiBase.emit_json(prop.value) == Dict{String, Any}(
+    @test DashiBase.json_schema(prop.value) == Dict{String, Any}(
         "title" => "fruits",
         "type" => "string",
         "enum" => ["apple", "orange", "kiwi"],
@@ -40,7 +40,7 @@ end
         "k" => DashiBase.StringIR(title = "fruits"),
         default = nothing
     )
-    @test DashiBase.emit_json(prop.value) == Dict{String, Any}(
+    @test DashiBase.json_schema(prop.value) == Dict{String, Any}(
         "title" => "fruits",
         "type" => "string",
         "enum" => ["apple", "orange", "kiwi"],
@@ -67,13 +67,13 @@ end
             T === Vector{String} ? ["items" => Dict("type" => "string")] : []
 
         prop = auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = def)
-        @test DashiBase.emit_json(prop.value) == Dict{String, Any}(
+        @test DashiBase.json_schema(prop.value) == Dict{String, Any}(
             "type" => s, "default" => ldef, extras...
         )
         @test !prop.required
 
         prop = auto_property(T, "k" => DashiBase.TrivialIR(), default = nothing)
-        @test DashiBase.emit_json(prop.value) == Dict{String, Any}("type" => s, extras...)
+        @test DashiBase.json_schema(prop.value) == Dict{String, Any}("type" => s, extras...)
         @test prop.required
 
         prop = auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = nothing)
@@ -81,7 +81,7 @@ end
     end
 
     prop = auto_property(Matrix, "k" => DashiBase.TrivialIR(), default = nothing)
-    @test isempty(DashiBase.emit_json(prop.value)) # we do not write anything for unsupported types
+    @test isempty(DashiBase.json_schema(prop.value)) # we do not write anything for unsupported types
 end
 
 @testset "ObjectIR" begin

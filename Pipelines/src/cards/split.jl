@@ -64,14 +64,14 @@ function additional_conditions(::Type{SplitCard})
             "properties" => StringDict(
                 "method" => StringDict(
                     "properties" => StringDict(
-                        "type" => emit_json(StringIR(; enum))
+                        "type" => json_schema(StringIR(; enum))
                     )
                 )
             ),
         ),
         "then" => StringDict(
             "properties" => StringDict(
-                "order_by" => emit_json(NONEMPTY_VARIABLES_DEF)
+                "order_by" => json_schema(NONEMPTY_VARIABLES_DEF)
             )
         )
     )

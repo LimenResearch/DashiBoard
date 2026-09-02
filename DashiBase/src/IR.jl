@@ -1,18 +1,21 @@
 # ObjectIR
 
-emit_json(s::AbstractDict) = s
-
 abstract type AbstractIR end
 
 Base.show(io::IO, s::AbstractIR) = JSON.json(io, s, omit_null = true)
 
 omit_null!(d::AbstractDict) = filter!(!isnothing ∘ last, d)
 
-_emit_json(s::AbstractIR) = to_config(s)
+_json_schema(s::AbstractIR) = to_config(s)
 
-emit_json(s::AbstractIR) = omit_null!(_emit_json(s))
+"""
+    json_schema(s::AbstractIR)
 
-StructUtils.lower(::DashiStyle, s::AbstractIR) = emit_json(s)
+Return JSON schema (as a potentially nested dictionary) from an `AbstractIR` `s`.
+"""
+json_schema(s::AbstractIR) = omit_null!(_json_schema(s))
+
+StructUtils.lower(::DashiStyle, s::AbstractIR) = json_schema(s)
 
 struct TrivialIR <: AbstractIR end
 
@@ -64,8 +67,8 @@ end
     additionalProperties::Bool = false
 end
 
-function _emit_json(o::ObjectIR)
-    properties = Dict{String, Any}(prop.key => emit_json(prop.value) for prop in o.properties)
+function _json_schema(o::ObjectIR)
+    properties = Dict{String, Any}(prop.key => json_schema(prop.value) for prop in o.properties)
     required = String[prop.key for prop in o.properties if prop.required]
     return StringDict(
         "type" => "object",
@@ -86,13 +89,13 @@ end
     default_option::Union{String, Nothing} = nothing
 end
 
-function _emit_json(to::TaggedObjectIR)
+function _json_schema(to::TaggedObjectIR)
     required = isnothing(to.default_option) ? ["type"] : String[]
     properties = StringDict(
-        "type" => emit_json(StringIR(enum = to.options, default = to.default_option))
+        "type" => json_schema(StringIR(enum = to.options, default = to.default_option))
     )
     allOf = map(to.options) do option
-        schema = emit_json(to.objects[option])
+        schema = json_schema(to.objects[option])
         get!(schema["properties"], "type", true)
         return StringDict(
             "if" => StringDict(

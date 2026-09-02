@@ -26,7 +26,7 @@ function variable_item_schema(; singular::Bool = false)
 
     object = ObjectIR(; properties)
 
-    schema::StringDict = emit_json(object)
+    schema::StringDict = json_schema(object)
     schema["oneOf"] = [
         StringDict("required" => ["nodes"]),
         StringDict("required" => ["groups"]),
@@ -54,9 +54,9 @@ function one_or_many_schema(
 end
 
 function schema_definitions(variable_config::VariableConfig)
-    node_schema = StringIR(enum = variable_config.nodes) |> emit_json
-    group_schema = StringIR(enum = variable_config.groups) |> emit_json
-    col_schema = StringIR(enum = variable_config.cols) |> emit_json
+    node_schema = StringIR(enum = variable_config.nodes) |> json_schema
+    group_schema = StringIR(enum = variable_config.groups) |> json_schema
+    col_schema = StringIR(enum = variable_config.cols) |> json_schema
 
     item_schema = variable_item_schema()
     singular_item_schema = variable_item_schema(singular = true)
@@ -75,7 +75,7 @@ function schema_definitions(variable_config::VariableConfig)
     )
 end
 
-group_schema() = emit_json(VARIABLES_DEF)
+group_schema() = json_schema(VARIABLES_DEF)
 
 function group_schema(variable_config::VariableConfig)
     schema = group_schema()

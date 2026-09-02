@@ -14,9 +14,9 @@ function schema_definitions(variables::AbstractVector)
     variables_schema = ArrayIR{String}(items = VARIABLE_DEF, default = String[])
     nonempty_variables_schema = ArrayIR{String}(items = VARIABLE_DEF, minItems = 1)
     return StringDict(
-        "variable" => emit_json(variable_schema),
-        "variables" => emit_json(variables_schema),
-        "nonempty_variables" => emit_json(nonempty_variables_schema),
+        "variable" => json_schema(variable_schema),
+        "variables" => json_schema(variables_schema),
+        "nonempty_variables" => json_schema(nonempty_variables_schema),
     )
 end
 
@@ -33,7 +33,7 @@ function card_schema(key::AbstractString; additionalProperties::Bool = false)::S
     spec = get_spec(key)
     T = spec.type
     ir = (T <: WildCard) ? WildCardIR(spec.settings) : ObjectIR(T)
-    schema::StringDict = emit_json(ir)
+    schema::StringDict = json_schema(ir)
     append!(get!(schema, "allOf", StringDict[]), additional_conditions(T))
     # set defaults if not provided by card schema implementation
     schema["properties"]["type"] = StringDict("const" => key)

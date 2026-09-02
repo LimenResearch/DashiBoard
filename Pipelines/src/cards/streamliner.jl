@@ -7,7 +7,7 @@ function available_streamliner_configs(dir)
     ]
 end
 
-function parse_without_widgets(dir, x)
+function parse_without_properties(dir, x)
     file = string(x, ".toml")
     c = parsefile(joinpath(dir, file))
     delete!(c, "widgets")
@@ -25,7 +25,7 @@ end
 
 function get_streamliner_model(d::AbstractDict)
     model_name::String = d["type"]
-    model = parse_without_widgets(MODEL_DIR[], model_name)
+    model = parse_without_properties(MODEL_DIR[], model_name)
     return Model(PARSER[], model, d)
 end
 
@@ -41,20 +41,23 @@ end
 
 StructUtils.lower(::DashiStyle, model::Model) = SC.get_metadata(model)
 
-function schema_from_type(::Type{Model})
+function DashiBase.IR_from_type(::Type{Model}, default)
+    if !isnothing(default)
+        throw(ArgumentError("Default not supported here"))
+    end
     # TODO: here and for `Training` decide more carefully
     #  how to distinguish between the two cases
     # Same for the lifting method
     return if isassigned(MODEL_DIR)
-        tagged_streamliner_schema(MODEL_DIR[], "model")
+        vals = TaggedStreamlinerIR(MODEL_DIR[])
     else
-        json_object()
+        ObjectIR(additionalProperties = true)
     end
 end
 
 function get_streamliner_training(d::AbstractDict)
     training_name::String = d["type"]
-    training = parse_without_widgets(TRAINING_DIR[], training_name)
+    training = parse_without_properties(TRAINING_DIR[], training_name)
     return Training(PARSER[], training, d)
 end
 
@@ -70,11 +73,15 @@ end
 
 StructUtils.lower(::DashiStyle, training::Training) = SC.get_metadata(training)
 
-function schema_from_type(::Type{Training})
+# FIXME!! Piracy, move to StreamlinerCore
+function DashiBase.IR_from_type(::Type{Training}, default)
+    if !isnothing(default)
+        throw(ArgumentError("Default not supported here"))
+    end
     return if isassigned(TRAINING_DIR)
-        tagged_streamliner_schema(TRAINING_DIR[], "training")
+        TaggedStreamlinerIR(TRAINING_DIR[])
     else
-        json_object()
+        ObjectIR(additionalProperties = true)
     end
 end
 

@@ -9,26 +9,24 @@ additional_conditions(::Type) = StringDict[]
 
 # schema utils for Streamliner cards
 
-function streamliner_schema(configs::AbstractVector; additionalProperties::Bool = false)
-    properties = StringDict()
-    required = String[]
-    for config in configs
-        schema = StringDict(config)
-        key::String = pop!(schema, "key")
+function StreamlinerIR(configs::AbstractVector)
+    properties = map(configs) do config
+        c = StringDict(config)
+        key::String = pop!(c, "key")
+        value = StructUtils.make(DashiBase.AbstractIR, c)
         # potentially allow a custom keyword for this
-        is_required = !haskey(schema, "default")
-        properties[key] = schema
-        is_required && push!(required, key)
+        is_required = !haskey(c, "default")
+        return Property(key => value, required = is_required)
     end
-    return json_object(; properties, additionalProperties, required)
+    return ObjectIR(; properties)
 end
 
 # Compute schemas used for model or training in Streamliner,
-# e.g., `tagged_streamliner_schema(model_dir, "model")`
-function tagged_streamliner_schema(dir, name)
+# e.g., `TaggedStreamlinerIR(model_dir)`
+function TaggedStreamlinerIR(dir)
     vals = available_streamliner_configs(dir)
-    d = OrderedDict{String, Vector{StringDict}}(x => parse_properties(dir, x) for x in vals)
-    return tagged_schema(streamliner_schema, d)
+    objects = OrderedDict{String, ObjectIR}(x => StreamlinerIR(parse_properties(dir, x)) for x in vals)
+    return TaggedObjectIR(; objects)
 end
 
 # Card schema
@@ -56,7 +54,8 @@ end
 function card_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
     spec = get_spec(key)
     T = spec.type
-    schema::StringDict = (T <: WildCard) ? wild_card_schema(spec.settings) : emit_json(ObjectIR(T))
+    ir = (T <: WildCard) ? WildCardIR(spec.settings) : ObjectIR(T)
+    schema::StringDict = emit_json(ir)
     append!(get!(schema, "allOf", StringDict[]), additional_conditions(T))
     # set defaults if not provided by card schema implementation
     schema["properties"]["type"] = StringDict("const" => key)

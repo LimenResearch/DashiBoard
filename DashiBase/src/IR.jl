@@ -75,7 +75,7 @@ function _emit_json(o::ObjectIR)
 end
 
 @kwarg struct TaggedObjectIR <: AbstractIR
-    type::String = "tagged"
+    type::String = "tagged_object"
     title::Union{String, Nothing} = nothing
     description::Union{String, Nothing} = nothing
     objects::Dict{String, ObjectIR} = Dict{String, ObjectIR}()
@@ -110,6 +110,7 @@ function _emit_json(to::TaggedObjectIR)
 end
 
 @kwarg struct ArrayIR{T, IR <: AbstractIR} <: AbstractIR
+    type::String = "array"
     title::Union{String, Nothing} = nothing
     description::Union{String, Nothing} = nothing
     default::Union{Vector{T}, Nothing} = nothing
@@ -121,3 +122,16 @@ end
 function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}
     return ArrayIR{T, IR}(; items, kwargs...)
 end
+
+const IR_DICT = Dict{String, Type}(
+    "number" => NumericIR{Float64},
+    "integer" => NumericIR{Int},
+    "string" => StringIR,
+    "object" => ObjectIR,
+    "tagged_object" => TaggedObjectIR,
+    "array" => ArrayIR,
+)
+
+choose_IR(x) = IR_DICT[x["type"]]
+
+StructUtils.@choosetype AbstractIR choose_IR

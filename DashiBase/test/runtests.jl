@@ -1,7 +1,10 @@
 using Test, DashiBase
+using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ObjectIR
 
 module StructTest
     using StructUtils: @kwarg
+    using DashiBase: StringIR
+
     @enum Fruit apple = 1 orange = 2 kiwi = 3
 
     @kwarg struct MyStruct
@@ -11,14 +14,14 @@ module StructTest
 end
 
 @testset "auto_property" begin
-    instances = DashiBase.enum_instances(StructTest.Fruit)
+    instances = enum_instances(StructTest.Fruit)
     @test instances == ["apple", "orange", "kiwi"]
-    instances = DashiBase.enum_instances(Union{StructTest.Fruit, Nothing})
+    instances = enum_instances(Union{StructTest.Fruit, Nothing})
     @test instances == ["apple", "orange", "kiwi"]
 
-    @test_throws ArgumentError DashiBase.auto_property(Nothing, "k" => nothing)
+    @test_throws ArgumentError auto_property(Nothing, "k" => nothing)
 
-    prop = DashiBase.auto_property(
+    prop = auto_property(
         Union{StructTest.Fruit, Nothing},
         "k" => DashiBase.StringIR(title = "fruits"),
         default = StructTest.orange
@@ -32,7 +35,7 @@ end
     )
     @test !prop.required
 
-    prop = DashiBase.auto_property(
+    prop = auto_property(
         StructTest.Fruit,
         "k" => DashiBase.StringIR(title = "fruits"),
         default = nothing
@@ -44,7 +47,7 @@ end
     )
     @test prop.required
 
-    prop = DashiBase.auto_property(
+    prop = auto_property(
         Union{StructTest.Fruit, Nothing},
         "k" => DashiBase.StringIR(title = "fruits"),
         default = nothing
@@ -63,20 +66,35 @@ end
         extras = T === AbstractVector ? ["items" => Dict()] :
             T === Vector{String} ? ["items" => Dict("type" => "string")] : []
 
-        prop = DashiBase.auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = def)
+        prop = auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = def)
         @test DashiBase.emit_json(prop.value) == Dict{String, Any}(
             "type" => s, "default" => ldef, extras...
         )
         @test !prop.required
 
-        prop = DashiBase.auto_property(T, "k" => DashiBase.TrivialIR(), default = nothing)
+        prop = auto_property(T, "k" => DashiBase.TrivialIR(), default = nothing)
         @test DashiBase.emit_json(prop.value) == Dict{String, Any}("type" => s, extras...)
         @test prop.required
 
-        prop = DashiBase.auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = nothing)
+        prop = auto_property(Union{T, Nothing}, "k" => DashiBase.TrivialIR(), default = nothing)
         @test !prop.required
     end
 
-    prop = DashiBase.auto_property(Matrix, "k" => DashiBase.TrivialIR(), default = nothing)
+    prop = auto_property(Matrix, "k" => DashiBase.TrivialIR(), default = nothing)
     @test isempty(DashiBase.emit_json(prop.value)) # we do not write anything for unsupported types
+end
+
+@testset "ObjectIR" begin
+    obj = ObjectIR(StructTest.MyStruct)
+    @test obj.type == "object"
+
+    @test obj.properties[1].key == "x"
+    @test JSON.json(obj.properties[1].value) == JSON.json(IntegerIR(default = 1))
+    @test !obj.properties[1].required
+
+    @test obj.properties[2].key == "y"
+    @test JSON.json(obj.properties[2].value) == JSON.json(StringIR(enum = ["a", "b"]))
+    @test obj.properties[2].required
+
+    @test !obj.additionalProperties
 end

@@ -4,7 +4,7 @@ function formula_IR()
     properties = [
         Property("target" => VARIABLE_DEF, required = true),
         # TODO: make more specific
-        Property("inputs" => ArrayIR{String}(), required = true),
+        Property("inputs" => ArrayIR{Any}(), required = true),
     ]
     return ObjectIR(; properties)
 end
@@ -12,8 +12,8 @@ end
 function mixed_formula_IR()
     properties = [
         Property("target" => VARIABLE_DEF, required = true),
-        Property("fixed_effect_terms" => ArrayIR{String}(), required = true),
-        Property("random_effect_terms" => ArrayIR{String}(), required = true),
+        Property("fixed_effect_terms" => ArrayIR{Any}(), required = true),
+        Property("random_effect_terms" => ArrayIR{Any}(), required = true),
         Property("grouping_factor" => VARIABLE_DEF, required = true),
     ]
     return ObjectIR(; properties)

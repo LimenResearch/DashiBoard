@@ -1,5 +1,6 @@
 using Test, DashiBase
 using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ObjectIR
+using JSON: JSON
 
 module StructTest
     using StructUtils: @kwarg

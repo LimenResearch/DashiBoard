@@ -20,7 +20,7 @@ StructUtils.lower(::DashiStyle, s::AbstractIR) = json_schema(s)
 struct TrivialIR <: AbstractIR end
 
 @kwarg struct NumericIR{T <: Real} <: AbstractIR
-    type::String = "number"
+    type::String = T <: Integer ? "integer" : "number"
     title::Union{String, Nothing} = nothing
     description::Union{String, Nothing} = nothing
     default::Union{T, Nothing} = nothing
@@ -31,9 +31,8 @@ struct TrivialIR <: AbstractIR end
     exclusiveMaximum::Union{Int, Nothing} = nothing
 end
 
-NumberIR(::Type{T} = Float64; kwargs...) where {T <: Real} = NumericIR{T}(; type = "number", kwargs...)
-
-IntegerIR(::Type{T} = Int; kwargs...) where {T <: Integer} = NumericIR{T}(; type = "integer", kwargs...)
+const IntegerIR = NumericIR{Int}
+const NumberIR = NumericIR{Float64}
 
 @kwarg struct StringIR <: AbstractIR
     type::String = "string"
@@ -130,8 +129,8 @@ function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T,
 end
 
 const IR_DICT = Dict{String, Type}(
-    "number" => NumericIR{Float64},
-    "integer" => NumericIR{Int},
+    "integer" => IntegerIR,
+    "number" => NumberIR,
     "string" => StringIR,
     "object" => ObjectIR,
     "tagged_object" => TaggedObjectIR,

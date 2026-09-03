@@ -42,7 +42,7 @@ using JSONSchema: JSONSchema
 
 using DashiBase: DashiBase, DashiStyle, json_schema, construct, enum_instances, to_config,
     AbstractMethod, @options, lift_simple_method, lower_simple_method, get_metadata,
-    Property, TaggedObjectIR, ObjectIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
+    Property, TaggedObjectIR, ObjectIR, OneOrManyIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
     VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,
     StringDict, SymbolDict, Maybe
 

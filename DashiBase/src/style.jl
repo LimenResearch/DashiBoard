@@ -10,25 +10,6 @@ function to_config(x)
     return config
 end
 
-function StructUtils.lift(::DashiStyle, ::Type{String}, x::AbstractVector, tags)
-    if get_dashi(tags) != VARIABLE_DEF
-        msg = """
-        Automatic vector to string conversion is only allowed for fields
-        with schema `$(VARIABLE_DEF)`.
-        """
-        throw(ArgumentError(msg))
-    elseif length(x) != 1
-        msg = """
-        Automatic vector to string conversion is only allowed for vector
-        of length `1`, found `length = $(length(x))`.
-        """
-        throw(ArgumentError(msg))
-    else
-        s::String = only(x)
-        return s, nothing
-    end
-end
-
 StructUtils.lower(::DashiStyle, x::Symbol) = string(x)
 
 StructUtils.lower(::DashiStyle, x::Enum) = string(Symbol(x))

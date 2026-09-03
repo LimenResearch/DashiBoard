@@ -36,7 +36,7 @@ using DuckDBUtils: DuckDBUtils,
 using FunSQL: Agg, Fun, Lit, Var, Get, From, Group, Select, Where, Order, Limit
 using DBInterface: DBInterface
 
-using StructUtils: StructUtils, @kwarg
+using StructUtils: StructUtils, @kwarg, @tags
 using OrderedCollections: OrderedDict
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std

@@ -82,16 +82,19 @@ end
     description::Maybe{String} = nothing
     properties::Vector{Property} = Property[]
     additionalProperties::Bool = false
+    constraints::Vector{StringDict} = StringDict[]
 end
 
 function json_schema(o::ObjectIR)
     properties = Dict{String, Any}(prop.key => json_schema(prop.value) for prop in o.properties)
     required = String[prop.key for prop in o.properties if prop.required]
+    constraints = copy(o.constraints)
     schema = StringDict(
         "type" => "object",
         "title" => o.title,
         "description" => o.description,
         "properties" => properties,
+        "allOf" => constraints,
         "additionalProperties" => o.additionalProperties,
         "required" => required
     )

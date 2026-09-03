@@ -1,10 +1,11 @@
 using Test, DashiBase
 using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ObjectIR, Maybe
 using JSON: JSON
+using JSONSchema: Schema
 
 module StructTest
     using StructUtils: @kwarg
-    using DashiBase: StringIR
+    using DashiBase: StringIR, StringDict, DashiBase
 
     @enum Fruit apple = 1 orange = 2 kiwi = 3
 
@@ -12,6 +13,13 @@ module StructTest
         x::Int = 1
         y::String & (dashi = StringIR(enum = ["a", "b"]),)
     end
+
+    @kwarg struct MyStruct2
+        x::Int = 1
+        y::String & (dashi = StringIR(enum = ["a", "b"]),)
+    end
+
+    DashiBase.constraints(::Type{MyStruct2}) = [StringDict("required" => ["x"])]
 end
 
 @testset "auto_property" begin
@@ -98,4 +106,17 @@ end
     @test obj.properties[2].required
 
     @test !obj.additionalProperties
+
+    schema = DashiBase.json_schema(obj) |> Schema
+    @test isvalid(Dict("y" => "a"), schema)
+    @test !isvalid(Dict("y" => "c"), schema)
+    @test isvalid(Dict("x" => 1, "y" => "a"), schema)
+    @test !isvalid(Dict("x" => 1), schema)
+
+    obj2 = ObjectIR(StructTest.MyStruct2)
+    @test obj2.constraints == [Dict("required" => ["x"])]
+
+    schema2 = DashiBase.json_schema(obj2) |> Schema
+    @test isvalid(Dict("x" => 1, "y" => "a"), schema2)
+    @test !isvalid(Dict("y" => "a"), schema2)
 end

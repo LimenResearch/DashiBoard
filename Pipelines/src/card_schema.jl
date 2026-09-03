@@ -5,8 +5,6 @@ function EmptyTaggedObjectIR(; objects::AbstractDict, additionalProperties::Bool
     return TaggedObjectIR(; objects, kwargs...)
 end
 
-additional_conditions(::Type) = StringDict[]
-
 # Card schema
 
 function schema_definitions(variables::AbstractVector)
@@ -34,7 +32,6 @@ function card_schema(key::AbstractString; additionalProperties::Bool = false)::S
     T = spec.type
     ir = (T <: WildCard) ? WildCardIR(spec.settings) : ObjectIR(T)
     schema::StringDict = json_schema(ir)
-    append!(get!(schema, "allOf", StringDict[]), additional_conditions(T))
     # set defaults if not provided by card schema implementation
     schema["properties"]["type"] = StringDict("const" => key)
     ("type" in schema["required"]) || push!(schema["required"], "type")

@@ -56,8 +56,7 @@ Currently supported methods are
     output::String = "partition" & (dashi = StringIR(minLength = 1),)
 end
 
-# FIXME: better solution to this escape hatch?
-function additional_conditions(::Type{SplitCard})
+function DashiBase.constraints(::Type{SplitCard})
     enum = findall(T -> T <: OrderedSplittingMethod, SPLITTING_METHODS)
     schema = StringDict(
         "if" => StringDict(

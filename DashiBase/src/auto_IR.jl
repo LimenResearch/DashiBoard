@@ -47,6 +47,8 @@ function auto_property(
     return Property(key => value; required = is_required)
 end
 
+constraints(::Type{T}) where {T} = StringDict[]
+
 function ObjectIR(::Type{T}) where {T}
     tags = fieldtags(DashiStyle(), T)
     defaults = fielddefaults(DashiStyle(), T)
@@ -55,5 +57,5 @@ function ObjectIR(::Type{T}) where {T}
         default = get(defaults, field, nothing)
         auto_property(S, string(field) => config; default)
     end
-    return ObjectIR(; properties)
+    return ObjectIR(; properties, constraints = constraints(T))
 end

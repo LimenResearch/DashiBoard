@@ -147,6 +147,10 @@ end
 struct OneOrManyIR{T, IR <: AbstractIR} <: AbstractIR
     array::ArrayIR{T, IR}
     eltype::String
+    function OneOrManyIR{T, IR}(array::ArrayIR{T, IR}, eltype::AbstractString) where {T, IR <: AbstractIR}
+        eltype == "array" && throw(ArgumentError("`eltype == \"array\"` is not supported"))
+        return new{T, IR}(array, eltype)
+    end
 end
 
 function OneOrManyIR{T}(; items::IR, eltype::AbstractString = items.type, kwargs...) where {T, IR <: AbstractIR}

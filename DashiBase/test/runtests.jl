@@ -1,5 +1,5 @@
 using Test, DashiBase
-using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ObjectIR, Maybe
+using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ArrayIR, ObjectIR, OneOrManyIR, Maybe
 using JSON: JSON
 using JSONSchema: Schema
 
@@ -130,4 +130,27 @@ end
     schema3 = DashiBase.json_schema(obj3) |> Schema
     @test isvalid(Dict("x" => true), schema3)
     @test !isvalid(Dict("x" => 1), schema3)
+end
+
+@testset "ArratIR" begin
+    obj = ObjectIR(StructTest.MyStruct)
+    arr = ArrayIR{StructTest.MyStruct}(items = obj, minItems = 2)
+    schema = DashiBase.json_schema(arr) |> Schema
+    d = Dict("x" => 1, "y" => "a")
+    d1 = Dict("y" => "c")
+    @test !isvalid(d, schema)
+    @test !isvalid([d], schema)
+    @test isvalid([d, d], schema)
+    @test !isvalid([d, d1], schema)
+
+    one_or_many = OneOrManyIR{StructTest.MyStruct}(items = obj, maxItems = 2)
+    schema = DashiBase.json_schema(one_or_many) |> Schema
+    @test isvalid(d, schema)
+    @test !isvalid(d1, schema)
+    @test isvalid([d], schema)
+    @test !isvalid([d1], schema)
+    @test isvalid([d, d], schema)
+    @test !isvalid([d, d, d], schema)
+
+    @test_throws ArgumentError OneOrManyIR{StructTest.MyStruct}(items = arr)
 end

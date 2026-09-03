@@ -20,7 +20,7 @@ public get_helpers_in, get_helpers_out, get_order_by,
     get_targets, get_constant_targets, get_target_paths
 
 using DashiBase: DashiBase, DashiStyle, ObjectIR, TaggedObjectIR, Property,
-    StringDict, SymbolDict, Maybe
+    VARIABLE_DEF, VARIABLES_DEF, StringDict, SymbolDict, Maybe
 
 using DuckDBUtils: DuckDBUtils,
     Repository,

@@ -20,6 +20,10 @@ module StructTest
     end
 
     DashiBase.constraints(::Type{MyStruct2}) = [StringDict("required" => ["x"])]
+
+    @kwarg struct MyStruct3
+        x::Bool = true
+    end
 end
 
 @testset "auto_property" begin
@@ -119,4 +123,11 @@ end
     schema2 = DashiBase.json_schema(obj2) |> Schema
     @test isvalid(Dict("x" => 1, "y" => "a"), schema2)
     @test !isvalid(Dict("y" => "a"), schema2)
+
+    obj3 = ObjectIR(StructTest.MyStruct3)
+    @test obj3.properties[1].value.default == true
+
+    schema3 = DashiBase.json_schema(obj3) |> Schema
+    @test isvalid(Dict("x" => true), schema3)
+    @test !isvalid(Dict("x" => 1), schema3)
 end

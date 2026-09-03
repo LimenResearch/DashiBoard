@@ -33,6 +33,13 @@ end
 
 struct TrivialIR <: AbstractIR end
 
+@kwarg struct BooleanIR <: AbstractIR
+    type::String = "boolean"
+    title::Maybe{String} = nothing
+    description::Maybe{String} = nothing
+    default::Maybe{Bool} = nothing
+end
+
 @kwarg struct NumericIR{T <: Real} <: AbstractIR
     type::String = T <: Integer ? "integer" : "number"
     title::Maybe{String} = nothing
@@ -138,6 +145,7 @@ function json_schema(to::TaggedObjectIR)
 end
 
 const IR_DICT = Dict{String, Type}(
+    "boolean" => IntegerIR,
     "integer" => IntegerIR,
     "number" => NumberIR,
     "string" => StringIR,

@@ -27,7 +27,8 @@ function IR_from_type(T::Type, _default)::AbstractIR
     default = StructUtils.lower(DashiStyle(), _default)
 
     # we consider nullable types, which correspond to optional fields with no default
-    return (T <: Maybe{Integer}) ? IntegerIR(; default) :
+    return (T <: Maybe{Bool}) ? BooleanIR(; default) :
+        (T <: Maybe{Integer}) ? IntegerIR(; default) :
         (T <: Maybe{Number}) ? NumberIR(; default) :
         (T <: Maybe{AbstractString}) ? StringIR(; default) :
         (T <: Maybe{Symbol}) ? StringIR(; default) :

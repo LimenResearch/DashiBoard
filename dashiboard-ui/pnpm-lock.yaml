@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@ag-grid-community/core':
+        specifier: ^32.3.9
+        version: 32.3.9
+      '@ag-grid-community/infinite-row-model':
+        specifier: ^32.3.9
+        version: 32.3.9
       '@solidjs/meta':
         specifier: ^1.0.0-next.2
         version: 1.0.0-next.2(@solidjs/web@2.0.0-rc.6(solid-js@2.0.0-rc.6))(solid-js@2.0.0-rc.6)
@@ -74,6 +80,12 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@ag-grid-community/core@32.3.9':
+    resolution: {integrity: sha512-oZeAEPgaJVMzfKqbAPCyadcN5+iy+tjvhRLqEYJdBxtLgW/s2s0qXcXQvnrz7eUMD3Z7h3BQRVt2h/p0T6Ox/w==}
+
+  '@ag-grid-community/infinite-row-model@32.3.9':
+    resolution: {integrity: sha512-jk/NCRTFeLUrqf9/meBnHufEjWGrq2EN+4NV6iwTs4o79hCbGhhldSh7h0hXzYpmTBqUyGsMHIb/Y77LmTU6Mg==}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -970,6 +982,9 @@ packages:
     resolution: {integrity: sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  ag-charts-types@10.3.9:
+    resolution: {integrity: sha512-drcRiJVencliC8LnRwk4MmeQDNNBg5GzmOoLFihO3/k0CUK0VF/N+2nc7iFozwaNG0btSB9vAhYuJLjqHMtRrQ==}
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -2022,6 +2037,16 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
+  '@ag-grid-community/core@32.3.9':
+    dependencies:
+      ag-charts-types: 10.3.9
+      tslib: 2.8.1
+
+  '@ag-grid-community/infinite-row-model@32.3.9':
+    dependencies:
+      '@ag-grid-community/core': 32.3.9
+      tslib: 2.8.1
+
   '@ampproject/remapping@2.3.0':
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
@@ -2789,6 +2814,8 @@ snapshots:
       acorn: 8.18.0
 
   acorn@8.18.0: {}
+
+  ag-charts-types@10.3.9: {}
 
   agent-base@7.1.4: {}
 
@@ -3607,8 +3634,7 @@ snapshots:
     dependencies:
       typescript: 5.9.3
 
-  tslib@2.8.1:
-    optional: true
+  tslib@2.8.1: {}
 
   type-check@0.4.0:
     dependencies:

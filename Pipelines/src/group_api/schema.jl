@@ -12,45 +12,21 @@ const COL_DEF = ReferenceIR(raw"#/$defs/col")
     cols::Maybe{Vector{String}} = nothing
 end
 
-# schema for a `{nodes: [...]}`, `{groups: [...]}`, `{cols: [...]}`
-# with a potential `through: [...]` attribute
-function variable_item_schema(; singular::Bool = false)
-    minItems, maxItems = 1, singular ? 1 : nothing
-
+# IR for a `{nodes: str | list[str]}`, `{groups: str | list[str]}`, `{cols: str | list[str]}`
+# with a potential `through: list[str]` attribute
+function variable_item_IR()
     properties = [
-        Property("nodes" => ArrayIR{String}(; items = NODE_DEF, minItems, maxItems), required = false),
-        Property("groups" => ArrayIR{String}(; items = GROUP_DEF, minItems, maxItems), required = false),
-        Property("cols" => ArrayIR{String}(; items = COL_DEF, minItems, maxItems), required = false),
+        Property("nodes" => OneOrManyIR{String}(; items = NODE_DEF, eltype = "string"), required = false),
+        Property("groups" => OneOrManyIR{String}(; items = GROUP_DEF, eltype = "string"), required = false),
+        Property("cols" => OneOrManyIR{String}(; items = COL_DEF, eltype = "string"), required = false),
         Property("through" => ArrayIR{String}(; items = NODE_DEF, default = []), required = false),
     ]
-
-    object = ObjectIR(; properties)
-
-    schema::StringDict = json_schema(object)
-    schema["oneOf"] = [
+    oneOf = [
         StringDict("required" => ["nodes"]),
         StringDict("required" => ["groups"]),
         StringDict("required" => ["cols"]),
     ]
-    return schema
-end
-
-function one_or_many_schema(
-        schema::AbstractDict;
-        minItems = nothing, maxItems = nothing, default = nothing
-    )
-    obj_schema::StringDict = schema
-    arr_schema = StringDict(
-        "type" => "array",
-        "items" => obj_schema,
-        "minItems" => minItems,
-        "maxItems" => maxItems,
-        "default" => default,
-    )
-    DashiBase.omit_null!(arr_schema)
-    obj = StringDict("if" => StringDict("type" => "object"), "then" => obj_schema)
-    arr = StringDict("if" => StringDict("type" => "array"), "then" => arr_schema)
-    return StringDict("type" => ["object", "array"], "allOf" => [obj, arr])
+    return ObjectIR(; properties, constraints = [Dict("oneOf" => oneOf)])
 end
 
 function schema_definitions(variable_config::VariableConfig)
@@ -58,12 +34,9 @@ function schema_definitions(variable_config::VariableConfig)
     group_schema = StringIR(enum = variable_config.groups) |> json_schema
     col_schema = StringIR(enum = variable_config.cols) |> json_schema
 
-    item_schema = variable_item_schema()
-    singular_item_schema = variable_item_schema(singular = true)
-
-    variable_schema = one_or_many_schema(singular_item_schema, minItems = 1, maxItems = 1)
-    variables_schema = one_or_many_schema(item_schema, default = [])
-    nonempty_variables_schema = one_or_many_schema(item_schema, minItems = 1)
+    variable_schema = variable_item_IR() |> json_schema
+    variables_schema = ArrayIR{AbstractDict}(items = variable_item_IR()) |> json_schema
+    nonempty_variables_schema = ArrayIR{AbstractDict}(items = variable_item_IR(), minItems = 1) |> json_schema
 
     return StringDict(
         "node" => node_schema,

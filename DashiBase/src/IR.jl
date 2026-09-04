@@ -144,6 +144,30 @@ function json_schema(to::TaggedObjectIR)
     return omit_null!(schema)
 end
 
+struct OneOrManyIR{T, IR <: AbstractIR} <: AbstractIR
+    array::ArrayIR{T, IR}
+    eltype::String
+    function OneOrManyIR{T, IR}(array::ArrayIR{T, IR}, eltype::AbstractString) where {T, IR <: AbstractIR}
+        eltype == "array" && throw(ArgumentError("`eltype == \"array\"` is not supported"))
+        return new{T, IR}(array, eltype)
+    end
+end
+
+function OneOrManyIR{T}(; items::IR, eltype::AbstractString = items.type, kwargs...) where {T, IR <: AbstractIR}
+    array = ArrayIR{T}(; items, kwargs...)
+    return OneOrManyIR{T, IR}(array, eltype)
+end
+
+function json_schema(o::OneOrManyIR)
+    return StringDict(
+        "type" => [o.eltype, o.array.type],
+        "allOf" => [
+            Dict("if" => Dict("type" => o.eltype), "then" => json_schema(o.array.items)),
+            Dict("if" => Dict("type" => o.array.type), "then" => json_schema(o.array)),
+        ]
+    )
+end
+
 const IR_DICT = Dict{String, Type}(
     "boolean" => IntegerIR,
     "integer" => IntegerIR,

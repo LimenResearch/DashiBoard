@@ -1,5 +1,6 @@
 import { Title } from '@solidjs/meta';
 import { Button } from '../components/Button';
+import { Combobox } from '../components/Combobox';
 import logo from '../logo.svg';
 
 export default function Home() {
@@ -13,6 +14,7 @@ export default function Home() {
       />
       <h1 class="my-4 text-4xl font-bold">Hello Solid!</h1>
       <Button><span>Click me!</span></Button>
+      <Combobox></Combobox>
     </main>
   );
 }

@@ -2,7 +2,7 @@ import { onSettled, createEffect, omit } from "solid-js";
 import Choices, { Options } from "choices.js";
 import "choices.js/public/assets/styles/choices.min.css";
 
-interface ChoiceItem {
+type ChoiceItem = {
   value: string;
   label: string;
   selected?: boolean;

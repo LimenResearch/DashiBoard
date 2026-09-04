@@ -14,7 +14,6 @@ export default function Home() {
       />
       <h1 class="my-4 text-4xl font-bold">Hello Solid!</h1>
       <Button><span>Click me!</span></Button>
-      <Combobox></Combobox>
     </main>
   );
 }

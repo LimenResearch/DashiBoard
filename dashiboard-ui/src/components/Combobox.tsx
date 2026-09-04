@@ -9,12 +9,14 @@ interface ChoiceItem {
   disabled?: boolean;
 }
 
-interface ComboboxProps {
+type ComboboxProps = {
   options: ChoiceItem[];
   value?: string | string[];
   multiple?: boolean;
   placeholder?: string;
   onChange?: (value: string | string[]) => void;
+  id?: string;
+  required?: boolean;
   addChoices?: boolean;
   addItems?: boolean;
 }
@@ -62,7 +64,6 @@ export function Combobox(props: ComboboxProps) {
       const { options, value } = signal;
       
       if (!choicesInstance) return;
-
       choicesInstance.clearStore();
       choicesInstance.setChoices(
         options.map((opt) => ({
@@ -80,5 +81,5 @@ export function Combobox(props: ComboboxProps) {
     },
   );
 
-  return <select ref={selectRef} multiple={props.multiple} />;
+  return <select ref={selectRef} multiple={props.multiple} id={props.id}  required={props.required} />;
 }

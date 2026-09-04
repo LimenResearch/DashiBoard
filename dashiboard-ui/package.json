@@ -31,7 +31,9 @@
     "@solidjs/meta": "^1.0.0-next.2",
     "@solidjs/router": "^2.0.0-next.19",
     "@solidjs/web": "^2.0.0-rc.4",
+    "@types/lodash": "^4.17.25",
     "choices.js": "^11.2.4",
+    "lodash": "^4.18.1",
     "solid-js": "^2.0.0-rc.4"
   }
 }

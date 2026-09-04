@@ -1,6 +1,5 @@
 import { Title } from '@solidjs/meta';
-import { Button } from '../components/Button';
-import { Combobox } from '../components/Combobox';
+import { FilePicker } from '../components/FilePicker';
 import logo from '../logo.svg';
 
 export default function Home() {
@@ -13,7 +12,7 @@ export default function Home() {
         alt="Solid logo"
       />
       <h1 class="my-4 text-4xl font-bold">Hello Solid!</h1>
-      <Button><span>Click me!</span></Button>
+      <FilePicker></FilePicker>
     </main>
   );
 }

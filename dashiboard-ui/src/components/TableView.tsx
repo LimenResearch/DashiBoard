@@ -20,7 +20,7 @@ function formatter(val: any, eltype: string) {
 type TableViewProps = {
   processed: boolean;
   metadata: { name: string, eltype: string }[];
-}
+};
 
 export function TableView(props: TableViewProps) {
   const dataSource = (columnDefs: {length: number}) => {

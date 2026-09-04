@@ -7,7 +7,7 @@ type ChoiceItem = {
   label: string;
   selected?: boolean;
   disabled?: boolean;
-}
+};
 
 type ComboboxProps = {
   options: ChoiceItem[];
@@ -19,7 +19,7 @@ type ComboboxProps = {
   required?: boolean;
   addChoices?: boolean;
   addItems?: boolean;
-}
+};
 
 // <Combobox
 //   options={items}

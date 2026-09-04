@@ -28,7 +28,7 @@ type TogglerProps = {
   modified: boolean;
   onReset: (e: Event) => void;
   children: any;
-}
+};
 
 export function Toggler(props: TogglerProps) {
   const [active, setActive] = createSignal(false);

@@ -193,12 +193,45 @@ on an unregistered key. **A stored document whose card type is not currently reg
 derivable arity and cannot be migrated.** This is not theoretical: `card_ir("trivial")` fails exactly
 this way until `register_wild_card` has run, which is how the test harness for `card_ir` first broke.
 
-*And size it before either owner decides:* how many stored `Config` documents actually exist, in
-ExperimentTracking's registry and in AgentGraph's artifact store? If it is zero or a few throwaways,
-this gate is a changelog paragraph. If AgentGraph holds real pipeline artifacts under aliases, it is a
-backfill. **Also relevant: stored configs are replayed through validation** — ExperimentTracking
-reports `test/interface.jl:69` calling `initialize_pipeline` on a config read back out of the
-registry — so this is an exercised path, not a theoretical one.
+*Sized, and the answer closes it:* **there is no stored-data gate. This is a changelog paragraph, not
+a backfill, and it needs no owner.** The AgentGraph session queried its live Postgres artifact registry
+rather than estimating: of 87 rows, exactly **two** are pipeline `Config`s —
+`dashiboard-simple-pipeline` @1.0.0 and @1.0.1, both written on 2026-09-03 within 300 ms of each other
+by `init_dashiboard_resources` installing the two demos. And both were registered with `register_file`
+*in place*, so their `path` dereferences to one file checked into the AgentGraph repo
+(`configs/dashiboard/pipeline.toml`) with no copy under `ARTIFACT_ROOT`. **Editing that one file
+migrates both versions.** There is no stored content to rewrite. Two lineage refs pin those versions
+and stay resolvable, because the same single file sits behind them.
+
+Scope of that answer: the local dev registry. CI brings up a fresh Postgres per run, no other
+deployment holds an artifact store, and Dolt is clean — of 60 `graph_versions`, the four mentioning
+dashiboard declare `groups` as an input *name* plus a `registry_key`, embedding no card values in
+either shape.
+
+The version key remains worth adding for the reasons above, but it is now hygiene for documents not yet
+written rather than a prerequisite for anything. Stored configs *are* replayed through validation
+(`ExperimentTracking:test/interface.jl:69` calls `initialize_pipeline` on a config read back out of the
+registry), so the path is exercised — there is simply almost nothing on it.
+
+**What the break does cost is code, and one item is a new silent failure worth naming.** AgentGraph
+owns five in-repo call sites and has accepted them; four break loudly and are therefore fine. The fifth
+does not:
+
+**`_dashi_preflight` fails open** (`agentgraph:src/agentgraph/tools/platform/dashiboard.py:68`). It
+walks `kw["groups"].items()` and guards with `if isinstance(group, dict)`. After the break a group
+definition is a **list**, the guard is False, and the loop silently checks nothing — no crash, no
+finding. Ghost column references stop being caught client-side and resurface later as SQL errors.
+
+That matters here beyond AgentGraph's own repo because it is the third leg of the systemic finding in
+`06-design.md` Track D: three mechanisms were each meant to catch a card referencing a nonexistent
+column, and all three are already broken or absent. This break converts the last one from *partial* to
+*silently inert*. It reinforces rather than softens §2's rule that the UI must always send `cols` —
+currently the only such mechanism that would work at all.
+
+One related confirmation, from the same query: **nothing persists a node→pipeline link.**
+`RichNode.dashiboardPipelineId` exists only as mock UI state, and `linkPipelineToNode` PUTs
+`/graphs/{id}/nodes/{nodeId}/dashiboard`, a route absent from AgentGraph's API. So C5's thin boundary
+is thinner still — there is no stored relationship for an embed to read or write yet.
 
 **Two verified facts worth keeping even though the branch was declined.** First, `card_ir` does not
 depend on the break — `Pipelines/src/card_schema.jl` is byte-identical at `66bdff2` and at this

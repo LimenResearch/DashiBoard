@@ -75,6 +75,20 @@ mktempdir() do data_dir
             "Content-Length" => "0",
         ]
 
+        body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)
+        resp = HTTP.post(url * "get-card-ir", body = body)
+        payload = JSON.parse(resp.body)
+        @test sort(collect(keys(payload))) == ["cards", "defs"]
+        @test length(payload["cards"]) == length(Pipelines.CARD_SPECS)
+        # definitions hoisted once to the envelope, not repeated per card
+        @test sort(collect(keys(payload["defs"]))) == ["nonempty_variables", "variable", "variables"]
+        @test payload["defs"]["variable"]["enum"] == ["No", "TEMP"]
+        # field entries are an ordered array, and the card label travels in the IR
+        @test payload["cards"]["split"]["properties"] isa AbstractVector
+        @test payload["cards"]["split"]["title"] isa AbstractString
+        # nulls are omitted rather than shipped
+        @test !occursin(":null", String(resp.body))
+
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load-files", body = body)
         summaries = JSON.parse(resp.body)

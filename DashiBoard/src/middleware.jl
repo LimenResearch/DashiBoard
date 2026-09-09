@@ -32,9 +32,9 @@ function json_read(req::HTTP.Request)
     return JSON.parse(String(req.body))
 end
 
-function json_response(d)
+function json_response(d; omit_null::Bool = false)
     headers = vcat(CORS_RES_HEADERS, ["Content-Type" => "application/json"])
-    return HTTP.Response(200, headers = headers, body = JSON.json(d))
+    return HTTP.Response(200, headers = headers, body = JSON.json(d; omit_null))
 end
 
 function stream_data(

@@ -17,6 +17,21 @@ function get_card_widgets(req::HTTP.Request)
     return json_response(configs)
 end
 
+"""
+    get_card_ir(req)
+
+Serve the renderer's artefact: the IR for every registered card, plus the shared `\$defs` once
+in the envelope rather than duplicated per card. The schema path (`get-card-widgets` today) is
+unchanged — these are the two artefacts of one traversal, §13.
+"""
+function get_card_ir(req::HTTP.Request)
+    spec = json_read(req)
+    variables = collect(String, get(spec, "variables", String[]))
+    defs = Pipelines.ir_definitions(variables)
+    cards = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
+    return json_response((; defs, cards); omit_null = true)
+end
+
 function evaluate_pipeline(req::HTTP.Request)
     spec = json_read(req)
     filters = Filter.(spec["filters"])

@@ -234,3 +234,12 @@ end
         @test Pipelines.json_schema(v) == schemas[k]
     end
 end
+
+@testset "card_ir carries the card label" begin
+    for key in ("split", "rescale")
+        ir = Pipelines.card_ir(key)
+        @test ir.title == Pipelines.get_spec(key).label
+        # and card_schema's title is unchanged by that
+        @test Pipelines.card_schema(key)["title"] == Pipelines.get_spec(key).label
+    end
+end

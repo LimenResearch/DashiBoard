@@ -48,7 +48,14 @@ The IR is independent of the variable vocabulary; its `ReferenceIR`s are resolve
 function card_ir(key::AbstractString)
     spec = get_spec(key)
     T = spec.type
-    return (T <: WildCard) ? WildCardIR(spec.settings) : ObjectIR(T)
+    ir = (T <: WildCard) ? WildCardIR(spec.settings) : ObjectIR(T)
+    # The card's label belongs in the IR: a renderer needs it, and it saves `card_schema`
+    # annotating a built schema. `something` mirrors `card_schema`'s `get!` semantics, so a
+    # card that sets its own title keeps it.
+    return ObjectIR(;
+        title = something(ir.title, spec.label),
+        ir.description, ir.properties, ir.additionalProperties, ir.constraints,
+    )
 end
 
 function card_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict

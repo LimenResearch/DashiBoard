@@ -154,3 +154,13 @@ end
 
     @test_throws ArgumentError OneOrManyIR{StructTest.MyStruct}(items = arr)
 end
+
+@testset "IR serialises to JSON" begin
+    # `TrivialIR` has no fields, so JSON's struct path does not apply and serialisation used to
+    # fall back to `show` — defined as `JSON.json` — recursing without bound. Reachable in
+    # practice through `ArrayIR{Any}()`, which resolves its `items` to a `TrivialIR`.
+    @test JSON.json(DashiBase.TrivialIR()) == "{}"
+    @test JSON.json(ArrayIR{Any}(); omit_null = true) == """{"type":"array","items":{}}"""
+    # and it agrees with what json_schema emits for the same node
+    @test DashiBase.json_schema(ArrayIR{Any}()) == Dict{String, Any}("type" => "array", "items" => Dict())
+end

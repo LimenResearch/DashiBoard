@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   emptyConfig, importConfig, exportConfig,
-  setCardField, addNode, removeNode,
+  setCardField, setCard, addNode, removeNode,
 } from './root';
 
 // A document in the post-9bd6c28 group vocabulary: plural selectors are arrays,
@@ -73,6 +73,15 @@ describe('the document is the model', () => {
     removeNode(0);
     expect(exportConfig().nodes).toHaveLength(1);
     expect(exportConfig().nodes[0].card.type).toBe('rescale');
+  });
+
+  it('replaces a whole card, which is what a form edit produces', () => {
+    importConfig(structuredClone(STORED));
+    setCard(0, { type: 'rescale', method: { type: 'log' }, suffix: 'logged' });
+    const card = exportConfig().nodes[0].card;
+    expect(card).toEqual({ type: 'rescale', method: { type: 'log' }, suffix: 'logged' });
+    expect(exportConfig().nodes[0].id).toBe('rescale'); // the node wrapper survives
+    expect(exportConfig().groups).toEqual(STORED.groups);
   });
 
   it('exports a plain object, not the reactive proxy', () => {

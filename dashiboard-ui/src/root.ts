@@ -91,6 +91,13 @@ export function setCardField(nodeIndex: number, key: string, value: unknown) {
   });
 }
 
+/** Replace a whole card. This is what an IRField edit produces: the object, not a key. */
+export function setCard(nodeIndex: number, card: Card) {
+  document_store.setState((draft) => {
+    draft.nodes[nodeIndex].card = card;
+  });
+}
+
 export function addNode(card: Card, id?: string) {
   document_store.setState((draft) => {
     draft.nodes.push(id === undefined ? { card } : { id, card });

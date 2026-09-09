@@ -15,6 +15,12 @@ export Card,
 
 public get_metadata, register_card, CardSpec, card_widgets
 
+# The two artefacts of one traversal. `card_schema` was already called by
+# ExperimentTracking without being declared; `card_ir` and `ir_definitions` are its consumers'
+# new entry points. The IR types are deliberately NOT public: an IR serialises through
+# `JSON.json` via DashiBase's `show`, so a consumer needs no type name from here.
+public card_ir, ir_definitions, card_schema
+
 public register_wild_card, WildCardSettings
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs

@@ -201,3 +201,36 @@ end
     _pipeline_schema_validate(schema, multi_outputs)
     _pipeline_schema_invalidate(schema, no_output)
 end
+
+@testset "card_ir exposes the variant structure card_schema flattens" begin
+    ir = Pipelines.card_ir("split")
+    method = only(p for p in ir.properties if p.key == "method")
+
+    @test method.value isa Pipelines.TaggedObjectIR
+    @test sort(method.value.options) == ["percentile", "tiles"]
+
+    percentile = method.value.objects["percentile"]
+    @test [p.key for p in percentile.properties] == ["percentile"]
+
+    tiles = method.value.objects["tiles"]
+    @test sort([p.key for p in tiles.properties]) == ["repeat", "tail", "tiles"]
+end
+
+@testset "card_schema is card_ir projected" begin
+    _props(d) = filter(p -> first(p) != "type", d["properties"])
+    for key in ("split", "rescale", "cluster", "trivial")
+        schema = Pipelines.card_schema(key)
+        ir_schema = Pipelines.json_schema(Pipelines.card_ir(key))
+        @test _props(schema) == _props(ir_schema)
+        @test schema["properties"]["type"] == Dict{String, Any}("const" => key)
+    end
+end
+
+@testset "ir_definitions and schema_definitions agree" begin
+    irs = Pipelines.ir_definitions(vars)
+    schemas = Pipelines.schema_definitions(vars)
+    @test sort(collect(keys(irs))) == sort(collect(keys(schemas)))
+    for (k, v) in pairs(irs)
+        @test Pipelines.json_schema(v) == schemas[k]
+    end
+end

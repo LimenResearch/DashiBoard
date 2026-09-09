@@ -1,4 +1,5 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
+using Sockets: Sockets
 using DashiBoard
 using Test
 using Downloads
@@ -47,7 +48,25 @@ mktempdir() do data_dir
     model_directory = joinpath(static_directory, "model")
     training_directory = joinpath(static_directory, "training")
 
-    port = 8080
+    # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
+    # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
+    # runs ExperimentTracking on 8081 — so a hardcoded 8080 made this suite unrunnable whenever
+    # the dev stack was up.
+    function first_free_port(range)
+        for p in range
+            socket = try
+                Sockets.listen(Sockets.localhost, p)
+            catch
+                continue # in use
+            end
+            # Small window between closing the probe and `launch` binding; fine for a test.
+            close(socket)
+            return p
+        end
+        error("no free port in $(range)")
+    end
+
+    port = first_free_port(8080:8280)
     server = DashiBoard.launch(
         data_dir;
         port = port,

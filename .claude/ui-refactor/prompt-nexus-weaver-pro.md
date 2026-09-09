@@ -119,6 +119,6 @@ Answer, citing `nexus-weaver-pro:path:LINE` for every claim:
    type. Be specific about how nesting and server-supplied enums should be expressed.
 
 Write your brief to (create nothing else, edit nothing else):
-/home/dariosarra/Documents/Limen/DashiBoard/.claude/ui-refactor/20-nexus-weaver-brief.md
+/home/dariosarra/Documents/Limen/DashiBoard/.claude/ui-refactor/05-nexus-weaver-brief.md
 
 Then stay available for follow-up questions.

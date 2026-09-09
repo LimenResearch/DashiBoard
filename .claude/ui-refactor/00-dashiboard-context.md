@@ -65,7 +65,7 @@ Three things exist only in that second description and have no JSON Schema equiv
 Cards nest. `ClusterCard{M <: ClusteringMethod}` has a `method` field; `KMeansMethod{D <:
 DissimilarityMethod}` has a `dissimilarity` field; `WeightedMinkowskiMethod` has `weights`
 and `p`. Three levels. The type bound narrows the options: `KMeansMethod` admits all nine
-dissimilarities, `DBSCANMethod{D <: MetricMethod}` only the six true metrics
+dissimilarities, `DBSCANMethod{D <: MetricMethod}` only the seven true metrics
 (`cluster.jl:20`, `cluster.jl:43`).
 
 Some constraints span levels. `WeightedSqEuclideanMethod.weights` must match the card's

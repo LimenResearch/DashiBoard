@@ -98,6 +98,6 @@ Answer, citing `agentgraph:path:LINE` for every claim:
    thing. Flag it.
 
 Write your brief to (create nothing else, edit nothing else):
-/home/dariosarra/Documents/Limen/DashiBoard/.claude/ui-refactor/10-agentgraph-brief.md
+/home/dariosarra/Documents/Limen/DashiBoard/.claude/ui-refactor/03-agentgraph-brief.md
 
 Then stay available for follow-up questions.

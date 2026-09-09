@@ -117,34 +117,43 @@ and switch to ExperimentTracking when B1 lands — **provided the API base is ru
 That is the practical argument for 4a over and above the principle: it converts a cross-repository
 blocker into a configuration change, and decouples this schedule from theirs.
 
-**The IR can also be served without the wire-format break, and this is worth doing.**
-ExperimentTracking is pinned to `66bdff2` because `9bd6c28` — "avoid auto conversion from list to
-scalar" — is a public wire-format break: AgentGraph sends the old shape, and `Config` documents
-already persisted in the registry and in AgentGraph's artifact store are in the old format. Migrating
-is an owner decision, not a fixture edit. But `card_ir` does **not** depend on that break, so the two
-need not be one decision:
+**The wire-format break travels with this branch, deliberately.** `9bd6c28` — "avoid auto conversion
+from list to scalar" — is a public wire-format break, and it is in `ds-DashiUI`'s ancestry via the
+`origin/main` merge at `d1a9505`. ExperimentTracking's `main` is pinned to `66bdff2` to avoid it, and
+cutting a `card_ir`-only branch from that pin was considered and **declined by the project owner**:
+all adaptation for this effort lives on the `ds-DashiUI` twin branches in all four repositories, not
+on side branches. Recorded so nobody re-proposes it.
 
-- `Pipelines/src/card_schema.jl` is byte-identical at `66bdff2` and at this branch's HEAD, and every
-  name `card_ir`/`ir_definitions` reference resolves at `66bdff2` — `get_spec`, `WildCard`,
-  `WildCardIR`, `ObjectIR`, `StringIR`, `ArrayIR`, `VARIABLE_DEF`. Independently confirmed by the
-  ExperimentTracking session.
-- `OneOrManyIR` arrived *with* `9bd6c28`, so a `66bdff2`-based branch serves an IR with no
-  one-or-many node. That is accurate rather than deficient: the IR should describe the format the
-  tree serves, and that tree serves the old format. When the migration lands, schema and IR move
-  together — the point of one traversal.
-- **The group dialect is not a reason to take the break either.** `ObjectIR`'s
-  `constraints::Vector{StringDict}` field is already present at `66bdff2` (it came with `cd2e88b`),
-  but `variable_item_schema` there does not use it — it builds `ObjectIR(; properties)`, converts
-  with `json_schema`, and then assigns `schema["oneOf"] = [...]` onto the result. That is a live
-  instance of *Do not annotate a built schema*, and it makes the selector-kind constraint invisible
-  in the IR. Current `main` fixed exactly this by passing `constraints = [Dict("oneOf" => oneOf)]`
-  into the `ObjectIR` (`variable_item_IR()`). Porting that shape onto `66bdff2` is a small change
-  against a field that already exists — so §6's variable picker, which C2 depends on, can be served
-  as complete IR from that base.
+What that decides, per repository:
 
-So a `card_ir`-only branch cut from `66bdff2` decouples the IR work from the format migration
-entirely. **INFERRED:** that is probably what both owners want, since neither piece of work needs to
-wait on the other.
+- **DashiBoard `ds-DashiUI`** carries both the break and `card_ir`. Done — `073ece6`.
+- **ExperimentTracking `ds-DashiUI`** points its `[sources]` at DashiBoard's `ds-DashiUI` and adapts
+  to the new format there. Its `66bdff2` pin is a property of *its* `main`, not of the feature
+  branch: on a coordinated branch, adapting to the break **is** the work rather than a risk taken
+  early. The owner decision that session is waiting on concerns *merging to main* — when the break
+  becomes public — not whether the branch may carry it.
+- **AgentGraph `ds-DashiUI`** sends the new shape. Its preflight reads `group["cols"]` as a dict today.
+
+**The residue a branch strategy cannot solve, and the real gate on merging to main:** `Config`
+documents already persisted in ExperimentTracking's registry and in AgentGraph's artifact store are
+in the old format. That is data, not code — no feature branch adapts it. Before this reaches `main`
+it needs one of: a read-time migration, a format version recorded on stored documents, or a backfill.
+Nothing in this plan currently owns that question.
+
+**Two verified facts worth keeping even though the branch was declined.** First, `card_ir` does not
+depend on the break — `Pipelines/src/card_schema.jl` is byte-identical at `66bdff2` and at this
+branch's HEAD, and every name it references resolves at that pin. So the IR work and the format
+migration can be reasoned about, reviewed and reverted independently even while sharing a branch.
+Second, and load-bearing for B2: **`ObjectIR`'s `constraints::Vector{StringDict}` field is already
+present at `66bdff2`** (it came with `cd2e88b`), yet `variable_item_schema` there does not use it —
+it builds `ObjectIR(; properties)`, converts with `json_schema`, then assigns
+`schema["oneOf"] = [...]` onto the result. That is a live instance of *Do not annotate a built
+schema*, and it makes the selector-kind constraint invisible in the IR. Current `main` fixed it by
+passing `constraints = [Dict("oneOf" => oneOf)]` into the `ObjectIR` (`variable_item_IR()`). The
+lesson generalises past the pin: **whenever the group dialect is served, check that its `oneOf` is
+inside the IR and not bolted onto the schema**, because §6's variable picker — C2's dependency — is
+exactly what that constraint governs, and A7 cannot attach an error to a constraint the IR does not
+describe.
 
 ## 7. Order
 

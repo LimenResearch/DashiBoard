@@ -60,25 +60,25 @@ end
 
 ## Instances
 
-@kwdef struct VariableHelper <: AbstractDictHelper
+@kwarg struct VariableHelper <: AbstractDictHelper
     keys::Vector{String} = ["-v"]
 end
 
 (::VariableHelper)((k,), params) = params[k]
 
-@kwdef struct SpliceHelper <: AbstractDictHelper
+@kwarg struct SpliceHelper <: AbstractDictHelper
     keys::Vector{String} = ["-s"]
 end
 
 (::SpliceHelper)((k,), params) = SplicedValues(params[k])
 
-@kwdef struct RangeHelper <: AbstractDictHelper
+@kwarg struct RangeHelper <: AbstractDictHelper
     keys::Vector{String} = ["-r"]
 end
 
 (::RangeHelper)((n,), _) = range(1, n)
 
-@kwdef struct JoinHelper <: AbstractDictHelper
+@kwarg struct JoinHelper <: AbstractDictHelper
     keys::Vector{String} = ["-j"]
 end
 

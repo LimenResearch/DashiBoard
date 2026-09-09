@@ -1,7 +1,7 @@
 ## Card state type
 
-@kwdef struct CardState
-    content::Union{Vector{UInt8}, Nothing} = nothing
+@kwarg struct CardState
+    content::Maybe{Vector{UInt8}} = nothing
     metadata::StringDict = StringDict()
 end
 
@@ -179,15 +179,15 @@ end
 
 ## Encode how a given card uses table variables
 
-@kwdef struct SourceVariables
+@kwarg struct SourceVariables
     order_by::Vector{String} = String[]
     group_by::Vector{String} = String[]
     helpers::Vector{String} = String[]
     inputs::Vector{String} = String[]
     inverse_inputs::Vector{String} = String[]
     targets::Vector{String} = String[]
-    weights::Union{String, Nothing} = nothing
-    partition::Union{String, Nothing} = nothing
+    weights::Maybe{String} = nothing
+    partition::Maybe{String} = nothing
 end
 
 struct OutputVariables
@@ -196,8 +196,6 @@ struct OutputVariables
 end
 
 OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
-
-function get_metadata end
 
 ## Training and evaluation
 
@@ -318,7 +316,7 @@ card_type(T::Type)::String = findfirst(spec -> (T <: spec.type), CARD_SPECS)
 
 get_default_label(c::Card) = get_label(CARD_SPECS[card_type(c)])
 
-function get_metadata(c::Card)
+function DashiBase.get_metadata(c::Card)
     d = to_config(c)
     d["type"] = card_type(c)
     return d

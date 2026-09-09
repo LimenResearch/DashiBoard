@@ -1,41 +1,42 @@
+# definitions
+
+const NODE_DEF = ReferenceIR(raw"#/$defs/node")
+const GROUP_DEF = ReferenceIR(raw"#/$defs/group")
+const COL_DEF = ReferenceIR(raw"#/$defs/col")
+
 # schema definitions
 
 @kwarg struct VariableConfig
-    nodes::Union{Vector{String}, Nothing} = nothing
-    groups::Union{Vector{String}, Nothing} = nothing
-    cols::Union{Vector{String}, Nothing} = nothing
+    nodes::Maybe{Vector{String}} = nothing
+    groups::Maybe{Vector{String}} = nothing
+    cols::Maybe{Vector{String}} = nothing
 end
 
-# schema for a `{nodes: [...]}`, `{groups: [...]}`, `{cols: [...]}`
-# with a potential `through: [...]` attribute
-function variable_item_schema(; singular::Bool = false)
-    minItems, maxItems = 1, singular ? 1 : nothing
-
-    properties = StringDict(
-        "nodes" => json_array(; items = JSON_NODE, minItems, maxItems),
-        "groups" => json_array(; items = JSON_GROUP, minItems, maxItems),
-        "cols" => json_array(; items = JSON_COL, minItems, maxItems),
-        "through" => json_array(; items = JSON_NODE, default = [])
-    )
-    oneOf = [
-        json_config(required = ["nodes"]),
-        json_config(required = ["groups"]),
-        json_config(required = ["cols"]),
+# IR for a `{nodes: str | list[str]}`, `{groups: str | list[str]}`, `{cols: str | list[str]}`
+# with a potential `through: list[str]` attribute
+function variable_item_IR()
+    properties = [
+        Property("nodes" => OneOrManyIR{String}(; items = NODE_DEF, eltype = "string"), required = false),
+        Property("groups" => OneOrManyIR{String}(; items = GROUP_DEF, eltype = "string"), required = false),
+        Property("cols" => OneOrManyIR{String}(; items = COL_DEF, eltype = "string"), required = false),
+        Property("through" => ArrayIR{String}(; items = NODE_DEF, default = []), required = false),
     ]
-    return json_object(; properties, additionalProperties = false, oneOf)
+    oneOf = [
+        StringDict("required" => ["nodes"]),
+        StringDict("required" => ["groups"]),
+        StringDict("required" => ["cols"]),
+    ]
+    return ObjectIR(; properties, constraints = [Dict("oneOf" => oneOf)])
 end
 
 function schema_definitions(variable_config::VariableConfig)
-    node_schema = json_string(enum = variable_config.nodes)
-    group_schema = json_string(enum = variable_config.groups)
-    col_schema = json_string(enum = variable_config.cols)
+    node_schema = StringIR(enum = variable_config.nodes) |> json_schema
+    group_schema = StringIR(enum = variable_config.groups) |> json_schema
+    col_schema = StringIR(enum = variable_config.cols) |> json_schema
 
-    item_schema = variable_item_schema()
-    singular_item_schema = variable_item_schema(singular = true)
-
-    variable_schema = one_or_many_schema(singular_item_schema, minItems = 1, maxItems = 1)
-    variables_schema = one_or_many_schema(item_schema, default = [])
-    nonempty_variables_schema = one_or_many_schema(item_schema, minItems = 1)
+    variable_schema = variable_item_IR() |> json_schema
+    variables_schema = ArrayIR{AbstractDict}(items = variable_item_IR()) |> json_schema
+    nonempty_variables_schema = ArrayIR{AbstractDict}(items = variable_item_IR(), minItems = 1) |> json_schema
 
     return StringDict(
         "node" => node_schema,
@@ -47,7 +48,7 @@ function schema_definitions(variable_config::VariableConfig)
     )
 end
 
-group_schema() = copy(JSON_VARIABLES)
+group_schema() = json_schema(VARIABLES_DEF)
 
 function group_schema(variable_config::VariableConfig)
     schema = group_schema()
@@ -71,7 +72,7 @@ end
 function validate_pipeline_schema(
         nodes::AbstractVector,
         groups::AbstractDict,
-        cols::Union{AbstractVector, Nothing} = nothing
+        cols::Maybe{AbstractVector} = nothing
     )
     variable_config = VariableConfig(
         nodes = get_id.(nodes), groups = collect(String, keys(groups)), cols = cols

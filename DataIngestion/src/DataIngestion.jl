@@ -19,11 +19,11 @@ using FunSQL: SQLNode,
     Group
 using DBInterface: DBInterface
 using DuckDBUtils: DuckDBUtils, Repository, SQLMacro, get_catalog, replace_table, to_sql, in_schema
+using DashiBase: StringDict, Maybe
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using IterTools: flagfirst
 using Tables: Tables
 
-const StringDict = Dict{String, Any}
 const DATA_DIR = ScopedValue("")
 
 include("readers/utils.jl")

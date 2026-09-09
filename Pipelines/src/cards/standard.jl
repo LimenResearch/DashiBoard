@@ -7,7 +7,7 @@
 function train(
         repository::Repository, c::StandardCard,
         source::AbstractString, id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     vars = SourceVariables(c)
@@ -28,7 +28,7 @@ function evaluate(
         state::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     vars = SourceVariables(c)

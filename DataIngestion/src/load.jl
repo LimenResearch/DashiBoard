@@ -92,9 +92,9 @@ function load_files(
         files::AbstractVector{<:AbstractString},
         table::AbstractString = TABLE_NAMES.source;
         format::AbstractString = to_format(first(files)),
-        schema::Union{AbstractString, Nothing} = nothing,
+        schema::Maybe{AbstractString} = nothing,
         virtual::Bool = false,
-        filename::Union{AbstractString, Nothing} = nothing,
+        filename::Maybe{AbstractString} = nothing,
         kwargs...
     )
 

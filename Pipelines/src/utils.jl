@@ -2,14 +2,14 @@
 
 map_into(f::F, ::Type{T}, x) where {F, T} = (y::T = T(x); map!(f, values(y)); y)
 
-to_stringlist(s::Union{AbstractString, Nothing}) = isnothing(s) ? String[] : String[s]
+to_stringlist(s::Maybe{AbstractString}) = isnothing(s) ? String[] : String[s]
 to_stringlist(s::AbstractVector) = convert(Vector{String}, s)
 
-function to_maybestring(s::AbstractVector)::Union{String, Nothing}
+function to_maybestring(s::AbstractVector)::Maybe{String}
     return isempty(s) ? nothing : only(s)
 end
 
-to_maybestring(s::Union{AbstractString, Nothing})::Union{String, Nothing} = s
+to_maybestring(s::Maybe{AbstractString})::Maybe{String} = s
 
 # Card computation utils
 

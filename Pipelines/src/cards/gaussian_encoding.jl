@@ -86,10 +86,10 @@ Evaluate:
 """
 @kwarg struct GaussianEncodingCard{M <: TemporalProcessingMethod} <: SQLCard
     method::M = IdentityMethod()
-    input::String & (dashi = JSON_VARIABLE,)
-    n_components::Int & (dashi = json_integer(minimum = 1),)
-    lambda::Float64 = 0.5 & (dashi = json_number(exclusiveMinimum = 0),)
-    suffix::String = "gaussian" & (dashi = json_string(minLength = 1),)
+    input::String & (dashi = VARIABLE_DEF,)
+    n_components::Int & (dashi = IntegerIR(minimum = 1),)
+    lambda::Float64 = 0.5 & (dashi = NumberIR(exclusiveMinimum = 0),)
+    suffix::String = "gaussian" & (dashi = StringIR(minLength = 1),)
 end
 
 ## SQLCard interface
@@ -100,7 +100,7 @@ OutputVariables(gec::GaussianEncodingCard) = OutputVariables(join_names.(gec.inp
 
 function train(
         ::Repository, gec::GaussianEncodingCard, ::AbstractString, ::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
     μs = range(start = 0, step = 1 / gec.n_components, length = gec.n_components)
     σ = step(μs) * gec.lambda
@@ -124,7 +124,7 @@ function evaluate(
         state::CardState,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     params_tbl = jlddeserialize(state.content)

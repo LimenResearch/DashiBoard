@@ -14,7 +14,7 @@ join_names(args...) = join(args, "_")
 
 function get_colspecs(
         repository::Repository, t::AbstractString;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     return DBInterface.execute(repository, "DESCRIBE $(in_schema(t, schema));") do res
@@ -31,7 +31,7 @@ function join_on_id_var(
         repository::Repository,
         orig::AbstractString, t::AbstractString,
         id_var::AbstractPrimaryKey, sel::AbstractVector;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Maybe{AbstractString} = nothing
     )
 
     isempty(sel) && return

@@ -1,8 +1,6 @@
 const StringList = AbstractVector{<:AbstractString}
 const StringStruct = AbstractDict{<:AbstractString, <:AbstractString}
 
-const Maybe{T} = Union{T, Nothing}
-
 to_sql_pair((k, v)::Pair) = string(to_sql(k), ": ", to_sql(v))
 
 print_argument(io::IO, x::Union{Number, AbstractString}) = print(io, to_sql(x))

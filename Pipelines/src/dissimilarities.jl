@@ -47,7 +47,7 @@ Squared Euclidean distance with one positive weight per coordinate
 """
 @kwarg struct WeightedSqEuclideanMethod <: DissimilarityMethod
     weights::Vector{Float64} & (
-        dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
@@ -86,7 +86,7 @@ fractional orders break the triangle inequality, and with it the
 `MetricMethod` classification.
 """
 @kwarg struct MinkowskiMethod <: MetricMethod
-    p::Float64 = 2.0 & (dashi = json_number(minimum = 1),)
+    p::Float64 = 2.0 & (dashi = NumberIR(minimum = 1),)
 end
 
 """
@@ -98,7 +98,7 @@ Euclidean distance with one positive weight per coordinate
 """
 @kwarg struct WeightedEuclideanMethod <: MetricMethod
     weights::Vector{Float64} & (
-        dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
@@ -111,7 +111,7 @@ City-block distance with one positive weight per coordinate
 """
 @kwarg struct WeightedCityblockMethod <: MetricMethod
     weights::Vector{Float64} & (
-        dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
@@ -124,9 +124,9 @@ card's `inputs` in length and order.
 """
 @kwarg struct WeightedMinkowskiMethod <: MetricMethod
     weights::Vector{Float64} & (
-        dashi = json_array(items = json_number(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
-    p::Float64 = 2.0 & (dashi = json_number(minimum = 1),)
+    p::Float64 = 2.0 & (dashi = NumberIR(minimum = 1),)
 end
 
 """

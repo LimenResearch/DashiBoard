@@ -6,9 +6,9 @@ struct Widget
     label::String
     placeholder::String
     value::Any
-    min::Union{Float64, Nothing}
-    max::Union{Float64, Nothing}
-    step::Union{Float64, Nothing}
+    min::Maybe{Float64}
+    max::Maybe{Float64}
+    step::Maybe{Float64}
     options::Any
     multiple::Bool
     type::String
@@ -82,11 +82,11 @@ end
 
 struct OutputSpec
     field::String
-    suffixField::Union{String, Nothing}
-    numberField::Union{String, Nothing}
+    suffixField::Maybe{String}
+    numberField::Maybe{String}
 end
 
-function OutputSpec(field::AbstractString, suffixfield::Union{AbstractString, Nothing} = nothing)
+function OutputSpec(field::AbstractString, suffixfield::Maybe{AbstractString} = nothing)
     return OutputSpec(field, suffixfield, nothing)
 end
 
@@ -104,7 +104,7 @@ end
 ## Widget configurations
 
 # Configuration used to describe custom widgets to use for a given card type.
-@kwdef struct CardWidgetConfigs
+@kwarg struct CardWidgetConfigs
     widget_configs::StringDict = StringDict()
     methods::StringDict = StringDict()
 end

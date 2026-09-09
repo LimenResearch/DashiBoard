@@ -1,7 +1,7 @@
 # Result management
 
 """
-    @kwdef struct Result{P}
+    @kwarg struct Result{P}
         iteration::Int
         iterations::Int
         stats::NTuple{P, Vector{Float64}}
@@ -13,7 +13,7 @@
 Structure to encode the result of [`train`](@ref), [`finetune`](@ref), or [`validate`](@ref).
 Stores configuration of model, metrics, and information on the location of the model weights.
 """
-@kwdef struct Result{P}
+@kwarg struct Result{P}
     iteration::Int
     iterations::Int
     stats::NTuple{P, Vector{Float64}}
@@ -31,7 +31,7 @@ has_weights(result::Result) = result.trained && result.successful
 
 # Train model via Optimisers.jl or Optim.jl
 
-@kwdef struct Trace
+@kwarg struct Trace
     stats::NTuple{2, Vector{Float64}}
     metrics::Vector{Any}
     iteration::Int

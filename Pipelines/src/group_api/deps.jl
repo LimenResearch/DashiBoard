@@ -41,7 +41,8 @@ get_through(d::AbstractDict)::Vector{String} = get(d, "through", String[])
 is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(not_through, keys(d)) == 1
 
 function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
-    key::String, val::Vector{String} = only(Iterators.filter(not_through ∘ first, pairs(d)))
+    key::String = only(Iterators.filter(not_through, keys(d)))
+    val::Vector{String} = to_stringlist(d[key])
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
     inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
     through = Int[dp.node_idxs[k] for k in get_through(d)]
@@ -105,16 +106,17 @@ end
 
 get_cols(::Context, inputs::Source) = inputs.cols
 get_cols(c::Context, inputs::Computed) = reduce(vcat, view(c.outputs, inputs.idxs))
+get_cols(c::Context, deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
 
-(c::Context)(deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
-
+# consider allowing `get_cols` to return `0` items, in which case return `nothing`
+(c::Context)(deps::Deps) = only(get_cols(c, deps))
 (c::Context)(d::AbstractDict) = map_into(c, StringDict, d)
 
 function (c::Context)(v::AbstractVector)
     res = Any[]
     for el in v
         # append if `Deps`, else push
-        el isa Deps ? append!(res, c(el)) : push!(res, c(el))
+        el isa Deps ? append!(res, get_cols(c, el)) : push!(res, c(el))
     end
     return res
 end

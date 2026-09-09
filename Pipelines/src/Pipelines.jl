@@ -32,13 +32,19 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
 
-using TOML: parsefile
+using TOML: TOML
 using RelocatableFolders: @path
 
 using JLD2: jldopen
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
     fieldtags, fielddefaults, StructUtils
 using JSONSchema: JSONSchema
+
+using DashiBase: DashiBase, DashiStyle, json_schema, construct, enum_instances, to_config,
+    AbstractMethod, @options, lift_simple_method, lower_simple_method, get_metadata,
+    Property, TaggedObjectIR, ObjectIR, OneOrManyIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
+    VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,
+    StringDict, SymbolDict, Maybe
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables
@@ -133,6 +139,8 @@ using StreamlinerCore:
     Parser,
     default_parser,
     PARSER,
+    MODEL_DIR,
+    TRAINING_DIR,
     metricname,
     get_rng,
     StreamlinerCore as SC
@@ -148,9 +156,6 @@ using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using Dates: hour, minute
 
-const StringDict = Dict{String, Any}
-const SymbolDict = Dict{Symbol, Any}
-
 # Alias to potentially support richer primary keys in the future
 const AbstractPrimaryKey = AbstractString
 const PrimaryKey = String
@@ -158,20 +163,16 @@ const PrimaryKey = String
 function parse_toml_config(args...)::StringDict
     fs..., l = args
     path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
-    return parsefile(path)
+    return TOML.parsefile(path)
 end
 
 include("tables.jl")
 include("widgets.jl")
 include("utils.jl")
 
-include("structs/style.jl")
-include("structs/json_schema.jl")
-include("structs/card_schema.jl")
-
 include("dict_helpers.jl")
+include("card_schema.jl")
 include("card.jl")
-include("method.jl")
 include("dissimilarities.jl")
 
 include("cards/standard.jl")

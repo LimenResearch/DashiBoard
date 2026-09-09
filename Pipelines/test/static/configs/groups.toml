@@ -3,11 +3,11 @@ id = "rescale"
 [nodes.card]
 type = "rescale"
 method = {type = "zscore"}
-group_by = {cols = ["cbwd"]}
-partition = {nodes = ["partition"]}
+group_by = [{cols = "cbwd"}]
+partition = {nodes = "partition"}
 inputs = [
-    {groups = ["weather"]},
-    {cols = ["No"]}
+    {groups = "weather"},
+    {cols = "No"}
 ]
 
 [[nodes]]
@@ -16,7 +16,9 @@ id = "log"
 type = "rescale"
 method = {type = "log"}
 suffix = "log"
-inputs = {cols = ["No"]}
+inputs = [
+    {cols = ["No"]}
+]
 
 [[nodes]]
 id = "pca"
@@ -25,8 +27,8 @@ type = "dimensionality_reduction"
 method = {type = "pca"}
 n_components = 2
 inputs = [
-    {nodes = ["log"]},
-    {groups = ["weather"], through = ["rescale"]}
+    {nodes = "log"},
+    {groups = "weather", through = ["rescale"]}
 ]
 
 [[nodes]]
@@ -35,7 +37,11 @@ id = "partition"
 type = "split"
 method = {type = "percentile", percentile = 0.9}
 output = "partition"
-order_by = {cols = ["No"]}
+order_by = [
+    {cols = "No"}
+]
 
 [groups]
-weather = {cols = ["PRES", "TEMP"]}
+weather = [
+    {cols = ["PRES", "TEMP"]}
+]

@@ -347,6 +347,15 @@ same-document. Settled 2026-09-09 with that session, owner-directed:
 - **Token values, and every subsequent mode change, arrive by `postMessage`** after a ready signal
   from the frame. Values are bare `H S% L%` triplets in the host's own `index.css` authoring form,
   written straight onto the frame's `:root` with no parsing.
+- **The publisher must read *computed* styles, not stylesheet source.** This constrains the host's
+  implementation rather than the wire format, and it is easy to get wrong silently. Six of the
+  host's tokens are not bare triplets in source: `--radius` is a length, `--gradient-primary` a
+  gradient, two are shadows, and as of 2026-09-09 `--ring` and `--sidebar-ring` were refactored to
+  `var(--primary)` / `var(--sidebar-primary)`. `getComputedStyle(...).getPropertyValue(...)`
+  substitutes `var()` and yields the triplet we agreed; parsing the stylesheet text instead yields
+  the literal string `var(--primary)`, which the frame would write onto its own `:root` where it
+  resolves against the *frame's* `--primary` or nothing — a wrong or invalid colour, with no error.
+  Reported by that session against its own change.
 - **The payload replaces defaults; it does not supply them.** §9 layer 1 requires DashiBoard to run
   standalone, so the frame ships its own complete palette and a missing or malformed payload is a
   degradation rather than a failure. The host therefore builds no retries and no delivery guarantees.
@@ -361,9 +370,12 @@ and **their foregrounds flip from white to the page ground** — so the light-mo
 white-on-everything must not be mirrored, or lifted warning yellow becomes unreadable. Shadows switch
 from tinted to pure black at higher alpha, tinted shadows being invisible on a dark ground.
 
-**Not yet exercisable end to end.** The host has a `ThemeProvider` and a complete two-mode palette but
-**no toggle UI** — dark is reachable only through OS preference via `enableSystem`. So the
-mode-change message path has no real trigger to test against yet and will need a synthetic one.
+**Exercisable end to end as of 2026-09-09.** The host has a `ThemeProvider`, a complete two-mode
+palette, and now a sun/moon toggle merged to its `main` — it matches the OS silently at launch and
+never shows a "system" state, the owner having judged a monitor icon to be a state label rather than
+an affordance. So the mode a frame receives is something a user can actually change at runtime, and
+the mode-change message path has a real trigger to test against rather than a synthetic one. Every
+colour value on the host side is settled; 38 tokens before the colour work and 38 after.
 
 **Token values themselves are settled** on the host side as of 2026-09-09 — every colour decision
 there is closed, including `--primary`, and nothing is pending that could change a value the frame

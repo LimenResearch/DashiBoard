@@ -136,9 +136,46 @@ What that decides, per repository:
 
 **The residue a branch strategy cannot solve, and the real gate on merging to main:** `Config`
 documents already persisted in ExperimentTracking's registry and in AgentGraph's artifact store are
-in the old format. That is data, not code — no feature branch adapts it. Before this reaches `main`
-it needs one of: a read-time migration, a format version recorded on stored documents, or a backfill.
-Nothing in this plan currently owns that question.
+in the old format. That is data, not code — no feature branch adapts it, and **nothing in this plan
+currently owns the question.**
+
+*What the break actually is*, read off `9bd6c28`'s diff to `group_api/schema.jl` — it is narrower
+than "the group format changed", and the shape matters for any migration:
+
+| | before `9bd6c28` | after |
+|---|---|---|
+| plural field (`VARIABLES_DEF`) | object **or** array of selectors | **array only** |
+| singular field (`VARIABLE_DEF`) | object **or** 1-element array | **object only** |
+| selector value (`cols`/`nodes`/`groups`) | array of strings only | **string or array** |
+
+So the one-or-many moved *inward*: it used to sit at the field level (`one_or_many_schema`), and now
+sits at the selector-value level (`OneOrManyIR`). Three consequences:
+
+- **The inner change is backward-compatible.** Every old selector value was an array, and arrays are
+  still accepted. Nothing needs migrating inward.
+- **The field level breaks in *opposite directions*.** A plural field stored as an object must be
+  wrapped; a singular field stored as a 1-element array must be unwrapped.
+- **Therefore a migration cannot work by shape alone.** `{nodes = "x"}` versus `[{nodes = "x"}]` means
+  different things depending on whether that field is `VARIABLE_DEF` or `VARIABLES_DEF`, and the
+  document does not say which — only the card's schema does. **A read-time migration must walk the
+  document against the card IR**, per card type. It is not a context-free transform, which is how it
+  will be attempted if nobody writes this down.
+
+*Therefore:* **record a format version on stored `Config` documents**, and do it before more are
+written rather than after. `CONFIG_COLUMNS` is `filters`, `nodes`, `groups` and nothing else, so a
+reader cannot ask a stored document which vocabulary it was written in. ExperimentTracking recommended
+a `version` key in its own brief before this arose, on the grounds that the document was about to
+start being saved, imported and round-tripped; this is that moment. Shape-sniffing plus schema context
+can migrate without one, but it misreads silently where a version fails loudly — and per the point
+above, the sniffing is schema-dependent rather than local, which is exactly the kind of migration that
+looks right on the cases someone tested.
+
+*And size it before either owner decides:* how many stored `Config` documents actually exist, in
+ExperimentTracking's registry and in AgentGraph's artifact store? If it is zero or a few throwaways,
+this gate is a changelog paragraph. If AgentGraph holds real pipeline artifacts under aliases, it is a
+backfill. **Also relevant: stored configs are replayed through validation** — ExperimentTracking
+reports `test/interface.jl:69` calling `initialize_pipeline` on a config read back out of the
+registry — so this is an exercised path, not a theoretical one.
 
 **Two verified facts worth keeping even though the branch was declined.** First, `card_ir` does not
 depend on the break — `Pipelines/src/card_schema.jl` is byte-identical at `66bdff2` and at this

@@ -356,6 +356,21 @@ same-document. Settled 2026-09-09 with that session, owner-directed:
   the literal string `var(--primary)`, which the frame would write onto its own `:root` where it
   resolves against the *frame's* `--primary` or nothing — a wrong or invalid colour, with no error.
   Reported by that session against its own change.
+- **The payload always carries the full token set, never a delta.** Same cause, different symptom.
+  `--ring` derives from `--primary`, and `--gradient-primary` from `--primary` and `--primary-glow`,
+  so editing `--primary` alone silently changes three computed values while only *one* declaration
+  differs. A host sending "what moved" — computed by diffing its own declarations — would omit the
+  derived tokens, leaving the frame's focus ring drifting out of step with its buttons. Sending all
+  38 tokens every time is a few hundred bytes.
+
+**Why both rules need writing down rather than leaving to implementation.** They share a property:
+each fails *invisibly against any token that is still a literal.* A smoke test across the palette
+passes — only `--ring` and `--sidebar-ring` break under source-parsing, and only derived tokens
+desynchronise under delta-sending. Neither bug announces itself; you get one wrong colour, in one
+state, after one particular sequence of actions. The derivation itself was the right call — single
+sourcing the brand is what makes per-deployment branding tractable at all — but it turned token
+collection from an obvious operation into one whose correct and incorrect implementations look
+identical until a derived token is read.
 - **The payload replaces defaults; it does not supply them.** §9 layer 1 requires DashiBoard to run
   standalone, so the frame ships its own complete palette and a missing or malformed payload is a
   degradation rather than a failure. The host therefore builds no retries and no delivery guarantees.

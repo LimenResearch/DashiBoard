@@ -107,15 +107,37 @@ and host-controlled sizing. Cheap to design in; unpicking a global layout later 
   methods are `train`, `evaluate`, `cards`, `schema`, and the registry is written as a side effect of
   runs and never read back over HTTP. That is B1 and B6, both unstarted.
 
-## 6. The critical path, and why it is not ExperimentTracking's
+## 6. The critical path: the standalone UI depends on nothing outside this repository
 
-ExperimentTracking calls B1 "the one item that gates all frontend work". That is true only of work
-*against ExperimentTracking*. **DashiBoard's own server has unconditional CORS `*`**
-(`DashiBoard/src/middleware.jl:1-7`) and works today. So the rebuild can develop against it on :8080
-and switch to ExperimentTracking when B1 lands — **provided the API base is runtime-resolved.**
+**Scope decision, 2026-09-09.** The work is to complete the standalone `dashiboard-ui` all the way
+down, and then hold for the team leader's review of DashiBoard and ExperimentTracking. Everything else
+in this section is a separate track and must not be allowed to set the order.
 
-That is the practical argument for 4a over and above the principle: it converts a cross-repository
-blocker into a configuration change, and decouples this schedule from theirs.
+`DashiBoard` depends on neither `ExperimentTracking` nor `AgentGraph` — checked, no reference in
+`DashiBoard/src/` or `DashiBoard/Project.toml`. The package arrows run the other way: AgentGraph
+consumes ExperimentTracking, which consumes Pipelines. So the standalone UI is downstream of nothing,
+and **§9's layering is also the dependency order**: layer 1 (standalone) needs only this repository;
+layers 2 (registry, lineage) and 3 (the embed) are what involve the others.
+
+Concretely, every endpoint layer 1 needs already exists or is ours to add:
+
+| the UI needs | served by | status |
+|---|---|---|
+| the card IR | *a new DashiBoard route* over `Pipelines.card_ir` / `ir_definitions` | **ours to add — the one gap** |
+| card widgets (until the renderer replaces them) | `POST /get-card-widgets` | exists |
+| source selection, load, column summaries | `/get-acceptable-paths`, `/load-files` | exists; `summarize` already returns `{min,max}` and unique values, i.e. the two filter shapes |
+| pipeline run, results, DAG | `POST /evaluate-pipeline` | exists — returns `summaries, visualization, graph, report` |
+| paged data | `/fetch-data`, `/get-processed-data` | exists |
+| CORS for a Vite dev server | `DashiBoard/src/middleware.jl:1-7` | exists, unconditional `*` |
+
+So the earlier framing — that ExperimentTracking's B1 "gates all frontend work" — was true only of
+work *against ExperimentTracking*, and that work is layer 2. **Nothing is waiting on AgentGraph at
+all**, in either direction.
+
+What ExperimentTracking's B1 and B6 do gate is the *hosted* story: serving the bundle same-origin, and
+saving a `Config` to the registry. Those are layer 2, they come after the review gate, and the runtime
+`apiBase()` of §4a is what keeps them from becoming schedule coupling — the same bundle points at
+DashiBoard:8080 today and ExperimentTracking later, by configuration.
 
 **The wire-format break travels with this branch, deliberately.** `9bd6c28` — "avoid auto conversion
 from list to scalar" — is a public wire-format break, and it is in `ds-DashiUI`'s ancestry via the
@@ -128,11 +150,11 @@ What that decides, per repository:
 
 - **DashiBoard `ds-DashiUI`** carries both the break and `card_ir`. Done — `073ece6`.
 - **ExperimentTracking `ds-DashiUI`** points its `[sources]` at DashiBoard's `ds-DashiUI` and adapts
-  to the new format there. Its `66bdff2` pin is a property of *its* `main`, not of the feature
-  branch: on a coordinated branch, adapting to the break **is** the work rather than a risk taken
-  early. The owner decision that session is waiting on concerns *merging to main* — when the break
-  becomes public — not whether the branch may carry it.
-- **AgentGraph `ds-DashiUI`** sends the new shape. Its preflight reads `group["cols"]` as a dict today.
+  to the new format there, whenever it suits that track. **Its PR #24 to `main` is not to be merged**
+  (owner, 2026-09-09), so the branch is a staging area rather than a merge vehicle and adopting the
+  break carries it nowhere. The earlier merge-first sequencing is void.
+- **AgentGraph `ds-DashiUI`** sends the new shape and owns five in-repo call sites. Not on the
+  standalone path, and not waiting on us — nor us on it.
 
 **The residue a branch strategy cannot solve, and the real gate on merging to main:** `Config`
 documents already persisted in ExperimentTracking's registry and in AgentGraph's artifact store are

@@ -155,20 +155,43 @@ sits at the selector-value level (`OneOrManyIR`). Three consequences:
   still accepted. Nothing needs migrating inward.
 - **The field level breaks in *opposite directions*.** A plural field stored as an object must be
   wrapped; a singular field stored as a 1-element array must be unwrapped.
-- **Therefore a migration cannot work by shape alone.** `{nodes = "x"}` versus `[{nodes = "x"}]` means
-  different things depending on whether that field is `VARIABLE_DEF` or `VARIABLES_DEF`, and the
-  document does not say which — only the card's schema does. **A read-time migration must walk the
-  document against the card IR**, per card type. It is not a context-free transform, which is how it
-  will be attempted if nobody writes this down.
+- **Therefore shape-sniffing cannot work at all** — not "is fiddly". Demonstrated by the
+  ExperimentTracking session, building real pipelines through `initialize_pipeline` against current
+  upstream:
 
-*Therefore:* **record a format version on stored `Config` documents**, and do it before more are
-written rather than after. `CONFIG_COLUMNS` is `filters`, `nodes`, `groups` and nothing else, so a
-reader cannot ask a stored document which vocabulary it was written in. ExperimentTracking recommended
-a `version` key in its own brief before this arose, on the grounds that the document was about to
-start being saved, imported and round-tripped; this is that moment. Shape-sniffing plus schema context
-can migrate without one, but it misreads silently where a version fails loudly — and per the point
-above, the sniffing is schema-dependent rather than local, which is exactly the kind of migration that
-looks right on the cases someone tested.
+  | stored shape | as a plural field | as a singular field |
+  |---|---|---|
+  | `{groups = "w"}` (object) | **rejected** | accepted |
+  | `[{groups = "w"}]` (array) | accepted | **rejected** |
+
+  The same two shapes have *opposite* validity by arity. So the shape carries no information without
+  the field's arity, and the document never records it — only the card's schema does. **A read-time
+  migration must walk each document against the card IR**, per card type. It is not a context-free
+  transform, which is how it will be attempted if nobody writes this down.
+- **There is no second failure mode at construction.** The obvious worry — schema-valid but failing
+  later when a 1-element `Vector` meets a `String` field — was tested and does not occur; `9bd6c28`
+  also touched `group_api/deps.jl`. One validation check per document is sufficient.
+
+*Therefore:* **record a format version on stored `Config` documents**, before more are written rather
+than after. `CONFIG_COLUMNS` is `filters`, `nodes`, `groups` and nothing else, so a reader cannot ask a
+stored document which vocabulary it was written in — a `version` key was recommended in
+`04-experimenttracking-brief.md` before any of this arose, on the grounds that the document was about
+to start being saved, imported and round-tripped. This is that moment.
+
+But be clear what it buys, because it is narrower than it looks: **a version cannot help the
+transform**, which needs each field's arity from the card IR either way. What it buys is knowing
+*whether* a document needs walking at all. Without one you must attempt the walk on every stored
+document and rely on it being a no-op for already-migrated ones — which it is, given correct arity,
+and "correct" is doing real work in that sentence.
+
+**And one class cannot be migrated at all, with or without a version.** A `WildCard`'s field vocabulary
+comes from `WildCardSettings` at registration, not from a fixed struct: `WildCardIR`
+(`Pipelines/src/cards/wild.jl:89-122`) adds `weights` and `partition` as **singular** `VARIABLE_DEF`
+properties only when `allows_weights` / `allows_partition` are set. So whether a stored wild-card
+document even *has* a singular field depends on how its type was registered — and `get_spec` throws
+on an unregistered key. **A stored document whose card type is not currently registered has no
+derivable arity and cannot be migrated.** This is not theoretical: `card_ir("trivial")` fails exactly
+this way until `register_wild_card` has run, which is how the test harness for `card_ir` first broke.
 
 *And size it before either owner decides:* how many stored `Config` documents actually exist, in
 ExperimentTracking's registry and in AgentGraph's artifact store? If it is zero or a few throwaways,

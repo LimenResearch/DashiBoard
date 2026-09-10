@@ -1,5 +1,8 @@
+// Height, not vertical padding. Stock shadcn controls are `h-10`; measured usage in the host is
+// `h-7` (65 sites) and `h-8` (63) against `h-10` (16) — and inputs and selects get the same
+// treatment as buttons, which is the part §3b's list left out.
 const className =
-  "pl-2 py-0.5 rounded-sm border outline-none border-border" +
+  "h-7 px-2 text-xs rounded-sm border outline-none border-border" +
   " ring-offset-2 focus:ring-2 focus:ring-ring";
 
 type InputProps = {

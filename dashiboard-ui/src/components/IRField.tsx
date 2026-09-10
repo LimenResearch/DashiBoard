@@ -89,7 +89,7 @@ export function IRField(props: IRFieldProps) {
               <div>
                 <Label text={props.label} required={props.required} />
                 <select
-                  class="my-1 rounded-sm border border-border py-0.5 pl-2"
+                  class="my-1 h-7 rounded-sm border border-border pl-2 text-xs"
                   value={chosen()}
                   onChange={(event) =>
                     props.onChange({ type: event.currentTarget.value })
@@ -122,7 +122,7 @@ export function IRField(props: IRFieldProps) {
                 <Label for={props.label} text={props.label} required={props.required} />
                 <select
                   id={props.label}
-                  class="my-1 rounded-sm border border-border py-0.5 pl-2"
+                  class="my-1 h-7 rounded-sm border border-border pl-2 text-xs"
                   value={String(props.value ?? w.default ?? "")}
                   onChange={(event) =>
                     props.onChange(optionByString(w.options, event.currentTarget.value))
@@ -143,7 +143,7 @@ export function IRField(props: IRFieldProps) {
                   id={props.label}
                   multiple
                   size={Math.min(w.options.length, 8)}
-                  class="my-1 w-full rounded-sm border border-border"
+                  class="my-1 h-7 w-full rounded-sm border border-border px-2 text-xs"
                   onChange={(event) =>
                     props.onChange(
                       [...event.currentTarget.selectedOptions].map((option) =>

@@ -188,7 +188,7 @@ export function Cards() {
           </label>
           <select
             id="card-type"
-            class="rounded-sm border border-border py-0.5 pl-2"
+            class="h-7 rounded-sm border border-border pl-2 text-xs"
             value={chosen()}
             onChange={(event) => setChosen(event.currentTarget.value)}
           >
@@ -219,7 +219,7 @@ export function Cards() {
                   so two unnamed cards collide and the whole document is rejected.
                 */}
                 <input
-                  class="rounded-sm border border-border px-2 py-0.5 font-mono text-xs"
+                  class="h-7 rounded-sm border border-border px-2 font-mono text-xs"
                   aria-label="node id"
                   value={node.id ?? ""}
                   onChange={(event) => setNodeId(index(), event.currentTarget.value)}

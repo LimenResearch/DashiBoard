@@ -9,50 +9,61 @@
   `hsl(...)` — and every consumer writes `hsl(var(--token))`, with `hsl(var(--token) / 0.3)` for
   alpha. Token *names* mirror `05-nexus-weaver-brief.md` §3b exactly.
 
+  **The values are the host's, verbatim from nexus-weaver-pro `main` at 2b6cef5** (supplied by
+  that session 2026-09-10, post PR #15). Owner decision: DashiBoard adopts the host's default
+  scheme, not merely its token names — so these are copied, never approximated. Two things that
+  session corrected in passing: everything here is committed, not working-tree state, and
+  `--primary-glow` is now authoritative (`.gradient-primary` dereferences the token instead of
+  hardcoding teal), so our brief's §3c notes on both are stale.
+
   These are defaults, not configuration. §9 layer 1 requires DashiBoard to run standalone, so the
   frame ships a complete palette and a missing or malformed payload is a degradation rather than a
   failure. Nothing here may become the only definition of a colour.
 
   Not defined here, deliberately:
   - the eight `--sidebar-*` tokens — host chrome, which §3b says an embedded UI should not use;
-  - `--gradient-primary` / `--primary-glow` — nothing here paints a gradient. Both may still arrive
-    in a payload and land harmlessly.
+  - `--gradient-primary` — nothing here paints a gradient. It may still arrive in a payload and
+    land harmlessly. `--primary-glow` *is* carried: it stopped being dead upstream and is now the
+    gradient's second stop, so it is a value worth staying in step with even unused.
 */
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 221 39% 11%;
+  --background: 210 20% 98%;
+  --foreground: 220 20% 10%;
   --card: 0 0% 100%;
-  --card-foreground: 221 39% 11%;
+  --card-foreground: 220 20% 10%;
   --popover: 0 0% 100%;
-  --popover-foreground: 221 39% 11%;
-  --primary: 226 71% 40%;
-  --primary-foreground: 210 20% 98%;
-  --secondary: 210 20% 96%;
-  --secondary-foreground: 221 39% 11%;
-  --muted: 210 20% 98%;
-  --muted-foreground: 220 9% 46%;
-  --accent: 214 95% 93%;
-  --accent-foreground: 226 71% 40%;
-  --destructive: 0 70% 35%;
-  --destructive-foreground: 0 86% 97%;
-  --border: 220 13% 91%;
-  --input: 220 13% 91%;
-  --ring: 217 91% 60%;
+  --popover-foreground: 220 20% 10%;
+  --primary: 174 62% 32%;
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: 174 62% 42%;
+  --secondary: 210 14% 93%;
+  --secondary-foreground: 220 20% 20%;
+  --muted: 210 14% 95%;
+  --muted-foreground: 220 10% 46%;
+  --accent: 174 30% 92%;
+  --accent-foreground: 174 62% 25%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 90%;
+  --input: 220 13% 90%;
+  /* Derived, exactly as the host derives it — so a ring never stops matching the button it rings.
+     A host publishing computed styles sends this as a resolved triplet, which overrides cleanly. */
+  --ring: var(--primary);
 
-  --success: 142 71% 35%;
+  --success: 160 60% 32%;
   --success-foreground: 0 0% 100%;
-  --warning: 38 92% 45%;
+  --warning: 38 92% 33%;
   --warning-foreground: 0 0% 100%;
-  --info: 217 91% 50%;
+  --info: 200 80% 39%;
   --info-foreground: 0 0% 100%;
 
   --radius: 0.5rem;
 
-  --shadow-card: 0 1px 2px 0 hsl(221 39% 11% / 0.06), 0 1px 3px 0 hsl(221 39% 11% / 0.08);
-  --shadow-elevated: 0 10px 15px -3px hsl(221 39% 11% / 0.1), 0 4px 6px -4px hsl(221 39% 11% / 0.1);
+  --shadow-card: 0 1px 3px 0 hsl(220 20% 10% / 0.06), 0 1px 2px -1px hsl(220 20% 10% / 0.06);
+  --shadow-elevated: 0 4px 12px -2px hsl(220 20% 10% / 0.08), 0 2px 6px -2px hsl(220 20% 10% / 0.04);
 }
 
 /*
@@ -68,35 +79,40 @@
   from tinted to pure black at higher alpha, since a tinted shadow is invisible on a dark ground.
 */
 .dark {
-  --background: 222 39% 8%;
-  --foreground: 210 20% 96%;
-  --card: 222 35% 11%;
-  --card-foreground: 210 20% 96%;
-  --popover: 222 35% 11%;
-  --popover-foreground: 210 20% 96%;
-  --primary: 217 91% 60%;
-  --primary-foreground: 222 39% 8%;
-  --secondary: 222 25% 18%;
-  --secondary-foreground: 210 20% 96%;
-  --muted: 222 25% 16%;
-  --muted-foreground: 220 12% 65%;
-  --accent: 222 30% 22%;
-  --accent-foreground: 217 91% 75%;
-  --destructive: 0 72% 55%;
-  --destructive-foreground: 222 39% 8%;
-  --border: 222 22% 22%;
-  --input: 222 22% 22%;
-  --ring: 217 91% 60%;
+  --background: 220 20% 7%;
+  --foreground: 220 10% 90%;
+  --card: 220 20% 10%;
+  --card-foreground: 220 10% 90%;
+  --popover: 220 20% 10%;
+  --popover-foreground: 220 10% 90%;
+  --primary: 174 62% 48%;
+  --primary-foreground: 220 20% 7%;
+  --primary-glow: 174 62% 58%;
+  --secondary: 220 20% 15%;
+  --secondary-foreground: 220 10% 85%;
+  --muted: 220 20% 14%;
+  --muted-foreground: 220 10% 55%;
+  --accent: 174 30% 15%;
+  --accent-foreground: 174 62% 60%;
+  --destructive: 0 62% 50%;
+  /* Not a flip: destructive keeps white in both modes, unlike the status scales below. Copied
+     rather than reasoned about — 0 62% 50% carries white where lifted warning yellow does not. */
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 20% 18%;
+  --input: 220 20% 18%;
+  --ring: var(--primary);
 
-  --success: 142 65% 45%;
-  --success-foreground: 222 39% 8%;
-  --warning: 38 92% 55%;
-  --warning-foreground: 222 39% 8%;
-  --info: 217 91% 60%;
-  --info-foreground: 222 39% 8%;
+  --success: 160 55% 48%;
+  --success-foreground: 220 20% 7%;
+  --warning: 38 92% 58%;
+  --warning-foreground: 220 20% 7%;
+  --info: 200 80% 58%;
+  --info-foreground: 220 20% 7%;
 
-  --shadow-card: 0 1px 2px 0 hsl(0 0% 0% / 0.5), 0 1px 3px 0 hsl(0 0% 0% / 0.4);
-  --shadow-elevated: 0 10px 15px -3px hsl(0 0% 0% / 0.6), 0 4px 6px -4px hsl(0 0% 0% / 0.5);
+  /* `--radius` has no dark variant, correctly — it is a length, not a colour. */
+
+  --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.4), 0 1px 2px -1px hsl(0 0% 0% / 0.4);
+  --shadow-elevated: 0 4px 12px -2px hsl(0 0% 0% / 0.5), 0 2px 6px -2px hsl(0 0% 0% / 0.3);
 }
 
 /*
@@ -148,20 +164,38 @@
 
   There is no custom spacing scale here and there should not be one — the host runs stock Tailwind
   (§3b), so a scale of our own would be a second source of truth for sizes. What the host has
-  instead is a convention, which §3b calls *unwritten*; this is it written down, because an
-  unwritten convention is one that drifts a component at a time.
+  instead is a convention, which §3b calls *unwritten*.
 
-  It matters more than the palette. Tokens make the colours right; density is what makes an
-  embedded UI look like it belongs, and §3b's warning is blunt — an embedded UI at default sizing
+  It matters more than the palette: tokens make the colours right, density is what makes an
+  embedded UI look like it belongs. §3b's warning is blunt — an embedded UI at default sizing
   "will read as noticeably larger than its host" with every token matched perfectly.
 
-    body text        text-xs
-    secondary        text-[10px]
-    badges           text-[9px] / text-[8px]
-    buttons          h-7 (h-8 for a primary action), text-xs label, px-2.5
-    icons            h-3 w-3
+  Counts below are real usage across the host's `src/pages` and `src/components` on `main`,
+  supplied by that session 2026-09-10. **They are evidence of practice, not a ratified standard** —
+  nobody upstream has ever written this down, and this block may be its first specification. Treat
+  a count as a reason, not as a rule.
+
+    form controls    h-7 (65) / h-8 (63), against stock shadcn's h-10 (16) and h-9 (14).
+                     THE BIGGEST TELL. Not just buttons — inputs and selects take the same
+                     height. Ship stock h-10 inputs and the frame reads foreign however well
+                     the colours match.
+    body text        text-xs (343)
+    inline detail    text-[11px] (199) — the workhorse, and the one §3b's list omitted
+    secondary        text-[10px] (216)
+    also common      text-sm (196)
+    badges           text-[9px] (73) / text-[8px] (17)
+    icons            h-3 w-3 (123) / h-3.5 w-3.5 (96) / h-4 w-4 (63);
+                     h-2.5 w-2.5 (35) is the inline-with-text-[9px] size
     gaps             gap-1.5 / gap-2
     card padding     p-2.5 / p-3
+    table cells      px-2 py-1.5 (21) / px-3 py-2 (15). NOT px-1 py-0 — that is badge
+                     padding (44 sites) and does not belong in a table.
+    headings         there is no heading scale. Section headers are text-sm/text-xs with
+                     font-medium/font-semibold; the recurring section-label idiom is
+                     `text-[10px] uppercase tracking-wider text-muted-foreground`.
+                     Building a real heading scale would make us look *less* like the host,
+                     not more — and shadcn's own CardTitle (text-2xl) is overridden
+                     essentially everywhere upstream.
 
   Adopted wholesale by owner decision rather than scaled at the frame boundary: §3b notes a frame
   applying its own scale is harder than it sounds, since it interacts with the `--radius`

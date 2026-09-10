@@ -60,7 +60,7 @@ export function GroupsEditor(props: { defs: Defs }) {
             <div class="my-4 rounded-sm border border-border p-3">
               <div class="mb-2 flex items-center justify-between gap-2">
                 <input
-                  class="rounded-sm border border-border px-2 py-0.5 font-mono text-xs"
+                  class="h-7 rounded-sm border border-border px-2 font-mono text-xs"
                   aria-label="group name"
                   value={name}
                   // `change`, not `input`: renaming on every keystroke would rewrite the document

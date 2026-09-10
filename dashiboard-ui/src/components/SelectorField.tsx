@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
+import { Checkbox } from "./Checkbox";
 import { Tabs } from "./Tabs";
 import { widgetFor, type Defs, type IRNode } from "../ir";
 
@@ -212,19 +213,13 @@ export function SelectorField(props: SelectorFieldProps) {
             <div class="grid gap-x-3 sm:grid-cols-2 md:grid-cols-3">
               <For each={optionsOf(open())}>
                 {(option) => (
-                  <label class="flex items-center gap-1.5 py-0.5 text-xs">
-                    <input
-                      type="checkbox"
-                      value={String(option)}
-                      checked={chosen(sectionProps.chain, open()).includes(String(option))}
-                      onChange={(event) =>
-                        toggle(sectionProps.chain, open(), String(option), event.currentTarget.checked)
-                      }
-                    />
-                    <span class="truncate" title={String(option)}>
-                      {option}
-                    </span>
-                  </label>
+                  <Checkbox
+                    label={String(option)}
+                    checked={chosen(sectionProps.chain, open()).includes(String(option))}
+                    onChange={(checked) =>
+                      toggle(sectionProps.chain, open(), String(option), checked)
+                    }
+                  />
                 )}
               </For>
             </div>

@@ -56,9 +56,10 @@ so the schema verdict is reached before any divergent code runs.
 | A4 | Make `graphviz` work for `GroupDiGraph` | Currently a `MethodError` on group-API pipelines, so §5's canvas has nothing to render. |
 | A5 | Design out the positional `weights` rule | §12. Mark `inputs` unordered, or make the correspondence explicit. |
 | A6 | Filter schema derivation *and* filter IR | The 1–2 day item §8 did not originally budget. |
-| A7 | Give `SchemaValidationError` a JSON Pointer and a `related` array | Mostly plumbing — see below. |
+| A7 | Give `SchemaValidationError` a JSON Pointer and a `related` array | Mostly plumbing — see below. **Scope updated 2026-09-10:** it stays a separate item, but its corpus is now *two* error sources, not one — schema-validation failures **and** A10's unproduced-reference failures — and A10's probe route is its delivery vehicle. Both already know their node and field, so they address by the same pointer scheme; what differs is only where the failure is detected. |
 | A8 | Validate the **node wrapper**, not only `node["card"]` | A typo like `trian = false` is accepted and silently ignored today. **Measured 2026-09-10, and it is worse than "ignored":** `DashiBoard/test/static/pipeline.json` passes `by` to two split cards, but `SplitCard` defines `group_by`. The flat `Card` constructor drops the unknown key, so `group_by` comes out `String[]` — those cards partition *globally* instead of by `cbwd`. Two documents, one correct and one typo'd, are indistinguishable to the flat constructor and produce **different pipelines with no error at either point** — the failure mode is a changed result, not a missing one, so nothing downstream can detect it. **Scope of the instance:** the only occurrence found is that test fixture, whose assertion checks the output column exists rather than how it partitions, so no real results are implicated; what it demonstrates is the hazard. **Nothing was broken by the migration** — verified on untouched `origin/main`, the group path already rejected `by` and accepted `group_by`, the `Card` construction path is unchanged, and the old `evaluate_pipeline` handler ran no validation at all. The check was intact and effective; the server bypassed it. Migrating turned it on. ExperimentTracking confirmed its own registry cannot hold such a document — validation precedes storage on the only path that writes there — so the exposure is documents authored through the flat path and persisted elsewhere. This is a correctness argument for the group API independent of any UI. |
 | A9 | Fail closed when the variable context is missing | `VariableConfig`'s `nothing` means *unconstrained*, so omitting `cols` validates everything. |
+| A10 | **Check that every resolved reference is actually produced, and serve it from a probe route** | Closes the systemic finding below rather than working around it in one client. See detail. |
 
 ### A3 in detail — the rules that are easy to get wrong
 
@@ -236,6 +237,51 @@ must join the two. That is where `related` earns its keep beyond the `weights`/`
 
 **Path stability is confirmed to three levels.** `"[method][dissimilarity][p]"` is the deepest case
 in the card set and converts mechanically to `/method/dissimilarity/p`.
+
+### A10 in detail — the check nothing performs, and where it belongs
+
+**The gap.** `through` builds a column *name* by concatenating the suffixes of the nodes it names.
+Validation checks only that the *base* column exists in the source. So a chain naming a column no
+node produces — `{cols = "PRES", through = ["rescale", "log"]}`, where `log` consumes `No` and emits
+only `No_log` — is **accepted**, and fails later inside a task with a `TaskFailedException` naming
+neither the column nor the node. Verified by execution; pinned in
+`Pipelines/test/groups.jl`. It is the sharpest instance of this document's systemic finding, because
+the reference is never written down anywhere — it is computed.
+
+**Where the check does *not* belong: the UI.** The obvious fix is for the picker to compute what a
+chain resolves to and offer only chains that exist. That would be a second implementation of
+`pass_through` in TypeScript — a second source of truth for a naming rule, which is the duplication
+this refactor exists to remove. **The UI writes the TOML; DashiBoard resolves it.** (Owner,
+2026-09-10.)
+
+**The check is computable server-side from what construction already produces**, using only public
+accessors and no re-derivation of the naming rule — by the time you compare, Julia has already
+resolved. Measured on the `groups.toml` fixture:
+
+```
+GOOD  through = [rescale]        pca inputs = ["PRES_rescaled"]       ∈ pool
+BAD   through = [rescale, log]   pca inputs = ["PRES_rescaled_log"]   UNPRODUCED
+```
+
+where the pool is the source columns together with what the nodes emit — `get_node_inputs` and
+`get_node_outputs` over the resolved `Pipeline`.
+
+**Two refinements the measurement showed.** The pool must be scoped **topologically**, not globally:
+taken globally it contains every node's outputs including downstream ones, so a node consuming a
+column produced *after* it would pass. Construction already gives the ordering, so scoping is nearly
+free and strictly better. And a `through` naming its own consuming node is *already* caught — it
+makes the graph cyclic — so the uncovered set is exactly the acyclic-but-unproduced chains.
+
+**The route.** A probe that constructs a `Pipeline` without executing it and returns per-node
+resolved inputs and outputs plus any unproduced references. Construction is the cheap half;
+`evaluate-pipeline` already does it before running anything. The UI then posts the document and
+*displays* what Julia resolved, owning no part of the rule. It is also the vehicle for A7 — see that
+entry — and it mirrors ExperimentTracking's `probe`, which returns `{valid, source_vars, output_vars}`
+for its own methods, one layer up.
+
+**Value beyond this UI.** AgentGraph's `_dashi_preflight` exists to catch exactly this class and
+fails open after the format break. A server-side check makes that preflight redundant rather than
+requiring it to be fixed.
 
 ### A8 and A9 in detail — two gaps found by answering AgentGraph's question
 

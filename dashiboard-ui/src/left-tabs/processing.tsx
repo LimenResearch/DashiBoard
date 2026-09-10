@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show, Store } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show, Store, reconcile } from "solid-js";
 
 import { Button } from "../components/Button";
 import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
@@ -15,6 +15,10 @@ import {
   exportCards,
   importCards,
   emptyCards,
+  emptyProbe,
+  PROBE_STORE,
+  type ProbeNode,
+  type ProbeStore,
 } from "../stores";
 import type { Defs, IRNode } from "../ir";
 
@@ -28,6 +32,7 @@ type Payload = { defs: Defs; cards: { [type: string]: IRNode } };
 export function Cards() {
   const [state] = CARDS_STORE;
   const [metadata] = LOADER_STORE;
+  const [probe, setProbe] = PROBE_STORE;
 
   const [payload, setPayload] = createSignal<Payload | null>(null);
   const [chosen, setChosen] = createSignal("");
@@ -66,8 +71,53 @@ export function Cards() {
 
   const cardTypes = () => Object.keys(payload()?.cards ?? {}).sort();
 
+  // Probe on every document change. Construction is cheap and materialises nothing, so this is
+  // the feedback loop for references the schema cannot check.
+  async function runProbe(document: CardsStore | null) {
+    if (document === null) {
+      setProbe(reconcile(emptyProbe()));
+      return;
+    }
+    const result = await postRequest("probe-pipeline", document, null);
+    // Validate the shape rather than trusting it. An unexpected response used to reach the store
+    // and throw on the first `.length`, which halts Solid's reactive system for the whole page —
+    // a far worse outcome than showing no probe result.
+    const reported = result as ProbeStore | null;
+    const usable =
+      reported !== null &&
+      typeof reported === "object" &&
+      Array.isArray(reported.nodes) &&
+      Array.isArray(reported.errors);
+    setProbe(reconcile(usable ? reported : emptyProbe()));
+  }
+
+  // Every reactive read happens in the *compute* function; the callback only performs the call.
+  // Reading the store inside the callback is untracked and never updates — Solid 2 says so with
+  // STRICT_READ_UNTRACKED, and its versioned skill prescribes exactly this shape. The effect must
+  // also return void rather than a promise, hence the wrapper.
+  createEffect(
+    // Reads the store proxy, so this *tracks*. `exportCards()` would not: it goes through
+    // `snapshot`, which is deliberately untracked, so using it here registered no dependency and
+    // the probe never fired.
+    () => JSON.stringify(state),
+    (serialised) => {
+      const document = JSON.parse(serialised) as CardsStore;
+      void runProbe(document.nodes.length === 0 ? null : document);
+    },
+  );
+
+  // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
+  const probeNodes = createMemo(() => probe.nodes);
+  const probeErrors = createMemo(() => probe.errors);
+
   return (
     <div>
+      <Show when={probeErrors().length > 0}>
+        <p class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {probeErrors().join("; ")}
+        </p>
+      </Show>
+
       <Show when={error()}>
         <p class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-red-800">{error()}</p>
       </Show>
@@ -111,6 +161,24 @@ export function Cards() {
                 Remove
               </Button>
             </div>
+            <Show when={probeNodes()[index()]} keyed>
+              {(reported: ProbeNode) => (
+                <div class="mb-2 text-xs">
+                  <Show when={reported.unproduced.length > 0}>
+                    <p class="rounded border border-red-200 bg-red-50 p-2 text-red-800">
+                      nothing produces {reported.unproduced.join(", ")} — check the pass-through
+                      chain, which names a column rather than routing through one
+                    </p>
+                  </Show>
+                  <p class="text-gray-600">
+                    resolves to: {reported.inputs.join(", ") || "—"}
+                    <Show when={reported.outputs.length > 0}>
+                      {" "}→ {reported.outputs.join(", ")}
+                    </Show>
+                  </p>
+                </div>
+              )}
+            </Show>
             <Show
               when={payload()?.cards[String(node.card.type)]}
               fallback={<p class="text-gray-500">No description for this card type.</p>}

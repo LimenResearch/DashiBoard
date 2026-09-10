@@ -23,12 +23,16 @@ vi.mock('../requests', () => ({
 
 import Home from './index';
 
+const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [] };
+
 beforeEach(() => {
   importCards(emptyCards());
   postRequest.mockReset();
-  postRequest.mockImplementation((page: string) =>
-    Promise.resolve(page === 'get-card-ir' ? payload : []),
-  );
+  postRequest.mockImplementation((page: string) => {
+    if (page === 'get-card-ir') return Promise.resolve(payload);
+    if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+    return Promise.resolve([]);
+  });
 });
 afterEach(cleanup);
 
@@ -64,6 +68,7 @@ describe('the authoring page', () => {
       if (page === 'evaluate-pipeline') {
         return Promise.resolve({ graph: 'digraph {a}', report: [{ node: 'split' }] });
       }
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
       return Promise.resolve([]);
     });
 
@@ -81,6 +86,52 @@ describe('the authoring page', () => {
     expect(run).toBeDefined();
     // {filters, nodes, groups} -- not the retired {filters, cards}
     expect(Object.keys(run!.body as object).sort()).toEqual(['filters', 'groups', 'nodes']);
+  });
+
+  it('surfaces references nothing produces, from the probe route', async () => {
+    // A10: `through` names a column by concatenating suffixes and validation only checks the
+    // base column, so an unproduced chain is accepted and fails late inside a task. The probe is
+    // what turns that into something a form can show.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: false,
+          cols: ['TEMP'],
+          errors: [],
+          // one entry per card in the document: the component indexes them by card position
+          nodes: [{ id: 'bad', inputs: ['TEMP_a_a'], outputs: [], unproduced: ['TEMP_a_a'] }],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+
+    await waitFor(() => expect(container.textContent).toContain('TEMP_a_a'));
+    expect(container.textContent).toMatch(/nothing produces/i);
+  });
+
+  it('shows what a chain resolved to, rather than making the UI compute it', async () => {
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: true, cols: ['TEMP'], errors: [],
+          nodes: [{ id: 'r', inputs: ['TEMP_rescaled'], outputs: ['TEMP_a'], unproduced: [] }],
+        });
+      }
+      return Promise.resolve([]);
+    });
+    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    // the resolved name comes from Julia; nothing here reimplements suffix concatenation
+    await waitFor(() => expect(container.textContent).toContain('TEMP_rescaled'));
   });
 
   it('asks for the IR with the vocabularies the document defines', async () => {

@@ -62,6 +62,32 @@ export type CardsStore = {
 
 export const emptyCards = (): CardsStore => ({ nodes: [], groups: {} });
 
+// What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, and any
+// reference nothing produces (A10).
+//
+// The resolved names come from Julia. A `through` chain names a column by concatenating the
+// suffixes of the nodes it lists, and reimplementing that here would be a second source of truth
+// for a naming rule — the duplication this refactor exists to remove. The UI writes the document;
+// DashiBoard resolves it and says what it got.
+
+export type ProbeNode = {
+  id: string;
+  inputs: string[];
+  outputs: string[];
+  unproduced: string[];
+};
+
+export type ProbeStore = {
+  valid: boolean;
+  cols: string[];
+  nodes: ProbeNode[];
+  errors: string[];
+};
+
+export const emptyProbe = (): ProbeStore => ({ valid: true, cols: [], nodes: [], errors: [] });
+
+export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
+
 export const CARDS_STORE = createStore<CardsStore>(emptyCards());
 
 const [cards, setCards] = CARDS_STORE;

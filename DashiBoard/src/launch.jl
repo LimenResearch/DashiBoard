@@ -17,6 +17,7 @@ function launch(
     HTTP.register!(router, "POST", "/load-files", HTTP.streamhandler(load_files))
     HTTP.register!(router, "POST", "/get-card-widgets", HTTP.streamhandler(get_card_widgets))
     HTTP.register!(router, "POST", "/get-card-ir", HTTP.streamhandler(get_card_ir))
+    HTTP.register!(router, "POST", "/probe-pipeline", HTTP.streamhandler(probe_pipeline))
     HTTP.register!(router, "POST", "/evaluate-pipeline", HTTP.streamhandler(evaluate_pipeline))
     HTTP.register!(router, "POST", "/fetch-data", fetch_data)
     HTTP.register!(router, "GET", "/get-processed-data", get_processed_data)

@@ -278,3 +278,30 @@ end
     @test resolve([Dict("cols" => "PRES", "through" => String[])]) ==
         resolve([Dict("cols" => "PRES")])
 end
+
+@testset "unproduced references (A10)" begin
+    base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    available = ["No", "PRES", "TEMP", "cbwd"]
+
+    function issues(inputs)
+        d = deepcopy(base)
+        d["nodes"][3]["card"]["inputs"] = inputs
+        p = Pipelines.Pipeline(d["nodes"], d["groups"], available)
+        return Pipelines.unproduced_references(p, available)
+    end
+
+    # A chain that names something a node actually emits.
+    @test isempty(issues([Dict("cols" => "PRES", "through" => ["rescale"])]))
+
+    # A chain that names a column nothing emits: `log` consumes `No` and emits only `No_log`, so
+    # `PRES_rescaled_log` exists nowhere. Validation accepts it; this is what catches it.
+    found = issues([Dict("cols" => "PRES", "through" => ["rescale", "log"])])
+    @test length(found) == 1
+    node_idx, missing_cols = only(found)
+    @test node_idx == 3                       # the `pca` node
+    @test missing_cols == ["PRES_rescaled_log"]
+
+    # The untouched fixture is clean, so this does not fire on well-formed documents.
+    p = Pipelines.Pipeline(base["nodes"], base["groups"], available)
+    @test isempty(Pipelines.unproduced_references(p, available))
+end

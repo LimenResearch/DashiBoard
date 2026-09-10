@@ -59,7 +59,7 @@ so the schema verdict is reached before any divergent code runs.
 | A7 | Give `SchemaValidationError` a JSON Pointer and a `related` array | Mostly plumbing — see below. **Scope updated 2026-09-10:** it stays a separate item, but its corpus is now *two* error sources, not one — schema-validation failures **and** A10's unproduced-reference failures — and A10's probe route is its delivery vehicle. Both already know their node and field, so they address by the same pointer scheme; what differs is only where the failure is detected. |
 | A8 | Validate the **node wrapper**, not only `node["card"]` | A typo like `trian = false` is accepted and silently ignored today. **Measured 2026-09-10, and it is worse than "ignored":** `DashiBoard/test/static/pipeline.json` passes `by` to two split cards, but `SplitCard` defines `group_by`. The flat `Card` constructor drops the unknown key, so `group_by` comes out `String[]` — those cards partition *globally* instead of by `cbwd`. Two documents, one correct and one typo'd, are indistinguishable to the flat constructor and produce **different pipelines with no error at either point** — the failure mode is a changed result, not a missing one, so nothing downstream can detect it. **Scope of the instance:** the only occurrence found is that test fixture, whose assertion checks the output column exists rather than how it partitions, so no real results are implicated; what it demonstrates is the hazard. **Nothing was broken by the migration** — verified on untouched `origin/main`, the group path already rejected `by` and accepted `group_by`, the `Card` construction path is unchanged, and the old `evaluate_pipeline` handler ran no validation at all. The check was intact and effective; the server bypassed it. Migrating turned it on. ExperimentTracking confirmed its own registry cannot hold such a document — validation precedes storage on the only path that writes there — so the exposure is documents authored through the flat path and persisted elsewhere. This is a correctness argument for the group API independent of any UI. |
 | A9 | Fail closed when the variable context is missing | `VariableConfig`'s `nothing` means *unconstrained*, so omitting `cols` validates everything. |
-| A10 | **Check that every resolved reference is actually produced, and serve it from a probe route** | Closes the systemic finding below rather than working around it in one client. See detail. |
+| A10 | ~~Check that every resolved reference is actually produced, and serve it from a probe route~~ **DONE 2026-09-10** — `unproduced_references` + `POST /probe-pipeline` | Closes the systemic finding below rather than working around it in one client. See detail. |
 
 ### A3 in detail — the rules that are easy to get wrong
 
@@ -266,11 +266,21 @@ BAD   through = [rescale, log]   pca inputs = ["PRES_rescaled_log"]   UNPRODUCED
 where the pool is the source columns together with what the nodes emit — `get_node_inputs` and
 `get_node_outputs` over the resolved `Pipeline`.
 
-**Two refinements the measurement showed.** The pool must be scoped **topologically**, not globally:
-taken globally it contains every node's outputs including downstream ones, so a node consuming a
-column produced *after* it would pass. Construction already gives the ordering, so scoping is nearly
-free and strictly better. And a `through` naming its own consuming node is *already* caught — it
-makes the graph cyclic — so the uncovered set is exactly the acyclic-but-unproduced chains.
+**Correction to an earlier claim here.** I wrote that scoping the pool **topologically** was needed,
+because a global pool would admit a node consuming a column produced after it. That case cannot
+arise: `through` creates a dependency edge like any other reference
+(`append_edges!(dp, through, i)`, `group_api/deps.jl`), so every produced column a node consumes
+comes from a node it depends on. The implementation still walks by layer — it is the natural
+traversal and costs nothing — but that is defence, not a fix. The real failure is simply *nothing
+produces this name*. And a `through` naming its own consuming node is already caught as a cycle, so
+the uncovered set is exactly the acyclic-but-unproduced chains.
+
+**Implemented 2026-09-10.** `Pipelines.unproduced_references(p, available)` returns node indices
+paired with the inputs nothing makes available, and `POST /probe-pipeline` serves it. The route
+constructs without executing, reads only the source table's column names via `colnames`, and
+materialises nothing — safe to call on every edit. It **reports rather than throws**: a schema
+failure comes back as `valid = false` with the message, because a probe that answers 500 tells a
+form nothing it can render.
 
 **The route.** A probe that constructs a `Pipeline` without executing it and returns per-node
 resolved inputs and outputs plus any unproduced references. Construction is the cheap half;

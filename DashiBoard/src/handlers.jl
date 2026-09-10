@@ -44,6 +44,52 @@ function get_card_ir(req::HTTP.Request)
 end
 
 """
+    probe_pipeline(req)
+
+Resolve a document without running it: which columns each node consumes and emits, and any it
+references that nothing produces (A10).
+
+Construction is the cheap half of `evaluate-pipeline` — it resolves the group vocabulary and
+validates against the schema — so a probe costs a graph walk and no data access beyond reading the
+source table's column names. Nothing is materialised, so this is safe to call on every edit.
+
+It reports rather than throws: a schema failure comes back as `valid = false` with the message,
+because a probe that answers 500 tells a form nothing it can render.
+"""
+function probe_pipeline(req::HTTP.Request)
+    spec = json_read(req)
+    cols = colnames(REPOSITORY[], "source")
+    groups = get(spec, "groups", Dict{String, Any}())
+
+    pipeline = try
+        Pipelines.Pipeline(spec["nodes"], groups, cols)
+    catch exception
+        exception isa Pipelines.SchemaValidationError || rethrow()
+        return json_response((; valid = false, cols, errors = [sprint(showerror, exception)]))
+    end
+
+    absent = Dict(Pipelines.unproduced_references(pipeline, cols))
+    ids = [get(node, "id", string(i)) for (i, node) in enumerate(spec["nodes"])]
+    nodes = map(enumerate(pipeline.nodes)) do (i, node)
+        return (;
+            id = ids[i],
+            inputs = Pipelines.get_node_inputs(node),
+            outputs = Pipelines.get_node_outputs(node),
+            unproduced = get(absent, i, String[]),
+        )
+    end
+
+    return json_response((;
+        valid = isempty(absent),
+        cols,
+        nodes,
+        source_vars = Pipelines.get_source_vars(pipeline),
+        output_vars = Pipelines.get_output_vars(pipeline),
+        errors = String[],
+    ))
+end
+
+"""
     evaluate_pipeline(req)
 
 Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with

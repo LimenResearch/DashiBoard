@@ -139,6 +139,25 @@ mktempdir() do data_dir
         # A4: the graph renders, and names the group rather than its resolved columns
         @test startswith(parsed["graph"], "digraph G{")
         @test occursin("\"wind\"", parsed["graph"])
+
+        # A10: probing constructs without executing, and reports references nothing produces.
+        # `through = ["r","r"]` names TEMP_a_a, which no node emits — schema validation accepts it.
+        body = read(joinpath(@__DIR__, "static", "probe-bad.json"), String)
+        resp = HTTP.post(url * "probe-pipeline", body = body)
+        probe = JSON.parse(resp.body)
+        @test probe["valid"] == false
+        offender = only(filter(n -> !isempty(n["unproduced"]), probe["nodes"]))
+        @test offender["id"] == "bad"
+        @test offender["unproduced"] == ["TEMP_a_a"]
+        # and it still reports what it resolved, rather than only failing
+        @test "TEMP_a" in probe["nodes"][1]["outputs"]
+
+        # A well-formed document probes clean.
+        body = read(joinpath(@__DIR__, "static", "pipeline-groups.json"), String)
+        resp = HTTP.post(url * "probe-pipeline", body = body)
+        probe = JSON.parse(resp.body)
+        @test probe["valid"] == true
+        @test all(n -> isempty(n["unproduced"]), probe["nodes"])
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",

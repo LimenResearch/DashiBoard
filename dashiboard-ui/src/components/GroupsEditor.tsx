@@ -67,7 +67,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                   // once per character, and each rewrite is a name other cards may be referring to.
                   onChange={(event) => rename(name, event.currentTarget)}
                 />
-                <Button danger onClick={() => removeGroup(name)}>
+                <Button variant="danger" onClick={() => removeGroup(name)}>
                   Remove
                 </Button>
               </div>

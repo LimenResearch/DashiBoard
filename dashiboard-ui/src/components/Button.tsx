@@ -1,50 +1,55 @@
-function classList(danger: boolean, disabled: boolean) {
-  const activePositive = !danger && !disabled;
-  const activeNegative = danger && !disabled;
-  return {
-    // Density per 05-nexus-weaver-brief §3b: the host sizes buttons by *height* (`h-7`/`h-8`)
-    // with `text-xs` labels, not by padding around a large font. At `text-xl py-2 border-2` this
-    // button was roughly three times its host's — and §3b's point is that density, not colour,
-    // is what makes an embedded UI read as foreign.
-    "text-xs": true,
-    "font-semibold": true,
-    "rounded-sm": true,
-    "text-left": true,
-    "inline-flex": true,
-    "items-center": true,
-    "h-7": true,
-    "px-2.5": true,
-    "mr-2": true,
-    "border": true,
-    "border-transparent": true,
-    "bg-accent": activePositive,
-    "hover:bg-accent/70": activePositive,
-    "text-primary": activePositive,
-    "hover:text-primary": activePositive,
-    "focus:border-ring": activePositive,
-    "bg-destructive/10": activeNegative,
-    "hover:bg-destructive/20": activeNegative,
-    "text-destructive": activeNegative,
-    "hover:text-destructive": activeNegative,
-    "focus:border-destructive": activeNegative,
-    "bg-secondary": disabled,
-    "text-muted-foreground": disabled,
-  };
+// Solid 2 exports the element type directly; `JSX.Element` is the Solid 1 namespace
+// idiom and no longer resolves. Aliased so it does not read as the DOM's global `Element`.
+import type { Element as JSXElement } from "solid-js";
+
+// The button, as a design-system component rather than as one page's button.
+//
+// Three things changed when it became something to publish. It names its variants instead of
+// carrying a `danger` boolean, because a flag does not extend to a third option and a system's
+// card has to read "default / danger, two sizes". It sizes by *height* — stock shadcn is `h-10`
+// and the host runs `h-7`/`h-8`, which §3b measures as the single biggest tell that an embedded
+// UI is foreign. And it brings no margin of its own: a component that positions itself is right
+// in the one place it was written for and wrong everywhere else.
+
+export type ButtonVariant = "default" | "danger";
+export type ButtonSize = "sm" | "md";
+
+// C8: keyed on the union, never on `string`. Adding a variant fails the build rather than
+// resolving to `undefined` and rendering an unstyled control.
+const VARIANTS: Record<ButtonVariant, string> = {
+  default: "bg-accent text-accent-foreground hover:bg-accent/70 focus:border-ring",
+  danger: "bg-destructive/10 text-destructive hover:bg-destructive/20 focus:border-destructive",
+};
+
+const SIZES: Record<ButtonSize, string> = {
+  sm: "h-7 px-2.5",
+  md: "h-8 px-3",
+};
+
+const DISABLED = "bg-secondary text-muted-foreground";
+
+function className(variant: ButtonVariant, size: ButtonSize, disabled: boolean) {
+  return [
+    "inline-flex items-center rounded-sm border border-transparent text-xs font-semibold",
+    SIZES[size],
+    disabled ? DISABLED : VARIANTS[variant],
+  ].join(" ");
 }
 
 type ButtonProps = {
-  onClick?: any;
+  onClick?: () => void;
   disabled?: boolean;
-  danger?: boolean;
-  children: any;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  children: JSXElement;
 };
 
 export function Button(props: ButtonProps) {
   return (
     <button
-      onClick={props.onClick ?? (() => {})}
+      onClick={() => props.onClick?.()}
       disabled={props.disabled ?? false}
-      class={classList(props.danger ?? false, props.disabled ?? false)}
+      class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
     >
       {props.children}
     </button>
@@ -52,20 +57,21 @@ export function Button(props: ButtonProps) {
 }
 
 type AProps = {
-  onClick: any;
-  disabled: boolean;
-  danger?: boolean;
+  disabled?: boolean;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   download?: string;
   href: string;
-  children: any[];
+  children: JSXElement;
 };
 
+/** A link that reads as a button. Same surface, so the two cannot drift apart visually. */
 export function A(props: AProps) {
   return (
     <a
       href={props.href}
       download={props.download}
-      class={classList(props.danger ?? false, props.disabled)}
+      class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
     >
       {props.children}
     </a>

@@ -46,12 +46,14 @@ export function Filters() {
           <For each={categorical()}>{ListFilter}</For>
         </div>
       </div>
-      <DownloadJSONButton data={state} name="filters.json">
-        Download filters
-      </DownloadJSONButton>
-      <UploadJSONButton def={state} onChange={setState}>
-        Upload filters
-      </UploadJSONButton>
+      <div class="flex gap-2">
+        <DownloadJSONButton data={state} name="filters.json">
+          Download filters
+        </DownloadJSONButton>
+        <UploadJSONButton def={state} onChange={setState}>
+          Upload filters
+        </UploadJSONButton>
+      </div>
     </div>
   );
 }

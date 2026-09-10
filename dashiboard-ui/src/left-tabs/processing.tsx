@@ -225,7 +225,7 @@ export function Cards() {
                   onChange={(event) => setNodeId(index(), event.currentTarget.value)}
                 />
               </div>
-              <Button danger onClick={() => removeNode(index())}>
+              <Button variant="danger" onClick={() => removeNode(index())}>
                 Remove
               </Button>
             </div>
@@ -291,15 +291,17 @@ export function Cards() {
         )}
       </For>
 
-      <DownloadJSONButton data={exportCards()} name="cards.json">
-        Download cards
-      </DownloadJSONButton>
-      <UploadJSONButton
-        def={emptyCards()}
-        onChange={(value: CardsStore) => importCards(value)}
-      >
-        Upload cards
-      </UploadJSONButton>
+      <div class="flex gap-2">
+        <DownloadJSONButton data={exportCards()} name="cards.json">
+          Download cards
+        </DownloadJSONButton>
+        <UploadJSONButton
+          def={emptyCards()}
+          onChange={(value: CardsStore) => importCards(value)}
+        >
+          Upload cards
+        </UploadJSONButton>
+      </div>
     </div>
   );
 }

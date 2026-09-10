@@ -76,14 +76,14 @@ describe('IRField', () => {
         value={[]} onChange={() => {}}
       />
     ));
-    // a Direct section with one control per selector kind
+    // a Direct section with a tab per selector kind
     expect([...container.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Direct']);
-    const kinds = [...container.querySelectorAll('[data-kind]')].map((e) =>
-      e.getAttribute('data-kind'),
+    const kinds = [...container.querySelectorAll('[role=tab]')].map((e) =>
+      e.getAttribute('data-tab'),
     );
     expect(kinds).toEqual(['cols', 'groups', 'nodes']); // display order, not the oneOf's
-    // and the columns are the `cols` vocabulary, offered as checkboxes so a click adds
-    const cols = container.querySelector('[data-kind="cols"]')!;
+    // `cols` opens first, and its vocabulary is offered as checkboxes so a click adds
+    const cols = container.querySelector('[role=tabpanel][data-kind="cols"]')!;
     const options = [...cols.querySelectorAll('input[type=checkbox]')].map(
       (b) => (b as HTMLInputElement).value,
     );

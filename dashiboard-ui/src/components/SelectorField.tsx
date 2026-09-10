@@ -162,6 +162,102 @@ export function SelectorField(props: SelectorFieldProps) {
   const [dragging, setDragging] = createSignal<number | null>(null);
   const [draft, setDraft] = createSignal<string[]>([]);
 
+  /**
+   * One qualification — Direct, or Through a chain — with its three vocabularies behind tabs.
+   *
+   * Tabs rather than three panels side by side: the vocabularies are alternatives (the `oneOf`
+   * gate admits exactly one kind per item), and three lists abreast turn into one jumble of
+   * checkboxes under three headings. Only the open tab is on screen, so each tab carries the
+   * count of what is chosen inside it — otherwise switching away would hide a selection.
+   *
+   * Rendered as a component so each section owns its open tab; `<For>` gives every item its own
+   * reactive scope, which is what makes that legitimate.
+   */
+  function Section(sectionProps: { chain: string[] }) {
+    const [picked, setPicked] = createSignal<string | null>(null);
+    // Until the user chooses, follow the content: opening on an empty `cols` — the ordinary state
+    // before a source is loaded — would show "none defined" while another tab holds the only real
+    // choice. After a click the choice sticks, rather than moving under them as options arrive.
+    const open = () =>
+      picked() ?? kindsOf().find((kind) => optionsOf(kind).length > 0) ?? kindsOf()[0] ?? "";
+
+    return (
+      <fieldset class="my-2 rounded border border-gray-200 p-2">
+        <legend class="px-1 text-xs font-semibold text-gray-600">
+          {sectionProps.chain.length === 0
+            ? "Direct"
+            : `Through ${sectionProps.chain.join(" → ")}`}
+        </legend>
+
+        <div role="tablist" class="flex gap-1 border-b border-gray-200">
+          <For each={kindsOf()}>
+            {(kind) => {
+              const count = () => chosen(sectionProps.chain, kind).length;
+              return (
+                <button
+                  type="button"
+                  role="tab"
+                  data-tab={kind}
+                  aria-selected={open() === kind ? "true" : "false"}
+                  onClick={() => {
+                    setPicked(kind);
+                  }}
+                  class={[
+                    "-mb-px rounded-t border border-b-0 px-3 py-1 text-xs",
+                    {
+                      "border-gray-200 bg-white font-medium text-blue-800": open() === kind,
+                      "border-transparent text-gray-500 hover:text-gray-700": open() !== kind,
+                    },
+                  ]}
+                >
+                  {kind}
+                  <Show when={count() > 0}>
+                    <span class="ml-1 rounded-full bg-blue-100 px-1.5 text-blue-800">
+                      {count()}
+                    </span>
+                  </Show>
+                </button>
+              );
+            }}
+          </For>
+        </div>
+
+        <div role="tabpanel" data-kind={open()} class="max-h-40 overflow-y-auto p-2">
+          {/*
+            Checkboxes rather than a native `<select multiple>`: there, a plain click *replaces*
+            the selection and keeping several requires Ctrl/Cmd-click, which is not discoverable
+            and reads as "it will only take one". This also matches ListFilter, which already
+            picks several of a known list this way.
+          */}
+          <Show
+            when={optionsOf(open()).length > 0}
+            fallback={<p class="text-xs italic text-gray-400">none defined</p>}
+          >
+            <div class="grid gap-x-4 sm:grid-cols-2 md:grid-cols-3">
+              <For each={optionsOf(open())}>
+                {(option) => (
+                  <label class="flex items-center gap-1 py-0.5 text-xs">
+                    <input
+                      type="checkbox"
+                      value={String(option)}
+                      checked={chosen(sectionProps.chain, open()).includes(String(option))}
+                      onChange={(event) =>
+                        toggle(sectionProps.chain, open(), String(option), event.currentTarget.checked)
+                      }
+                    />
+                    <span class="truncate" title={String(option)}>
+                      {option}
+                    </span>
+                  </label>
+                )}
+              </For>
+            </div>
+          </Show>
+        </div>
+      </fieldset>
+    );
+  }
+
 
   return (
     <div class="my-2">
@@ -210,57 +306,7 @@ export function SelectorField(props: SelectorFieldProps) {
       </Show>
       <For each={allChains()}>
         {(chain) => (
-          <fieldset class="my-2 rounded border border-gray-200 p-2">
-            <legend class="px-1 text-xs font-semibold text-gray-600">
-              {chain.length === 0 ? "Direct" : `Through ${chain.join(" → ")}`}
-            </legend>
-            {/*
-              Three panels side by side, one per kind — the layout agreed in 06-design.md. Stacked
-              with only a text label each, they read as one jumble of checkboxes under three
-              headings, and it stops being visible which vocabulary a box belongs to.
-            */}
-            <div class="grid gap-2 sm:grid-cols-3">
-              <For each={kindsOf()}>
-                {(kind) => (
-                  <div class="rounded border border-gray-100 bg-gray-50" data-kind={kind}>
-                    <p class="border-b border-gray-100 px-2 py-1 text-xs font-medium text-gray-500">
-                      {kind}
-                    </p>
-                    <div class="max-h-40 overflow-y-auto p-2">
-                      {/*
-                        Checkboxes rather than a native `<select multiple>`: there, a plain click
-                        *replaces* the selection and keeping several requires Ctrl/Cmd-click, which
-                        is not discoverable and reads as "it will only take one". This also matches
-                        ListFilter, which already picks several of a known list this way.
-                      */}
-                      <Show
-                        when={optionsOf(kind).length > 0}
-                        fallback={<p class="text-xs italic text-gray-400">none defined</p>}
-                      >
-                        <For each={optionsOf(kind)}>
-                          {(option) => (
-                            <label class="flex items-center gap-1 py-0.5 text-xs">
-                              <input
-                                type="checkbox"
-                                value={String(option)}
-                                checked={chosen(chain, kind).includes(String(option))}
-                                onChange={(event) =>
-                                  toggle(chain, kind, String(option), event.currentTarget.checked)
-                                }
-                              />
-                              <span class="truncate" title={String(option)}>
-                                {option}
-                              </span>
-                            </label>
-                          )}
-                        </For>
-                      </Show>
-                    </div>
-                  </div>
-                )}
-              </For>
-            </div>
-          </fieldset>
+          <Section chain={chain} />
         )}
       </For>
 

@@ -10,12 +10,18 @@ const itemNode = defs.variable as IRNode;
 
 const sections = (c: HTMLElement) =>
   [...c.querySelectorAll('legend')].map((l) => l.textContent ?? '');
-const boxesIn = (c: HTMLElement, legend: string, kind: string) => {
-  const set = [...c.querySelectorAll('fieldset')].find(
+const sectionIn = (c: HTMLElement, legend: string) =>
+  [...c.querySelectorAll('fieldset')].find(
     (f) => (f.querySelector('legend')?.textContent ?? '') === legend,
   )!;
-  const group = set.querySelector(`[data-kind="${kind}"]`)!;
-  return [...group.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];
+const tabsIn = (c: HTMLElement, legend: string) =>
+  [...sectionIn(c, legend).querySelectorAll('[role=tab]')] as HTMLButtonElement[];
+/** The checkboxes of one kind. Only the open tab is on screen, so open it first. */
+const boxesIn = (c: HTMLElement, legend: string, kind: string) => {
+  const section = sectionIn(c, legend);
+  const panel = section.querySelector(`[role=tabpanel][data-kind="${kind}"]`);
+  if (panel === null) return [];
+  return [...panel.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];
 };
 const chosenIn = (c: HTMLElement, legend: string, kind: string) =>
   boxesIn(c, legend, kind).filter((b) => b.checked).map((b) => b.value);
@@ -30,22 +36,52 @@ describe('SelectorField', () => {
     expect(sections(container)).toEqual(['Direct']);
   });
 
-  it('gives every kind its own panel, saying so when a vocabulary is empty', () => {
-    // Three panels side by side is the agreed layout (06-design.md, "C2 in detail"). A kind with
-    // nothing to offer must say it is empty rather than collapse to a bare heading, which reads
-    // as three labels stacked on nothing.
-    // No groups defined is the ordinary case for a fresh document, so give it an empty enum.
-    const noGroups = { ...defs, group: { type: 'string', enum: [] } } as Defs;
+  it('puts the kinds behind tabs, showing one at a time', () => {
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} />
+    ));
+    expect(tabsIn(container, 'Direct').map((t) => t.getAttribute('data-tab')))
+      .toEqual(['cols', 'groups', 'nodes']);
+    // one panel, not three: the whole point of a tab is that the others are not on screen
+    expect(container.querySelectorAll('[role=tabpanel]')).toHaveLength(1);
+    expect(container.querySelector('[role=tabpanel]')!.getAttribute('data-kind')).toBe('cols');
+  });
+
+  it('switches kind when a tab is clicked, and says when a vocabulary is empty', async () => {
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} />
+    ));
+    fireEvent.click(tabsIn(container, 'Direct').find((t) => t.getAttribute('data-tab') === 'groups')!);
+    await flush();
+    const panel = container.querySelector('[role=tabpanel]')!;
+    expect(panel.getAttribute('data-kind')).toBe('groups');
+    expect(panel.textContent).toContain('weather');
+  });
+
+  it('opens on a kind that has something to offer', () => {
+    // No source loaded yet is the ordinary state on a fresh page. Opening on an empty `cols`
+    // would show "none defined" while the nodes tab silently holds the only real choice.
+    const noCols = { ...defs, col: { type: 'string', enum: [] } } as Defs;
     const { container } = render(() => (
       <SelectorField
-        itemNode={itemNode} defs={noGroups} label="inputs" value={[]} onChange={() => {}}
+        itemNode={itemNode} defs={noCols} label="inputs" value={[]} onChange={() => {}}
       />
     ));
-    const panels = [...container.querySelectorAll('[data-kind]')];
-    expect(panels.map((p) => p.getAttribute('data-kind'))).toEqual(['cols', 'groups', 'nodes']);
-    const groups = panels.find((p) => p.getAttribute('data-kind') === 'groups')!;
-    expect(groups.querySelectorAll('input[type=checkbox]')).toHaveLength(0);
-    expect(groups.textContent).toContain('none defined');
+    expect(container.querySelector('[role=tabpanel]')!.getAttribute('data-kind')).toBe('groups');
+  });
+
+  it('counts a hidden tab\'s selections, so switching away does not hide them', () => {
+    const { container } = render(() => (
+      <SelectorField
+        itemNode={itemNode} defs={defs} label="inputs"
+        value={[{ cols: ['PRES', 'TEMP'] }, { nodes: 'rescale' }]} onChange={() => {}}
+      />
+    ));
+    const label = (kind: string) =>
+      tabsIn(container, 'Direct').find((t) => t.getAttribute('data-tab') === kind)!.textContent;
+    expect(label('cols')).toContain('2');
+    expect(label('nodes')).toContain('1');
+    expect(label('groups')).toBe('groups'); // nothing chosen, so no count
   });
 
   it('groups items by their pass-through chain', () => {

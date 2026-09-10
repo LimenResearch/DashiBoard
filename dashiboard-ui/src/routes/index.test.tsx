@@ -115,6 +115,49 @@ describe('the authoring page', () => {
     expect(container.textContent).toMatch(/nothing produces/i);
   });
 
+  it('puts a schema failure on the card it addresses, with what would have been accepted', async () => {
+    // A7. The pointer is what makes this possible: without it the only honest place for a
+    // validation failure is a banner above the whole page, which says nothing about where to fix.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: false,
+          cols: ['TEMP'],
+          errors: ['Schema Validation Error for card in node 1'],
+          nodes: [],
+          issues: [
+            {
+              pointer: '/nodes/0/card/inputs/2/cols',
+              reason: 'enum',
+              found: 'NOSUCHCOLUMN',
+              allowed: ['No', 'TEMP', 'PRES'],
+              missing: [],
+              related: [],
+              message: 'Schema Validation Error',
+            },
+          ],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+
+    // The field, counted the way a person counts: the pointer's `/2` is the 3rd input.
+    // Asserted on the element rather than as a substring of the page — `toContain` here also
+    // passes for `card → inputs → 3 → cols`, so it fails to pin where the path starts.
+    await waitFor(() =>
+      expect([...container.querySelectorAll("span.font-mono")].map((e) => e.textContent))
+        .toContain('inputs → 3 → cols'),
+    );
+    expect(container.textContent).toContain('"NOSUCHCOLUMN" is not one of');
+    expect(container.textContent).toContain('No, TEMP, PRES');
+  });
+
   it('shows what a chain resolved to, rather than making the UI compute it', async () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);

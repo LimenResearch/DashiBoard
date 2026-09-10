@@ -13,6 +13,8 @@ import {
   removeNode,
   setCard,
   setNodeId,
+  issuesForNode,
+  fieldPath,
   exportCards,
   importCards,
   emptyCards,
@@ -20,6 +22,7 @@ import {
   PROBE_STORE,
   type ProbeNode,
   type ProbeStore,
+  type ProbeIssue,
 } from "../stores";
 import type { Defs, IRNode } from "../ir";
 
@@ -100,7 +103,16 @@ export function Cards() {
       typeof reported === "object" &&
       Array.isArray(reported.nodes) &&
       Array.isArray(reported.errors);
-    setProbe(reconcile(usable ? reported : emptyProbe()));
+    // `issues` is normalised rather than required. A server predating A7 does not send it, and
+    // rejecting the whole response over an absent field would silently switch the probe off
+    // against it — the same class of silent failure the shape check exists to prevent.
+    setProbe(
+      reconcile(
+        usable
+          ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] }
+          : emptyProbe(),
+      ),
+    );
   }
 
   // Every reactive read happens in the *compute* function; the callback only performs the call.
@@ -121,13 +133,34 @@ export function Cards() {
   // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
   const probeNodes = createMemo(() => probe.nodes);
   const probeErrors = createMemo(() => probe.errors);
+  const probeIssues = createMemo(() => probe.issues);
+  // Anything the probe reported that no card claims — a group's schema failure, say. Without
+  // this an issue addressed at `/groups/weather/...` would be silently dropped.
+  const looseIssues = createMemo(() =>
+    probeIssues().filter((issue) => !issue.pointer.startsWith("/nodes/")),
+  );
+  // Schema failures only. The probe also reports unproduced references here, for clients that
+  // want one uniform list, but this one renders those from `nodes[].unproduced` just below —
+  // with guidance about the pass-through chain that the server's terse message cannot carry.
+  const schemaIssuesForNode = (index: number) =>
+    issuesForNode(probeIssues(), index).filter((issue) => issue.reason !== "unproduced");
 
   return (
     <div>
-      <Show when={probeErrors().length > 0}>
-        <p class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          {probeErrors().join("; ")}
-        </p>
+      <Show when={probeErrors().length > 0 || looseIssues().length > 0}>
+        <div class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <For each={looseIssues()}>
+            {(issue) => (
+              <p>
+                <span class="font-mono text-xs">{issue.pointer}</span> — {issue.message}
+              </p>
+            )}
+          </For>
+          {/* A failure with no pointer — a cyclic graph, a duplicate id — has only its message. */}
+          <Show when={looseIssues().length === 0 && probeErrors().length > 0}>
+            <p>{probeErrors().join("; ")}</p>
+          </Show>
+        </div>
       </Show>
 
       <Show when={error()}>
@@ -173,6 +206,31 @@ export function Cards() {
                 Remove
               </Button>
             </div>
+            {/*
+              A7: the probe addresses each failure by JSON Pointer, so it is shown on the card it
+              belongs to, naming the field and — for an enum — what would have been accepted.
+              Attaching to the whole page was the behaviour this replaces.
+            */}
+            <For each={schemaIssuesForNode(index())}>
+              {(issue: ProbeIssue) => (
+                <p class="mb-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+                  <Show when={fieldPath(issue.pointer) !== ""}>
+                    <span class="font-mono">{fieldPath(issue.pointer)}</span>{" — "}
+                  </Show>
+                  <Show when={issue.reason === "enum" && issue.allowed} fallback={issue.message}>
+                    <>
+                      {JSON.stringify(issue.found)} is not one of{" "}
+                      {(issue.allowed ?? []).map(String).join(", ")}
+                    </>
+                  </Show>
+                  <Show when={issue.missing.length > 0}>
+                    {" ("}
+                    {issue.missing.join(", ")}
+                    {")"}
+                  </Show>
+                </p>
+              )}
+            </For>
             <Show when={probeNodes()[index()]} keyed>
               {(reported: ProbeNode) => (
                 <div class="mb-2 text-xs">

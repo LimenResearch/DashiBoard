@@ -77,14 +77,70 @@ export type ProbeNode = {
   unproduced: string[];
 };
 
+/**
+ * One failure, as data rather than prose (A7). `pointer` is a JSON Pointer into the *document*,
+ * so the form can address the offending control instead of printing a sentence above the page.
+ *
+ * `allowed` carries what the schema would have accepted — the difference between offering a
+ * correction and saying no. `missing` carries names that should exist and do not: absent required
+ * properties, or, when `reason` is "unproduced", columns nothing in the pipeline emits.
+ */
+export type ProbeIssue = {
+  pointer: string;
+  reason: string;
+  found: unknown;
+  allowed: unknown[] | null;
+  missing: string[];
+  related: string[];
+  message: string;
+};
+
 export type ProbeStore = {
   valid: boolean;
   cols: string[];
   nodes: ProbeNode[];
   errors: string[];
+  issues: ProbeIssue[];
 };
 
-export const emptyProbe = (): ProbeStore => ({ valid: true, cols: [], nodes: [], errors: [] });
+export const emptyProbe = (): ProbeStore => ({
+  valid: true,
+  cols: [],
+  nodes: [],
+  errors: [],
+  issues: [],
+});
+
+/**
+ * The issues addressing one node.
+ *
+ * Matched on the pointer's segments rather than as a string prefix: `/nodes/1/…` is a prefix of
+ * `/nodes/12/…` textually, and would silently attach node 12's failures to node 1.
+ */
+export function issuesForNode(issues: ProbeIssue[], nodeIndex: number): ProbeIssue[] {
+  const want = ["", "nodes", String(nodeIndex), "card"];
+  return issues.filter((issue) => {
+    const parts = issue.pointer.split("/");
+    return want.every((segment, i) => parts[i] === segment);
+  });
+}
+
+const unescapeToken = (token: string) => token.replace(/~1/g, "/").replace(/~0/g, "~");
+
+/**
+ * The part of a pointer below the card, as something a person can read.
+ *
+ * A JSON Pointer counts array positions from zero, which is right on the wire and wrong on
+ * screen: nobody reading "the 3rd input" wants to be told "2". Numeric segments are shifted back
+ * for display only — the pointer itself is never rewritten.
+ */
+export function fieldPath(pointer: string): string {
+  return pointer
+    .split("/")
+    .slice(4) // "", "nodes", "<i>", "card"
+    .map((token) => (/^\d+$/.test(token) ? String(Number(token) + 1) : unescapeToken(token)))
+    .join(" → ");
+}
 
 export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
 

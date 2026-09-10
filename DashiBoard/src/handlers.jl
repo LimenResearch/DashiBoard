@@ -60,6 +60,10 @@ an `ArgumentError`, which used to escape and leave the form silent.
 
 Construction is pure document processing, so anything it raises is a fact about the document and
 belongs in the response.
+
+A schema failure additionally comes back as `issues` — a JSON Pointer into the document, the
+failing keyword, and what would have been accepted (A7) — which is the vehicle a form needs to
+address the offending control rather than print a sentence above it.
 """
 function probe_pipeline(req::HTTP.Request)
     spec = json_read(req)
@@ -70,13 +74,38 @@ function probe_pipeline(req::HTTP.Request)
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
         exception isa Exception || rethrow()
-        return json_response((; valid = false, cols, errors = [sprint(showerror, exception)]))
+        # A7: a schema failure carries a JSON Pointer into the document and what would have been
+        # accepted, so the form can address the control and offer a correction. Anything else —
+        # a cyclic graph, a duplicate id — has only its message, so `errors` carries both.
+        issues = exception isa Pipelines.SchemaValidationError ?
+            [Pipelines.issue_report(exception)] : []
+        return json_response(
+            (; valid = false, cols, errors = [sprint(showerror, exception)], issues)
+        )
     end
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
     # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
     # this the third answer to "what is this node called" in three files.
     ids = Pipelines.get_id.(spec["nodes"])
+
+    # A7's second error source. An unproduced reference is addressed at *node* granularity, not
+    # at the selector item that named it: resolution returns the node's resolved column list and
+    # keeps no provenance back to the item, so `{cols = "PRES", through = [...]}` cannot be
+    # singled out from its siblings. Reported in the same shape as a schema failure so a form
+    # iterates one list, with `reason` telling them apart.
+    unproduced_issues = [
+        (;
+            pointer = "/nodes/$(i - 1)/card",
+            reason = "unproduced",
+            found = nothing,
+            allowed = nothing,
+            missing = names,
+            related = String[],
+            message = "nothing produces " * join(names, ", "),
+        )
+            for (i, names) in sort!(collect(absent), by = first)
+    ]
     nodes = map(enumerate(pipeline.nodes)) do (i, node)
         return (;
             id = ids[i],
@@ -93,6 +122,9 @@ function probe_pipeline(req::HTTP.Request)
         source_vars = Pipelines.get_source_vars(pipeline),
         output_vars = Pipelines.get_output_vars(pipeline),
         errors = String[],
+        # Always present, so a client can read one shape rather than branch on which half of the
+        # route answered.
+        issues = unproduced_issues,
     ))
 end
 

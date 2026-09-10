@@ -305,3 +305,82 @@ end
     p = Pipelines.Pipeline(base["nodes"], base["groups"], available)
     @test isempty(Pipelines.unproduced_references(p, available))
 end
+
+# A7 — a schema failure comes back as data a form can act on, not prose it can only print.
+#
+# Every expectation below was measured against JSONSchema.jl rather than read off its source, and
+# two of them contradict what `06-design.md` recorded before the fixtures were run:
+#
+#   * `SingleIssue.path` indexes arrays the Julia way. The third element reports `[inputs][3]`,
+#     so a JSON Pointer must subtract one — otherwise the form highlights the wrong row.
+#   * a `required` failure carries *every* required name in `val`, not the missing one, and
+#     reports at the parent path. The missing name is `val` minus the keys actually present.
+@testset "A7: a validation failure as data" begin
+    cols = ["No", "TEMP", "PRES"]
+    groups = Dict{String, Any}("weather" => [Dict("cols" => ["PRES", "TEMP"])])
+    node(card) = [Dict{String, Any}("id" => "r", "card" => card)]
+
+    function report(card; grps = groups)
+        err = try
+            Pipelines.Pipeline(node(card), grps, cols)
+            nothing
+        catch exception
+            exception
+        end
+        @test err isa Pipelines.SchemaValidationError
+        return Pipelines.issue_report(err)
+    end
+
+    rescale(; kw...) = merge(
+        Dict{String, Any}(
+            "type" => "rescale", "method" => Dict("type" => "zscore"),
+            "inputs" => [Dict("cols" => "TEMP")],
+        ),
+        Dict{String, Any}(string(k) => v for (k, v) in pairs(kw)),
+    )
+
+    # An unknown variant names the variants that exist — the difference between a form that can
+    # offer a correction and one that can only say no.
+    bad_variant = report(rescale(method = Dict("type" => "nonesuch")))
+    @test bad_variant.pointer == "/nodes/0/card/method/type"
+    @test bad_variant.reason == "enum"
+    @test bad_variant.found == "nonesuch"
+    @test "zscore" in bad_variant.allowed
+
+    # The pointer addresses the *document*, not the card: the UI holds the whole document, and a
+    # card-local pointer would be ambiguous the moment there are two cards.
+    deep = report(Dict{String, Any}(
+        "type" => "cluster", "inputs" => [Dict("cols" => "TEMP")],
+        "method" => Dict(
+            "type" => "dbscan", "radius" => 0.5,
+            "dissimilarity" => Dict("type" => "minkowski", "p" => -5),
+        ),
+    ))
+    @test deep.pointer == "/nodes/0/card/method/dissimilarity/p"
+    @test deep.reason == "minimum"
+
+    # The index conversion, on the case that tells 0-based from 1-based. Julia says [inputs][3].
+    third = report(rescale(inputs = [
+        Dict("cols" => "No"), Dict("cols" => "TEMP"), Dict("cols" => "NOPE"),
+    ]))
+    @test third.pointer == "/nodes/0/card/inputs/2/cols"
+    @test third.allowed == cols
+
+    # `required` reports at the parent, so the pointer alone does not identify the control. The
+    # missing name has to be recovered, and `related` addresses the control that is absent.
+    missing_method = report(Dict{String, Any}(
+        "type" => "rescale", "inputs" => [Dict("cols" => "TEMP")],
+    ))
+    @test missing_method.pointer == "/nodes/0/card"
+    @test missing_method.reason == "required"
+    @test missing_method.missing == ["method"]
+    @test missing_method.related == ["/nodes/0/card/method"]
+
+    # A group is addressed by name, not position: `groups` is an object in the document.
+    bad_group = report(rescale(); grps = Dict{String, Any}("weather" => [Dict("cols" => "NOPE")]))
+    @test bad_group.pointer == "/groups/weather/0/cols"
+    @test bad_group.reason == "enum"
+
+    # The prose survives alongside the data, for anything that only knows how to print.
+    @test occursin("enum", bad_variant.message) || !isempty(bad_variant.message)
+end

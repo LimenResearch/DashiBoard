@@ -151,6 +151,11 @@ mktempdir() do data_dir
         @test offender["unproduced"] == ["TEMP_a_a"]
         # and it still reports what it resolved, rather than only failing
         @test "TEMP_a" in probe["nodes"][1]["outputs"]
+        # A7: the same failure also arrives in the uniform `issues` shape, addressed by pointer.
+        # Node granularity, not item: resolution keeps no provenance back to the selector item.
+        unproduced = only(filter(i -> i["reason"] == "unproduced", probe["issues"]))
+        @test unproduced["pointer"] == "/nodes/1/card"
+        @test unproduced["missing"] == ["TEMP_a_a"]
 
         # A probe reports rather than throws — for *every* way a document can be malformed,
         # not only schema failures. Two nodes with no `id` both resolve to "", which the
@@ -162,6 +167,21 @@ mktempdir() do data_dir
         probe = JSON.parse(resp.body)
         @test probe["valid"] == false
         @test occursin("id", only(probe["errors"]))
+
+        # A7: a schema failure comes back as data, addressed by JSON Pointer into the document,
+        # carrying what would have been accepted — so a form can point at the control and offer a
+        # correction rather than print a sentence. The second input is the bad one, which is also
+        # what pins the index conversion: JSONSchema.jl counts from one, JSON Pointer from zero.
+        body = read(joinpath(@__DIR__, "static", "probe-badvalue.json"), String)
+        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
+        @test resp.status == 200
+        probe = JSON.parse(resp.body)
+        @test probe["valid"] == false
+        issue = only(probe["issues"])
+        @test issue["pointer"] == "/nodes/0/card/inputs/1/cols"
+        @test issue["reason"] == "enum"
+        @test issue["found"] == "NOSUCHCOLUMN"
+        @test "TEMP" in issue["allowed"]
 
         # A well-formed document probes clean.
         body = read(joinpath(@__DIR__, "static", "pipeline-groups.json"), String)

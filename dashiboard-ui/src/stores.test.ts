@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   emptyCards, importCards, exportCards, setCard, setCardField, addNode, removeNode, setNodeId,
+  issuesForNode, fieldPath, type ProbeIssue,
   CARDS_STORE, type CardsStore,
 } from './stores';
 import { getCards } from './left-tabs/processing';
@@ -123,5 +124,32 @@ describe('getCards', () => {
     expect(Object.keys(cards).sort()).toEqual(['groups', 'nodes']);
     expect(cards.nodes).toEqual(STORED.nodes);
     expect(cards.groups).toEqual(STORED.groups);
+  });
+});
+
+describe('probe issues (A7)', () => {
+  it('attaches an issue to the card its pointer addresses', () => {
+    const issues: ProbeIssue[] = [
+      { pointer: '/nodes/0/card/method/type', reason: 'enum', found: 'nonesuch',
+        allowed: ['zscore'], missing: [], related: [], message: 'x' },
+      { pointer: '/nodes/12/card', reason: 'unproduced', found: null, allowed: null,
+        missing: ['TEMP_a'], related: [], message: 'y' },
+    ];
+    expect(issuesForNode(issues, 0)).toHaveLength(1);
+    expect(issuesForNode(issues, 12)).toHaveLength(1);
+    // `/nodes/1/...` must not match node 12 — a prefix test on the raw string would
+    expect(issuesForNode(issues, 1)).toHaveLength(0);
+  });
+
+  it('reads the field path relative to the card, one-based for a reader', () => {
+    // The pointer counts array positions from zero, as JSON Pointer must. A person reading
+    // "the 3rd input" should not be shown "2".
+    expect(fieldPath('/nodes/0/card/inputs/2/cols')).toBe('inputs → 3 → cols');
+    expect(fieldPath('/nodes/0/card/method/dissimilarity/p')).toBe('method → dissimilarity → p');
+    expect(fieldPath('/nodes/0/card')).toBe(''); // the card itself, not a field within it
+  });
+
+  it('unescapes a pointer token, since a group name may contain a slash', () => {
+    expect(fieldPath('/nodes/0/card/a~1b/c')).toBe('a/b → c');
   });
 });

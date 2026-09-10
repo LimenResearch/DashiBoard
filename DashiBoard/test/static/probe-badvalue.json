@@ -1,0 +1,7 @@
+{
+  "nodes": [
+    { "id": "r", "card": { "type": "rescale", "method": { "type": "zscore" },
+        "inputs": [{ "cols": "TEMP" }, { "cols": "NOSUCHCOLUMN" }], "suffix": "a" } }
+  ],
+  "groups": {}
+}

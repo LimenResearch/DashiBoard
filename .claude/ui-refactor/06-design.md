@@ -56,7 +56,7 @@ so the schema verdict is reached before any divergent code runs.
 | A4 | Make `graphviz` work for `GroupDiGraph` | Currently a `MethodError` on group-API pipelines, so §5's canvas has nothing to render. |
 | A5 | Design out the positional `weights` rule | §12. Mark `inputs` unordered, or make the correspondence explicit. |
 | A6 | Filter schema derivation *and* filter IR | The 1–2 day item §8 did not originally budget. |
-| A7 | Give `SchemaValidationError` a JSON Pointer and a `related` array | Mostly plumbing — see below. **Scope updated 2026-09-10:** it stays a separate item, but its corpus is now *two* error sources, not one — schema-validation failures **and** A10's unproduced-reference failures — and A10's probe route is its delivery vehicle. Both already know their node and field, so they address by the same pointer scheme; what differs is only where the failure is detected. |
+| A7 | ~~Give `SchemaValidationError` a JSON Pointer and a `related` array~~ **DONE 2026-09-10** — `Pipelines.issue_report` + `issues` on the probe route | Two entries in the detail below were written from reading and are **corrected there by fixtures**: array steps in `SingleIssue.path` are 1-based so the pointer conversion is not mechanical, and `required` carries every required name rather than the missing one. Unproduced references share the shape but address the **node**, not the selector item that named it — resolution keeps no provenance back to the item. Originally: mostly plumbing — see below. **Scope updated 2026-09-10:** it stays a separate item, but its corpus is now *two* error sources, not one — schema-validation failures **and** A10's unproduced-reference failures — and A10's probe route is its delivery vehicle. Both already know their node and field, so they address by the same pointer scheme; what differs is only where the failure is detected. |
 | A8 | Validate the **node wrapper**, not only `node["card"]` | A typo like `trian = false` is accepted and silently ignored today. **Measured 2026-09-10, and it is worse than "ignored":** `DashiBoard/test/static/pipeline.json` passes `by` to two split cards, but `SplitCard` defines `group_by`. The flat `Card` constructor drops the unknown key, so `group_by` comes out `String[]` — those cards partition *globally* instead of by `cbwd`. Two documents, one correct and one typo'd, are indistinguishable to the flat constructor and produce **different pipelines with no error at either point** — the failure mode is a changed result, not a missing one, so nothing downstream can detect it. **Scope of the instance:** the only occurrence found is that test fixture, whose assertion checks the output column exists rather than how it partitions, so no real results are implicated; what it demonstrates is the hazard. **Nothing was broken by the migration** — verified on untouched `origin/main`, the group path already rejected `by` and accepted `group_by`, the `Card` construction path is unchanged, and the old `evaluate_pipeline` handler ran no validation at all. The check was intact and effective; the server bypassed it. Migrating turned it on. ExperimentTracking confirmed its own registry cannot hold such a document — validation precedes storage on the only path that writes there — so the exposure is documents authored through the flat path and persisted elsewhere. This is a correctness argument for the group API independent of any UI. |
 | A9 | Fail closed when the variable context is missing | `VariableConfig`'s `nothing` means *unconstrained*, so omitting `cols` validates everything. |
 | A10 | ~~Check that every resolved reference is actually produced, and serve it from a probe route~~ **DONE 2026-09-10** — `unproduced_references` + `POST /probe-pipeline` | Closes the systemic finding below rather than working around it in one client. See detail. |
@@ -232,11 +232,38 @@ makes it a *requirement* on the picker, not a happy accident of it.
 **Two traps in `SingleIssue`.** `val` on a variant-name enum failure is a
 `Base.KeySet{String, OrderedDict{String, Type}}`, a lazy view over the live registry rather than a
 `Vector` — `collect(String, val)` at the boundary. And a `required` failure reports at the **parent**
-path with the missing name in `val`, so the pointer alone does not identify the control; the form
-must join the two. That is where `related` earns its keep beyond the `weights`/`inputs` pair.
+path, so the pointer alone does not identify the control; the form must join the two. That is where
+`related` earns its keep beyond the `weights`/`inputs` pair.
 
 **Path stability is confirmed to three levels.** `"[method][dissimilarity][p]"` is the deepest case
-in the card set and converts mechanically to `/method/dissimilarity/p`.
+in the card set and converts to `/method/dissimilarity/p`.
+
+#### Two corrections, executed 2026-09-10
+
+Both entries above were written from reading. Fixtures run against JSONSchema.jl before
+implementing contradict them, and both corrections are load-bearing — a form built on the read
+version points at the wrong control.
+
+- **`path` indexes arrays the Julia way, so the conversion is not mechanical.** Measured: with
+  three inputs and the *third* bad, `path == "[inputs][3][cols]"`. A JSON Pointer counts from zero
+  and must say `/inputs/2/cols`. Object keys convert unchanged; array steps subtract one. Worse,
+  which steps are array steps **cannot be read off the path** — `"1"` is a legal object key — so
+  the conversion has to walk the validated document alongside the path and ask what it finds.
+  `json_pointer(base, path, object)` does exactly that.
+- **`required` carries every required name, not the missing one.** Measured, for a `rescale` card
+  missing `method`: `val == ["method", "inputs", "type"]`, and `x` is the object. The missing name
+  is `setdiff(val, keys(x))`. A form handed `val` verbatim tells the user that method, inputs and
+  type are all required, two of which they already supplied — which is a complaint, not a
+  correction, and the exact failure mode A7 exists to end.
+
+**Where it landed.** `Pipelines.issue_report(::SchemaValidationError)` returns
+`(pointer, reason, found, allowed, missing, related, message)`. `SchemaValidationError` now carries
+the document-rooted pointer base and the validated fragment, because a card-local pointer is
+ambiguous the moment a document holds two cards: a card failure bases at `/nodes/{i-1}/card` and a
+group failure at `/groups/{name}`. `POST /probe-pipeline` serves it as `issues`, always present so
+a client reads one shape rather than branching on which half of the route answered. Pinned in
+`Pipelines/test/groups.jl` ("A7: a validation failure as data", 20 assertions) and end to end in
+`DashiBoard/test/dashiboard.jl`. **Done.**
 
 ### A10 in detail — the check nothing performs, and where it belongs
 

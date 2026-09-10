@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
+import { flush } from 'solid-js';
+import payload from '../fixtures/card-ir.json';
+import { importCards, emptyCards, exportCards } from '../stores';
 
-// Solid 2 defers signal updates, so an interaction and the assertion that depends on it cannot
-// share a tick: `flush()` settles the scheduler before the next step.
+// Solid 2 defers signal updates, so an interaction and an assertion that depends on it cannot
+// share a tick: `flush()` settles the scheduler between them.
 async function selectOption(select: HTMLSelectElement, value: string) {
   fireEvent.change(select, { target: { value } });
   await flush();
 }
-import payload from '../fixtures/card-ir.json';
-import { flush } from 'solid-js';
-import { importConfig, emptyConfig, exportConfig } from '../root';
 
 const postRequest = vi.fn();
 vi.mock('../requests', () => ({
@@ -24,7 +24,7 @@ vi.mock('../requests', () => ({
 import Home from './index';
 
 beforeEach(() => {
-  importConfig(emptyConfig());
+  importCards(emptyCards());
   postRequest.mockReset();
   postRequest.mockImplementation((page: string) =>
     Promise.resolve(page === 'get-card-ir' ? payload : []),
@@ -32,34 +32,31 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('the card authoring page', () => {
+describe('the authoring page', () => {
   it('offers every card type the server describes', async () => {
     const { getByLabelText } = render(() => <Home />);
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    expect([...picker.options].map((o) => o.value).sort()).toContain('split');
     expect(picker.options).toHaveLength(10);
+    expect([...picker.options].map((o) => o.value)).toContain('split');
   });
 
-  it('adds a node and renders its form from the IR', async () => {
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+  it('adds a card and shows it in the authored document', async () => {
+    const { getByLabelText, getByText, findByTestId } = render(() => <Home />);
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'split');
+    await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
 
-    await waitFor(() => expect(exportConfig().nodes).toHaveLength(1));
-    expect(exportConfig().nodes[0].card.type).toBe('split');
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+    expect(exportCards().nodes[0].card.type).toBe('rescale');
 
-    // the variant selector from the split card's `method`, rendered through IRField
-    await waitFor(() => {
-      const options = [...container.querySelectorAll('select')].flatMap((s) =>
-        [...s.options].map((o) => o.value),
-      );
-      expect(options).toContain('percentile');
-      expect(options).toContain('tiles');
-    });
+    const pane = await findByTestId('document');
+    await waitFor(() => expect(pane.textContent).toContain('rescale'));
+    // the pane shows the wire document: filters from one store, nodes/groups from the other
+    expect(Object.keys(JSON.parse(pane.textContent ?? '{}')).sort())
+      .toEqual(['filters', 'groups', 'nodes']);
   });
 
-  it('runs the pipeline with the flat shape that endpoint accepts', async () => {
+  it('runs the pipeline with the group dialect the server now takes', async () => {
     const posted: Record<string, unknown>[] = [];
     postRequest.mockImplementation((page: string, body: Record<string, unknown>) => {
       posted.push({ page, body });
@@ -82,19 +79,17 @@ describe('the card authoring page', () => {
 
     const run = posted.find((p) => p.page === 'evaluate-pipeline');
     expect(run).toBeDefined();
-    // exactly the two keys the server reads -- no nodes, no groups, no UI-only fields
-    expect(Object.keys(run!.body as object).sort()).toEqual(['cards', 'filters']);
-    expect((run!.body as { cards: { type: string }[] }).cards[0].type).toBe('split');
+    // {filters, nodes, groups} -- not the retired {filters, cards}
+    expect(Object.keys(run!.body as object).sort()).toEqual(['filters', 'groups', 'nodes']);
   });
 
-  it('shows the authored document, which is what would be saved', async () => {
-    const { getByLabelText, getByText, findByTestId } = render(() => <Home />);
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
-
-    const pane = await findByTestId('document');
-    await waitFor(() => expect(pane.textContent).toContain('rescale'));
-    expect(JSON.parse(pane.textContent ?? '{}')).toEqual(exportConfig());
+  it('asks for the IR with the vocabularies the document defines', async () => {
+    const { getByLabelText } = render(() => <Home />);
+    await waitFor(() => getByLabelText(/card type/i));
+    const ask = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir');
+    expect(ask).toBeDefined();
+    // the group dialect needs all three, since which nodes and groups are referenceable
+    // depends on the document being edited, not only on the source
+    expect(Object.keys(ask![1] as object).sort()).toEqual(['cols', 'groups', 'nodes']);
   });
 });

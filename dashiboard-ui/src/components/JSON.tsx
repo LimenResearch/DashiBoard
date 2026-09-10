@@ -2,7 +2,7 @@ import { downloadJSON, loadJSON } from "../requests";
 import { Button } from "./Button";
 
 type UploadProps = {
-  def: string;
+  def: any;
   onChange: any;
   children: any;
 };

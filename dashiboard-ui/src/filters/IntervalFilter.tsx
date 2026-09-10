@@ -1,6 +1,6 @@
 import { Input } from "../components/Input";
 import { Toggler } from "../components/Toggler";
-import { filters_store, Interval } from "../root";
+import { FILTERS_STORE, Interval } from "../stores";
 
 type IntervalFilterProps = {
   name: string;
@@ -10,7 +10,7 @@ type IntervalFilterProps = {
 type Sides = "min" | "max";
 
 export function IntervalFilter(props: IntervalFilterProps) {
-  const { state, setState } = filters_store;
+  const [state, setState] = FILTERS_STORE;
 
   const modified = () => state.numerical[props.name] != null;
   const filterValue = () =>

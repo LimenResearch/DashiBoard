@@ -53,8 +53,13 @@ Construction is the cheap half of `evaluate-pipeline` — it resolves the group 
 validates against the schema — so a probe costs a graph walk and no data access beyond reading the
 source table's column names. Nothing is materialised, so this is safe to call on every edit.
 
-It reports rather than throws: a schema failure comes back as `valid = false` with the message,
-because a probe that answers 500 tells a form nothing it can render.
+It reports rather than throws, for *every* way a document can be malformed rather than only
+schema failures: a probe that answers 500 tells a form nothing it can render. Two nodes with no
+`id`, for instance, both resolve to `""` and the dependency graph rejects them as duplicates —
+an `ArgumentError`, which used to escape and leave the form silent.
+
+Construction is pure document processing, so anything it raises is a fact about the document and
+belongs in the response.
 """
 function probe_pipeline(req::HTTP.Request)
     spec = json_read(req)
@@ -64,12 +69,14 @@ function probe_pipeline(req::HTTP.Request)
     pipeline = try
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
-        exception isa Pipelines.SchemaValidationError || rethrow()
+        exception isa Exception || rethrow()
         return json_response((; valid = false, cols, errors = [sprint(showerror, exception)]))
     end
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
-    ids = [get(node, "id", string(i)) for (i, node) in enumerate(spec["nodes"])]
+    # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
+    # this the third answer to "what is this node called" in three files.
+    ids = Pipelines.get_id.(spec["nodes"])
     nodes = map(enumerate(pipeline.nodes)) do (i, node)
         return (;
             id = ids[i],

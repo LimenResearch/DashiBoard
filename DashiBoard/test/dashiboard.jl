@@ -152,6 +152,17 @@ mktempdir() do data_dir
         # and it still reports what it resolved, rather than only failing
         @test "TEMP_a" in probe["nodes"][1]["outputs"]
 
+        # A probe reports rather than throws — for *every* way a document can be malformed,
+        # not only schema failures. Two nodes with no `id` both resolve to "", which the
+        # dependency graph rejects as a duplicate; that used to escape as a 500, leaving the
+        # form with nothing to render and no reason.
+        body = read(joinpath(@__DIR__, "static", "probe-noid.json"), String)
+        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
+        @test resp.status == 200
+        probe = JSON.parse(resp.body)
+        @test probe["valid"] == false
+        @test occursin("id", only(probe["errors"]))
+
         # A well-formed document probes clean.
         body = read(joinpath(@__DIR__, "static", "pipeline-groups.json"), String)
         resp = HTTP.post(url * "probe-pipeline", body = body)

@@ -1,0 +1,9 @@
+{
+  "nodes": [
+    { "card": { "type": "rescale", "method": { "type": "zscore" },
+        "inputs": [{ "cols": "TEMP" }], "suffix": "a" } },
+    { "card": { "type": "rescale", "method": { "type": "minmax" },
+        "inputs": [{ "cols": "PRES" }], "suffix": "b" } }
+  ],
+  "groups": {}
+}

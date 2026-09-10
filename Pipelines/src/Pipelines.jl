@@ -25,7 +25,7 @@ public register_wild_card, WildCardSettings
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
-public get_source_vars, get_output_vars, unproduced_references
+public get_source_vars, get_output_vars, unproduced_references, get_id
 
 public train!, evaljoin, train_evaljoin!
 

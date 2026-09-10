@@ -110,9 +110,33 @@ describe('the pass-through chain builder', () => {
     await flush(); // Solid 2 defers signal updates; the assertion cannot share their tick
     expect(builder.textContent).toContain('split → rescale');
     fireEvent.click(getByText('add section'));
-    expect(written).toEqual([
-      { cols: 'TEMP' },
-      { cols: [], through: ['split', 'rescale'] },
-    ]);
+    await flush();
+    expect(sections(container)).toContain('Through split → rescale');
+  });
+
+  it('opens a section without writing an empty item into the document', async () => {
+    // The document is what the user is editing. A section they have chosen nothing in yet
+    // would export as `{cols = [], through = [...]}` — valid, resolves to nothing, and pure
+    // noise in their TOML. It belongs to the control until it holds a value.
+    let written: unknown = null;
+    const { container, getByText } = render(() => (
+      <SelectorField
+        itemNode={itemNode} defs={defs} label="inputs" value={[{ cols: 'TEMP' }]}
+        onChange={(items) => { written = items; }}
+      />
+    ));
+    const builder = container.querySelector('[data-chain-builder]')!;
+    fireEvent.click([...builder.querySelectorAll('button')].find((b) => b.textContent === 'rescale')!);
+    await flush();
+    fireEvent.click(getByText('add section'));
+    await flush();
+
+    expect(sections(container)).toEqual(['Direct', 'Through rescale']);
+    expect(written).toBeNull(); // opened, but the document is untouched
+
+    const box = boxesIn(container, 'Through rescale', 'cols').find((b) => b.value === 'PRES')!;
+    fireEvent.click(box);
+    await flush();
+    expect(written).toEqual([{ cols: ['TEMP'] }, { cols: ['PRES'], through: ['rescale'] }]);
   });
 });

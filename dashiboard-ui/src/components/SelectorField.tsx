@@ -47,6 +47,18 @@ export function SelectorField(props: SelectorFieldProps) {
   const widget = () => widgetFor(props.itemNode, props.defs);
   const items = () => asItems(props.value);
 
+  // Sections opened but holding nothing yet. They live here rather than in the document,
+  // because `{cols: [], through: [...]}` is valid, resolves to nothing, and is pure noise in
+  // the TOML the user is writing. A section earns its place in the document by holding a value.
+  const [pending, setPending] = createSignal<string[][]>([]);
+
+  /** Every section on screen: those the document implies, plus those merely opened. */
+  const allChains = () => {
+    const seen = new Map(chains(items()).map((chain) => [JSON.stringify(chain), chain]));
+    for (const chain of pending()) seen.set(JSON.stringify(chain), chain);
+    return [...seen.values()];
+  };
+
   const kindsOf = () => {
     const w = widget();
     return w.kind === "selector" ? w.kinds : [];
@@ -79,7 +91,7 @@ export function SelectorField(props: SelectorFieldProps) {
   function write(chain: string[], kind: string, values: string[]) {
     const key = JSON.stringify(chain);
     const next: SelectorItem[] = [];
-    for (const existing of chains(items())) {
+    for (const existing of allChains()) {
       const existingKey = JSON.stringify(existing);
       for (const k of kindsOf()) {
         const vals = existingKey === key && k === kind ? values : chosen(existing, k);
@@ -101,9 +113,7 @@ export function SelectorField(props: SelectorFieldProps) {
 
   function addChain(chain: string[]) {
     if (chain.length === 0) return;
-    // A chain with no values yet has nothing to store, so it is held by the control itself
-    // until something is chosen. Writing `{through: [...]}` alone would fail the `oneOf` gate.
-    props.onChange([...items(), { cols: [], through: chain } as SelectorItem]);
+    setPending([...pending(), chain]);
   }
 
   // One chip per value, in document order and across kinds.
@@ -142,6 +152,7 @@ export function SelectorField(props: SelectorFieldProps) {
 
   const [dragging, setDragging] = createSignal<number | null>(null);
   const [draft, setDraft] = createSignal<string[]>([]);
+
 
   return (
     <div class="my-2">
@@ -188,7 +199,7 @@ export function SelectorField(props: SelectorFieldProps) {
           </For>
         </ul>
       </Show>
-      <For each={chains(items())}>
+      <For each={allChains()}>
         {(chain) => (
           <fieldset class="my-2 border-l-2 border-gray-200 pl-3">
             <legend class="text-xs text-gray-500">

@@ -19,6 +19,25 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
+    // Proxy the Julia API so the dev server is same-origin with it, exactly as it will be in
+    // production when ExperimentTracking serves this bundle beside `api/v1` (decisions 10).
+    // Without this the app only works if you remember `?api=...`, and a POST to an unproxied
+    // path returns Vite's 404 HTML, which reads as "the server is down".
+    // Point it elsewhere with DASHI_API=http://127.0.0.1:8090 pnpm dev
+    proxy: Object.fromEntries(
+      [
+        '/get-acceptable-paths',
+        '/load-files',
+        '/get-card-widgets',
+        '/get-card-ir',
+        '/evaluate-pipeline',
+        '/fetch-data',
+        '/get-processed-data',
+      ].map((route) => [
+        route,
+        { target: process.env.DASHI_API ?? 'http://127.0.0.1:8080', changeOrigin: true },
+      ]),
+    ),
   },
   test: {
     environment: 'jsdom',

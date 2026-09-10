@@ -12,6 +12,7 @@ import {
   addNode,
   removeNode,
   setCard,
+  setNodeId,
   exportCards,
   importCards,
   emptyCards,
@@ -47,7 +48,10 @@ export function Cards() {
       "get-card-ir",
       {
         cols: metadata.map((entry) => entry.name),
-        nodes: state.nodes.map((node, i) => String(node.id ?? i)),
+        // Only names that exist. `Pipelines.get_id` is the naming rule, and it has no index
+        // fallback — a node with no `id` is called "" and is referenceable by nobody, so
+        // offering its position as a name offered one the server would never resolve.
+        nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
         groups: Object.keys(state.groups),
       },
       null,
@@ -62,10 +66,18 @@ export function Cards() {
     if (!chosen() && types.length > 0) setChosen(types[0]);
   }
 
-  // Refetch when the loaded columns change, not only on mount: `$defs/col` carries the source
-  // enum, so a picker rendered before a source is connected has nothing to offer.
+  // Refetch whenever the *vocabulary* changes — columns, node ids, group names — not only on
+  // mount. `$defs/col` carries the source enum, so a picker rendered before a source is connected
+  // has nothing to offer; and adding or renaming a card changes what `nodes:` and `through:` can
+  // name. Driving this from the document rather than from explicit calls after each mutation also
+  // sidesteps reading the store before Solid has settled the write.
   createEffect(
-    () => metadata.map((entry) => entry.name).join("\u0000"),
+    () =>
+      [
+        metadata.map((entry) => entry.name).join("\u0000"),
+        state.nodes.map((node) => node.id ?? "").join("\u0000"),
+        Object.keys(state.groups).join("\u0000"),
+      ].join("\u0001"),
     () => void loadIR(),
   );
 
@@ -135,29 +147,29 @@ export function Cards() {
           >
             <For each={cardTypes()}>{(type) => <option value={type}>{type}</option>}</For>
           </select>
-          <Button
-            onClick={() => {
-              addNode({ type: chosen() } as Card);
-              void loadIR(); // the new node becomes referenceable
-            }}
-          >
-            Add card
-          </Button>
+          <Button onClick={() => addNode({ type: chosen() } as Card)}>Add card</Button>
         </div>
       </Show>
 
       <For each={state.nodes}>
         {(node, index) => (
           <div class="my-4 rounded border border-gray-200 p-4">
-            <div class="mb-2 flex items-center justify-between">
-              <span class="font-semibold text-blue-900">{String(node.card.type)}</span>
-              <Button
-                danger
-                onClick={() => {
-                  removeNode(index());
-                  void loadIR();
-                }}
-              >
+            <div class="mb-2 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-blue-900">{String(node.card.type)}</span>
+                {/*
+                  The node's name, not the card's. It is what another card's `nodes:` selector or
+                  `through:` chain refers to, and `Pipelines.get_id` defaults a missing one to "",
+                  so two unnamed cards collide and the whole document is rejected.
+                */}
+                <input
+                  class="rounded border border-gray-200 px-2 py-0.5 font-mono text-xs"
+                  aria-label="node id"
+                  value={node.id ?? ""}
+                  onChange={(event) => setNodeId(index(), event.currentTarget.value)}
+                />
+              </div>
+              <Button danger onClick={() => removeNode(index())}>
                 Remove
               </Button>
             </div>
@@ -203,10 +215,7 @@ export function Cards() {
       </DownloadJSONButton>
       <UploadJSONButton
         def={emptyCards()}
-        onChange={(value: CardsStore) => {
-          importCards(value);
-          void loadIR();
-        }}
+        onChange={(value: CardsStore) => importCards(value)}
       >
         Upload cards
       </UploadJSONButton>

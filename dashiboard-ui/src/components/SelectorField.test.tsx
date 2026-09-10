@@ -30,6 +30,24 @@ describe('SelectorField', () => {
     expect(sections(container)).toEqual(['Direct']);
   });
 
+  it('gives every kind its own panel, saying so when a vocabulary is empty', () => {
+    // Three panels side by side is the agreed layout (06-design.md, "C2 in detail"). A kind with
+    // nothing to offer must say it is empty rather than collapse to a bare heading, which reads
+    // as three labels stacked on nothing.
+    // No groups defined is the ordinary case for a fresh document, so give it an empty enum.
+    const noGroups = { ...defs, group: { type: 'string', enum: [] } } as Defs;
+    const { container } = render(() => (
+      <SelectorField
+        itemNode={itemNode} defs={noGroups} label="inputs" value={[]} onChange={() => {}}
+      />
+    ));
+    const panels = [...container.querySelectorAll('[data-kind]')];
+    expect(panels.map((p) => p.getAttribute('data-kind'))).toEqual(['cols', 'groups', 'nodes']);
+    const groups = panels.find((p) => p.getAttribute('data-kind') === 'groups')!;
+    expect(groups.querySelectorAll('input[type=checkbox]')).toHaveLength(0);
+    expect(groups.textContent).toContain('none defined');
+  });
+
   it('groups items by their pass-through chain', () => {
     // case C: same kind, different through — the two must not merge
     const value = [
@@ -93,11 +111,10 @@ describe('SelectorField', () => {
 
 describe('the pass-through chain builder', () => {
   it('records the order nodes are clicked, since [a,b] names a different column from [b,a]', async () => {
-    let written: unknown = null;
     const { container, getByText } = render(() => (
       <SelectorField
         itemNode={itemNode} defs={defs} label="inputs" value={[{ cols: 'TEMP' }]}
-        onChange={(items) => { written = items; }}
+        onChange={() => {}}
       />
     ));
     const builder = container.querySelector('[data-chain-builder]')!;

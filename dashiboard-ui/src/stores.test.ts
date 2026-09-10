@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  emptyCards, importCards, exportCards, setCard, setCardField, addNode, removeNode,
+  emptyCards, importCards, exportCards, setCard, setCardField, addNode, removeNode, setNodeId,
   CARDS_STORE, type CardsStore,
 } from './stores';
 import { getCards } from './left-tabs/processing';
@@ -71,12 +71,37 @@ describe('the document is the model', () => {
   it('adds and removes nodes', () => {
     addNode({ type: 'split' });
     expect(exportCards().nodes[0].card.type).toBe('split');
-    expect(exportCards().nodes[0].id).toBeUndefined();
     addNode({ type: 'rescale' }, 'named');
     expect(exportCards().nodes[1].id).toBe('named');
     removeNode(0);
     expect(exportCards().nodes).toHaveLength(1);
     expect(exportCards().nodes[0].card.type).toBe('rescale');
+  });
+
+  it('names every node, since an unnamed one is unreferenceable and two collide', () => {
+    // `Pipelines.get_id` defaults a missing `id` to "", so two unnamed nodes are duplicates and
+    // `dependency_graph` rejects the document outright. A name is not decoration here.
+    addNode({ type: 'split' });
+    addNode({ type: 'split' });
+    addNode({ type: 'rescale' });
+    const ids = exportCards().nodes.map((node) => node.id);
+    expect(ids).toEqual(['split', 'split_2', 'rescale']);
+  });
+
+  it('does not reuse a name a surviving node still holds', () => {
+    addNode({ type: 'split' });   // split
+    addNode({ type: 'split' });   // split_2
+    removeNode(0);                // split_2 survives
+    addNode({ type: 'split' });
+    const ids = exportCards().nodes.map((node) => node.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('renames a node', () => {
+    addNode({ type: 'split' });
+    setNodeId(0, 'partition');
+    expect(exportCards().nodes[0].id).toBe('partition');
+    expect(exportCards().nodes[0].card.type).toBe('split'); // the card is untouched
   });
 
   it('exports a snapshot, not the reactive proxy', () => {

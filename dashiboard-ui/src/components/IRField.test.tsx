@@ -81,7 +81,7 @@ describe('IRField', () => {
     const kinds = [...container.querySelectorAll('[data-kind]')].map((e) =>
       e.getAttribute('data-kind'),
     );
-    expect(kinds).toEqual(['nodes', 'groups', 'cols']);
+    expect(kinds).toEqual(['cols', 'groups', 'nodes']); // display order, not the oneOf's
     // and the columns are the `cols` vocabulary, offered as checkboxes so a click adds
     const cols = container.querySelector('[data-kind="cols"]')!;
     const options = [...cols.querySelectorAll('input[type=checkbox]')].map(

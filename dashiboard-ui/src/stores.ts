@@ -118,9 +118,32 @@ export function setCardField(nodeIndex: number, key: string, value: unknown) {
   });
 }
 
+/**
+ * A name no surviving node holds, derived from the card type: `split`, then `split_2`.
+ *
+ * Not cosmetic. `Pipelines.get_id` defaults a missing `id` to `""`, so two unnamed nodes are
+ * duplicates and `dependency_graph` rejects the whole document — and a node with no name cannot
+ * be named by another card's `nodes:` selector or `through:` chain at all.
+ */
+function freshId(type: string, taken: Set<string>): string {
+  if (!taken.has(type)) return type;
+  for (let n = 2; ; n++) {
+    const candidate = `${type}_${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
+
 export function addNode(card: Card, id?: string) {
   setCards((draft) => {
-    draft.nodes.push(id === undefined ? { card } : { id, card });
+    const taken = new Set(draft.nodes.map((node) => node.id).filter((x): x is string => !!x));
+    draft.nodes.push({ id: id ?? freshId(card.type, taken), card });
+  });
+}
+
+/** Rename a node. The card is untouched: the id belongs to the wrapper, not the card. */
+export function setNodeId(nodeIndex: number, id: string) {
+  setCards((draft) => {
+    draft.nodes[nodeIndex].id = id;
   });
 }
 

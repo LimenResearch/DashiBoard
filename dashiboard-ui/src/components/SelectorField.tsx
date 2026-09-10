@@ -59,9 +59,18 @@ export function SelectorField(props: SelectorFieldProps) {
     return [...seen.values()];
   };
 
+  // The *set* of kinds is read off the schema's `oneOf` and never invented here. Their left-to-
+  // right order is presentation only: `cols` first because it is the common pick, matching the
+  // panel order agreed in 06-design.md. A kind not listed keeps its derived position, after these.
+  const KIND_ORDER = ["cols", "groups", "nodes"];
   const kindsOf = () => {
     const w = widget();
-    return w.kind === "selector" ? w.kinds : [];
+    if (w.kind !== "selector") return [];
+    const rank = (kind: string) => {
+      const at = KIND_ORDER.indexOf(kind);
+      return at === -1 ? KIND_ORDER.length : at;
+    };
+    return [...w.kinds].sort((a, b) => rank(a) - rank(b));
   };
   const optionsOf = (kind: string) => {
     const w = widget();
@@ -201,40 +210,56 @@ export function SelectorField(props: SelectorFieldProps) {
       </Show>
       <For each={allChains()}>
         {(chain) => (
-          <fieldset class="my-2 border-l-2 border-gray-200 pl-3">
-            <legend class="text-xs text-gray-500">
+          <fieldset class="my-2 rounded border border-gray-200 p-2">
+            <legend class="px-1 text-xs font-semibold text-gray-600">
               {chain.length === 0 ? "Direct" : `Through ${chain.join(" → ")}`}
             </legend>
-            <For each={kindsOf()}>
-              {(kind) => (
-                <div class="my-1" data-kind={kind}>
-                  <p class="text-xs text-gray-600">{kind}</p>
-                  {/*
-                    Checkboxes rather than a native `<select multiple>`: there, a plain click
-                    *replaces* the selection and keeping several requires Ctrl/Cmd-click, which
-                    is not discoverable and reads as "it will only take one". This also matches
-                    ListFilter, which already picks several of a known list this way.
-                  */}
-                  <div class="grid grid-cols-2 gap-x-3 md:grid-cols-3">
-                    <For each={optionsOf(kind)}>
-                      {(option) => (
-                        <label class="inline-flex items-center text-xs">
-                          <input
-                            type="checkbox"
-                            value={String(option)}
-                            checked={chosen(chain, kind).includes(String(option))}
-                            onChange={(event) =>
-                              toggle(chain, kind, String(option), event.currentTarget.checked)
-                            }
-                          />
-                          <span class="ml-1">{option}</span>
-                        </label>
-                      )}
-                    </For>
+            {/*
+              Three panels side by side, one per kind — the layout agreed in 06-design.md. Stacked
+              with only a text label each, they read as one jumble of checkboxes under three
+              headings, and it stops being visible which vocabulary a box belongs to.
+            */}
+            <div class="grid gap-2 sm:grid-cols-3">
+              <For each={kindsOf()}>
+                {(kind) => (
+                  <div class="rounded border border-gray-100 bg-gray-50" data-kind={kind}>
+                    <p class="border-b border-gray-100 px-2 py-1 text-xs font-medium text-gray-500">
+                      {kind}
+                    </p>
+                    <div class="max-h-40 overflow-y-auto p-2">
+                      {/*
+                        Checkboxes rather than a native `<select multiple>`: there, a plain click
+                        *replaces* the selection and keeping several requires Ctrl/Cmd-click, which
+                        is not discoverable and reads as "it will only take one". This also matches
+                        ListFilter, which already picks several of a known list this way.
+                      */}
+                      <Show
+                        when={optionsOf(kind).length > 0}
+                        fallback={<p class="text-xs italic text-gray-400">none defined</p>}
+                      >
+                        <For each={optionsOf(kind)}>
+                          {(option) => (
+                            <label class="flex items-center gap-1 py-0.5 text-xs">
+                              <input
+                                type="checkbox"
+                                value={String(option)}
+                                checked={chosen(chain, kind).includes(String(option))}
+                                onChange={(event) =>
+                                  toggle(chain, kind, String(option), event.currentTarget.checked)
+                                }
+                              />
+                              <span class="truncate" title={String(option)}>
+                                {option}
+                              </span>
+                            </label>
+                          )}
+                        </For>
+                      </Show>
+                    </div>
                   </div>
-                </div>
-              )}
-            </For>
+                )}
+              </For>
+            </div>
           </fieldset>
         )}
       </For>

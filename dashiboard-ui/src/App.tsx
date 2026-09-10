@@ -11,9 +11,9 @@ export default function App() {
       {(props) => (
         <>
           <Title>Solid App</Title>
-          <nav class="bg-slate-800 p-4">
+          <nav class="bg-primary p-4">
             <a
-              class="mx-0.5 inline-block rounded-lg px-3 py-1.5 font-semibold text-sky-300 no-underline transition-colors hover:bg-white/10 hover:text-sky-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-600"
+              class="mx-0.5 inline-block rounded-lg px-3 py-1.5 font-semibold text-primary-foreground/80 no-underline transition-colors hover:bg-primary-foreground/10 hover:text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
               href={paths()}
             >
               Home

@@ -182,14 +182,14 @@ export function SelectorField(props: SelectorFieldProps) {
       picked() ?? kindsOf().find((kind) => optionsOf(kind).length > 0) ?? kindsOf()[0] ?? "";
 
     return (
-      <fieldset class="my-2 rounded border border-gray-200 p-2">
-        <legend class="px-1 text-xs font-semibold text-gray-600">
+      <fieldset class="my-2 rounded-sm border border-border p-2">
+        <legend class="px-1 text-xs font-semibold text-muted-foreground">
           {sectionProps.chain.length === 0
             ? "Direct"
             : `Through ${sectionProps.chain.join(" → ")}`}
         </legend>
 
-        <div role="tablist" class="flex gap-1 border-b border-gray-200">
+        <div role="tablist" class="flex gap-1 border-b border-border">
           <For each={kindsOf()}>
             {(kind) => {
               const count = () => chosen(sectionProps.chain, kind).length;
@@ -203,16 +203,16 @@ export function SelectorField(props: SelectorFieldProps) {
                     setPicked(kind);
                   }}
                   class={[
-                    "-mb-px rounded-t border border-b-0 px-3 py-1 text-xs",
+                    "-mb-px rounded-t-sm border border-b-0 px-3 py-1 text-xs",
                     {
-                      "border-gray-200 bg-white font-medium text-blue-800": open() === kind,
-                      "border-transparent text-gray-500 hover:text-gray-700": open() !== kind,
+                      "border-border bg-background font-medium text-primary": open() === kind,
+                      "border-transparent text-muted-foreground hover:text-foreground": open() !== kind,
                     },
                   ]}
                 >
                   {kind}
                   <Show when={count() > 0}>
-                    <span class="ml-1 rounded-full bg-blue-100 px-1.5 text-blue-800">
+                    <span class="ml-1 rounded-full bg-accent px-1.5 text-primary">
                       {count()}
                     </span>
                   </Show>
@@ -231,7 +231,7 @@ export function SelectorField(props: SelectorFieldProps) {
           */}
           <Show
             when={optionsOf(open()).length > 0}
-            fallback={<p class="text-xs italic text-gray-400">none defined</p>}
+            fallback={<p class="text-xs italic text-muted-foreground">none defined</p>}
           >
             <div class="grid gap-x-4 sm:grid-cols-2 md:grid-cols-3">
               <For each={optionsOf(open())}>
@@ -261,7 +261,7 @@ export function SelectorField(props: SelectorFieldProps) {
 
   return (
     <div class="my-2">
-      <p class="text-sm font-semibold text-blue-800">{props.label}</p>
+      <p class="text-sm font-semibold text-primary">{props.label}</p>
 
       <Show when={chips().length > 0}>
         <ul class="my-1 flex flex-wrap gap-1" aria-label={`${props.label} order`}>
@@ -270,7 +270,7 @@ export function SelectorField(props: SelectorFieldProps) {
               <li
                 data-chip={chipLabel(chip)}
                 draggable="true"
-                class="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs"
+                class="inline-flex items-center gap-1 rounded-sm border border-border bg-muted px-2 py-0.5 text-xs"
                 onDragStart={() => setDragging(index())}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
@@ -317,7 +317,7 @@ export function SelectorField(props: SelectorFieldProps) {
           So the chain is built by appending on click and shown as it will be sent.
         */}
         <div class="mt-2" data-chain-builder>
-          <p class="text-xs text-gray-600">
+          <p class="text-xs text-muted-foreground">
             add a pass-through
             <Show when={draft().length > 0}>
               <span class="ml-2 font-mono">{draft().join(" → ")}</span>
@@ -328,7 +328,7 @@ export function SelectorField(props: SelectorFieldProps) {
               {(option) => (
                 <button
                   type="button"
-                  class="rounded border border-gray-200 px-2 py-0.5 text-xs"
+                  class="rounded-sm border border-border px-2 py-0.5 text-xs"
                   onClick={() => setDraft([...draft(), option])}
                 >
                   {option}
@@ -339,7 +339,7 @@ export function SelectorField(props: SelectorFieldProps) {
               <button
                 type="button"
                 data-chain="commit"
-                class="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs text-blue-800"
+                class="rounded-sm border border-primary/30 bg-accent px-2 py-0.5 text-xs text-primary"
                 onClick={() => {
                   addChain(draft());
                   setDraft([]);
@@ -350,7 +350,7 @@ export function SelectorField(props: SelectorFieldProps) {
               <button
                 type="button"
                 data-chain="clear"
-                class="px-2 py-0.5 text-xs text-gray-500"
+                class="px-2 py-0.5 text-xs text-muted-foreground"
                 onClick={() => setDraft([])}
               >
                 clear

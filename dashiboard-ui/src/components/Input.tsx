@@ -1,6 +1,6 @@
 const className =
-  "pl-2 py-0.5 rounded border outline-none border-gray-200" +
-  " ring-offset-2 focus:ring-2 focus:ring-gray-300";
+  "pl-2 py-0.5 rounded-sm border outline-none border-border" +
+  " ring-offset-2 focus:ring-2 focus:ring-ring";
 
 type InputProps = {
   type?: string;

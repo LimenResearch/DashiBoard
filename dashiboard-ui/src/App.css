@@ -1,5 +1,153 @@
 @import 'tailwindcss';
 
+/*
+  The design tokens (C5).
+
+  Names, authoring form and derivation are not ours to choose: `06-design.md`'s C5 contract says a
+  host writes its token values "straight onto the frame's `:root` with no parsing", so any name we
+  invented would simply not be overridden. Values are therefore bare `H S% L%` triplets — never
+  `hsl(...)` — and every consumer writes `hsl(var(--token))`, with `hsl(var(--token) / 0.3)` for
+  alpha. Token *names* mirror `05-nexus-weaver-brief.md` §3b exactly.
+
+  These are defaults, not configuration. §9 layer 1 requires DashiBoard to run standalone, so the
+  frame ships a complete palette and a missing or malformed payload is a degradation rather than a
+  failure. Nothing here may become the only definition of a colour.
+
+  Not defined here, deliberately:
+  - the eight `--sidebar-*` tokens — host chrome, which §3b says an embedded UI should not use;
+  - `--gradient-primary` / `--primary-glow` — nothing here paints a gradient. Both may still arrive
+    in a payload and land harmlessly.
+*/
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 221 39% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 221 39% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 221 39% 11%;
+  --primary: 226 71% 40%;
+  --primary-foreground: 210 20% 98%;
+  --secondary: 210 20% 96%;
+  --secondary-foreground: 221 39% 11%;
+  --muted: 210 20% 98%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 214 95% 93%;
+  --accent-foreground: 226 71% 40%;
+  --destructive: 0 70% 35%;
+  --destructive-foreground: 0 86% 97%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 217 91% 60%;
+
+  --success: 142 71% 35%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 45%;
+  --warning-foreground: 0 0% 100%;
+  --info: 217 91% 50%;
+  --info-foreground: 0 0% 100%;
+
+  --radius: 0.5rem;
+
+  --shadow-card: 0 1px 2px 0 hsl(221 39% 11% / 0.06), 0 1px 3px 0 hsl(221 39% 11% / 0.08);
+  --shadow-elevated: 0 10px 15px -3px hsl(221 39% 11% / 0.1), 0 4px 6px -4px hsl(221 39% 11% / 0.1);
+}
+
+/*
+  Every token gets a dark value, including the status scales and the shadows.
+
+  That is not thoroughness for its own sake: §3c records the host shipping a `.dark` block that
+  omitted exactly those, which was invisible only while dark mode was unreachable. Transmitting
+  tokens is what forces a palette to be complete, so the gap arrives the moment the contract does.
+
+  Two rules from §3b that a light palette does not prepare you for. Status hues lift 8-10% in
+  lightness, and **their foregrounds flip from white to the page ground** — mirroring the
+  light-mode white-on-everything convention makes lifted warning yellow unreadable. And shadows go
+  from tinted to pure black at higher alpha, since a tinted shadow is invisible on a dark ground.
+*/
+.dark {
+  --background: 222 39% 8%;
+  --foreground: 210 20% 96%;
+  --card: 222 35% 11%;
+  --card-foreground: 210 20% 96%;
+  --popover: 222 35% 11%;
+  --popover-foreground: 210 20% 96%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 39% 8%;
+  --secondary: 222 25% 18%;
+  --secondary-foreground: 210 20% 96%;
+  --muted: 222 25% 16%;
+  --muted-foreground: 220 12% 65%;
+  --accent: 222 30% 22%;
+  --accent-foreground: 217 91% 75%;
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 222 39% 8%;
+  --border: 222 22% 22%;
+  --input: 222 22% 22%;
+  --ring: 217 91% 60%;
+
+  --success: 142 65% 45%;
+  --success-foreground: 222 39% 8%;
+  --warning: 38 92% 55%;
+  --warning-foreground: 222 39% 8%;
+  --info: 217 91% 60%;
+  --info-foreground: 222 39% 8%;
+
+  --shadow-card: 0 1px 2px 0 hsl(0 0% 0% / 0.5), 0 1px 3px 0 hsl(0 0% 0% / 0.4);
+  --shadow-elevated: 0 10px 15px -3px hsl(0 0% 0% / 0.6), 0 4px 6px -4px hsl(0 0% 0% / 0.5);
+}
+
+/*
+  `inline` so a utility compiles to `hsl(var(--primary))` rather than to a second variable holding
+  it. Either resolves a runtime `:root` rewrite correctly; this one keeps the indirection the
+  payload has to travel through down to one hop.
+
+  The radius scale is *derived* rather than authored, matching §3b: transmit `--radius` and compute
+  the rest, so a host that sends a different one reshapes the whole scale.
+*/
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-elevated: var(--shadow-elevated);
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
 /* custom atomic class to avoid "jumps" when scrollbar appears */
 
 .scrollbar-gutter-stable {

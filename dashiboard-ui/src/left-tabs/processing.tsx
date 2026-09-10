@@ -162,7 +162,7 @@ export function Cards() {
   return (
     <div>
       <Show when={probeErrors().length > 0 || looseIssues().length > 0}>
-        <div class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           <For each={looseIssues()}>
             {(issue) => (
               <p>
@@ -178,17 +178,17 @@ export function Cards() {
       </Show>
 
       <Show when={error()}>
-        <p class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-red-800">{error()}</p>
+        <p class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error()}</p>
       </Show>
 
-      <Show when={payload()} fallback={<p class="text-gray-500">Loading card descriptions…</p>}>
+      <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
         <div class="flex items-center gap-3 p-4">
-          <label for="card-type" class="text-sm font-semibold text-blue-800">
+          <label for="card-type" class="text-sm font-semibold text-primary">
             Card type
           </label>
           <select
             id="card-type"
-            class="rounded border border-gray-200 py-0.5 pl-2"
+            class="rounded-sm border border-border py-0.5 pl-2"
             value={chosen()}
             onChange={(event) => setChosen(event.currentTarget.value)}
           >
@@ -209,17 +209,17 @@ export function Cards() {
 
       <For each={state.nodes}>
         {(node, index) => (
-          <div class="my-4 rounded border border-gray-200 p-4">
+          <div class="my-4 rounded-sm border border-border p-4">
             <div class="mb-2 flex items-center justify-between gap-3">
               <div class="flex items-center gap-2">
-                <span class="font-semibold text-blue-900">{String(node.card.type)}</span>
+                <span class="font-semibold text-primary">{String(node.card.type)}</span>
                 {/*
                   The node's name, not the card's. It is what another card's `nodes:` selector or
                   `through:` chain refers to, and `Pipelines.get_id` defaults a missing one to "",
                   so two unnamed cards collide and the whole document is rejected.
                 */}
                 <input
-                  class="rounded border border-gray-200 px-2 py-0.5 font-mono text-xs"
+                  class="rounded-sm border border-border px-2 py-0.5 font-mono text-xs"
                   aria-label="node id"
                   value={node.id ?? ""}
                   onChange={(event) => setNodeId(index(), event.currentTarget.value)}
@@ -236,7 +236,7 @@ export function Cards() {
             */}
             <For each={schemaIssuesForNode(index())}>
               {(issue: ProbeIssue) => (
-                <p class="mb-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+                <p class="mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
                   <Show when={fieldPath(issue.pointer) !== ""}>
                     <span class="font-mono">{fieldPath(issue.pointer)}</span>{" — "}
                   </Show>
@@ -258,12 +258,12 @@ export function Cards() {
               {(reported: ProbeNode) => (
                 <div class="mb-2 text-xs">
                   <Show when={reported.unproduced.length > 0}>
-                    <p class="rounded border border-red-200 bg-red-50 p-2 text-red-800">
+                    <p class="rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-destructive">
                       nothing produces {reported.unproduced.join(", ")} — check the pass-through
                       chain, which names a column rather than routing through one
                     </p>
                   </Show>
-                  <p class="text-gray-600">
+                  <p class="text-muted-foreground">
                     resolves to: {reported.inputs.join(", ") || "—"}
                     <Show when={reported.outputs.length > 0}>
                       {" "}→ {reported.outputs.join(", ")}
@@ -274,7 +274,7 @@ export function Cards() {
             </Show>
             <Show
               when={payload()?.cards[String(node.card.type)]}
-              fallback={<p class="text-gray-500">No description for this card type.</p>}
+              fallback={<p class="text-muted-foreground">No description for this card type.</p>}
               keyed
             >
               {(cardIR: IRNode) => (

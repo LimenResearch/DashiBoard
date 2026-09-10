@@ -46,7 +46,7 @@ export default function Home() {
         and Process fetches the card IR, so remounting on each switch would refetch and drop each
         picker's open tab. The stores survive either way — the local state is what would not.
       */}
-      <div role="tablist" data-tabs="sections" class="mb-4 flex gap-1 border-b border-gray-200">
+      <div role="tablist" data-tabs="sections" class="mb-4 flex gap-1 border-b border-border">
         <For each={SECTIONS}>
           {(name) => (
             <button
@@ -57,10 +57,10 @@ export default function Home() {
                 setSection(name);
               }}
               class={[
-                "-mb-px rounded-t border border-b-0 px-4 py-2 text-sm",
+                "-mb-px rounded-t-sm border border-b-0 px-4 py-2 text-sm",
                 {
-                  "border-gray-200 bg-white font-semibold text-blue-800": section() === name,
-                  "border-transparent text-gray-500 hover:text-gray-700": section() !== name,
+                  "border-border bg-background font-semibold text-primary": section() === name,
+                  "border-transparent text-muted-foreground hover:text-foreground": section() !== name,
                 },
               ]}
             >
@@ -94,7 +94,7 @@ export default function Home() {
               </Show>
               <pre
                 data-testid="report"
-                class="overflow-x-auto rounded bg-gray-50 p-3 text-xs"
+                class="overflow-x-auto rounded-sm bg-muted p-3 text-xs"
               >{JSON.stringify(res.report ?? null, null, 2)}</pre>
             </div>
           )}
@@ -104,7 +104,7 @@ export default function Home() {
       <section data-section="The document" hidden={section() !== "The document"}>
         <pre
           data-testid="document"
-          class="overflow-x-auto rounded bg-gray-50 p-3 text-xs"
+          class="overflow-x-auto rounded-sm bg-muted p-3 text-xs"
         >{JSON.stringify({ filters: getFilters(filters), ...getCards(cards) }, null, 2)}</pre>
       </section>
     </main>

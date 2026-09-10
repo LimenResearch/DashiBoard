@@ -2,12 +2,12 @@ import { createSignal, Show } from "solid-js";
 
 function buttonClassList(active: boolean) {
   return {
-    "text-blue-800": true,
+    "text-primary": true,
     "text-xl": true,
     "font-semibold": true,
     "border-b-2": !active,
-    "border-gray-200": true,
-    "hover:bg-gray-200": true,
+    "border-border": true,
+    "hover:bg-secondary": true,
     "w-full": true,
     "text-left": true,
   };
@@ -18,7 +18,7 @@ function notificationClassList(modified: boolean) {
     "float-right": true,
     "p-4": true,
     "inline-block": true,
-    "hover:text-red-300": true,
+    "hover:text-destructive/60": true,
     invisible: !modified,
   };
 }
@@ -48,7 +48,7 @@ export function Toggler(props: TogglerProps) {
         </span>
       </button>
       <Show when={active()}>
-        <div class="p-4 bg-white rounded-b border-b-2">{props.children}</div>
+        <div class="p-4 bg-card rounded-b-sm border-b-2">{props.children}</div>
       </Show>
     </div>
   );

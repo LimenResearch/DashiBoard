@@ -18,7 +18,7 @@ export function FilePicker(props: FilePickerProps) {
     const vals = files() ?? [];
     return vals.map((x: string) => ({label: x, value: x}));
   }
-  const selectClass = "text-blue-800 font-semibold py-4 w-full text-left";
+  const selectClass = "text-primary font-semibold py-4 w-full text-left";
   const id = _.uniqueId("load_");
   return (
     <>

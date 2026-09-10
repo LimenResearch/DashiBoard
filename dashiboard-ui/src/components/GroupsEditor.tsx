@@ -36,12 +36,12 @@ export function GroupsEditor(props: { defs: Defs }) {
   return (
     <div>
       <div class="flex items-center gap-3 p-4">
-        <span class="text-sm font-semibold text-blue-800">Groups</span>
+        <span class="text-sm font-semibold text-primary">Groups</span>
         <Button onClick={() => void addGroup()}>Add group</Button>
       </div>
 
       <Show when={error()}>
-        <p class="mx-4 mb-2 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">
+        <p class="mx-4 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
           {error()}
         </p>
       </Show>
@@ -49,7 +49,7 @@ export function GroupsEditor(props: { defs: Defs }) {
       <Show
         when={Object.keys(state.groups).length > 0}
         fallback={
-          <p class="px-4 text-sm text-gray-500">
+          <p class="px-4 text-sm text-muted-foreground">
             No groups defined. A group names a set of columns once, so several cards can refer to
             it — and nothing can refer to one until it exists.
           </p>
@@ -57,10 +57,10 @@ export function GroupsEditor(props: { defs: Defs }) {
       >
         <For each={Object.keys(state.groups)}>
           {(name) => (
-            <div class="my-4 rounded border border-gray-200 p-4">
+            <div class="my-4 rounded-sm border border-border p-4">
               <div class="mb-2 flex items-center justify-between gap-3">
                 <input
-                  class="rounded border border-gray-200 px-2 py-0.5 font-mono text-sm"
+                  class="rounded-sm border border-border px-2 py-0.5 font-mono text-sm"
                   aria-label="group name"
                   value={name}
                   // `change`, not `input`: renaming on every keystroke would rewrite the document

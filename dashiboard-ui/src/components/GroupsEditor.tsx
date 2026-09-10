@@ -3,7 +3,7 @@ import { createSignal, For, Show } from "solid-js";
 import { Button } from "./Button";
 import { SelectorField, type SelectorItem } from "./SelectorField";
 import { CARDS_STORE, addGroup, removeGroup, renameGroup, setGroup, type Selector } from "../stores";
-import type { Defs, IRNode } from "../ir";
+import { withoutOption, type Defs, type IRNode } from "../ir";
 
 // Authoring `[groups]` — §6's "one picker, two levels".
 //
@@ -73,7 +73,9 @@ export function GroupsEditor(props: { defs: Defs }) {
               </div>
               <SelectorField
                 itemNode={itemNode()}
-                defs={props.defs}
+                // A group naming itself is a loop — measured, and rejected as one — so its own
+                // name is not on offer inside it.
+                defs={withoutOption(props.defs, "group", name)}
                 label={name}
                 value={state.groups[name]}
                 onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}

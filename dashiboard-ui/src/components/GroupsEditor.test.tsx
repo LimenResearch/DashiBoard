@@ -79,3 +79,21 @@ describe('GroupsEditor', () => {
     expect(exportCards().groups).toEqual({});
   });
 });
+
+describe('a group cannot name itself', () => {
+  it('leaves its own name out of its groups tab', async () => {
+    // Measured server-side: a self-referencing group is rejected as a graph loop. So it is not
+    // a choice to validate after the fact — it is not a choice.
+    addGroup('weather'); // the fixture's `group` vocabulary is exactly ["weather"]
+    const { container } = render(() => <GroupsEditor defs={defs} />);
+    await flush();
+    const tab = [...container.querySelectorAll('[role=tab]')].find(
+      (t) => t.getAttribute('data-tab') === 'groups',
+    )!;
+    fireEvent.click(tab);
+    await flush();
+    const panel = container.querySelector('[role=tabpanel][data-kind="groups"]')!;
+    expect(panel.textContent).toContain('none defined');
+    expect(panel.querySelectorAll('input[type=checkbox]')).toHaveLength(0);
+  });
+});

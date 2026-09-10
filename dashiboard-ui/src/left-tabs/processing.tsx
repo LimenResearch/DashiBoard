@@ -25,7 +25,7 @@ import {
   type ProbeStore,
   type ProbeIssue,
 } from "../stores";
-import type { Defs, IRNode } from "../ir";
+import { withoutOption, type Defs, type IRNode } from "../ir";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -86,6 +86,19 @@ export function Cards() {
   );
 
   const cardTypes = () => Object.keys(payload()?.cards ?? {}).sort();
+
+  /**
+   * The vocabulary this card may draw on: everything, minus its own name.
+   *
+   * A card naming itself — as an input, or as a step in a `through` chain — is a cycle, and the
+   * server rejects the whole document for it. Offering it is offering a choice that cannot come
+   * out well, so it is removed from the vocabulary rather than validated after the fact.
+   */
+  const defsForNode = (index: number): Defs => {
+    const defs = payload()!.defs;
+    const self = state.nodes[index]?.id;
+    return self ? withoutOption(defs, "node", self) : defs;
+  };
 
   // Probe on every document change. Construction is cheap and materialises nothing, so this is
   // the feedback loop for references the schema cannot check.
@@ -267,7 +280,7 @@ export function Cards() {
               {(cardIR: IRNode) => (
                 <IRField
                   node={cardIR}
-                  defs={payload()!.defs}
+                  defs={defsForNode(index())}
                   label={String(node.card.type)}
                   value={node.card}
                   onChange={(card) => setCard(index(), card as Card)}

@@ -1,4 +1,4 @@
-import { createSignal, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
 
 import { Button } from "../components/Button";
@@ -11,9 +11,12 @@ import { CARDS_STORE, FILTERS_STORE } from "../stores";
 
 type RunResult = { graph?: string; report?: unknown; summaries?: unknown };
 
+const SECTIONS = ["Load", "Filter", "Process", "Run", "The document"] as const;
+
 export default function Home() {
   const [filters] = FILTERS_STORE;
   const [cards] = CARDS_STORE;
+  const [section, setSection] = createSignal<(typeof SECTIONS)[number]>("Load");
 
   const [result, setResult] = createSignal<RunResult | null>(null);
   const [running, setRunning] = createSignal(false);
@@ -34,23 +37,52 @@ export default function Home() {
     <main class="mx-auto max-w-5xl px-4 py-8">
       <Title>DashiBoard</Title>
 
-      <section class="mb-8">
-        <h2 class="text-xl font-semibold text-blue-800">Load</h2>
+      {/*
+        The five stages are tabs, not a single scroll. They are steps in one order — load, filter,
+        process, run — and only one is being worked on at a time; stacked, the one in hand is
+        wherever you last scrolled to.
+
+        Every section stays mounted and is hidden rather than unmounted: Load sets up choices.js
+        and Process fetches the card IR, so remounting on each switch would refetch and drop each
+        picker's open tab. The stores survive either way — the local state is what would not.
+      */}
+      <div role="tablist" data-tabs="sections" class="mb-4 flex gap-1 border-b border-gray-200">
+        <For each={SECTIONS}>
+          {(name) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={section() === name ? "true" : "false"}
+              onClick={() => {
+                setSection(name);
+              }}
+              class={[
+                "-mb-px rounded-t border border-b-0 px-4 py-2 text-sm",
+                {
+                  "border-gray-200 bg-white font-semibold text-blue-800": section() === name,
+                  "border-transparent text-gray-500 hover:text-gray-700": section() !== name,
+                },
+              ]}
+            >
+              {name}
+            </button>
+          )}
+        </For>
+      </div>
+
+      <section data-section="Load" hidden={section() !== "Load"}>
         <Loader />
       </section>
 
-      <section class="mb-8">
-        <h2 class="text-xl font-semibold text-blue-800">Filter</h2>
+      <section data-section="Filter" hidden={section() !== "Filter"}>
         <Filters />
       </section>
 
-      <section class="mb-8">
-        <h2 class="text-xl font-semibold text-blue-800">Process</h2>
+      <section data-section="Process" hidden={section() !== "Process"}>
         <Cards />
       </section>
 
-      <section class="mb-8">
-        <h2 class="text-xl font-semibold text-blue-800">Run</h2>
+      <section data-section="Run" hidden={section() !== "Run"}>
         <Button disabled={running() || cards.nodes.length === 0} onClick={() => void run()}>
           {running() ? "Running…" : "Run pipeline"}
         </Button>
@@ -69,8 +101,7 @@ export default function Home() {
         </Show>
       </section>
 
-      <section>
-        <h2 class="text-xl font-semibold text-blue-800">The document</h2>
+      <section data-section="The document" hidden={section() !== "The document"}>
         <pre
           data-testid="document"
           class="overflow-x-auto rounded bg-gray-50 p-3 text-xs"

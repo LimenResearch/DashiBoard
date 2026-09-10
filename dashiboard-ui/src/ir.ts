@@ -58,6 +58,24 @@ export type Widget =
   // `{}`, which the glm and mixed_model formula IRs both do.
   | { kind: "unknown" };
 
+/**
+ * The same defs with one value removed from one vocabulary.
+ *
+ * Used to keep a thing from naming itself. A node listing its own id — as an input or as a step
+ * in a `through` chain — is a cycle, and so is a group naming itself; the server rejects both, so
+ * offering them is offering a choice that cannot come out well. Narrowing the vocabulary makes it
+ * unrepresentable rather than merely invalid, which is the same move C2 makes for selector kind.
+ *
+ * Only *self*-reference is removed here. Excluding everything downstream would mean rebuilding
+ * the dependency graph in the browser, which is the server's job and already done: a longer cycle
+ * comes back from the probe.
+ */
+export function withoutOption(defs: Defs, key: string, value: string): Defs {
+  const vocabulary = defs[key];
+  if (vocabulary === undefined || !Array.isArray(vocabulary.enum)) return defs;
+  return { ...defs, [key]: { ...vocabulary, enum: vocabulary.enum.filter((o) => o !== value) } };
+}
+
 const REF_PREFIX = "#/$defs/";
 
 /** Follow `$ref` chains into `$defs`. An unresolvable or cyclic ref yields `{}`, not a throw. */

@@ -36,16 +36,56 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+const sectionTabs = (c: HTMLElement) =>
+  [...c.querySelectorAll('[data-tabs="sections"] [role=tab]')] as HTMLButtonElement[];
+const onScreen = (c: HTMLElement) =>
+  [...c.querySelectorAll('section[data-section]')]
+    .filter((s) => !s.hasAttribute('hidden'))
+    .map((s) => s.getAttribute('data-section'));
+/** Bring a page section on screen, the way a reader would. */
+async function openTab(c: HTMLElement, name: string) {
+  fireEvent.click(sectionTabs(c).find((t) => t.textContent === name)!);
+  await flush();
+}
+
+describe('the page is a set of tabs', () => {
+  it('shows one section at a time, and switches on click', async () => {
+    const { container } = render(() => <Home />);
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(sectionTabs(container).map((t) => t.textContent)).toEqual([
+      'Load', 'Filter', 'Process', 'Run', 'The document',
+    ]);
+    expect(onScreen(container)).toEqual(['Load']);
+
+    await openTab(container, 'Process');
+    expect(onScreen(container)).toEqual(['Process']);
+  });
+
+  it('keeps the sections mounted, so switching away does not discard their state', async () => {
+    // Load sets up choices.js and Process fetches the card IR; remounting on every switch would
+    // refetch and drop each picker's open tab. The stores survive either way — the local state
+    // is what does not.
+    const { container } = render(() => <Home />);
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    const before = postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir').length;
+    await openTab(container, 'Run');
+    await openTab(container, 'Process');
+    expect(postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir')).toHaveLength(before);
+  });
+});
+
 describe('the authoring page', () => {
   it('offers every card type the server describes', async () => {
-    const { getByLabelText } = render(() => <Home />);
+    const { container, getByLabelText } = render(() => <Home />);
+    await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     expect(picker.options).toHaveLength(10);
     expect([...picker.options].map((o) => o.value)).toContain('split');
   });
 
   it('adds a card and shows it in the authored document', async () => {
-    const { getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
@@ -53,6 +93,7 @@ describe('the authoring page', () => {
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
     expect(exportCards().nodes[0].card.type).toBe('rescale');
 
+    await openTab(container, 'The document');
     const pane = await findByTestId('document');
     await waitFor(() => expect(pane.textContent).toContain('rescale'));
     // the pane shows the wire document: filters from one store, nodes/groups from the other
@@ -72,12 +113,14 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'split');
     fireEvent.click(getByText(/add card/i));
     await flush();
 
+    await openTab(container, 'Run');
     fireEvent.click(getByText(/run pipeline/i));
     const report = await findByTestId('report');
     await waitFor(() => expect(report.textContent).toContain('split'));
@@ -107,6 +150,7 @@ describe('the authoring page', () => {
     });
 
     const { getByLabelText, getByText, container } = render(() => <Home />);
+    await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
@@ -143,6 +187,7 @@ describe('the authoring page', () => {
     });
 
     const { getByLabelText, getByText, container } = render(() => <Home />);
+    await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
@@ -158,6 +203,39 @@ describe('the authoring page', () => {
     expect(container.textContent).toContain('No, TEMP, PRES');
   });
 
+  it('does not offer a card its own name, as an input or as a pass-through step', async () => {
+    // A card naming itself is a cycle, and the server rejects the whole document for it. The
+    // fixture's node vocabulary is ["rescale", "split"], and a rescale card is auto-named
+    // "rescale" — so this is exactly the case the screen was getting wrong.
+    const { getByLabelText, getByText, container } = render(() => <Home />);
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    const nodeTabs = [...container.querySelectorAll('[role=tab][data-tab="nodes"]')];
+    expect(nodeTabs.length).toBeGreaterThan(0);
+    for (const tab of nodeTabs) {
+      fireEvent.click(tab);
+    }
+    await flush();
+
+    const offered = [...container.querySelectorAll('[role=tabpanel][data-kind="nodes"] input')]
+      .map((b) => (b as HTMLInputElement).value);
+    expect(offered).toContain('split');
+    expect(offered).not.toContain('rescale');
+
+    // the same vocabulary feeds the chain builder, so it must be narrowed there too
+    const chains = [...container.querySelectorAll('[data-chain-builder]')];
+    expect(chains.length).toBeGreaterThan(0);
+    for (const builder of chains) {
+      const names = [...builder.querySelectorAll('button')].map((b) => b.textContent);
+      expect(names).toContain('split');
+      expect(names).not.toContain('rescale');
+    }
+  });
+
   it('shows what a chain resolved to, rather than making the UI compute it', async () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);
@@ -170,6 +248,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
     const { getByLabelText, getByText, container } = render(() => <Home />);
+    await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
@@ -178,7 +257,8 @@ describe('the authoring page', () => {
   });
 
   it('asks for the IR with the vocabularies the document defines', async () => {
-    const { getByLabelText } = render(() => <Home />);
+    const { container, getByLabelText } = render(() => <Home />);
+    await openTab(container, 'Process');
     await waitFor(() => getByLabelText(/card type/i));
     const ask = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir');
     expect(ask).toBeDefined();

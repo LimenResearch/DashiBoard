@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveRef, widgetFor, type Defs, type IRNode } from './ir';
+import { resolveRef, widgetFor, withoutOption, type Defs, type IRNode } from './ir';
 
 // Fixtures are the real shapes POST /get-card-ir serves, taken from an enumeration of
 // every node the ten registered cards produce.
@@ -180,5 +180,24 @@ describe('the group dialect', () => {
   it('leaves an ordinary object alone', () => {
     const plain: IRNode = { type: 'object', properties: [], constraints: [] };
     expect(widgetFor(plain, gdefs).kind).toBe('object');
+  });
+});
+
+describe('withoutOption', () => {
+  const defs = {
+    node: { type: 'string', enum: ['a', 'b', 'c'] },
+    col: { type: 'string', enum: ['TEMP'] },
+  } as Defs;
+
+  it('drops one value from a vocabulary, leaving the rest of the defs alone', () => {
+    const narrowed = withoutOption(defs, 'node', 'b');
+    expect(narrowed.node.enum).toEqual(['a', 'c']);
+    expect(narrowed.col).toBe(defs.col); // untouched, and not copied
+    expect(defs.node.enum).toEqual(['a', 'b', 'c']); // the original is not mutated
+  });
+
+  it('is a no-op for a vocabulary that is absent or not an enum', () => {
+    expect(withoutOption(defs, 'group', 'x')).toBe(defs);
+    expect(withoutOption({ node: { type: 'object' } } as Defs, 'node', 'x').node.type).toBe('object');
   });
 });

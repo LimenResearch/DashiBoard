@@ -85,7 +85,11 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     p = sortperm(dp.srcs)
     G = digraph(view(dp.srcs, p), view(dp.tgts, p), n_nodes + n_groups)
 
-    return G, nodes, groups, collect(String, dp.cols)
+    # `group_names` is returned rather than recovered from `keys(group_configs)` at the call
+    # site: the vertex order is fixed by the `enumerate(pairs(...))` above, and depending on a
+    # second iteration to match it is the kind of coupling that breaks quietly.
+    group_names = collect(String, keys(group_configs))
+    return G, nodes, groups, collect(String, dp.cols), group_names
 end
 
 # Machinery to replace `Deps`

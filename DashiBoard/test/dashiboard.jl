@@ -118,10 +118,16 @@ mktempdir() do data_dir
             "Content-Length" => string(length(resp.body)),
         ]
 
-        body = read(joinpath(@__DIR__, "static", "pipeline.json"), String)
+        # The group dialect: {filters, nodes, groups} with selector-form variable fields, which
+        # is what the new UI authors. The flat {filters, cards} shape is gone from this route.
+        body = read(joinpath(@__DIR__, "static", "pipeline-groups.json"), String)
         resp = HTTP.post(url * "evaluate-pipeline", body = body)
-        summaries = JSON.parse(resp.body)["summaries"]
+        parsed = JSON.parse(resp.body)
+        summaries = parsed["summaries"]
         @test summaries[end]["name"] == "_tiled_partition"
+        # A4: the graph renders, and names the group rather than its resolved columns
+        @test startswith(parsed["graph"], "digraph G{")
+        @test occursin("\"wind\"", parsed["graph"])
         @test resp.headers == [
             DashiBoard.CORS_RES_HEADERS...,
             "Content-Type" => "application/json",

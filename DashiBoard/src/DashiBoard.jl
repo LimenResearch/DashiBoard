@@ -49,7 +49,12 @@ include("middleware.jl")
 include("launch.jl")
 
 function __init__()
-    cache = cache_directory()
+    # DuckDB is single-writer, and the scratchspace path is fixed per package — so every
+    # DashiBoard process contends for one file, and the test suite is just another process:
+    # running it while a server is up fails at load with "Conflicting lock is held".
+    # `DASHIBOARD_CACHE` lets a caller opt out; the default is unchanged.
+    cache = get(ENV, "DASHIBOARD_CACHE", cache_directory())
+    mkpath(cache)
     REPOSITORY[] = Repository(joinpath(cache, "db.duckdb"))
     return
 end

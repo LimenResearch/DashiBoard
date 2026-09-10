@@ -1,0 +1,29 @@
+{
+  "filters": [
+    { "interval": { "max": 2012, "min": 2011 }, "colname": "year", "type": "interval" },
+    { "list": ["NW", "SW"], "colname": "cbwd", "type": "list" }
+  ],
+  "nodes": [
+    {
+      "id": "percentile",
+      "card": {
+        "type": "split",
+        "method": { "type": "percentile", "percentile": 0.9 },
+        "order_by": [{ "cols": "No" }],
+        "group_by": [{ "groups": "wind" }],
+        "output": "_percentile_partition"
+      }
+    },
+    {
+      "id": "tiled",
+      "card": {
+        "type": "split",
+        "method": { "type": "tiles", "tiles": [1, 1, 2, 1, 1, 2] },
+        "order_by": [{ "cols": "No" }],
+        "group_by": [{ "groups": "wind" }],
+        "output": "_tiled_partition"
+      }
+    }
+  ],
+  "groups": { "wind": [{ "cols": ["cbwd"] }] }
+}

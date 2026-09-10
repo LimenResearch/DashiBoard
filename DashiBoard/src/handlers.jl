@@ -32,20 +32,40 @@ function get_card_ir(req::HTTP.Request)
     return json_response((; defs, cards); omit_null = true)
 end
 
+"""
+    evaluate_pipeline(req)
+
+Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
+selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
+
+This route used to take the flat `{filters, cards}` shape, and 06-design.md's "Do not do" once said
+not to migrate it, on the premise that the new UI would serve against ExperimentTracking and this
+server would be deleted. Under the standalone-first scope the new UI serves against *this* server
+until B1 and B6 land, so leaving it flat-only meant the UI could not preview the group vocabulary
+that §6's variable picker exists to author.
+"""
 function evaluate_pipeline(req::HTTP.Request)
     spec = json_read(req)
     filters = Filter.(spec["filters"])
-    cards = Card.(spec["cards"])
-    nodes = Pipelines.Node.(cards)
 
     orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
     DataIngestion.select(REPOSITORY[], filters, orig => "selection")
-    p = Pipelines.train_evaljoin!(REPOSITORY[], nodes, "selection", ID_VAR[])
 
+    # The columns available *to* the pipeline, so the group API can validate references against
+    # them rather than accepting a name that does not exist and failing later in SQL.
+    available = DataIngestion.summarize(REPOSITORY[], "selection")
+    cols = String[summary.name for summary in available]
+
+    groups = get(spec, "groups", Dict{String, Any}())
+    pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
+    p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+
+    nodes = pipeline.nodes
     report = Pipelines.report(REPOSITORY[], nodes)
     vs = Pipelines.visualize(REPOSITORY[], nodes)
     visualization = stringify_visualization.(vs)
     graph = sprint(Pipelines.graphviz, p)
+    # Recomputed: the pipeline has added its output columns since `available` was taken.
     summaries = DataIngestion.summarize(REPOSITORY[], "selection")
     return json_response((; summaries, visualization, graph, report))
 end

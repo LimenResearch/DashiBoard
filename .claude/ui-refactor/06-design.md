@@ -572,8 +572,26 @@ defeats the discipline exactly.
 
 ## Do not do
 
-- **Do not migrate the DashiBoard server to the group API.** Its only consumer is the frontend §7
-  deletes. Keep it untouched until the new UI serves, then delete it in one commit.
+- ~~**Do not migrate the DashiBoard server to the group API.**~~ **REVERSED by the owner,
+  2026-09-10.** The entry was right on its premise and the premise has changed. It assumed the new
+  UI would serve against *ExperimentTracking*, leaving the DashiBoard server disposable. Under the
+  standalone-first scope (§6) the new UI serves against the **DashiBoard server**, and will until B1
+  and B6 land — which is after the team leader's review. Leaving it flat-only therefore means the
+  standalone UI cannot preview the group vocabulary that §6's variable picker and C2 exist to
+  author: measured against a live server, a flat card returns 200 while `inputs: [{cols: "TEMP"}]`
+  and `inputs: [{groups: "weather"}]` both return **500**.
+
+  Note also that the group API is **Pipelines'**, in this repository — ExperimentTracking inherits it
+  by depending on Pipelines. So this is an inconsistency *inside* DashiBoard (Pipelines has a group
+  API its own server does not call), not a cross-repository gap, and closing it is an update rather
+  than a dependency.
+
+  The update is small because the execution path already exists:
+  `Pipeline(node_configs, group_configs, cols)` (`group_api/dag.jl:11`) resolves and validates, and
+  `train_evaljoin!(repo, ::Pipeline, table, id_var)` (`pipeline.jl:232`) runs it. `report` and
+  `visualize` take `p.nodes`. The genuine gap is **A4**, and `/get-card-ir` must serve the group
+  dialect in the same change — the forms cannot author selectors until it does, which is B2's
+  `schema_definitions(::VariableConfig)`, already implemented.
 - **Do not add a per-field widget override.** §4 is deliberate; AgentGraph reports a per-field escape
   hatch would have metastasised.
 - **Do not keep both schema dialects alive.** Serving one while validating with the other is what

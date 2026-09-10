@@ -168,3 +168,24 @@ end
         ]
     )
 end
+
+@testset "graphviz for GroupDiGraph" begin
+    # A4: `graphviz` dispatched on the concrete `EnrichedDiGraph`, so a group-API pipeline raised
+    # a MethodError. Widening the signature would have been worse than the error: a
+    # `GroupDiGraph`'s vertices are the nodes followed by the *groups*, with no variable vertices
+    # at all, so the variable labels would have been attached to group vertices silently.
+    d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    p = Pipelines.Pipeline(d["nodes"], d["groups"])
+    dot = sprint(Pipelines.graphviz, p)
+
+    @test startswith(dot, "digraph G{")
+    # one labelled vertex per node, plus one per group — and nothing else
+    @test count("[label = ", dot) == length(d["nodes"]) + length(d["groups"])
+    # the group appears by name rather than by its resolved columns
+    @test occursin("\"weather\"", dot)
+    @test !occursin("PRES_rescaled", dot)
+    # every edge references a vertex that exists
+    for m in eachmatch(r"\"(\d+)\"", dot)
+        @test parse(Int, m.captures[1]) <= length(d["nodes"]) + length(d["groups"])
+    end
+end

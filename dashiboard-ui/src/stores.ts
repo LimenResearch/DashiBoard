@@ -1,4 +1,4 @@
-import { createRoot, createStore, Store, StoreSetter } from "solid-js";
+import { createStore } from "solid-js";
 
 export class Interval {
   min: number;
@@ -16,11 +16,12 @@ export class Interval {
 
 export type List = Set<any>;
 
-type LoaderStore = string[];
+// TODO: better summary type
+export type LoaderStore = {name: string, summary: any, type: string}[];
 
-export const LOADERS_STORE = createStore<LoaderStore>([] as LoaderStore);
+export const LOADER_STORE = createStore<LoaderStore>([] as LoaderStore);
 
-type FiltersStore = {
+export type FiltersStore = {
   numerical: { [key: string]: Interval | null };
   categorical: { [key: string]: List | null };
 };
@@ -30,7 +31,7 @@ export const FILTERS_STORE = createStore<FiltersStore>({
   categorical: {},
 } as FiltersStore);
 
-type CardsStore = {
+export type CardsStore = {
   cards: { [key: string]: any }[];
 };
 

@@ -208,3 +208,73 @@ end
     nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
     @test nodes_entry.value.type == "one_or_many"
 end
+
+# The specification of what the variable picker (C2) must be able to express. Each case below was
+# established by running it, not by reading the schema, and the ones that look redundant are the
+# ones a simplification would quietly break — see `06-design.md`, "C2 in detail".
+@testset "selector cases the picker must express" begin
+    base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    cols = ["No", "PRES", "TEMP", "cbwd"]
+
+    # Resolve node `pca`'s inputs for a given selector list.
+    function resolve(inputs)
+        d = deepcopy(base)
+        d["nodes"][3]["card"]["inputs"] = inputs
+        return Pipelines.Pipeline(d["nodes"], d["groups"], cols).nodes[3].card.inputs
+    end
+    rejects(inputs) = (@test_throws Pipelines.SchemaValidationError resolve(inputs))
+
+    # A ≡ B: one item with two values and two items with one value each are indistinguishable.
+    # So the item boundary carries no meaning *until* a `through` differs.
+    @test resolve([Dict("cols" => ["PRES", "TEMP"])]) == ["PRES", "TEMP"]
+    @test resolve([Dict("cols" => "PRES"), Dict("cols" => "TEMP")]) == ["PRES", "TEMP"]
+
+    # C: same kind, different `through`. This is why `through` cannot be a field-level property.
+    @test resolve([
+        Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "TEMP"),
+    ]) == ["PRES_rescaled", "TEMP"]
+
+    # D: one item, several values, a shared `through`.
+    @test resolve([Dict("cols" => ["PRES", "TEMP"], "through" => ["rescale"])]) ==
+        ["PRES_rescaled", "TEMP_rescaled"]
+
+    # E: the same column twice, once passed through and once raw — both survive. Any UI modelling
+    # a field as "a set of columns with attributes" cannot express this: there is nowhere to put
+    # the second PRES.
+    @test resolve([
+        Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "PRES"),
+    ]) == ["PRES_rescaled", "PRES"]
+
+    # F/G: the `oneOf` gate. Two kinds in one item, or none, are refused — so A7's
+    # "unrepresentably wrong" is already enforced server-side; the UI doing it is defence in depth.
+    rejects([Dict("cols" => "PRES", "groups" => "weather")])
+    rejects([Dict{String, Any}()])
+
+    # Order is preserved and meaningful, across kinds and within one. Until section 12 designs the
+    # positional `weights` rule out, a UI that concatenates by kind silently changes the result.
+    @test resolve([Dict("nodes" => "log"), Dict("groups" => "weather", "through" => ["rescale"])]) ==
+        ["No_log", "PRES_rescaled", "TEMP_rescaled"]
+    @test resolve([Dict("groups" => "weather", "through" => ["rescale"]), Dict("nodes" => "log")]) ==
+        ["PRES_rescaled", "TEMP_rescaled", "No_log"]
+    @test resolve([Dict("cols" => "TEMP"), Dict("cols" => "PRES")]) == ["TEMP", "PRES"]
+
+    # `through` is an ordered *list* of nodes whose suffixes concatenate, not a single node.
+    # So a Through panel keys on an ordered combination: [log, rescale] ≠ [rescale, log].
+    @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
+    @test resolve([Dict("cols" => "PRES", "through" => ["log", "rescale"])]) == ["PRES_log_rescaled"]
+
+    # THE GAP, pinned deliberately. `through` builds a column *name* by concatenating suffixes;
+    # validation checks only that the base column exists in the source. Nothing produces
+    # `PRES_rescaled_log` — `log` consumes `No` and emits `No_log` — yet this is accepted here and
+    # fails later inside a task, naming neither the column nor the node. If someone adds that
+    # check, this test should start failing and be updated rather than deleted.
+    @test resolve([Dict("cols" => "PRES", "through" => ["rescale", "log"])]) == ["PRES_rescaled_log"]
+
+    # What *is* caught: a `through` naming the consuming node makes the dependency graph cyclic.
+    @test_throws ErrorException resolve([Dict("cols" => "PRES", "through" => ["rescale", "pca"])])
+
+    # An empty `through` resolves identically to an absent one, so "Direct" is just a Through
+    # section with an empty chain — one component, not two.
+    @test resolve([Dict("cols" => "PRES", "through" => String[])]) ==
+        resolve([Dict("cols" => "PRES")])
+end

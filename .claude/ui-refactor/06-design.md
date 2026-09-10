@@ -324,6 +324,67 @@ gain this host can name.
 
 ---
 
+### C2 in detail — the variable picker
+
+Designed with the owner on 2026-09-10. Every claim below was established by running it; the cases
+are pinned in `Pipelines/test/groups.jl`, "selector cases the picker must express".
+
+**What a field holds.** One *ordered list* of items. An item is exactly one of `cols`/`nodes`/
+`groups` (the `oneOf` gate), each **one-or-many**, plus an optional ordered `through`.
+
+**Four facts that decide the design.**
+
+- **A ≡ B.** `[{cols = ["PRES","TEMP"]}]` and `[{cols = "PRES"}, {cols = "TEMP"}]` resolve
+  identically. The item boundary carries no meaning *until* a `through` differs — and then it
+  carries all of it.
+- **The same value can appear twice under different qualifications.**
+  `[{cols = "PRES", through = ["rescale"]}, {cols = "PRES"}]` resolves to
+  `["PRES_rescaled", "PRES"]`. **Any UI modelling a field as "a set of values with attributes"
+  cannot express this** — there is nowhere to put the second `PRES`. This is what rules out both a
+  flat categorised combobox and a per-kind bucket layout.
+- **Order is meaningful**, across kinds and within one. Reversing two items reverses the resolved
+  column list. Until §12 designs out the positional `weights` rule, a UI that concatenates by kind
+  silently changes which weight lands on which column.
+- **`through` is an ordered list of nodes**, whose suffixes concatenate: `["rescale","log"]` names
+  `PRES_rescaled_log`, and `["log","rescale"]` names something different. Chains execute — verified
+  end to end, a three-node chain producing `TEMP_a → TEMP_a_b → TEMP_a_b_c`. An empty `through`
+  resolves identically to an absent one.
+
+**The design: group by qualification, not by value.**
+
+- A **Direct** panel with three subpanels — `columns`, `groups`, `nodes` — holding items with no
+  `through`.
+- *n* **Through** sections, each headed by an ordered node chain and containing the same three
+  subpanels.
+- Because an empty `through` is equivalent to an absent one, **Direct is a Through section with an
+  empty chain**: one component, used four ways, which is what §6 asks for.
+
+This is what makes the duplicate-value case fall out — `PRES` appears in Direct *and* in
+Through[rescale], with no duplicate inside either control.
+
+**Two constraints on the implementation.**
+
+1. **The panels are a view over one ordered list, not three lists.** The store keeps document
+   order; each subpanel shows the items of its kind in that order; adding appends. Order is then
+   preserved by construction, and reordering is simply not offered — acceptable while §12 is open,
+   and revisitable if `inputs` stays ordered.
+2. **The chain control must be constrained to chains that exist.** `through` builds a column *name*
+   by concatenating suffixes; validation checks only that the *base* column exists. A chain naming
+   a column no node produces is **accepted** and fails later inside a task, naming neither the
+   column nor the node — `06`'s systemic finding landing on a concrete case, and the sharpest
+   instance of it, because the reference is never written down. The UI holds the whole document and
+   therefore knows every node's suffix and outputs, so it can offer only chains that resolve to
+   something a node actually emits, and show the resulting name as the chain is built
+   (`TEMP → r1 → r2 = TEMP_a_b`). That converts a late, uninformative SQL failure into an empty
+   dropdown. **This is the one place the UI can compute an answer the server will not check.**
+
+What *is* caught server-side: a `through` naming the consuming node makes the graph cyclic and is
+rejected. So the unconstrained control's failure mode is narrower than "anything goes", but still
+covers every chain that is acyclic and unproduced.
+
+**Asymmetry worth budgeting for:** Direct needs none of this — a column either exists in the source
+enum or does not. The Through section is genuinely more work than Direct, not a repeat of it.
+
 ### C5 in detail — the embed and theming contract
 
 **There was no contract to implement against.** nexus-weaver-pro has never embedded DashiBoard: its

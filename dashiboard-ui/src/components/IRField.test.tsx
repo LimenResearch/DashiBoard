@@ -78,11 +78,15 @@ describe('IRField', () => {
     ));
     // a Direct section with one control per selector kind
     expect([...container.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Direct']);
-    const kinds = [...container.querySelectorAll('fieldset label')].map((l) => l.textContent);
+    const kinds = [...container.querySelectorAll('[data-kind]')].map((e) =>
+      e.getAttribute('data-kind'),
+    );
     expect(kinds).toEqual(['nodes', 'groups', 'cols']);
-    // and the columns are the `cols` vocabulary, still offered without typing
-    const cols = container.querySelectorAll('fieldset select')[2] as HTMLSelectElement;
-    const options = [...cols.options].map((o) => o.value);
+    // and the columns are the `cols` vocabulary, offered as checkboxes so a click adds
+    const cols = container.querySelector('[data-kind="cols"]')!;
+    const options = [...cols.querySelectorAll('input[type=checkbox]')].map(
+      (b) => (b as HTMLInputElement).value,
+    );
     expect(options).toContain('TEMP');
     expect(options).toContain('cbwd');
   });

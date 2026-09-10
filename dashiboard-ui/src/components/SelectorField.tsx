@@ -90,6 +90,15 @@ export function SelectorField(props: SelectorFieldProps) {
     props.onChange(next);
   }
 
+  /** Add or drop one value within a (chain, kind), leaving the rest of the field alone. */
+  function toggle(chain: string[], kind: string, value: string, checked: boolean) {
+    const current = chosen(chain, kind);
+    const next = checked
+      ? [...current, value]                      // appended: order within a kind is the user's
+      : current.filter((existing) => existing !== value);
+    write(chain, kind, next);
+  }
+
   function addChain(chain: string[]) {
     if (chain.length === 0) return;
     // A chain with no values yet has nothing to store, so it is held by the control itself
@@ -132,6 +141,7 @@ export function SelectorField(props: SelectorFieldProps) {
   }
 
   const [dragging, setDragging] = createSignal<number | null>(null);
+  const [draft, setDraft] = createSignal<string[]>([]);
 
   return (
     <div class="my-2">
@@ -186,31 +196,31 @@ export function SelectorField(props: SelectorFieldProps) {
             </legend>
             <For each={kindsOf()}>
               {(kind) => (
-                <div class="my-1">
-                  <label class="block text-xs text-gray-600">{kind}</label>
-                  <select
-                    multiple
-                    size={Math.min(Math.max(optionsOf(kind).length, 2), 6)}
-                    class="w-full rounded border border-gray-200"
-                    onChange={(event) =>
-                      write(
-                        chain,
-                        kind,
-                        [...event.currentTarget.selectedOptions].map((o) => o.value),
-                      )
-                    }
-                  >
+                <div class="my-1" data-kind={kind}>
+                  <p class="text-xs text-gray-600">{kind}</p>
+                  {/*
+                    Checkboxes rather than a native `<select multiple>`: there, a plain click
+                    *replaces* the selection and keeping several requires Ctrl/Cmd-click, which
+                    is not discoverable and reads as "it will only take one". This also matches
+                    ListFilter, which already picks several of a known list this way.
+                  */}
+                  <div class="grid grid-cols-2 gap-x-3 md:grid-cols-3">
                     <For each={optionsOf(kind)}>
                       {(option) => (
-                        <option
-                          value={String(option)}
-                          selected={chosen(chain, kind).includes(String(option))}
-                        >
-                          {option}
-                        </option>
+                        <label class="inline-flex items-center text-xs">
+                          <input
+                            type="checkbox"
+                            value={String(option)}
+                            checked={chosen(chain, kind).includes(String(option))}
+                            onChange={(event) =>
+                              toggle(chain, kind, String(option), event.currentTarget.checked)
+                            }
+                          />
+                          <span class="ml-1">{option}</span>
+                        </label>
                       )}
                     </For>
-                  </select>
+                  </div>
                 </div>
               )}
             </For>
@@ -219,19 +229,53 @@ export function SelectorField(props: SelectorFieldProps) {
       </For>
 
       <Show when={chainOptions().length > 0}>
-        <label class="block text-xs text-gray-600">add a pass-through</label>
-        <select
-          multiple
-          size={Math.min(Math.max(chainOptions().length, 2), 4)}
-          class="w-full rounded border border-gray-200"
-          onChange={(event) =>
-            addChain([...event.currentTarget.selectedOptions].map((o) => o.value))
-          }
-        >
-          <For each={chainOptions()}>
-            {(option) => <option value={option}>{option}</option>}
-          </For>
-        </select>
+        {/*
+          A chain is ORDERED — [a,b] names a different column from [b,a] — and neither a
+          `<select multiple>` nor a checkbox grid preserves *click* order: both report DOM order.
+          So the chain is built by appending on click and shown as it will be sent.
+        */}
+        <div class="mt-2" data-chain-builder>
+          <p class="text-xs text-gray-600">
+            add a pass-through
+            <Show when={draft().length > 0}>
+              <span class="ml-2 font-mono">{draft().join(" → ")}</span>
+            </Show>
+          </p>
+          <div class="flex flex-wrap gap-1">
+            <For each={chainOptions()}>
+              {(option) => (
+                <button
+                  type="button"
+                  class="rounded border border-gray-200 px-2 py-0.5 text-xs"
+                  onClick={() => setDraft([...draft(), option])}
+                >
+                  {option}
+                </button>
+              )}
+            </For>
+            <Show when={draft().length > 0}>
+              <button
+                type="button"
+                data-chain="commit"
+                class="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs text-blue-800"
+                onClick={() => {
+                  addChain(draft());
+                  setDraft([]);
+                }}
+              >
+                add section
+              </button>
+              <button
+                type="button"
+                data-chain="clear"
+                class="px-2 py-0.5 text-xs text-gray-500"
+                onClick={() => setDraft([])}
+              >
+                clear
+              </button>
+            </Show>
+          </div>
+        </div>
       </Show>
     </div>
   );

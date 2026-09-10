@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { widgetFor, type Defs, type IRNode } from "../ir";
 
 // The variable picker (C2). A field like `inputs` is an ordered list of *items*, each naming
@@ -97,9 +97,87 @@ export function SelectorField(props: SelectorFieldProps) {
     props.onChange([...items(), { cols: [], through: chain } as SelectorItem]);
   }
 
+  // One chip per value, in document order and across kinds.
+  //
+  // Splitting a multi-value item into one chip each is lossless — one item holding several values
+  // resolves identically to several holding one each — while grouping by chain is *not* optional,
+  // which is why the chain travels with the chip. Order matters: the resolved column list follows
+  // the document, and section 3's positional `weights` rule reads it, so this row is the only
+  // place cross-kind order can be expressed. The panels group by qualification and therefore fix
+  // it by layout.
+  type Chip = { kind: string; value: string; through: string[] };
+
+  const chips = (): Chip[] =>
+    items().flatMap((item) =>
+      kindsOf().flatMap((kind) =>
+        asList(item[kind]).map((value) => ({ kind, value, through: item.through ?? [] })),
+      ),
+    );
+
+  const chipLabel = (chip: Chip) =>
+    `${chip.kind}:${chip.value}` + (chip.through.length > 0 ? `·${chip.through.join("→")}` : "");
+
+  function reorder(from: number, to: number) {
+    const list = chips();
+    if (to < 0 || to >= list.length || from === to) return;
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
+    props.onChange(
+      list.map((chip) =>
+        chip.through.length === 0
+          ? ({ [chip.kind]: chip.value } as SelectorItem)
+          : ({ [chip.kind]: chip.value, through: chip.through } as SelectorItem),
+      ),
+    );
+  }
+
+  const [dragging, setDragging] = createSignal<number | null>(null);
+
   return (
     <div class="my-2">
       <p class="text-sm font-semibold text-blue-800">{props.label}</p>
+
+      <Show when={chips().length > 0}>
+        <ul class="my-1 flex flex-wrap gap-1" aria-label={`${props.label} order`}>
+          <For each={chips()}>
+            {(chip, index) => (
+              <li
+                data-chip={chipLabel(chip)}
+                draggable="true"
+                class="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs"
+                onDragStart={() => setDragging(index())}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  const from = dragging();
+                  if (from !== null) reorder(from, index());
+                  setDragging(null);
+                }}
+              >
+                <span>{chipLabel(chip)}</span>
+                {/* Native drag is not keyboard reachable, so the same move is a button. */}
+                <button
+                  type="button"
+                  data-move="earlier"
+                  aria-label={`move ${chipLabel(chip)} earlier`}
+                  disabled={index() === 0}
+                  onClick={() => reorder(index(), index() - 1)}
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  data-move="later"
+                  aria-label={`move ${chipLabel(chip)} later`}
+                  disabled={index() === chips().length - 1}
+                  onClick={() => reorder(index(), index() + 1)}
+                >
+                  →
+                </button>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
       <For each={chains(items())}>
         {(chain) => (
           <fieldset class="my-2 border-l-2 border-gray-200 pl-3">

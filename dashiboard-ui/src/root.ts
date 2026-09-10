@@ -91,6 +91,33 @@ export function setCardField(nodeIndex: number, key: string, value: unknown) {
   });
 }
 
+/**
+ * The request `POST /evaluate-pipeline` accepts, derived from the document.
+ *
+ * That endpoint takes `{filters, cards}` — the flat shape — while the document we author is the
+ * ExperimentTracking `Config` `{filters, nodes, groups}`. Deriving a *run* request is fine; what
+ * decisions section 2 forbids is *saving* a reconstruction.
+ *
+ * The DashiBoard server is flat-only and 06-design.md's "Do not do" says not to migrate it to the
+ * group API — it is deleted once the new UI serves. So a document using groups cannot be previewed
+ * against it, and `unsupported` names the groups rather than dropping them in silence.
+ */
+export function runRequest(): {
+  /** Posted verbatim. Kept separate from the diagnostic so nothing UI-only reaches the server. */
+  request: { filters: unknown[]; cards: Card[] };
+  /** Groups this endpoint cannot represent; empty when the document does not use any. */
+  unsupported: string[];
+} {
+  const config = exportConfig();
+  return {
+    request: {
+      filters: config.filters,
+      cards: config.nodes.map((node) => node.card),
+    },
+    unsupported: Object.keys(config.groups ?? {}),
+  };
+}
+
 /** Replace a whole card. This is what an IRField edit produces: the object, not a key. */
 export function setCard(nodeIndex: number, card: Card) {
   document_store.setState((draft) => {

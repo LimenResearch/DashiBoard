@@ -4,7 +4,8 @@ import { postRequest } from '../requests';
 import { IRField } from '../components/IRField';
 import { FilePicker } from '../components/FilePicker';
 import { Button } from '../components/Button';
-import { document_store, addNode, setCard, removeNode, type Card } from '../root';
+import { document_store, addNode, setCard, removeNode, runRequest, type Card } from '../root';
+import { Graph } from '../components/Graph';
 import type { Defs, IRNode } from '../ir';
 
 // A vertical slice, not a product. It exercises everything underneath end to end -- the runtime
@@ -13,6 +14,13 @@ import type { Defs, IRNode } from '../ir';
 // no persistence: those are later steps in 08-frontend-rebuild.md.
 
 type Payload = { defs: Defs; cards: { [type: string]: IRNode } };
+
+type RunResult = {
+  graph?: string;
+  report?: unknown;
+  summaries?: unknown;
+  visualization?: (string | null)[];
+};
 
 export default function Home() {
   const [payload, setPayload] = createSignal<Payload | null>(null);
@@ -53,6 +61,24 @@ export default function Home() {
   }
 
   const cardTypes = () => Object.keys(payload()?.cards ?? {}).sort();
+
+  const [result, setResult] = createSignal<RunResult | null>(null);
+  const [running, setRunning] = createSignal(false);
+  const [unsupported, setUnsupported] = createSignal<string[]>([]);
+
+  async function run() {
+    const { request, unsupported: groups } = runRequest();
+    setUnsupported(groups);
+    setRunning(true);
+    try {
+      const received = (await postRequest('evaluate-pipeline', request, null)) as RunResult | null;
+      setResult(received);
+      if (!received) setError('The pipeline did not run. Check the server log.');
+      else setError(null);
+    } finally {
+      setRunning(false);
+    }
+  }
 
   return (
     <main class="mx-auto max-w-5xl px-4 py-8">
@@ -126,6 +152,41 @@ export default function Home() {
               </div>
             )}
           </For>
+        </Show>
+      </section>
+
+      <section class="mb-8">
+        <h2 class="text-xl font-semibold text-blue-800">4. Run it</h2>
+        <Button
+          disabled={running() || document_store.state.nodes.length === 0}
+          onClick={() => void run()}
+        >
+          {running() ? 'Running…' : 'Run pipeline'}
+        </Button>
+        <Show when={unsupported().length > 0}>
+          <p class="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            This document defines groups ({unsupported().join(', ')}), which the DashiBoard
+            preview server cannot represent — it speaks the flat card API only. The groups are
+            kept in the document; they are simply not sent for this run.
+          </p>
+        </Show>
+        <Show when={result()} keyed>
+          {(run_result: RunResult) => (
+            <div class="mt-4">
+              <Show when={run_result.graph} keyed>
+                {(dot: string) => (
+                  <div class="my-3">
+                    <h3 class="text-sm font-semibold text-blue-800">Pipeline graph</h3>
+                    <Graph dot={dot} />
+                  </div>
+                )}
+              </Show>
+              <h3 class="text-sm font-semibold text-blue-800">Report</h3>
+              <pre data-testid="report" class="overflow-x-auto rounded bg-gray-50 p-3 text-xs">{
+                JSON.stringify(run_result.report ?? null, null, 2)
+              }</pre>
+            </div>
+          )}
         </Show>
       </section>
 

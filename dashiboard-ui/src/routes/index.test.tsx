@@ -59,6 +59,34 @@ describe('the card authoring page', () => {
     });
   });
 
+  it('runs the pipeline with the flat shape that endpoint accepts', async () => {
+    const posted: Record<string, unknown>[] = [];
+    postRequest.mockImplementation((page: string, body: Record<string, unknown>) => {
+      posted.push({ page, body });
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'evaluate-pipeline') {
+        return Promise.resolve({ graph: 'digraph {a}', report: [{ node: 'split' }] });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'split');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    fireEvent.click(getByText(/run pipeline/i));
+    const report = await findByTestId('report');
+    await waitFor(() => expect(report.textContent).toContain('split'));
+
+    const run = posted.find((p) => p.page === 'evaluate-pipeline');
+    expect(run).toBeDefined();
+    // exactly the two keys the server reads -- no nodes, no groups, no UI-only fields
+    expect(Object.keys(run!.body as object).sort()).toEqual(['cards', 'filters']);
+    expect((run!.body as { cards: { type: string }[] }).cards[0].type).toBe('split');
+  });
+
   it('shows the authored document, which is what would be saved', async () => {
     const { getByLabelText, getByText, findByTestId } = render(() => <Home />);
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;

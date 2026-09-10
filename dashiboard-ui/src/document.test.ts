@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   emptyConfig, importConfig, exportConfig,
-  setCardField, setCard, addNode, removeNode,
+  setCardField, setCard, addNode, removeNode, runRequest,
 } from './root';
 
 // A document in the post-9bd6c28 group vocabulary: plural selectors are arrays,
@@ -89,5 +89,35 @@ describe('the document is the model', () => {
     const a = exportConfig();
     setCardField(0, 'suffix', 'changed');
     expect(a.nodes[0].card.suffix).toBeUndefined(); // the earlier export is a snapshot
+  });
+});
+
+describe('the run request', () => {
+  beforeEach(() => importConfig(emptyConfig()));
+
+  it('derives the shape the DashiBoard server actually accepts', () => {
+    // evaluate-pipeline takes {filters, cards} -- the flat shape, not the authored
+    // {filters, nodes, groups}. Deriving a run request is fine; what section 2 forbids is
+    // *saving* a reconstruction.
+    importConfig(structuredClone(STORED));
+    const { request } = runRequest();
+    // exactly these two keys: nothing UI-only is posted to the server
+    expect(Object.keys(request).sort()).toEqual(['cards', 'filters']);
+    expect(request.cards).toEqual([STORED.nodes[0].card]);
+    expect(request.filters).toEqual(STORED.filters);
+  });
+
+  it('drops the node wrapper, which that endpoint has no field for', () => {
+    addNode({ type: 'split' }, 'named');
+    expect(runRequest().request.cards).toEqual([{ type: 'split' }]);
+  });
+
+  it('reports groups it cannot send rather than dropping them silently', () => {
+    // The DashiBoard server is flat-only and must not be migrated to the group API, so a
+    // document using groups cannot be previewed there. Saying so beats a confusing failure.
+    importConfig(structuredClone(STORED));
+    expect(runRequest().unsupported).toEqual(['weather']);
+    importConfig({ ...emptyConfig(), nodes: [{ card: { type: 'split' } }] });
+    expect(runRequest().unsupported).toEqual([]);
   });
 });

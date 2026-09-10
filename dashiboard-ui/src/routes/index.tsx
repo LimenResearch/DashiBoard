@@ -1,7 +1,8 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { Title } from "@solidjs/meta";
 
 import { Button } from "../components/Button";
+import { Tabs } from "../components/Tabs";
 import { Graph } from "../components/Graph";
 import { Loader } from "../left-tabs/loading";
 import { Filters, getFilters } from "../left-tabs/filtering";
@@ -46,31 +47,15 @@ export default function Home() {
         and Process fetches the card IR, so remounting on each switch would refetch and drop each
         picker's open tab. The stores survive either way — the local state is what would not.
       */}
-      <div role="tablist" data-tabs="sections" class="mb-4 flex gap-1.5 border-b border-border">
-        <For each={SECTIONS}>
-          {(name) => (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={section() === name ? "true" : "false"}
-              onClick={() => {
-                setSection(name);
-              }}
-              class={[
-                "-mb-px rounded-t-sm border border-b-0 px-4 py-2 text-xs",
-                {
-                  "border-border bg-background font-semibold text-primary": section() === name,
-                  "border-transparent text-muted-foreground hover:text-foreground": section() !== name,
-                },
-              ]}
-            >
-              {name}
-            </button>
-          )}
-        </For>
-      </div>
+      <Tabs
+        group="sections"
+        items={SECTIONS}
+        active={section()}
+        onSelect={setSection}
+        size="md"
+      />
 
-      <section data-section="Load" hidden={section() !== "Load"}>
+      <section class="mt-4" data-section="Load" hidden={section() !== "Load"}>
         <Loader />
       </section>
 

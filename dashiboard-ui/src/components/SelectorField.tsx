@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
+import { Tabs } from "./Tabs";
 import { widgetFor, type Defs, type IRNode } from "../ir";
 
 // The variable picker (C2). A field like `inputs` is an ordered list of *items*, each naming
@@ -189,38 +190,13 @@ export function SelectorField(props: SelectorFieldProps) {
             : `Through ${sectionProps.chain.join(" → ")}`}
         </legend>
 
-        <div role="tablist" class="flex gap-1.5 border-b border-border">
-          <For each={kindsOf()}>
-            {(kind) => {
-              const count = () => chosen(sectionProps.chain, kind).length;
-              return (
-                <button
-                  type="button"
-                  role="tab"
-                  data-tab={kind}
-                  aria-selected={open() === kind ? "true" : "false"}
-                  onClick={() => {
-                    setPicked(kind);
-                  }}
-                  class={[
-                    "-mb-px rounded-t-sm border border-b-0 px-3 py-1 text-xs",
-                    {
-                      "border-border bg-background font-medium text-primary": open() === kind,
-                      "border-transparent text-muted-foreground hover:text-foreground": open() !== kind,
-                    },
-                  ]}
-                >
-                  {kind}
-                  <Show when={count() > 0}>
-                    <span class="ml-1 rounded-full bg-accent px-1.5 text-primary">
-                      {count()}
-                    </span>
-                  </Show>
-                </button>
-              );
-            }}
-          </For>
-        </div>
+        <Tabs
+          group="kinds"
+          items={kindsOf()}
+          active={open()}
+          onSelect={setPicked}
+          count={(kind) => chosen(sectionProps.chain, kind).length}
+        />
 
         <div role="tabpanel" data-kind={open()} class="max-h-40 overflow-y-auto p-2">
           {/*

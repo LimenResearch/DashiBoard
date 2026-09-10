@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, For, Show, Store, reconcile } f
 import { Button } from "../components/Button";
 import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
 import { IRField } from "../components/IRField";
+import { GroupsEditor } from "../components/GroupsEditor";
 import { postRequest } from "../requests";
 import {
   CARDS_STORE,
@@ -182,6 +183,15 @@ export function Cards() {
           </select>
           <Button onClick={() => addNode({ type: chosen() } as Card)}>Add card</Button>
         </div>
+      </Show>
+
+      {/*
+        Groups come before the cards that refer to them: a card's `groups:` selector can only
+        offer names that already exist, so authoring in the other order means scrolling past the
+        cards to define a group and back up to use it.
+      */}
+      <Show when={payload()} keyed>
+        {(loaded: Payload) => <GroupsEditor defs={loaded.defs} />}
       </Show>
 
       <For each={state.nodes}>

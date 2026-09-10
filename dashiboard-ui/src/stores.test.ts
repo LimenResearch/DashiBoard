@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   emptyCards, importCards, exportCards, setCard, setCardField, addNode, removeNode, setNodeId,
   issuesForNode, fieldPath, type ProbeIssue,
+  addGroup, removeGroup, renameGroup, setGroup,
   CARDS_STORE, type CardsStore,
 } from './stores';
 import { getCards } from './left-tabs/processing';
@@ -151,5 +152,53 @@ describe('probe issues (A7)', () => {
 
   it('unescapes a pointer token, since a group name may contain a slash', () => {
     expect(fieldPath('/nodes/0/card/a~1b/c')).toBe('a/b → c');
+  });
+});
+
+describe('groups', () => {
+  beforeEach(() => importCards(emptyCards()));
+
+  it('creates an empty group, which the server accepts until it is filled', () => {
+    // Measured: `weather = []` constructs fine. So a group can be named before it holds
+    // anything, and naming it first is the only order that works — a group is referred to by
+    // name, so the name is the part that has to exist.
+    const name = addGroup();
+    expect(name).toBe('group');
+    expect(exportCards().groups).toEqual({ group: [] });
+    expect(addGroup()).toBe('group_2');
+  });
+
+  it('replaces a group\'s selectors', () => {
+    const name = addGroup();
+    setGroup(name, [{ cols: ['PRES', 'TEMP'] }]);
+    expect(exportCards().groups[name]).toEqual([{ cols: ['PRES', 'TEMP'] }]);
+  });
+
+  it('renames a group in place, keeping its position among the others', () => {
+    // Position matters only because a reader scans the list; delete-then-add would send the
+    // renamed group to the end, which reads as it having been recreated.
+    addGroup('a');
+    addGroup('b');
+    addGroup('c');
+    setGroup('b', [{ cols: 'TEMP' }]);
+    expect(renameGroup('b', 'weather')).toBe(true);
+    expect(Object.keys(exportCards().groups)).toEqual(['a', 'weather', 'c']);
+    expect(exportCards().groups.weather).toEqual([{ cols: 'TEMP' }]);
+  });
+
+  it('refuses a rename that would collide, rather than silently merging two groups', () => {
+    addGroup('a');
+    addGroup('b');
+    setGroup('a', [{ cols: 'TEMP' }]);
+    expect(renameGroup('b', 'a')).toBe(false);
+    expect(exportCards().groups.a).toEqual([{ cols: 'TEMP' }]); // untouched
+    expect(Object.keys(exportCards().groups)).toEqual(['a', 'b']);
+  });
+
+  it('removes a group', () => {
+    addGroup('a');
+    addGroup('b');
+    removeGroup('a');
+    expect(Object.keys(exportCards().groups)).toEqual(['b']);
   });
 });

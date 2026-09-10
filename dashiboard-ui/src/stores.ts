@@ -196,6 +196,62 @@ export function addNode(card: Card, id?: string) {
   });
 }
 
+/**
+ * Create a group, empty, and return the name it was given.
+ *
+ * Empty is a legal state — measured: `weather = []` constructs — which is what lets a group be
+ * named before it holds anything. That order is forced rather than chosen: a group is referred to
+ * by name, so until it has one there is nothing for a card's `groups:` selector to name.
+ */
+export function addGroup(name?: string): string {
+  // The name is chosen from `draft`, not from `cards`. A store write is applied to the draft
+  // synchronously but *notified* later, so a `cards` read here sees the state before the previous
+  // call — and two groups added in a row would both come out `group`.
+  let chosen = name ?? "";
+  setCards((draft) => {
+    chosen = name ?? freshId("group", new Set(Object.keys(draft.groups)));
+    draft.groups[chosen] = [];
+  });
+  return chosen;
+}
+
+/** Replace a group's selectors. Same shape as a card's `inputs`, hence the same picker. */
+export function setGroup(name: string, items: Selector[]) {
+  setCards((draft) => {
+    draft.groups[name] = items;
+  });
+}
+
+export function removeGroup(name: string) {
+  setCards((draft) => {
+    delete draft.groups[name];
+  });
+}
+
+/**
+ * Rename a group, keeping its position among the others, and refuse a name already taken.
+ *
+ * Rebuilt rather than deleted-and-reinserted because JavaScript orders object keys by insertion:
+ * the shortcut sends the renamed group to the end of the list, which reads as it having been
+ * recreated. Refusing a collision matters more — the shortcut there silently merges two groups
+ * into one, losing the contents of whichever was written second.
+ */
+export function renameGroup(from: string, to: string): boolean {
+  if (from === to) return true;
+  if (to === "") return false;
+  let renamed = false;
+  setCards((draft) => {
+    // Read `draft`, not `cards`: see `addGroup`. Checking the stale copy would let a rename onto
+    // a group created moments earlier through, which is the merge this refuses.
+    if (Object.hasOwn(draft.groups, to)) return;
+    renamed = true;
+    draft.groups = Object.fromEntries(
+      Object.entries(draft.groups).map(([key, value]) => [key === from ? to : key, value]),
+    );
+  });
+  return renamed;
+}
+
 /** Rename a node. The card is untouched: the id belongs to the wrapper, not the card. */
 export function setNodeId(nodeIndex: number, id: string) {
   setCards((draft) => {

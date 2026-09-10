@@ -1,5 +1,5 @@
 import * as _ from "lodash";
-import { Store, For } from "solid-js";
+import { Store, For, reconcile } from "solid-js";
 
 import { IntervalFilter } from "../filters/IntervalFilter";
 import { ListFilter } from "../filters/ListFilter";
@@ -50,7 +50,16 @@ export function Filters() {
         <DownloadJSONButton data={state} name="filters.json">
           Download filters
         </DownloadJSONButton>
-        <UploadJSONButton def={state} onChange={setState}>
+        {/*
+          A Solid 2 store setter takes a *function*, so handing it the parsed object made the
+          upload a silent no-op. `reconcile` replaces the store wholesale rather than merging,
+          which is what "upload these filters" means — a merge would leave filters the file does
+          not mention still applied.
+        */}
+        <UploadJSONButton
+          def={state as FiltersStore}
+          onChange={(value: FiltersStore) => setState(reconcile(value))}
+        >
           Upload filters
         </UploadJSONButton>
       </div>

@@ -58,12 +58,18 @@ describe('the mapping covers the IR Julia actually serves', () => {
     expect([...new Set(unknown)]).toEqual(['glm']);
   });
 
-  it('resolves the variable definitions to the source columns', () => {
+  it('resolves a variables field to a repeater over selectors', () => {
+    // The group dialect: a field is an ordered list of selector *items*, not a flat list of
+    // column names. The columns are one kind's vocabulary inside the item.
     const w = widgetFor({ $ref: '#/$defs/variables' }, defs);
-    expect(w.kind).toBe('multiselect');
-    if (w.kind !== 'multiselect') throw new Error('unreachable');
-    expect(w.options).toContain('TEMP');
-    expect(w.options).toContain('cbwd');
+    expect(w.kind).toBe('repeater');
+    if (w.kind !== 'repeater') throw new Error('unreachable');
+    const item = widgetFor(w.items, defs);
+    expect(item.kind).toBe('selector');
+    if (item.kind !== 'selector') throw new Error('unreachable');
+    expect(item.kinds).toEqual(['nodes', 'groups', 'cols']);
+    expect(item.options.cols).toContain('TEMP');
+    expect(item.options.cols).toContain('cbwd');
   });
 
   it('finds the split card variant selector the exercise started from', () => {

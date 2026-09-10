@@ -69,16 +69,20 @@ describe('IRField', () => {
     expect(typeof seen).toBe('number');
   });
 
-  it('offers every source column for a variables reference, without typing', () => {
+  it('renders a variables reference as the selector picker, not a flat list', () => {
     const { container } = render(() => (
       <IRField
         node={{ $ref: '#/$defs/variables' }} defs={defs} label="inputs"
         value={[]} onChange={() => {}}
       />
     ));
-    const select = container.querySelector('select') as HTMLSelectElement;
-    expect(select.multiple).toBe(true);
-    const options = [...select.options].map((o) => o.value);
+    // a Direct section with one control per selector kind
+    expect([...container.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Direct']);
+    const kinds = [...container.querySelectorAll('fieldset label')].map((l) => l.textContent);
+    expect(kinds).toEqual(['nodes', 'groups', 'cols']);
+    // and the columns are the `cols` vocabulary, still offered without typing
+    const cols = container.querySelectorAll('fieldset select')[2] as HTMLSelectElement;
+    const options = [...cols.options].map((o) => o.value);
     expect(options).toContain('TEMP');
     expect(options).toContain('cbwd');
   });

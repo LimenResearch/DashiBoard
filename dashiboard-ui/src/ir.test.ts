@@ -131,3 +131,54 @@ describe('widgetFor', () => {
     });
   });
 });
+
+describe('the group dialect', () => {
+  const gdefs: Defs = {
+    col: { type: 'string', enum: ['No', 'TEMP'] },
+    node: { type: 'string', enum: ['rescale'] },
+    group: { type: 'string', enum: ['weather'] },
+    variable: {
+      type: 'object',
+      additionalProperties: false,
+      properties: [
+        { key: 'nodes', required: false, value: { type: 'one_or_many', eltype: 'string', array: { type: 'array', items: { $ref: '#/$defs/node' } } } },
+        { key: 'groups', required: false, value: { type: 'one_or_many', eltype: 'string', array: { type: 'array', items: { $ref: '#/$defs/group' } } } },
+        { key: 'cols', required: false, value: { type: 'one_or_many', eltype: 'string', array: { type: 'array', items: { $ref: '#/$defs/col' } } } },
+        { key: 'through', required: false, value: { type: 'array', default: [], items: { $ref: '#/$defs/node' } } },
+      ],
+      constraints: [{ oneOf: [{ required: ['nodes'] }, { required: ['groups'] }, { required: ['cols'] }] }],
+    },
+    variables: { type: 'array', items: { $ref: '#/$defs/variable' } },
+  };
+
+  it('maps one_or_many to a multiselect over the referenced enum', () => {
+    const node = gdefs.variable.properties as { key: string; value: IRNode }[];
+    const cols = node.find((p) => p.key === 'cols')!.value;
+    expect(widgetFor(cols, gdefs)).toEqual({ kind: 'multiselect', options: ['No', 'TEMP'] });
+  });
+
+  it('recognises a selector object rather than four independent fields', () => {
+    const w = widgetFor(gdefs.variable, gdefs);
+    expect(w.kind).toBe('selector');
+    if (w.kind !== 'selector') throw new Error('unreachable');
+    // the kinds come from the oneOf inside the IR, so "exactly one" is data, not a convention
+    expect(w.kinds).toEqual(['nodes', 'groups', 'cols']);
+    expect(w.options.cols).toEqual(['No', 'TEMP']);
+    expect(w.options.nodes).toEqual(['rescale']);
+    expect(w.options.groups).toEqual(['weather']);
+    // the chain control is a plain ordered list of nodes
+    expect(widgetFor(w.through, gdefs)).toEqual({ kind: 'multiselect', options: ['rescale'], default: [] });
+  });
+
+  it('maps a variables field to a repeater over selectors', () => {
+    const w = widgetFor({ $ref: '#/$defs/variables' }, gdefs);
+    expect(w.kind).toBe('repeater');
+    if (w.kind !== 'repeater') throw new Error('unreachable');
+    expect(widgetFor(w.items, gdefs).kind).toBe('selector');
+  });
+
+  it('leaves an ordinary object alone', () => {
+    const plain: IRNode = { type: 'object', properties: [], constraints: [] };
+    expect(widgetFor(plain, gdefs).kind).toBe('object');
+  });
+});

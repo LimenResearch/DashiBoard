@@ -1,5 +1,6 @@
 import { For, Show } from "solid-js";
 import { Input } from "./Input";
+import { SelectorField } from "./SelectorField";
 import { widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
@@ -216,7 +217,20 @@ export function IRField(props: IRFieldProps) {
               </div>
             );
 
-          case "repeater":
+          case "repeater": {
+            // A repeater over selector items is the variable picker (C2), not a generic list:
+            // its items are grouped by qualification rather than shown one per row.
+            if (widgetFor(w.items, props.defs).kind === "selector") {
+              return (
+                <SelectorField
+                  itemNode={w.items}
+                  defs={props.defs}
+                  label={props.label}
+                  value={props.value}
+                  onChange={(items) => props.onChange(items)}
+                />
+              );
+            }
             return (
               <div>
                 <Label text={props.label} required={props.required} />
@@ -237,6 +251,7 @@ export function IRField(props: IRFieldProps) {
                 </For>
               </div>
             );
+          }
 
           // The IR does not constrain this field, so there is nothing honest to draw. Saying so
           // beats a JSON textarea that invites input the schema will reject — and it makes the

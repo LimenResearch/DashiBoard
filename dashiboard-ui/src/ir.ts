@@ -42,6 +42,18 @@ export type Widget =
       default?: string;
     }
   | { kind: "object"; title?: string; properties: PropertyEntry[] }
+  /**
+   * A variable selector: exactly one of several *kinds*, each choosing from its own vocabulary,
+   * plus an optional ordered `through` chain. Recognised structurally — from the `oneOf` the IR
+   * carries in `constraints` — rather than by hard-coding key names, so "exactly one kind" is
+   * data rather than a convention this file agreed to.
+   */
+  | {
+      kind: "selector";
+      kinds: string[];
+      options: { [kind: string]: (string | number)[] };
+      through: IRNode;
+    }
   // A node the IR does not constrain. Reachable today: `ArrayIR{Any}()` serialises its items as
   // `{}`, which the glm and mixed_model formula IRs both do.
   | { kind: "unknown" };
@@ -61,6 +73,29 @@ export function resolveRef(node: IRNode, defs: Defs): IRNode {
     current = target;
   }
   return current;
+}
+
+/**
+ * The kinds a selector offers, or `null` if this object is not one.
+ *
+ * Read off the `oneOf` the IR carries in `constraints` — `[{required: ["nodes"]}, …]` — which is
+ * the gate the server enforces. Taking the kinds from there rather than from a literal list here
+ * means the UI cannot drift from what the schema admits, and A7's one remaining validator leak
+ * (that `oneOf` summarising when the *kind* is malformed) is retired by making the kind
+ * unrepresentably wrong rather than merely invalid.
+ */
+function selectorKinds(node: IRNode): string[] | null {
+  const constraints = Array.isArray(node.constraints) ? node.constraints : [];
+  for (const constraint of constraints) {
+    const branches = (constraint as { oneOf?: unknown }).oneOf;
+    if (!Array.isArray(branches)) continue;
+    const kinds = branches.map((branch) => {
+      const required = (branch as { required?: unknown }).required;
+      return Array.isArray(required) && required.length === 1 ? String(required[0]) : null;
+    });
+    if (kinds.length > 0 && kinds.every((kind) => kind !== null)) return kinds as string[];
+  }
+  return null;
 }
 
 const num = (x: unknown) => (typeof x === "number" ? x : undefined);
@@ -120,12 +155,38 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
         default: n.default_option as string | undefined,
       };
 
-    case "object":
+    case "object": {
+      const properties = (Array.isArray(n.properties) ? n.properties : []) as PropertyEntry[];
+      const kinds = selectorKinds(n);
+      if (kinds !== null) {
+        const entry = (key: string) => properties.find((p) => p.key === key)?.value ?? {};
+        const options: { [kind: string]: (string | number)[] } = {};
+        for (const kind of kinds) {
+          const widget = widgetFor(entry(kind), defs);
+          options[kind] = widget.kind === "multiselect" || widget.kind === "select"
+            ? widget.options
+            : [];
+        }
+        return { kind: "selector", kinds, options, through: entry("through") };
+      }
       return {
         kind: "object",
         title: n.title as string | undefined,
-        properties: (Array.isArray(n.properties) ? n.properties : []) as PropertyEntry[],
+        properties,
       };
+    }
+
+    // `nodes: str | list[str]` — one value or several, over one vocabulary. A multiselect covers
+    // both, since a single selection is a one-element list.
+    case "one_or_many": {
+      const array = (n.array ?? {}) as IRNode;
+      const items = resolveRef((array.items ?? {}) as IRNode, defs);
+      return {
+        kind: "multiselect",
+        options: Array.isArray(items.enum) ? items.enum : [],
+        minItems: num(array.minItems),
+      };
+    }
 
     default:
       return { kind: "unknown" };

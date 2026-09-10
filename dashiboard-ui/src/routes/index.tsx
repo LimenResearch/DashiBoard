@@ -64,11 +64,13 @@ export default function Home() {
 
   const [result, setResult] = createSignal<RunResult | null>(null);
   const [running, setRunning] = createSignal(false);
-  const [unsupported, setUnsupported] = createSignal<string[]>([]);
+  // Recomputed from the document, so the Run button reflects the current state rather than the
+  // state at the last attempt.
+  const blocked = () => runRequest().blocked;
 
   async function run() {
-    const { request, unsupported: groups } = runRequest();
-    setUnsupported(groups);
+    const { request, blocked: why } = runRequest();
+    if (why !== null) return; // the button is disabled; belt and braces
     setRunning(true);
     try {
       const received = (await postRequest('evaluate-pipeline', request, null)) as RunResult | null;
@@ -158,17 +160,17 @@ export default function Home() {
       <section class="mb-8">
         <h2 class="text-xl font-semibold text-blue-800">4. Run it</h2>
         <Button
-          disabled={running() || document_store.state.nodes.length === 0}
+          disabled={running() || document_store.state.nodes.length === 0 || blocked() !== null}
           onClick={() => void run()}
         >
           {running() ? 'Running…' : 'Run pipeline'}
         </Button>
-        <Show when={unsupported().length > 0}>
-          <p class="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            This document defines groups ({unsupported().join(', ')}), which the DashiBoard
-            preview server cannot represent — it speaks the flat card API only. The groups are
-            kept in the document; they are simply not sent for this run.
-          </p>
+        <Show when={blocked()} keyed>
+          {(why: string) => (
+            <p class="mt-2 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {why}
+            </p>
+          )}
         </Show>
         <Show when={result()} keyed>
           {(run_result: RunResult) => (

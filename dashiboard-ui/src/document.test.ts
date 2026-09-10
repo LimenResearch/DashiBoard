@@ -99,12 +99,16 @@ describe('the run request', () => {
     // evaluate-pipeline takes {filters, cards} -- the flat shape, not the authored
     // {filters, nodes, groups}. Deriving a run request is fine; what section 2 forbids is
     // *saving* a reconstruction.
-    importConfig(structuredClone(STORED));
+    importConfig({
+      ...emptyConfig(),
+      filters: [{ type: 'interval', col: 'TEMP' }],
+      nodes: [{ id: 'r', card: { type: 'rescale', inputs: ['TEMP'] } }],
+    });
     const { request } = runRequest();
     // exactly these two keys: nothing UI-only is posted to the server
     expect(Object.keys(request).sort()).toEqual(['cards', 'filters']);
-    expect(request.cards).toEqual([STORED.nodes[0].card]);
-    expect(request.filters).toEqual(STORED.filters);
+    expect(request.cards).toEqual([{ type: 'rescale', inputs: ['TEMP'] }]);
+    expect(request.filters).toEqual([{ type: 'interval', col: 'TEMP' }]);
   });
 
   it('drops the node wrapper, which that endpoint has no field for', () => {
@@ -112,12 +116,25 @@ describe('the run request', () => {
     expect(runRequest().request.cards).toEqual([{ type: 'split' }]);
   });
 
-  it('reports groups it cannot send rather than dropping them silently', () => {
-    // The DashiBoard server is flat-only and must not be migrated to the group API, so a
-    // document using groups cannot be previewed there. Saying so beats a confusing failure.
+  it('does not block a flat document', () => {
+    addNode({ type: 'rescale', inputs: ['TEMP'] });
+    expect(runRequest().blocked).toBeNull();
+  });
+
+  it('blocks a document that defines groups', () => {
     importConfig(structuredClone(STORED));
-    expect(runRequest().unsupported).toEqual(['weather']);
-    importConfig({ ...emptyConfig(), nodes: [{ card: { type: 'split' } }] });
-    expect(runRequest().unsupported).toEqual([]);
+    expect(runRequest().blocked).toMatch(/group/i);
+  });
+
+  it('blocks a card using a plural selector even with no groups defined', () => {
+    // measured: the flat server answers 500 for inputs: [{cols: "TEMP"}]. Keying the warning on
+    // the `groups` key alone missed this case entirely.
+    importConfig({ ...emptyConfig(), nodes: [{ card: { type: 'rescale', inputs: [{ cols: 'TEMP' }] } }] });
+    expect(runRequest().blocked).toMatch(/selector/i);
+  });
+
+  it('blocks a card using a singular selector', () => {
+    importConfig({ ...emptyConfig(), nodes: [{ card: { type: 'split', partition: { nodes: 'p' } } }] });
+    expect(runRequest().blocked).toMatch(/selector/i);
   });
 });

@@ -91,30 +91,67 @@ export function setCardField(nodeIndex: number, key: string, value: unknown) {
   });
 }
 
+const SELECTOR_KEYS = ['nodes', 'groups', 'cols', 'through'];
+
+/** A selector is an object naming variables indirectly, e.g. `{cols: "TEMP"}`. */
+function isSelector(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).some((key) => SELECTOR_KEYS.includes(key))
+  );
+}
+
+/** Does any card field use the group dialect, rather than plain column names? */
+function usesSelectors(card: Card): boolean {
+  return Object.values(card).some((value) =>
+    Array.isArray(value) ? value.some(isSelector) : isSelector(value),
+  );
+}
+
 /**
- * The request `POST /evaluate-pipeline` accepts, derived from the document.
+ * The request `POST /evaluate-pipeline` accepts, derived from the document, plus whether the
+ * document can be previewed there at all.
  *
  * That endpoint takes `{filters, cards}` — the flat shape — while the document we author is the
  * ExperimentTracking `Config` `{filters, nodes, groups}`. Deriving a *run* request is fine; what
  * decisions section 2 forbids is *saving* a reconstruction.
  *
- * The DashiBoard server is flat-only and 06-design.md's "Do not do" says not to migrate it to the
- * group API — it is deleted once the new UI serves. So a document using groups cannot be previewed
- * against it, and `unsupported` names the groups rather than dropping them in silence.
+ * The DashiBoard server speaks the flat card API only, and 06-design.md's "Do not do" says not to
+ * migrate it to the group API — it is deleted once the new UI serves. Measured against a live
+ * server: a flat card returns 200, while `inputs: [{cols: "TEMP"}]` or `[{groups: "weather"}]`
+ * returns 500. So a group-dialect document cannot be previewed *at all* — not merely without its
+ * groups — and `blocked` says so rather than letting the request fail as a server error.
+ *
+ * Nothing this UI currently authors can hit that: `/get-card-ir` serves the flat dialect, so the
+ * forms produce plain column names. It becomes reachable as soon as importing a saved config does.
  */
 export function runRequest(): {
   /** Posted verbatim. Kept separate from the diagnostic so nothing UI-only reaches the server. */
   request: { filters: unknown[]; cards: Card[] };
-  /** Groups this endpoint cannot represent; empty when the document does not use any. */
-  unsupported: string[];
+  /** Why this document cannot be previewed here, or `null` if it can. */
+  blocked: string | null;
 } {
   const config = exportConfig();
+  const cards = config.nodes.map((node) => node.card);
+  const groups = Object.keys(config.groups ?? {});
+  const withSelectors = cards.filter(usesSelectors).map((card) => String(card.type));
+
+  const reasons: string[] = [];
+  if (groups.length > 0) {
+    reasons.push(`it defines groups (${groups.join(', ')})`);
+  }
+  if (withSelectors.length > 0) {
+    reasons.push(`these cards use variable selectors rather than column names: ${withSelectors.join(', ')}`);
+  }
+
   return {
-    request: {
-      filters: config.filters,
-      cards: config.nodes.map((node) => node.card),
-    },
-    unsupported: Object.keys(config.groups ?? {}),
+    request: { filters: config.filters, cards },
+    blocked:
+      reasons.length === 0
+        ? null
+        : `The preview server speaks the flat card API only, so this document cannot be run here — ${reasons.join('; and ')}. Nothing is lost: the document is unchanged.`,
   };
 }
 

@@ -1,5 +1,5 @@
-import { onSettled, createEffect, omit } from "solid-js";
-import Choices, { Options } from "choices.js";
+import { onSettled, createEffect } from "solid-js";
+import Choices from "choices.js";
 import "choices.js/public/assets/styles/choices.min.css";
 
 type ChoiceItem = {
@@ -81,5 +81,12 @@ export function Combobox(props: ComboboxProps) {
     },
   );
 
-  return <select ref={selectRef} multiple={props.multiple} id={props.id}  required={props.required} />;
+  return (
+    <select
+      ref={selectRef}
+      multiple={props.multiple}
+      id={props.id}
+      required={props.required}
+    />
+  );
 }

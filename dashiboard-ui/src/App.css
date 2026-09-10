@@ -202,6 +202,62 @@
   derivation — and `--radius` is transmitted, so the scale would have to move with it.
 */
 
+
+/*
+  choices.js, brought inside the system.
+  
+  It ships its own stylesheet, which is normally where a third-party control stops matching
+  everything around it. This one is already fully tokenised — every colour and measurement is a
+  `--choices-*` custom property with a hardcoded fallback — so it does not need replacing or
+  overriding rule by rule. Setting the variables is enough, and a `var()` fallback only applies
+  when the property is unset, so these win without a specificity fight.
+
+  Both halves matter. The colours make it stop looking like a different library; the measurements
+  make it stop looking like a different application. Its default control is 44px tall against our
+  28px, which at this density is the loudest thing on the page.
+
+  Every value here dereferences one of our tokens, so dark mode and any host payload are already
+  handled — there is no `.dark` variant of this block and there must not be one.
+*/
+:root {
+  /* colour */
+  --choices-bg-color: hsl(var(--background));
+  --choices-bg-color-dropdown: hsl(var(--popover));
+  --choices-bg-color-disabled: hsl(var(--muted));
+  --choices-disabled-color: hsl(var(--muted-foreground));
+  --choices-text-color: hsl(var(--foreground));
+  --choices-keyline-color: hsl(var(--border));
+  --choices-primary-color: hsl(var(--primary));
+  --choices-highlight-color: hsl(var(--primary));
+  --choices-highlighted-color: hsl(var(--accent));
+  --choices-item-color: hsl(var(--primary-foreground));
+  --choices-item-disabled-color: hsl(var(--muted-foreground));
+  --choices-invalid-color: hsl(var(--destructive));
+
+  /* `darken`/`lighten` are the two ends of its color-mix() shading. Pointing them at foreground
+     and background rather than at literal black and white makes them swap round in dark mode,
+     where darkening a border is the wrong direction. */
+  --choices-darken: hsl(var(--foreground));
+  --choices-lighten: hsl(var(--background));
+
+  /* density — the h-7 control, not the 44px one */
+  --choices-input-height: 1.75rem;
+  --choices-font-size-lg: 0.75rem;
+  --choices-font-size-md: 0.75rem;
+  --choices-font-size-sm: 0.625rem;
+  --choices-inner-padding: 0.125rem 0.375rem;
+  --choices-inner-one-padding: 0.125rem 0.375rem;
+  --choices-dropdown-item-padding: 0.25rem 0.5rem;
+  --choices-multiple-item-padding: 0.0625rem 0.375rem;
+  --choices-multiple-item-margin: 0.125rem;
+  --choices-input-margin-bottom: 0.125rem;
+  --choices-guttering: 0.5rem;
+
+  /* radius derives, like everything else, so a transmitted --radius reaches it too */
+  --choices-border-radius: calc(var(--radius) - 4px);
+  --choices-border-radius-item: calc(var(--radius) - 2px);
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));

@@ -2,15 +2,20 @@ function classList(danger: boolean, disabled: boolean) {
   const activePositive = !danger && !disabled;
   const activeNegative = danger && !disabled;
   return {
-    "text-xl": true,
+    // Density per 05-nexus-weaver-brief §3b: the host sizes buttons by *height* (`h-7`/`h-8`)
+    // with `text-xs` labels, not by padding around a large font. At `text-xl py-2 border-2` this
+    // button was roughly three times its host's — and §3b's point is that density, not colour,
+    // is what makes an embedded UI read as foreign.
+    "text-xs": true,
     "font-semibold": true,
     "rounded-sm": true,
     "text-left": true,
-    "py-2": true,
-    "px-4": true,
-    "mr-4": true,
-    "bg-opacity-75": true,
-    "border-2": true,
+    "inline-flex": true,
+    "items-center": true,
+    "h-7": true,
+    "px-2.5": true,
+    "mr-2": true,
+    "border": true,
     "border-transparent": true,
     "bg-accent": activePositive,
     "hover:bg-accent/70": activePositive,

@@ -162,7 +162,7 @@ export function Cards() {
   return (
     <div>
       <Show when={probeErrors().length > 0 || looseIssues().length > 0}>
-        <div class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        <div class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
           <For each={looseIssues()}>
             {(issue) => (
               <p>
@@ -182,8 +182,8 @@ export function Cards() {
       </Show>
 
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
-        <div class="flex items-center gap-3 p-4">
-          <label for="card-type" class="text-sm font-semibold text-primary">
+        <div class="flex items-center gap-2 p-3">
+          <label for="card-type" class="text-xs font-semibold text-primary">
             Card type
           </label>
           <select
@@ -209,8 +209,8 @@ export function Cards() {
 
       <For each={state.nodes}>
         {(node, index) => (
-          <div class="my-4 rounded-sm border border-border p-4">
-            <div class="mb-2 flex items-center justify-between gap-3">
+          <div class="my-4 rounded-sm border border-border p-3">
+            <div class="mb-2 flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="font-semibold text-primary">{String(node.card.type)}</span>
                 {/*

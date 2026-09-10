@@ -37,7 +37,7 @@ function optionByString(options: (string | number)[], raw: string): string | num
 
 function Label(props: { for?: string; text: string; required?: boolean }) {
   return (
-    <label for={props.for} class="block text-sm font-semibold text-primary">
+    <label for={props.for} class="block text-xs font-semibold text-primary">
       <Show when={props.required}>
         <span aria-hidden="true">* </span>
       </Show>
@@ -59,7 +59,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <fieldset class="border-l-2 border-border pl-3">
                 <Show when={w.title}>
-                  <legend class="text-sm text-muted-foreground">{w.title}</legend>
+                  <legend class="text-xs text-muted-foreground">{w.title}</legend>
                 </Show>
                 <For each={w.properties}>
                   {(entry) => (
@@ -190,7 +190,7 @@ export function IRField(props: IRFieldProps) {
           case "toggle":
             return (
               <div>
-                <label class="inline-flex items-center text-sm font-semibold text-primary">
+                <label class="inline-flex items-center text-xs font-semibold text-primary">
                   <input
                     type="checkbox"
                     checked={(props.value as boolean | undefined) ?? w.default ?? false}
@@ -261,7 +261,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <div>
                 <Label text={props.label} required={props.required} />
-                <p class="text-sm text-muted-foreground italic">
+                <p class="text-xs text-muted-foreground italic">
                   {props.label}: not described by the schema yet
                 </p>
               </div>

@@ -23,10 +23,10 @@ export function Loader() {
 
   return (
     <div>
-      <div class="p-4">
+      <div class="p-3">
         <FilePicker required multiple onChange={setFiles}></FilePicker>
       </div>
-      <div class="p-4">
+      <div class="p-3">
         <Button
           disabled={loading() || files() == null || files().length == 0}
           onClick={loadData}

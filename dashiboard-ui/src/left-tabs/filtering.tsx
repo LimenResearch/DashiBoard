@@ -38,7 +38,7 @@ export function Filters() {
 
   return (
     <div>
-      <div class="flex flex-row gap-4 pb-4">
+      <div class="flex flex-row gap-2 pb-4">
         <div class="basis-1/2">
           <For each={numerical()}>{IntervalFilter}</For>
         </div>

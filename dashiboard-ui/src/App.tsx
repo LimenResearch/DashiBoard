@@ -11,7 +11,7 @@ export default function App() {
       {(props) => (
         <>
           <Title>Solid App</Title>
-          <nav class="bg-primary p-4">
+          <nav class="bg-primary p-3">
             <a
               class="mx-0.5 inline-block rounded-lg px-3 py-1.5 font-semibold text-primary-foreground/80 no-underline transition-colors hover:bg-primary-foreground/10 hover:text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
               href={paths()}
@@ -19,7 +19,7 @@ export default function App() {
               Home
             </a>
           </nav>
-          <Loading fallback={<main class="px-4 py-12">Loading…</main>}>
+          <Loading fallback={<main class="px-4 py-6">Loading…</main>}>
             {props.children}
           </Loading>
         </>

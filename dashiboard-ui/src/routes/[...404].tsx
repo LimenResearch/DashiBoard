@@ -11,7 +11,7 @@ export const route = {
 
 export default function NotFound() {
   return (
-    <main class="px-4 py-12">
+    <main class="px-4 py-6">
       <Title>Not Found - Solid App</Title>
       <h1 class="my-4 text-4xl font-bold">Page Not Found</h1>
     </main>

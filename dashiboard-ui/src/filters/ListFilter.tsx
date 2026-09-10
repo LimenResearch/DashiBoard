@@ -34,7 +34,7 @@ export function ListFilter(props: ListFilterProps) {
 
   return (
     <Toggler name={props.name} modified={modified()} onReset={onReset}>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
         <For each={props.summary}>
           {(value) => {
             const onClick = (e: Event) => updateTarget(e, value);

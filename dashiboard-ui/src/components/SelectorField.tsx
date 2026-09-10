@@ -189,7 +189,7 @@ export function SelectorField(props: SelectorFieldProps) {
             : `Through ${sectionProps.chain.join(" → ")}`}
         </legend>
 
-        <div role="tablist" class="flex gap-1 border-b border-border">
+        <div role="tablist" class="flex gap-1.5 border-b border-border">
           <For each={kindsOf()}>
             {(kind) => {
               const count = () => chosen(sectionProps.chain, kind).length;
@@ -233,10 +233,10 @@ export function SelectorField(props: SelectorFieldProps) {
             when={optionsOf(open()).length > 0}
             fallback={<p class="text-xs italic text-muted-foreground">none defined</p>}
           >
-            <div class="grid gap-x-4 sm:grid-cols-2 md:grid-cols-3">
+            <div class="grid gap-x-3 sm:grid-cols-2 md:grid-cols-3">
               <For each={optionsOf(open())}>
                 {(option) => (
-                  <label class="flex items-center gap-1 py-0.5 text-xs">
+                  <label class="flex items-center gap-1.5 py-0.5 text-xs">
                     <input
                       type="checkbox"
                       value={String(option)}
@@ -261,16 +261,16 @@ export function SelectorField(props: SelectorFieldProps) {
 
   return (
     <div class="my-2">
-      <p class="text-sm font-semibold text-primary">{props.label}</p>
+      <p class="text-xs font-semibold text-primary">{props.label}</p>
 
       <Show when={chips().length > 0}>
-        <ul class="my-1 flex flex-wrap gap-1" aria-label={`${props.label} order`}>
+        <ul class="my-1 flex flex-wrap gap-1.5" aria-label={`${props.label} order`}>
           <For each={chips()}>
             {(chip, index) => (
               <li
                 data-chip={chipLabel(chip)}
                 draggable="true"
-                class="inline-flex items-center gap-1 rounded-sm border border-border bg-muted px-2 py-0.5 text-xs"
+                class="inline-flex items-center gap-1.5 rounded-sm border border-border bg-muted px-2 py-0.5 text-xs"
                 onDragStart={() => setDragging(index())}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
@@ -323,7 +323,7 @@ export function SelectorField(props: SelectorFieldProps) {
               <span class="ml-2 font-mono">{draft().join(" → ")}</span>
             </Show>
           </p>
-          <div class="flex flex-wrap gap-1">
+          <div class="flex flex-wrap gap-1.5">
             <For each={chainOptions()}>
               {(option) => (
                 <button

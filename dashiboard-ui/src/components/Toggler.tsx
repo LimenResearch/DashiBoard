@@ -3,7 +3,7 @@ import { createSignal, Show } from "solid-js";
 function buttonClassList(active: boolean) {
   return {
     "text-primary": true,
-    "text-xl": true,
+    "text-xs": true,
     "font-semibold": true,
     "border-b-2": !active,
     "border-border": true,
@@ -16,7 +16,7 @@ function buttonClassList(active: boolean) {
 function notificationClassList(modified: boolean) {
   return {
     "float-right": true,
-    "p-4": true,
+    "p-3": true,
     "inline-block": true,
     "hover:text-destructive/60": true,
     invisible: !modified,
@@ -38,7 +38,7 @@ export function Toggler(props: TogglerProps) {
   return (
     <div>
       <button class={buttonClassList(active())} onClick={onButtonClick}>
-        <span class="pl-4 py-4 inline-block">{props.name}</span>
+        <span class="pl-4 py-2 inline-block">{props.name}</span>
         <span
           ref={notification}
           class={notificationClassList(props.modified)}
@@ -48,7 +48,7 @@ export function Toggler(props: TogglerProps) {
         </span>
       </button>
       <Show when={active()}>
-        <div class="p-4 bg-card rounded-b-sm border-b-2">{props.children}</div>
+        <div class="p-3 bg-card rounded-b-sm border-b-2">{props.children}</div>
       </Show>
     </div>
   );

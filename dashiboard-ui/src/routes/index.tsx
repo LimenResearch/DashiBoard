@@ -34,7 +34,7 @@ export default function Home() {
   }
 
   return (
-    <main class="mx-auto max-w-5xl px-4 py-8">
+    <main class="mx-auto max-w-5xl px-4 py-2">
       <Title>DashiBoard</Title>
 
       {/*
@@ -46,7 +46,7 @@ export default function Home() {
         and Process fetches the card IR, so remounting on each switch would refetch and drop each
         picker's open tab. The stores survive either way — the local state is what would not.
       */}
-      <div role="tablist" data-tabs="sections" class="mb-4 flex gap-1 border-b border-border">
+      <div role="tablist" data-tabs="sections" class="mb-4 flex gap-1.5 border-b border-border">
         <For each={SECTIONS}>
           {(name) => (
             <button
@@ -57,7 +57,7 @@ export default function Home() {
                 setSection(name);
               }}
               class={[
-                "-mb-px rounded-t-sm border border-b-0 px-4 py-2 text-sm",
+                "-mb-px rounded-t-sm border border-b-0 px-4 py-2 text-xs",
                 {
                   "border-border bg-background font-semibold text-primary": section() === name,
                   "border-transparent text-muted-foreground hover:text-foreground": section() !== name,

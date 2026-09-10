@@ -35,13 +35,13 @@ export function GroupsEditor(props: { defs: Defs }) {
 
   return (
     <div>
-      <div class="flex items-center gap-3 p-4">
-        <span class="text-sm font-semibold text-primary">Groups</span>
+      <div class="flex items-center gap-2 p-3">
+        <span class="text-xs font-semibold text-primary">Groups</span>
         <Button onClick={() => void addGroup()}>Add group</Button>
       </div>
 
       <Show when={error()}>
-        <p class="mx-4 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
+        <p class="mx-4 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
           {error()}
         </p>
       </Show>
@@ -49,7 +49,7 @@ export function GroupsEditor(props: { defs: Defs }) {
       <Show
         when={Object.keys(state.groups).length > 0}
         fallback={
-          <p class="px-4 text-sm text-muted-foreground">
+          <p class="px-4 text-xs text-muted-foreground">
             No groups defined. A group names a set of columns once, so several cards can refer to
             it — and nothing can refer to one until it exists.
           </p>
@@ -57,10 +57,10 @@ export function GroupsEditor(props: { defs: Defs }) {
       >
         <For each={Object.keys(state.groups)}>
           {(name) => (
-            <div class="my-4 rounded-sm border border-border p-4">
-              <div class="mb-2 flex items-center justify-between gap-3">
+            <div class="my-4 rounded-sm border border-border p-3">
+              <div class="mb-2 flex items-center justify-between gap-2">
                 <input
-                  class="rounded-sm border border-border px-2 py-0.5 font-mono text-sm"
+                  class="rounded-sm border border-border px-2 py-0.5 font-mono text-xs"
                   aria-label="group name"
                   value={name}
                   // `change`, not `input`: renaming on every keystroke would rewrite the document

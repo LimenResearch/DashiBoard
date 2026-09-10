@@ -143,6 +143,31 @@
   --shadow-elevated: var(--shadow-elevated);
 }
 
+/*
+  The density convention.
+
+  There is no custom spacing scale here and there should not be one — the host runs stock Tailwind
+  (§3b), so a scale of our own would be a second source of truth for sizes. What the host has
+  instead is a convention, which §3b calls *unwritten*; this is it written down, because an
+  unwritten convention is one that drifts a component at a time.
+
+  It matters more than the palette. Tokens make the colours right; density is what makes an
+  embedded UI look like it belongs, and §3b's warning is blunt — an embedded UI at default sizing
+  "will read as noticeably larger than its host" with every token matched perfectly.
+
+    body text        text-xs
+    secondary        text-[10px]
+    badges           text-[9px] / text-[8px]
+    buttons          h-7 (h-8 for a primary action), text-xs label, px-2.5
+    icons            h-3 w-3
+    gaps             gap-1.5 / gap-2
+    card padding     p-2.5 / p-3
+
+  Adopted wholesale by owner decision rather than scaled at the frame boundary: §3b notes a frame
+  applying its own scale is harder than it sounds, since it interacts with the `--radius`
+  derivation — and `--radius` is transmitted, so the scale would have to move with it.
+*/
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));

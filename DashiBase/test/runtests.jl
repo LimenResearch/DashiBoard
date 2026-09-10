@@ -164,3 +164,15 @@ end
     # and it agrees with what json_schema emits for the same node
     @test DashiBase.json_schema(ArrayIR{Any}()) == Dict{String, Any}("type" => "array", "items" => Dict())
 end
+
+@testset "every IR node is self-describing" begin
+    # A renderer dispatches on `type`, and `choose_IR` deserialises on it. `OneOrManyIR` used to
+    # carry neither, so a one-or-many field -- the node the group dialect leans on hardest --
+    # arrived as {array, eltype} that nothing could identify.
+    one_or_many = OneOrManyIR{String}(items = StringIR(), eltype = "string")
+    @test one_or_many.type == "one_or_many"
+    @test JSON.parse(JSON.json(one_or_many; omit_null = true))["type"] == "one_or_many"
+
+    # and the schema projection is unchanged by that: it builds its own dict
+    @test DashiBase.json_schema(one_or_many)["type"] == ["string", "array"]
+end

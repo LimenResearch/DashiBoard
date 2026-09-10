@@ -29,23 +29,30 @@ function variable_item_IR()
     return ObjectIR(; properties, constraints = [Dict("oneOf" => oneOf)])
 end
 
-function schema_definitions(variable_config::VariableConfig)
-    node_schema = StringIR(enum = variable_config.nodes) |> json_schema
-    group_schema = StringIR(enum = variable_config.groups) |> json_schema
-    col_schema = StringIR(enum = variable_config.cols) |> json_schema
+"""
+    ir_definitions(variable_config::VariableConfig)
 
-    variable_schema = variable_item_IR() |> json_schema
-    variables_schema = ArrayIR{AbstractDict}(items = variable_item_IR()) |> json_schema
-    nonempty_variables_schema = ArrayIR{AbstractDict}(items = variable_item_IR(), minItems = 1) |> json_schema
+The group dialect's shared `\$defs` entries as IR nodes — what a renderer builds from.
+`schema_definitions` is this projected through `json_schema`, so the two cannot drift, exactly as
+for the flat dialect in `card_schema.jl`.
 
+Where the flat dialect's `variable` is a string enum of column names, here it is a *selector
+object*: `{nodes|groups|cols: str | list[str], through: list[str]}`, gated so exactly one of the
+three is present.
+"""
+function ir_definitions(variable_config::VariableConfig)
     return StringDict(
-        "node" => node_schema,
-        "group" => group_schema,
-        "col" => col_schema,
-        "variable" => variable_schema,
-        "variables" => variables_schema,
-        "nonempty_variables" => nonempty_variables_schema,
+        "node" => StringIR(enum = variable_config.nodes),
+        "group" => StringIR(enum = variable_config.groups),
+        "col" => StringIR(enum = variable_config.cols),
+        "variable" => variable_item_IR(),
+        "variables" => ArrayIR{AbstractDict}(items = variable_item_IR()),
+        "nonempty_variables" => ArrayIR{AbstractDict}(items = variable_item_IR(), minItems = 1),
     )
+end
+
+function schema_definitions(variable_config::VariableConfig)
+    return StringDict(k => json_schema(v) for (k, v) in pairs(ir_definitions(variable_config)))
 end
 
 group_schema() = json_schema(VARIABLES_DEF)

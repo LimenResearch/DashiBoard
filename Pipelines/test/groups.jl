@@ -189,3 +189,22 @@ end
         @test parse(Int, m.captures[1]) <= length(d["nodes"]) + length(d["groups"])
     end
 end
+
+@testset "group ir_definitions and schema_definitions agree" begin
+    vc = Pipelines.VariableConfig(nodes = ["log"], groups = ["weather"], cols = ["No", "TEMP"])
+    irs = Pipelines.ir_definitions(vc)
+    schemas = Pipelines.schema_definitions(vc)
+
+    @test sort(collect(keys(irs))) == sort(collect(keys(schemas)))
+    for (k, v) in pairs(irs)
+        @test Pipelines.json_schema(v) == schemas[k]
+    end
+
+    # the group dialect's `variable` is a selector object, not the flat dialect's string enum
+    @test irs["variable"].type == "object"
+    @test irs["col"].enum == ["No", "TEMP"]
+    @test irs["node"].enum == ["log"]
+    # and its one-or-many fields are now identifiable by a renderer
+    nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
+    @test nodes_entry.value.type == "one_or_many"
+end

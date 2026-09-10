@@ -99,9 +99,20 @@ mktempdir() do data_dir
         payload = JSON.parse(resp.body)
         @test sort(collect(keys(payload))) == ["cards", "defs"]
         @test length(payload["cards"]) == length(Pipelines.CARD_SPECS)
-        # definitions hoisted once to the envelope, not repeated per card
-        @test sort(collect(keys(payload["defs"]))) == ["nonempty_variables", "variable", "variables"]
-        @test payload["defs"]["variable"]["enum"] == ["No", "TEMP"]
+        # The group dialect: six definitions, hoisted once into the envelope rather than repeated
+        # per card. This route serves the same dialect evaluate-pipeline now runs.
+        @test sort(collect(keys(payload["defs"]))) ==
+            ["col", "group", "node", "nonempty_variables", "variable", "variables"]
+        @test payload["defs"]["col"]["enum"] == ["No", "TEMP"]
+        @test payload["defs"]["node"]["enum"] == ["percentile", "tiled"]
+        @test payload["defs"]["group"]["enum"] == ["wind"]
+        # `variable` is a selector object here, where the flat dialect had a string enum
+        @test payload["defs"]["variable"]["type"] == "object"
+        # and its one-or-many fields identify themselves, so a renderer can dispatch on them
+        nodes_entry = only(
+            p for p in payload["defs"]["variable"]["properties"] if p["key"] == "nodes"
+        )
+        @test nodes_entry["value"]["type"] == "one_or_many"
         # field entries are an ordered array, and the card label travels in the IR
         @test payload["cards"]["split"]["properties"] isa AbstractVector
         @test payload["cards"]["split"]["title"] isa AbstractString

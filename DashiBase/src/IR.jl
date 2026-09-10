@@ -151,11 +151,15 @@ function json_schema(to::TaggedObjectIR)
 end
 
 struct OneOrManyIR{T, IR <: AbstractIR} <: AbstractIR
+    # `type` is not decoration: a renderer dispatches on it and `choose_IR` deserialises on it.
+    # Without it this node arrived as a bare `{array, eltype}` that nothing could identify, while
+    # every other node in the vocabulary announced itself.
+    type::String
     array::ArrayIR{T, IR}
     eltype::String
     function OneOrManyIR{T, IR}(array::ArrayIR{T, IR}, eltype::AbstractString) where {T, IR <: AbstractIR}
         eltype == "array" && throw(ArgumentError("`eltype == \"array\"` is not supported"))
-        return new{T, IR}(array, eltype)
+        return new{T, IR}("one_or_many", array, eltype)
     end
 end
 

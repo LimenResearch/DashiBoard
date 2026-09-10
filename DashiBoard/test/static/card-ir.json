@@ -1,1 +1,1 @@
-{"variables": ["No", "TEMP"]}
+{ "cols": ["No", "TEMP"], "nodes": ["percentile", "tiled"], "groups": ["wind"] }

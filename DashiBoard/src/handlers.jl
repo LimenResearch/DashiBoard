@@ -21,13 +21,24 @@ end
     get_card_ir(req)
 
 Serve the renderer's artefact: the IR for every registered card, plus the shared `\$defs` once
-in the envelope rather than duplicated per card. The schema path (`get-card-widgets` today) is
-unchanged — these are the two artefacts of one traversal, §13.
+in the envelope rather than duplicated per card. These are the two artefacts of one traversal, §13.
+
+Serves the **group** dialect, matching what `evaluate-pipeline` now runs: a `variable` is a
+selector object over nodes, groups and cols rather than a bare column-name enum. The request
+carries all three vocabularies, because which nodes and groups are referenceable depends on the
+document being edited, not only on the source.
 """
 function get_card_ir(req::HTTP.Request)
     spec = json_read(req)
-    variables = collect(String, get(spec, "variables", String[]))
-    defs = Pipelines.ir_definitions(variables)
+    # `nothing` means *unconstrained* in a `VariableConfig` (A9), so an absent key leaves that
+    # definition without an enum rather than with an empty one — which would admit nothing.
+    maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
+    variable_config = Pipelines.VariableConfig(
+        nodes = maybe_strings("nodes"),
+        groups = maybe_strings("groups"),
+        cols = maybe_strings("cols"),
+    )
+    defs = Pipelines.ir_definitions(variable_config)
     cards = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
     return json_response((; defs, cards); omit_null = true)
 end

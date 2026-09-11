@@ -4,7 +4,13 @@ import { Store, For, reconcile } from "solid-js";
 import { IntervalFilter } from "../filters/IntervalFilter";
 import { ListFilter } from "../filters/ListFilter";
 import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
-import { FILTERS_STORE, FiltersStore, LOADER_STORE } from "../stores";
+import {
+  FILTERS_STORE,
+  FiltersStore,
+  LOADER_STORE,
+  type CategoricalSummary,
+  type NumericalSummary,
+} from "../stores";
 
 function nonNullEntries(obj: Object) {
   return _.entries(obj).filter(([k, v]) => v != null);
@@ -32,9 +38,12 @@ export function Filters() {
   const [state, setState] = FILTERS_STORE;
   const [metadata] = LOADER_STORE;
 
-  const numerical = () => metadata.filter((entry) => entry.type == "numerical");
+  // Narrowing predicates rather than a bare filter: each list feeds a component that accepts one
+  // summary shape, and without the guard `<For>` cannot check that it is handed the right one.
+  const numerical = () =>
+    metadata.filter((entry): entry is NumericalSummary => entry.type === "numerical");
   const categorical = () =>
-    metadata.filter((entry) => entry.type == "categorical");
+    metadata.filter((entry): entry is CategoricalSummary => entry.type === "categorical");
 
   return (
     <div>

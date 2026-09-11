@@ -1,7 +1,8 @@
-import { createSignal, reconcile } from "solid-js";
+import { createSignal, reconcile, Show } from "solid-js";
 
 import { Button } from "../components/Button";
 import { FilePicker } from "../components/FilePicker";
+import { TableView } from "../components/TableView";
 import { postRequest } from "../requests";
 import { LOADER_STORE, type LoaderStore } from "../stores";
 
@@ -34,6 +35,22 @@ export function Loader() {
           Load
         </Button>
       </div>
+
+      {/*
+        What was loaded, scrollable. The grid pages through `fetch-data` rather than holding the
+        table, so this stays usable on a source far larger than the browser — which is the point
+        of previewing it here rather than trusting the column list.
+
+        `processed={false}` reads the source; the pipeline's output is a different pane (C4).
+      */}
+      <Show when={state.length > 0}>
+        <div class="p-3">
+          <p class="mb-1.5 text-[10px] tracking-wider text-muted-foreground uppercase">
+            {state.length} columns
+          </p>
+          <TableView processed={false} metadata={state} class="h-80" />
+        </div>
+      </Show>
     </div>
   );
 }

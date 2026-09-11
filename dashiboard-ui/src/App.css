@@ -258,6 +258,88 @@
   --choices-border-radius-item: calc(var(--radius) - 2px);
 }
 
+
+/*
+  ag-grid Quartz, brought inside the system — the same move as choices.js above, and for the same
+  reason: it is variable-driven, so it does not need overriding rule by rule.
+
+  Its stylesheets had never been imported at all. `ag-theme-quartz` was on the element while
+  `@ag-grid-community/styles` was not installed, so the class named a theme that did not exist —
+  the third silent no-op of this shape, after `form-checkbox` and the hardcoded gradient next door.
+  A grid without `ag-grid.css` is not merely unthemed, it is structurally unstyled.
+
+  Density matters more here than anywhere else on the page, because a grid repeats its row height
+  once per row. Quartz ships 42px rows; ours are 28px, matching every other control.
+*/
+/*
+  The class is doubled deliberately. ag-grid sets these same properties on `.ag-theme-quartz` in
+  its own stylesheet, so at equal specificity the winner is whichever file the bundler happens to
+  emit second. It is ours today; that is chunk ordering, not a guarantee. Doubling the class costs
+  nothing and settles it.
+
+  choices.js above needs no such trick: it only ever *reads* its variables with `var(…, fallback)`
+  and never sets them, so a fallback yields the moment we define one.
+*/
+.ag-theme-quartz.ag-theme-quartz {
+  /* surface */
+  --ag-background-color: hsl(var(--background));
+  --ag-foreground-color: hsl(var(--foreground));
+  --ag-data-color: hsl(var(--foreground));
+  --ag-secondary-foreground-color: hsl(var(--muted-foreground));
+  --ag-disabled-foreground-color: hsl(var(--muted-foreground));
+  --ag-border-color: hsl(var(--border));
+  --ag-secondary-border-color: hsl(var(--border));
+  --ag-wrapper-border-radius: var(--radius);
+  --ag-border-radius: calc(var(--radius) - 4px);
+
+  /* header */
+  --ag-header-background-color: hsl(var(--muted));
+  --ag-header-foreground-color: hsl(var(--muted-foreground));
+  --ag-subheader-background-color: hsl(var(--muted));
+
+  /* rows */
+  --ag-odd-row-background-color: hsl(var(--background));
+  --ag-row-hover-color: hsl(var(--accent));
+  --ag-column-hover-color: hsl(var(--accent));
+  --ag-selected-row-background-color: hsl(var(--accent));
+  --ag-row-loading-skeleton-effect-color: hsl(var(--muted));
+
+  /* accents and state */
+  --ag-active-color: hsl(var(--primary));
+  --ag-checkbox-checked-color: hsl(var(--primary));
+  --ag-checkbox-unchecked-color: hsl(var(--muted-foreground));
+  --ag-checkbox-background-color: hsl(var(--background));
+  --ag-range-selection-background-color: hsl(var(--primary) / 0.1);
+  --ag-range-selection-border-color: hsl(var(--primary));
+  --ag-invalid-color: hsl(var(--destructive));
+  --ag-input-border-color: hsl(var(--border));
+  --ag-input-border-color-invalid: hsl(var(--destructive));
+  --ag-input-focus-border-color: hsl(var(--ring));
+
+  /* floating surfaces */
+  --ag-menu-background-color: hsl(var(--popover));
+  --ag-menu-border-color: hsl(var(--border));
+  --ag-panel-background-color: hsl(var(--popover));
+  --ag-panel-border-color: hsl(var(--border));
+  --ag-control-panel-background-color: hsl(var(--muted));
+  --ag-tooltip-background-color: hsl(var(--popover));
+  --ag-chip-background-color: hsl(var(--secondary));
+  --ag-chip-border-color: hsl(var(--border));
+  --ag-modal-overlay-background-color: hsl(var(--background) / 0.7);
+  --ag-card-shadow: var(--shadow-elevated);
+  --ag-popup-shadow: var(--shadow-elevated);
+
+  /* density — 28px rows, not Quartz's 42 */
+  --ag-font-family: inherit;
+  --ag-font-size: 0.75rem;
+  --ag-grid-size: 4px;
+  --ag-row-height: 1.75rem;
+  --ag-header-height: 1.75rem;
+  --ag-list-item-height: 1.5rem;
+  --ag-cell-horizontal-padding: 0.5rem;
+  --ag-icon-size: 0.75rem;
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));

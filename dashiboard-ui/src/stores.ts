@@ -16,8 +16,34 @@ export class Interval {
 
 export type List = Set<any>;
 
-// TODO: better summary type
-export type LoaderStore = {name: string, summary: any, type: string}[];
+// One entry per column of the loaded source, as `load-files` returns it.
+//
+// `type` is the filter family and `summary` depends on it — DataIngestion aggregates a numerical
+// column to `(min, max)` and a categorical one to its distinct values. Modelling that as a union
+// rather than as `any` is what lets a filter component say which shape it accepts; it is also how
+// `<For each={numerical()}>{IntervalFilter}</For>` gets checked at all.
+//
+// `eltype` is the storage type, a separate and wider vocabulary — bool, date, datetime, float,
+// int, string, time — and it is what decides formatting rather than filtering.
+
+export type NumericalSummary = {
+  name: string;
+  type: "numerical";
+  eltype: string;
+  /** `step` is not sent; it stays optional for callers that know a column's grid. */
+  summary: { min: number; max: number; step?: number };
+};
+
+export type CategoricalSummary = {
+  name: string;
+  type: "categorical";
+  eltype: string;
+  summary: unknown[];
+};
+
+export type VariableSummary = NumericalSummary | CategoricalSummary;
+
+export type LoaderStore = VariableSummary[];
 
 export const LOADER_STORE = createStore<LoaderStore>([] as LoaderStore);
 

@@ -14,6 +14,9 @@ importers:
       '@ag-grid-community/infinite-row-model':
         specifier: ^32.3.9
         version: 32.3.9
+      '@ag-grid-community/styles':
+        specifier: 32.3.9
+        version: 32.3.9
       '@solidjs/meta':
         specifier: ^1.0.0-next.2
         version: 1.0.0-next.2(@solidjs/web@2.0.0-rc.6(solid-js@2.0.0-rc.6))(solid-js@2.0.0-rc.6)
@@ -92,6 +95,9 @@ packages:
 
   '@ag-grid-community/infinite-row-model@32.3.9':
     resolution: {integrity: sha512-jk/NCRTFeLUrqf9/meBnHufEjWGrq2EN+4NV6iwTs4o79hCbGhhldSh7h0hXzYpmTBqUyGsMHIb/Y77LmTU6Mg==}
+
+  '@ag-grid-community/styles@32.3.9':
+    resolution: {integrity: sha512-uPNR5EXeQqAIC0gohmY7CJ97cTIA/JtNSqAUzJ8AdVZcz4dbk9JJIl9DRFUYL+qWhMY+fUSTw2a+Yi6aOGSs8A==}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -2025,6 +2031,8 @@ snapshots:
     dependencies:
       '@ag-grid-community/core': 32.3.9
       tslib: 2.8.1
+
+  '@ag-grid-community/styles@32.3.9': {}
 
   '@ampproject/remapping@2.3.0':
     dependencies:

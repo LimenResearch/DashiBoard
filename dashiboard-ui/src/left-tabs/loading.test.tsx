@@ -18,12 +18,12 @@ vi.mock('../components/FilePicker', () => ({
 }));
 
 import { Loader } from './loading';
-import { LOADER_STORE } from '../stores';
+import { LOADER_STORE, type LoaderStore } from '../stores';
 
-const SUMMARIES = [
-  { name: 'No', type: 'numerical', summary: { min: 1, max: 60 } },
-  { name: 'TEMP', type: 'numerical', summary: { min: -10, max: 29 } },
-  { name: 'cbwd', type: 'categorical', summary: ['NW', 'SE'] },
+const SUMMARIES: LoaderStore = [
+  { name: 'No', type: 'numerical', eltype: 'int', summary: { min: 1, max: 60 } },
+  { name: 'TEMP', type: 'numerical', eltype: 'float', summary: { min: -10, max: 29 } },
+  { name: 'cbwd', type: 'categorical', eltype: 'string', summary: ['NW', 'SE'] },
 ];
 
 beforeEach(() => {
@@ -48,5 +48,21 @@ describe('Loader', () => {
 
     const [state] = LOADER_STORE;
     await waitFor(() => expect(state.map((entry) => entry.name)).toEqual(['No', 'TEMP', 'cbwd']));
+  });
+
+  it('shows nothing to scroll until something is loaded', () => {
+    postRequest.mockImplementation(() => Promise.resolve([]));
+    const { container } = render(() => <Loader />);
+    expect(container.querySelector('.ag-theme-quartz')).toBeNull();
+  });
+
+  it('previews the loaded source, so the column list is not the only evidence', async () => {
+    postRequest.mockImplementation(() => Promise.resolve([]));
+    const [, setState] = LOADER_STORE;
+    setState(() => SUMMARIES);
+
+    const { container } = render(() => <Loader />);
+    await waitFor(() => expect(container.querySelector('.ag-theme-quartz')).not.toBeNull());
+    expect(container.textContent).toContain('3 columns');
   });
 });

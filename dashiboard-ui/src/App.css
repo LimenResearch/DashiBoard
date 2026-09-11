@@ -340,6 +340,50 @@
   --ag-icon-size: 0.75rem;
 }
 
+
+/*
+  The pipeline graph.
+
+  Graphviz bakes colours into the SVG as presentation attributes, which CSS outranks — so the
+  graph can follow the tokens even though it is generated server-side, where the theme is not
+  knowable. It cannot be fixed in the DOT: the mode is per-viewer and can change at runtime by
+  postMessage, long after the DOT was produced.
+
+  Left alone deliberately: `font-family` and `font-size`. Graphviz computes every coordinate in
+  the SVG from the font it laid out with, so restyling the type does not restyle the drawing —
+  it moves the text out of the boxes. Times,serif is foreign to us and stays.
+
+  What this fixes is the §3c failure next door, arriving by a different route: `<text>` carries no
+  fill at all, so it inherits SVG's black default — legible on a light ground and invisible on a
+  dark one, with nothing to warn you.
+*/
+.dashi-graph text {
+  fill: hsl(var(--foreground));
+}
+
+/* Node outlines and group ellipses. */
+.dashi-graph polygon[stroke="black"],
+.dashi-graph ellipse[stroke="black"] {
+  stroke: hsl(var(--border));
+}
+
+/* A filled node means "this one would be recomputed" — the one piece of state the graph carries,
+   so the distinction from a transparent node has to survive the retint in both modes. */
+.dashi-graph polygon[fill="white"],
+.dashi-graph ellipse[fill="white"] {
+  fill: hsl(var(--card));
+}
+
+/* Edges, and the arrowheads that terminate them — one colour, or the head detaches from its line. */
+.dashi-graph path[stroke="black"] {
+  stroke: hsl(var(--muted-foreground));
+}
+
+.dashi-graph polygon[fill="black"] {
+  fill: hsl(var(--muted-foreground));
+  stroke: hsl(var(--muted-foreground));
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));

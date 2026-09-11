@@ -29,5 +29,8 @@ export function Graph(props: GraphProps) {
     },
   );
 
-  return <div ref={host} class="overflow-x-auto" />;
+  // `dashi-graph` is the hook App.css retints through: Graphviz writes its colours as SVG
+  // presentation attributes, which CSS outranks, so a server-generated drawing can still follow
+  // the viewer's theme.
+  return <div ref={host} class="dashi-graph overflow-x-auto" />;
 }

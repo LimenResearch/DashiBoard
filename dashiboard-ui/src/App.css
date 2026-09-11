@@ -162,44 +162,44 @@
 /*
   The density convention.
 
-  There is no custom spacing scale here and there should not be one — the host runs stock Tailwind
-  (§3b), so a scale of our own would be a second source of truth for sizes. What the host has
-  instead is a convention, which §3b calls *unwritten*.
+  No custom spacing scale, and there should not be one — the host runs stock Tailwind, so a scale
+  of our own would be a second source of truth for sizes.
 
-  It matters more than the palette: tokens make the colours right, density is what makes an
-  embedded UI look like it belongs. §3b's warning is blunt — an embedded UI at default sizing
-  "will read as noticeably larger than its host" with every token matched perfectly.
+  **Corrected 2026-09-11.** The first census we were given was measured with a single-line grep
+  that missed 64 of 91 multi-line `<Input>` tags. The re-measured figures say close to the
+  opposite, and the earlier version of this block asserted a convention that described about a
+  third of the host's inputs:
 
-  Counts below are real usage across the host's `src/pages` and `src/components` on `main`,
-  supplied by that session 2026-09-10. **They are evidence of practice, not a ratified standard** —
-  nobody upstream has ever written this down, and this block may be its first specification. Treat
-  a count as a reason, not as a rule.
+    Button         n=186   h-9 x80, h-7 x33, h-10 x22, h-6 x20, h-8 x15, h-5 x11, h-4 x5
+    Input          n=91    h-10 x54 (shadcn default), h-8 x21, h-7 x11, h-6 x4, h-9 x1
+    SelectTrigger  n=33    h-10 x18 (shadcn default), h-8 x7, h-9 x4, h-7 x4
 
-    form controls    h-7 (65) / h-8 (63), against stock shadcn's h-10 (16) and h-9 (14).
-                     THE BIGGEST TELL. Not just buttons — inputs and selects take the same
-                     height. Ship stock h-10 inputs and the frame reads foreign however well
-                     the colours match.
-    body text        text-xs (343)
-    inline detail    text-[11px] (199) — the workhorse, and the one §3b's list omitted
-    secondary        text-[10px] (216)
-    also common      text-sm (196)
-    badges           text-[9px] (73) / text-[8px] (17)
-    icons            h-3 w-3 (123) / h-3.5 w-3.5 (96) / h-4 w-4 (63);
-                     h-2.5 w-2.5 (35) is the inline-with-text-[9px] size
-    gaps             gap-1.5 / gap-2
-    card padding     p-2.5 / p-3
-    table cells      px-2 py-1.5 (21) / px-3 py-2 (15). NOT px-1 py-0 — that is badge
-                     padding (44 sites) and does not belong in a table.
-    headings         there is no heading scale. Section headers are text-sm/text-xs with
-                     font-medium/font-semibold; the recurring section-label idiom is
-                     `text-[10px] uppercase tracking-wider text-muted-foreground`.
-                     Building a real heading scale would make us look *less* like the host,
-                     not more — and shadcn's own CardTitle (text-2xl) is overridden
-                     essentially everywhere upstream.
+  So the host's *modal* control is shadcn's own h-10, and compact is a minority override. It is
+  also not drift: of 31 files, 14 are entirely compact and 13 entirely default, split by feature
+  area rather than by surface kind — their densest screen and their roomiest are both dialogs.
 
-  Adopted wholesale by owner decision rather than scaled at the frame boundary: §3b notes a frame
-  applying its own scale is harder than it sounds, since it interacts with the `--radius`
-  derivation — and `--radius` is transmitted, so the scale would have to move with it.
+  **We stay compact, for a reason that survives the correction.** The only DashiBoard relationship
+  that repository models is `RichNode.dashiboardPipelineId` — a node in the graph — and graph
+  authoring is on the compact side of their split. So this matches the surface we would actually
+  be embedded beside, which is a checkable claim, rather than "the host's convention", which was
+  not one. If the embed ever lands next to their roomy surfaces instead, this is the block to
+  revisit.
+
+    form controls  h-7, text-xs. Height, not vertical padding: sizing a control by padding around
+                   a large font is what made our Button three times its host's.
+    body text      text-xs
+    headings       none. Section headers are text-xs/text-sm with font-medium/font-semibold;
+                   text-base and above is headings only, upstream and here. Building a real
+                   heading scale would make us look less like the host, not more.
+    gaps           gap-1.5 / gap-2
+    card padding   p-2.5 / p-3
+    table cells    px-2 py-1.5. NOT px-1 py-0 — that is badge padding.
+    icons          h-3 w-3
+
+  The type scale is the half of the original census that held up: text-xs x352, text-sm x201,
+  text-base x13, text-lg x9, text-xl x7. The bracket sizes the first census reported
+  (text-[11px], text-[10px], text-[9px]) are absent from the corrected one, so our few uses of
+  them are ours and should not be described as inherited.
 */
 
 

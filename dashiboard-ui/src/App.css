@@ -84,10 +84,29 @@
     These are geometry, so `:root` only and never `.dark` — they are named in the palette-parity
     test's exception list for that reason.
 
-    The mechanism is inheritance rather than a message: a custom property inherits, so a subtree
-    that redeclares a step resizes every control inside it without a single call site naming a
-    size. That is also why density needs no postMessage channel of its own — a host that sets our
-    palette on a wrapper sets density in the same place.
+    Two mechanisms, and they do not cover the same ground.
+
+    **Same-document, inheritance does the work.** A custom property inherits, so a subtree that
+    redeclares a step resizes every control inside it with no call site naming a size — a dense
+    panel beside a roomy canvas, in one document, costs three declarations.
+
+    **Across a frame it does nothing.** Custom properties do not inherit through an iframe; that
+    is the first line of C5 and has been since 2026-09-09. An earlier version of this comment said
+    a host could set density on a wrapper the way it sets a palette. That is false, and it was
+    false in a way our own design doc already recorded — corrected 2026-09-12 after
+    nexus-weaver-pro withdrew the claim and dashiboard-d6 caught it.
+
+    So embedded, density rides the same payload as the palette: no *second* channel to design,
+    which is the true and useful half, but not "no protocol". Nothing is built on either side yet
+    — no postMessage, no URL theming, no token enumeration — so there is nothing to receive and a
+    receiver here would sit idle. Standalone working on its own is what makes that a schedule
+    fact rather than a problem.
+
+    **When the sender is written, enumerate the token set rather than listing properties.**
+    Density was missing from the adaptation contract in the first place because colour was
+    enumerated by hand and nothing else was conceived of as varying. A hand-written list
+    reproduces that the next time a category appears, and a payload missing a token looks exactly
+    like a complete one.
   */
   --control-height-default: 2.5rem;
   --control-height-sm: 2rem;

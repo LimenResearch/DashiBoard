@@ -148,3 +148,20 @@ describe('the control scale', () => {
     expect(sizeOnly).toEqual([]);
   });
 });
+
+describe('the type scale', () => {
+  it('never spells a text size as an arbitrary value', () => {
+    // A size below Tailwind's scale can only be written as `text-[10px]`, and arbitrary values
+    // collide with nothing — so nothing ever forces a choice between 9px and 10px and they
+    // accumulate. nexus-weaver reached 475 uses in five sizes across 65 files before anyone
+    // measured, and only then because the regex that had hidden them was fixed.
+    //
+    // Note the pattern: `\b` cannot match between `-` and `[`, so `\btext-\[9px\]\b` finds
+    // nothing. Theirs failed exactly that way and read as a clean result.
+    const offenders = sourceFiles('src')
+      .map((file) => [file, read(file)] as const)
+      .filter(([, body]) => /text-\[[^\]]+\]/.test(body))
+      .map(([file]) => file);
+    expect(offenders).toEqual([]);
+  });
+});

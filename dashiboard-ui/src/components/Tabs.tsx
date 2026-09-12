@@ -54,7 +54,7 @@ export function Tabs<T extends string>(props: TabsProps<T>) {
             >
               {item}
               <Show when={count() > 0}>
-                <span class="ml-1 rounded-full bg-accent px-1.5 text-[9px] text-accent-foreground">
+                <span class="ml-1 rounded-full bg-accent px-1.5 text-detail text-accent-foreground">
                   {count()}
                 </span>
               </Show>

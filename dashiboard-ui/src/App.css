@@ -291,10 +291,25 @@
     table cells    px-2 py-1.5. NOT px-1 py-0 — that is badge padding.
     icons          h-3 w-3
 
-  The type scale is the half of the original census that held up: text-xs x352, text-sm x201,
-  text-base x13, text-lg x9, text-xl x7. The bracket sizes the first census reported
-  (text-[11px], text-[10px], text-[9px]) are absent from the corrected one, so our few uses of
-  them are ours and should not be described as inherited.
+  **The type scale was retracted too, 2026-09-12.** It had been offered as the half that held up.
+  Re-measured, 475 of 921 sized-text tokens there — 51% — are arbitrary values below `text-xs`, in
+  five distinct sizes across 65 files. Their type scale is the *least* consolidated thing in their
+  system, not the settled part. Nothing of it is synced here.
+
+  Worth recording how that was missed, because we repeated it. Their pattern was
+  `\btext-(\[[0-9]+px\]|xs|sm)\b`, and `\b` cannot match between `-` and `[`, so the alternative
+  naming the arbitrary form matched nothing and returned a clean-looking result. We then reasoned
+  from that absence: this comment used to say the bracket sizes were "absent from the corrected
+  census, so our few uses of them are ours". Backwards. They were absent because the measurement
+  could not see them, and they are half of that codebase's text. An absence is only evidence when
+  the method that produced it has been shown able to find the thing.
+
+  **Our scale is two sizes, and that is the decision.** `--control-text-*` for anything in a
+  control, `--text-detail` for a label beside one. A value below Tailwind's scale can only be
+  spelled as an arbitrary value, and arbitrary values collide with nothing — so nothing ever
+  forces a choice between 9px and 10px, and they accumulate silently. We had one (`text-[9px]` on
+  a tab badge) and folded it into `--text-detail` rather than making it a third. The invariant in
+  `designSystem.test.ts` is what keeps that from being a one-off tidy.
 */
 
 

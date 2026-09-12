@@ -8,21 +8,24 @@ Reconnaissance was read-only: nothing in this repository was modified. Every cla
 cites `nexus-weaver-pro:path:LINE`. Anything not read directly from source is prefixed
 `INFERRED:`.
 
-> ## ⚠ Line numbers are against `7c578e6` (2026-08-28). The branch has since moved.
+> ## ⚠ Line numbers are against `7c578e6` (2026-08-28). The branch has since moved twice.
 >
-> `ds-DashiUI` was reset to `origin/main` on 2026-09-09 and now sits at `347f7f0` — 52 commits
-> on, including the Live Test work (#10–#14). **Every citation below was correct when written
-> and several no longer resolve at HEAD.** Two sessions have now read this as a reference, and
-> one landed in the wrong block, so the drift is measured rather than left to be rediscovered:
+> `ds-DashiUI` went `7c578e6` → `347f7f0` (reset to main, 2026-09-09) → **`1717b77`** (PR #15,
+> the colour-theme work in 3c). **Every citation below was correct when written and several no
+> longer resolve at HEAD.** Three sessions have read this as a reference and one landed in the
+> wrong block, so the drift is measured rather than left to be rediscovered. Against `1717b77`:
 >
-> | Cited file | at `7c578e6` | at `347f7f0` | |
+> | Cited file | at `7c578e6` | at `1717b77` | |
 > |---|---|---|---|
 > | `NodeEditorDialog.tsx` | 615 | 962 | **+347** — substantially rewritten |
 > | `api.ts` | 2889 | 3152 | **+263** — e.g. `servicesApi` 978 → **1035** |
 > | `artifactFacts.ts` | 430 | 366 | **−64** — one export removed |
+> | `index.css` | 123 | 163 | **+40** — the whole of 3c |
 > | `ChatWidget.tsx` | 712 | 730 | +18 |
 > | `GraphBuilderPage.tsx` | 1635 | 1652 | +17 — e.g. `"pipe-1"` 436 → **453** |
-> | `DashiboardPage.tsx`, `ConnectionPanel.tsx`, `artifacts.ts`, `AppLayout.tsx`, `index.css`, `tailwind.config.ts`, `GraphMinimap.tsx`, `toolRegistry.ts`, `RegisterArtifactDialog.tsx` | | | unchanged |
+> | `GraphMinimap.tsx` | 142 | 156 | +14 |
+> | `AppSidebar.tsx` | 121 | 135 | +14 |
+> | `DashiboardPage.tsx`, `ConnectionPanel.tsx`, `artifacts.ts`, `AppLayout.tsx`, `tailwind.config.ts`, `toolRegistry.ts`, `RegisterArtifactDialog.tsx` | | | unchanged |
 >
 > **Reading at HEAD: locate by symbol, not by line.** The claims are anchored to named
 > functions and constants, which is what makes them re-findable — `grep -n "servicesApi"`,
@@ -497,6 +500,28 @@ Parent (nexus-weaver-pro)                    Frame (DashiBoard, served by Experi
                                              │ or { type: "host:save-failed", detail }
 ```
 
+> **[amended 2026-09-09] How the host collects `tokens` is part of the contract, because
+> some tokens are now defined by reference.** Since PR #15, `--ring: var(--primary)` and
+> `--sidebar-ring: var(--sidebar-primary)` (`index.css:47`, `:58`) are indirections rather than
+> literal `H S% L%` triplets. Two consequences the frame cannot recover from:
+>
+> - **Collect with `getComputedStyle`, never by parsing stylesheet text.** A custom property's
+>   *computed* value is its specified value with `var()` substituted, so
+>   `getComputedStyle(document.documentElement).getPropertyValue('--ring').trim()` yields
+>   `174 62% 32%`. Reading the CSSOM rule text, or fetching and regexing `index.css`, yields the
+>   literal string `var(--primary)` — which is meaningless inside the frame, where `--primary`
+>   is either undefined or defined differently. This is invisible in testing against any token
+>   that happens to be a literal, and breaks only on the derived ones.
+> - **`host:theme` must carry the full token set, never a delta.** Deriving tokens means one
+>   token's change silently changes another's computed value: editing `--primary` moves `--ring`
+>   and both `--gradient-primary` stops without any of them appearing "changed". A host that
+>   diffs and sends only what it thinks moved will desynchronise the frame. Send all of 3b's
+>   list every time; it is a few hundred bytes.
+>
+> The trade is worth it — 3c explains why single-sourcing the brand was the right call — but it
+> converts token collection from an obvious operation into one with a correct and an incorrect
+> implementation that look identical until a derived token is read.
+
 Rules I would fix now, because they are cheap now and expensive later:
 
 - **Both sides check `event.origin`** against the resolved service URL's origin, and the
@@ -567,7 +592,9 @@ code directly, which is strictly worse. It is an argument for doing the iframe p
 ### 3a. The one convention that matters most
 
 Tokens are stored as **bare HSL triplets**, not colours:
-`--primary: 174 62% 38%` ([index.css:19](src/index.css#L19)). They are only usable through
+`--primary: 174 62% 38%` ([index.css:19](src/index.css#L19)) — since PR #15,
+`174 62% 32%`, and two tokens are now `var()` references rather than triplets (see the
+collection rule in 2d). They are only usable through
 `hsl(var(--token))` — Tailwind does the wrapping
 ([tailwind.config.ts:26-29](tailwind.config.ts#L26-L29)). **An embedded UI that writes
 `color: var(--primary)` gets an invalid value and renders unstyled.** Every consumer must
@@ -728,6 +755,69 @@ unreachable:
   which are text at `fontSize={7}`; 3:1 for edges as non-text graphics under WCAG SC 1.4.11):
   the labels fail in light and pass in dark, and **every edge case fails once `opacity={0.5}`
   is composited — all four cells, both modes.**
+
+  **[2026-09-10] A third defect was live underneath both, and neither this analysis nor the
+  colour sweep could have found it — because both audited colour *values* and neither audited
+  whether they were reachable.**
+
+  At `1717b77`, `dotColors` was `Record<string, string>` keyed `tool` / `agent` / `decision` /
+  `router` / `output`, while `MinimapNode["type"]` is `processor | agent | router`. So
+  **`processor` matched no key**, `fill` resolved to `undefined`, and SVG fell back to its
+  default: **black**. That is 12 of 22 nodes in the graph builder and everything except `model`
+  from `DashiboardPage` — legible enough on the light card to look deliberate, invisible on the
+  dark one. Meanwhile `tool`, `decision` and `output` were dead keys for types that do not
+  exist. Fixed at `2b6cef5`.
+
+  **`Record<string, string>` is the root cause**, and the generalisable lesson: an index type
+  that accepts any string key lets a lookup table drift from the union it serves, in both
+  directions at once, with no compiler complaint. The fix keys it on the union itself
+  (`Record<MinimapNode["type"], string>`), so a missing variant is a build error rather than a
+  black dot.
+
+  **Swept the rest of the codebase for the same shape. No further live bugs, but the failure
+  modes differ instructively:**
+
+  | Map | Typed | Complete | If a variant were added |
+  |---|---|---|---|
+  | `GraphMinimap.dotColors` | now `Record<MinimapNode["type"],…>` | — | **build error** (fixed `2b6cef5`) |
+  | `GraphBuilderPage.tsx:436` `typeColors` | `Record<string,…>` | ✓ 3/3 | **throws** — `typeColors[node.type]` is dereferenced unguarded at `:1203` |
+  | `DashiboardPage.tsx:89` `typeColors` | `Record<string,…>` | ✓ 7/7 | **falls back** — `?? typeColors.source` at `:552` |
+  | `DeleteArtifactDialog.tsx:18` `ORIGIN_LABEL` | `Record<string,…>` | ✓ 3/3 | **falls back** — presence-tested at `:153` |
+  | `servicePing.ts:17,24` `PING_LABEL`/`PING_DOT` | **`Record<PingStatus,…>`** | ✓ | **build error** — the correct pattern |
+
+  Two things worth drawing out. First, **the codebase already contains the right shape** —
+  `servicePing.ts` keys on the union, so this is a consistency fix with an in-tree exemplar
+  rather than a new convention to introduce. Second, and more uncomfortable: **the two guarded
+  maps are the throwaway mock page and a dialog, while the one that shipped unguarded was the
+  live rendering component.** The defensive coding landed where it mattered least. A missing key
+  that throws (`GraphBuilderPage`) is a nuisance; one that falls back is fine; one that silently
+  paints black is the only variant that reaches a user looking correct, and that is the one that
+  was live.
+
+  The remaining three are latent, not broken — none needs urgent work. But they are all one
+  added union member away from the same class of defect, and `Record<UnionType, …>` costs
+  nothing to adopt.
+
+  **Three lessons for anyone auditing a palette, all learned the expensive way here:**
+
+  1. **Measuring a palette says nothing about what renders.** The colour sweep tokenised these
+     values from hex to `hsl(var(--primary))` — correctly — while `processor` never read any of
+     them. My contrast analysis above computed WCAG figures for the labels and edges and never
+     asked whether the *dot* colours were reachable at all. A colour that never renders passes
+     every contrast gate ever devised.
+  2. **Contrast-against-background and distinguishability-from-each-other are different
+     questions**, and it is easy to collapse them into one. Every dot can clear 4.5:1 against the
+     card and still be indistinguishable from its neighbour.
+  3. **CIE76 is unreliable in exactly the blue-teal region.** A first fix put `processor` on
+     `--primary`; teal against `--info`'s blue is 26° of hue, which CIE76 scores as comfortably
+     distinct and which the project owner called indistinguishable on sight. CIEDE2000 corrects
+     for this; better still, **separate by lightness**, which is the one axis that survives every
+     colour-vision deficiency and greyscale printing. The shipped fix puts `processor` on
+     `--foreground` — near-black in light, near-white in dark — for that reason.
+
+  Both defects were found by the owner **looking at the running app**, after two sessions had
+  measured the palette exhaustively. That is the finding, and it outranks any individual number
+  in this section.
 
   So there are two independent defects that partially cancelled. The palette reads as authored
   for a dark ground the app never had (grey-400 labels, amber edges), *and* a 0.5 opacity was
@@ -1526,6 +1616,249 @@ requires that call, and the frame is the only side that can make it. The **paren
    ([api.ts:548-559](src/lib/api.ts#L548-L559)) — verbatim, per house rule
    ([RegisterArtifactDialog.tsx:136-138](src/components/RegisterArtifactDialog.tsx#L136-L138)).
 
+> ### ⛔ [corrected 2026-09-09 by the project owner] The handshake below passes a document.
+> ### It should pass a **path**, and DashiBoard should know nothing about artifacts.
+>
+> The owner's model, which supersedes 8g as written:
+>
+> > *"Dashi would be able to design its pipeline and write a corresponding toml file to a path
+> > given to it. In some cases instead of starting from scratch it could be handed over a
+> > configuration toml path. Itself has no need to know anything about artifacts. The frontend
+> > is the access point for the user, agentgraph is the one that passes and receives paths and
+> > can use it to register a new version under the same alias."*
+>
+> **This is better than what I proposed, in three specific ways.**
+>
+> 1. **The config bytes never need to enter the browser.** ExperimentTracking's server writes
+>    the TOML; AgentGraph's API process reads it. The browser is the user's control surface, not
+>    a courier. My version marshalled the whole document through `postMessage`, built a `File`
+>    in memory, and re-uploaded it — three serialisation steps that exist only because I put the
+>    browser in the data path.
+> 2. **It dissolves the gap I reported rather than filling it.** I flagged "no HTTP route writes
+>    `content_metadata`" and recommended AgentGraph add one. Under this model no route is needed:
+>    AgentGraph performs the registration, and `dashiboard_validate` — which already computes
+>    `required_columns` — is an AgentGraph tool in the worker process. **The annotation is already
+>    in the right place.** My recommendation was solving a problem I had created.
+> 3. **It keeps DashiBoard at its layer.** §9 makes DashiBoard the base, usable standalone. A
+>    path is a filesystem concept it already has — it reads and writes TOML. An artifact is a
+>    registry concept two layers up. My handshake made the base layer emit documents shaped for
+>    a host registry, coupling it upward for no gain.
+>
+> It is also the mechanism the stack already uses: parquet artifacts move between AgentGraph and
+> ExperimentTracking as paths (`02-stack.md`), and `registerPath`
+> ([api.ts:971-993](src/lib/api.ts#L971-L993)) is exactly *"register a file already sitting on
+> the server's filesystem"*. Config TOML travelling the same way is the existing pattern, not a
+> new one.
+>
+> **Consequence for the message shapes in 2d:** `host:init` carries `configPath: string | null`
+> rather than a parsed `config` object, and `embed:save` carries the path DashiBoard wrote
+> rather than the document. The frontend then calls `registerPath` with that path and the
+> existing alias. Everything below about *who* owns the write still holds — the frontend
+> triggers it, AgentGraph performs it — but it passes a path, never bytes.
+>
+> **The settled flow, and the one gap.** The owner confirms the frontend performs the call
+> (option (a)): DashiBoard writes the TOML → the frontend calls
+> `POST /artifacts/register-path` with that path and the existing alias → AgentGraph registers
+> version N+1 and annotates it. The frontend passes a path and never bytes; `registerPath`
+> already exists here ([api.ts:971-993](src/lib/api.ts#L971-L993)) and needs no change.
+>
+> The single missing piece, in the owner's words: *"when we setup ET as a remote service we
+> should give it access to a folder where it can write outputs for us. This should be the only
+> gap."*
+>
+> **That gap is a third field on the RemoteService connection.** `GET /v1/services` projects
+> `connection` as `{url, timeout, source: {url, timeout}}`
+> ([api.ts:2900-2916](src/lib/api.ts#L2900-L2916)); it needs a directory alongside them, with
+> the same three-layer provenance (`configured`/`env`/`default`) and the same
+> `PUT|DELETE .../connection` override semantics — an operator will need to change it on a
+> running system exactly as they change the URL and timeout. **Name: open, with the owner.**
+> I suggested `directory` to match ExperimentTracking's `get_router(...; directory=)`, and
+> **that was wrong** — I misread the `w` in `joinpath(dir, "w")` as "working"; it is *weights*.
+> ExperimentTracking traced the parameter into `Run(; from, trained, directory)` where it holds
+> `model_<run_id>_<idx>.jld2`, documented as "directory where model weights were saved", and
+> **persisted per run as a registry column** — it is how a warm start finds a prior run's
+> weights, so the ambiguity would be load-bearing. AgentGraph argued for `directory` citing
+> their own launcher, but that line reads
+> `get_router(registry, repository; directory = weights_dir, sink)`: the call sites agree the
+> word means weights. AgentGraph then independently filed as a hazard that the value resolves to
+> `$ET_DATA_DIR/weights`, so config TOMLs would land beside model weights — the same defect
+> surfacing as a filesystem one. Candidates are `config_dir` or `workspace`. It is a three-repo
+> wire contract and the owner decides; **nobody should build against a name yet**, since a third
+> connection field costs AgentGraph six edits plus a Postgres migration.
+>
+> ### ⚠ Two hazards that constrain the design, not just the implementation
+>
+> **1. Each save must write a NEW, uniquely-named file.** `POST /artifacts/register-path` is
+> **zero-copy**: the row's `path` points at the file in place, it is never copied under
+> `ARTIFACT_ROOT`, and it is not deleted with the row (`file_owned: false`,
+> [api.ts:2841-2843](src/lib/api.ts#L2841-L2843); *"a register-path row leaves its external
+> file"*, [:2858-2860](src/lib/api.ts#L2858-L2860); confirmed against AgentGraph's route at
+> `routes_artifacts.py:293` → `artifact_store.py:742`).
+>
+> So if DashiBoard overwrites one config path per save: register `1.0.0` → edit → overwrite →
+> register `1.0.1`, and **both rows resolve to the same current bytes**. `1.0.0` is unrecoverable
+> while the registry still shows two valid versions with distinct timestamps. Version history
+> becomes a log of saves rather than of retrievable content, and nothing errors anywhere.
+> Overwrite corrupts history; refuse breaks the second save; **a unique filename per save is the
+> only option that leaves the registry truthful.** The storage semantics decide this — it is not
+> a free choice for the writer.
+>
+> **This is not a prediction. AgentGraph measured it in the live registry.** Every
+> path-carrying row was stat'd against its recorded `size_bytes`: **72 OK, 15 MISSING, 0
+> drifted.** The proof case is `stk_chart` (`origin='produced'`) — five versions, one filename,
+> **five different byte counts recorded at registration**: @1.0.2 62089, @1.0.3 62374, @1.0.4
+> 62089, @1.0.5 62909, @1.0.7 59467. Each save overwrote the last, so from @1.0.3 onward every
+> earlier row pointed at bytes that were no longer its own, while the registry reported five
+> valid versions with distinct `created_at` and no error. Exactly the failure described above,
+> already realised.
+>
+> "0 drifted" is not reassurance: it is zero only because the mutated files were later deleted
+> outright, so the reboot reached them before a reader did. Luck, presented as a property.
+>
+> Three aggravations visible only from AgentGraph's side:
+> - **Nothing validates.** No hash, checksum, sha256 or md5 anywhere in `artifact_store.py`, the
+>   index model or `routes_artifacts.py`; `size_bytes` is recorded once and never re-checked. So
+>   **no mechanism could detect the substitution** — which is why the writer's naming scheme is
+>   not a safeguard but the *only* safeguard.
+> - **Relative paths** (`top_5_clienti_per_movimentazione.png`) resolve against the reading
+>   process's CWD, so one row means different things to the API, the worker and a test runner.
+> - **Cross-alias collision is structurally invisible**: `stk_chart@1.0.6` and
+>   `top_customers_chart@1.0.0` both claim `/tmp/top_5_clienti_per_movimentazione.png` with
+>   provably different sizes, and version sequencing is per-alias so it cannot see this class.
+>
+> **The naming scheme this settles on: `<config_dir>/<alias>-<shorthash>.toml`.** A content hash
+> of the bytes written, prefixed by alias for navigability. A uuid is unique but arbitrary, and
+> stays correct only while everyone follows the rule — which the 15 dead rows show does not
+> hold. A hash makes a registered path *unable* to point at different bytes by construction, and
+> makes an exact resave a no-op. **A version number cannot be used**: AgentGraph assigns
+> `1.0.{max_patch+1}` at registration, which is after the write, so the writer cannot know it.
+> The hash is writer-side convention only — it asks nothing of the registry.
+>
+> Its dedup works at the *verbatim bytes* layer while ExperimentTracking's registry equality
+> works at the *canonicalised* layer (`sort_keys = true`), so it dedups byte-identical resaves,
+> not semantically-identical ones. Stated plainly, because it will otherwise be reported as a
+> bug: the same pipeline saved twice with different key order yields **two files, two registered
+> versions, and one registry row if run**. The file layer and the registry layer legitimately
+> disagree about how many distinct things exist; neither is wrong.
+>
+> #### The scheme in full, after three sessions converged on it
+>
+> **`<config_dir>/<sanitized-alias>-<12-hex-sha256>.toml`**, with four writer-side rules and one
+> host-side rule:
+>
+> 1. **Sanitize the alias; do not validate it.** The prefix takes a *user-chosen* string into a
+>    filesystem path, which is a traversal vector — and it is one AgentGraph explicitly relies on
+>    not existing: `register-path` is documented safe *because* it "never builds a filesystem
+>    path out of `body.alias`" (`routes_artifacts.py:297-302`), while the upload route needs
+>    `_validate_alias` *because* it does `target_dir / f"{alias}{suffix}"` (`:69-72`). My prefix
+>    suggestion falsified that premise. The fix is **not** to mirror `_validate_alias` in
+>    ExperimentTracking: a reject-rule must be kept correct in two repos forever and fails open
+>    on divergence (the known traps: a bare `..` collapses to one bogus `Path` part; `\` is not
+>    a POSIX separator), and it would give ET opinions about alias validity, which is
+>    AgentGraph's domain. Instead **transform**: keep the first 32 characters matching
+>    `[A-Za-z0-9_-]` and drop everything else, falling back to the bare hash if nothing remains.
+>    `../../etc/passwd` becomes `etcpasswd`. The output is a single safe path segment *by
+>    construction*, so the function is total and has no failure mode to get wrong. The character
+>    class does the work the reject-rule needed cleverness for: excluding `/` and `\` means no
+>    separator can be built, and excluding `.` means no `..` or `.` component, no leading dot and
+>    no extension confusion can exist — eliminated rather than detected. Windows reserved names
+>    are moot because the `-<hash>` suffix means the stem is never a bare `CON`/`NUL`.
+>
+>    **Also strip leading hyphens.** An alias of `--rf` sanitizes to `--rf` and yields
+>    `--rf-a1b2c3d4e5f6.toml`, which is a perfectly safe *path* — nothing here shells out. But
+>    these filenames will eventually meet an ops sweep, an `rsync`, a `tar`, a `find -exec` or a
+>    shell glob, and a leading `-` is argument-injection-shaped in all of them. Defence in depth
+>    against a consumer none of the three repos is writing, and it stays a total transform.
+>
+>    **Decided: the prefix is ASCII-only, and non-Latin aliases lose it.** An alias in Cyrillic,
+>    Greek or CJK sanitizes to the empty string and falls back to the bare hash, so that whole
+>    class of user gets exactly the opaque `<hash>.toml` the prefix exists to avoid. Recording it
+>    as a decision rather than a surprise: those aliases stay **fully functional** — same
+>    uniqueness, same immutability guarantee, same registry lookup — and lose only the
+>    human-readable hint. The alternatives are a transliteration dependency, or a Unicode-aware
+>    class (`\p{L}\p{N}_-`) which would preserve the prefix but trades ASCII's total safety for
+>    a set of considerations it currently avoids entirely: NFC/NFD normalisation differing across
+>    platforms, homoglyphs, and bidi override characters that make a filename display
+>    deceptively. Neither is worth taking on for a debugging aid whose authoritative counterpart
+>    is the registry mapping.
+> 2. **12 hex characters of sha256.** A truncation collision means two different configs deriving
+>    one filename, and under write-if-absent the second silently adopts the first's bytes — the
+>    original corruption re-entering through the mechanism built to prevent it, and harder to
+>    spot than the `stk_chart` case because nothing looks wrong. 8 would do; 12 costs nothing.
+> 3. **Write-if-absent, and verify bytes rather than existence.** If the name exists, compare
+>    content before treating it as a no-op: a truncated or half-written file from a killed
+>    process carries the right name and the wrong content, and every future save of those bytes
+>    would skip over it forever.
+> 4. **Accumulation is an accepted cost — size it, don't collect it.** Zero-copy plus
+>    never-deleted plus a new file per save means configs accumulate with nothing reclaiming
+>    them. But TOMLs are kilobytes against parquet artifacts already accumulating under the same
+>    rule at orders of magnitude more, so it is a rounding error on an accepted cost. A retention
+>    sweep able to delete a file a live row still points at is a strictly worse failure than slow
+>    growth. Wants an explicit "accept and document" from the owner, not a garbage collector.
+> 5. **Host-side: skip registration when the path is unchanged.** Content-derived naming makes an
+>    identical resave a filesystem no-op — but *not* a registry no-op, because
+>    `POST /register-path` calls `_next_version(alias)` unconditionally and mints
+>    `1.0.{max_patch+1}` against the file already there. **This is nexus-weaver-pro's to fix**,
+>    since the frontend makes the call: compare the path returned by the frame against the
+>    alias's current row `path`, and skip registration when they match. No client-side hashing is
+>    needed — the paths alone decide it. Keeps version history meaning "the content changed"
+>    rather than "someone pressed save".
+>
+> #### The price of the prefix, stated so it can be dropped knowingly
+>
+> Everything in rule 1 attaches to the **prefix specifically**. A bare `<hash>.toml` needs no
+> sanitizer, no leading-hyphen rule and no non-ASCII caveat — it takes no user input into a path
+> at all. The prefix buys navigability: a directory you can read without querying the registry,
+> which matters most when the registry is the thing being diagnosed. The price is one total
+> function plus two lines of hardening. Worth paying — but anyone later tempted to simplify by
+> dropping the sanitizer should see that the sanitizer and the prefix are one decision, not two.
+>
+> #### One inversion worth carrying
+>
+> A **drifted** row is strictly worse than a **missing** one, which inverts the usual intuition.
+> A dangling row fails loudly at read; a rewritten one returns the wrong artifact and reports
+> `valid`. The live registry's "0 drifted" is therefore not evidence of safety — it is what
+> happens when a reboot deletes the mutated files before any reader reaches them.
+>
+> **Accumulation is an accepted cost, and should be sized before anyone builds retention.**
+> Zero-copy plus never-deleted plus a new file per save means config files accumulate with
+> nothing collecting them: AgentGraph's delete never touches an external file, and
+> ExperimentTracking has no retention concept. But TOMLs are kilobytes — ten thousand saves is
+> tens of megabytes — against parquet artifacts already accumulating under the same rule at
+> orders of magnitude more. A retention sweep that could delete a file a registry row still
+> points at is a considerably worse failure than slow growth, so this wants an explicit "accept
+> and document" from the owner rather than a garbage collector.
+>
+> **Verbatim ≠ the registry's stored form, deliberately.** ExperimentTracking canonicalises key
+> order via `sort_keys = true` so that "have I run this config before?" is answerable by JSON
+> equality; the saved file stays verbatim so that version diffs are readable. The same config is
+> therefore *not* byte-identical between file and registry row, by design. Recorded here so that
+> nobody later compares the two, finds them different, and reports divergence.
+>
+> **2. A shared filesystem is required and nowhere declared.** ExperimentTracking states it
+> plainly: file mode has ET run `COPY (...) TO '<destination>'` and hand back the path, which
+> AgentGraph reads — that cannot work without a shared mount, so the parquet exchange does not
+> merely suggest one, it depends on one. But **nothing in ET declares, checks or documents the
+> requirement**; it writes wherever the path says and never learns whether anyone can read it. A
+> separately containerised AgentGraph therefore breaks file mode *and* `register-path`
+> **silently, at registration rather than at write**. Record it as a deployment constraint: *ET
+> and the AgentGraph API process must share a filesystem, and the config directory must be on
+> it.* If that ever fails, ET's own fallback is the right shape — return a path plus enough for
+> the caller to fetch the content another way, rather than assuming the reader can open it.
+>
+> Compounding: AgentGraph's launcher falls back to `mktempdir()` when `ET_DATA_DIR` is unset — a
+> fresh directory per restart — so a registered row dangles the moment ET restarts. Unique naming
+> fixes mutability, a persistent configured directory fixes durability; separate problems, both
+> needed. **The UI must render an unset directory as a blocking state** with an honest message,
+> never an empty text box, since it is the default an operator hits today.
+>
+> This is a satisfying place for the gap to land, because §7c already documents the connection
+> editor as shipped, working, and built for exactly this: per-field provenance, touched-fields-
+> only writes, and clear-means-reset-to-env. The directory is a third instance of a pattern that
+> already exists rather than new machinery — and it is the reason §2c's argument holds up.
+> The one runtime-configurable thing the embed depends on is the same surface that already
+> carries the URL.
+
 **Why the parent owns the write.** Three reasons: the AgentGraph API key stays on one side;
 DashiBoard needs no knowledge of `/v1/artifacts` and stays runnable standalone as decision §1
 requires; and the alias/version decision is a *host registry* concern, not a pipeline-authoring
@@ -1996,7 +2329,7 @@ Two further notes on the envelope:
 
 | # | Work | Blocking? | Why |
 |---|---|---|---|
-| 1 | Fix nexus-weaver-pro#8 — register a new version under an existing alias | **Yes** | Without it "save my edited pipeline" can only mint a new alias (8c) |
+| 1 | ~~Fix nexus-weaver-pro#8~~ — **de-ranked 2026-09-09, and I was wrong to call it blocking** | **No** | I ranked this first because I had the browser uploading the config. Under the owner's path-based model (8g) the browser never registers the artifact, so the dialog's gate is irrelevant to the integration. And the gate is presentational anyway: `isAliasInUse` ([artifactFacts.ts:360](src/lib/artifactFacts.ts#L360)) has exactly one consumer, the dialog's own `canSubmit` ([RegisterArtifactDialog.tsx:74](src/components/RegisterArtifactDialog.tsx#L74), [:86](src/components/RegisterArtifactDialog.tsx#L86)); neither `upload` nor `registerPath` consults it, and the backend sequences versions itself. `#8` is a real UX gap for a human registering artifacts by hand — it is not a blocker for DashiBoard. |
 | 2 | Rewrite `DashiboardPage.tsx` as the frame host + handshake | **Yes** | The deliverable (2e) |
 | 3 | Replace `PipelineSummary`/`DEFAULT_PIPELINES` with the artifact registry | **Yes** | `dashiboardPipelineId` currently points at a mock (8a, 8f) |
 | 4 | Make `?pipeline=` actually read, on the durable `?id=` convention | **Yes** | Written but never read today (2a) |

@@ -256,6 +256,23 @@ describe('the authoring page', () => {
     expect(card.querySelector('summary')!.textContent).toContain('rescale');
   });
 
+  it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
+    // Unwired for now — the placement is what was specified, and it is what a later wiring will
+    // have to keep. Order matters: the destructive control should not be the first one reached.
+    const { container, getByLabelText, getByText } = render(() => <Home />);
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    const card = [...container.querySelectorAll('details')].find((d) =>
+      d.querySelector('summary')?.textContent?.includes('rescale'),
+    )!;
+    const actions = [...card.querySelectorAll('summary button')].map((b) => b.textContent);
+    expect(actions).toEqual(['Confirm', 'Remove']);
+  });
+
   it('shows what a chain resolved to, rather than making the UI compute it', async () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);

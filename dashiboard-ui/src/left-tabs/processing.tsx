@@ -225,7 +225,21 @@ export function Cards() {
                   <span class="font-mono text-control-xs">
                     {node.id || <span class="text-destructive italic">unnamed</span>}
                   </span>
-                  <span class="ml-auto">
+                  <span class="ml-auto flex items-center gap-2">
+                    {/*
+                      Unwired, deliberately — placed now so its position can be judged, with the
+                      behaviour still to be designed. The distinction it will carry is
+                      *completeness*, not validity: an empty group passes schema validation
+                      (measured — `weather = []` constructs), and is still not something anyone
+                      meant to define. So Confirm cannot simply run the validator; the validator
+                      says yes.
+                    */}
+                    <Button
+                      title="not wired yet — this will mark the definition deliberately finished"
+                      onClick={summaryAction(() => {})}
+                    >
+                      Confirm
+                    </Button>
                     <Button variant="danger" onClick={summaryAction(() => removeNode(index()))}>
                       Remove
                     </Button>

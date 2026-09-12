@@ -96,6 +96,14 @@ describe('GroupsEditor', () => {
     // which was never clicked — vacuously true, and it let a mutation through.
   });
 
+  it('offers Confirm before Remove on a group too', async () => {
+    addGroup('weather');
+    const { container } = mount();
+    await flush();
+    const actions = [...container.querySelectorAll('summary button')].map((b) => b.textContent);
+    expect(actions).toEqual(['Confirm', 'Remove']);
+  });
+
   it('removes a group', async () => {
     addGroup('a');
     const { getByText } = mount();

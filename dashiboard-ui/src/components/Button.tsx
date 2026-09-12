@@ -45,6 +45,8 @@ type ButtonProps = {
   disabled?: boolean;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** Hover text. Useful where the label is short and the consequence is not obvious. */
+  title?: string;
   children: JSXElement;
 };
 
@@ -53,6 +55,7 @@ export function Button(props: ButtonProps) {
     <button
       onClick={(event) => props.onClick?.(event)}
       disabled={props.disabled ?? false}
+      title={props.title}
       class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
     >
       {props.children}
@@ -66,6 +69,7 @@ type AProps = {
   size?: ButtonSize;
   download?: string;
   href: string;
+  title?: string;
   children: JSXElement;
 };
 
@@ -75,6 +79,7 @@ export function A(props: AProps) {
     <a
       href={props.href}
       download={props.download}
+      title={props.title}
       class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
     >
       {props.children}

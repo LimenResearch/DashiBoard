@@ -35,6 +35,14 @@ export function GroupsEditor(props: { defs: Defs }) {
   const [unfinished, setUnfinished] = createSignal<Record<string, Incompleteness[]>>({});
   const confirmed = (name: string) => isConfirmed(`group:${name}`, state.groups[name]);
 
+  /** unconfirmed · incomplete · confirmed — folded, the dot is the only thing on screen. */
+  const groupState = (name: string) =>
+    (unfinished()[name]?.length ?? 0) > 0
+      ? "incomplete"
+      : confirmed(name)
+        ? "confirmed"
+        : "unconfirmed";
+
   // The `$defs/variable` node: one item of a selector list, which is exactly what a group holds.
   const itemNode = () => (props.defs.variable ?? {}) as IRNode;
 
@@ -83,14 +91,22 @@ export function GroupsEditor(props: { defs: Defs }) {
                     <span class="text-control-xs font-semibold text-primary">name</span>
                     <span class="text-muted-foreground">:</span>
                     <span class="font-mono text-control-xs">{name}</span>
+                    {/* Orange when the last Confirm found something: the warning renders inside
+                        the body, which announces nothing while the group is folded. */}
                     <span
-                      aria-label={confirmed(name) ? "confirmed" : "not confirmed"}
-                      title={confirmed(name) ? "confirmed" : "not confirmed"}
+                      data-state={groupState(name)}
+                      aria-label={groupState(name)}
+                      title={
+                        groupState(name) === "incomplete"
+                          ? "unfinished — open to see why"
+                          : groupState(name)
+                      }
                       class={[
                         "ml-1 h-2 w-2 shrink-0 rounded-full",
                         {
-                          "bg-success": confirmed(name),
-                          "border border-muted-foreground": !confirmed(name),
+                          "bg-success": groupState(name) === "confirmed",
+                          "bg-warning": groupState(name) === "incomplete",
+                          "border border-muted-foreground": groupState(name) === "unconfirmed",
                         },
                       ]}
                     />

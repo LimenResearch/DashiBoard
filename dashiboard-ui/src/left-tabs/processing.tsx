@@ -106,6 +106,27 @@ export function Cards() {
 
   // Probe on every document change. Construction is cheap and materialises nothing, so this is
   // the feedback loop for references the schema cannot check.
+  /**
+   * Ask the probe about a document and return something of the right shape.
+   *
+   * Shared by the continuous run and by Confirm. Confirm asks *again* rather than reading the
+   * last answer, because the continuous probe is asynchronous: press Confirm on a card added a
+   * moment ago and the reply is still in flight, so the stale answer says nothing is wrong and
+   * the card confirms green. One request per press is the cost of the answer being current.
+   */
+  async function askProbe(document: CardsStore): Promise<ProbeStore> {
+    const result = await postRequest("probe-pipeline", document, null);
+    const reported = result as ProbeStore | null;
+    const usable =
+      reported !== null &&
+      typeof reported === "object" &&
+      Array.isArray(reported.nodes) &&
+      Array.isArray(reported.errors);
+    return usable
+      ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] }
+      : emptyProbe();
+  }
+
   async function runProbe(document: CardsStore | null) {
     if (document === null) {
       setProbe(reconcile(emptyProbe()));
@@ -154,6 +175,51 @@ export function Cards() {
   // type is the thing it exists to replace.
   const [unfinished, setUnfinished] = createSignal<Record<number, Incompleteness[]>>({});
   const confirmedNode = (index: number) => isConfirmed(`node:${index}`, state.nodes[index]);
+
+  /**
+   * What the server says about this card, as something a person can act on.
+   *
+   * Confirm has to ask it. The UI's own rules only cover what DashiBoard *accepts* — by design —
+   * so on their own they let an empty card through: `checkNode` sees a name and is satisfied,
+   * while construction fails on `method` and `inputs`. The probe already knows; Confirm was
+   * simply not reading it.
+   */
+  const serverFindings = (answer: ProbeStore, index: number): Incompleteness[] => {
+    const schema = issuesForNode(answer.issues, index)
+      .filter((issue) => issue.reason !== "unproduced")
+      .map((issue) => {
+      const where = fieldPath(issue.pointer);
+      if (issue.missing.length > 0) {
+        return { message: `Fill in ${issue.missing.join(", ")} — DashiBoard needs them to build this card.` };
+      }
+      if (issue.reason === "enum" && issue.allowed) {
+        return {
+          message: `${where || "This card"} must be one of: ${issue.allowed.map(String).join(", ")}.`,
+        };
+      }
+      return { message: `${where || "This card"} is not accepted (${issue.reason}).` };
+    });
+    const absent = answer.nodes[index]?.unproduced ?? [];
+    return absent.length > 0
+      ? [...schema, { message: `Nothing produces ${absent.join(", ")} — check the pass-through chain.` }]
+      : schema;
+  };
+
+  async function confirmNode(index: number) {
+    const node = state.nodes[index];
+    const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
+    const found = [...checkNode(node), ...serverFindings(answer, index)];
+    setUnfinished({ ...unfinished(), [index]: found });
+    if (found.length === 0) confirmDefinition(`node:${index}`, node);
+  }
+
+  /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
+  const nodeState = (index: number) =>
+    (unfinished()[index]?.length ?? 0) > 0
+      ? "incomplete"
+      : confirmedNode(index)
+        ? "confirmed"
+        : "unconfirmed";
 
   const probeNodes = createMemo(() => probe.nodes);
   const probeErrors = createMemo(() => probe.errors);
@@ -247,14 +313,25 @@ export function Cards() {
                   <span class="font-mono text-control-xs">
                     {node.id || <span class="text-destructive italic">unnamed</span>}
                   </span>
+                  {/*
+                    Orange when the last Confirm found something. Folded, this dot is the only
+                    thing on screen, so a warning that renders inside the body announces itself
+                    nowhere — which is the state this third colour exists for.
+                  */}
                   <span
-                    aria-label={confirmedNode(index()) ? "confirmed" : "not confirmed"}
-                    title={confirmedNode(index()) ? "confirmed" : "not confirmed"}
+                    data-state={nodeState(index())}
+                    aria-label={nodeState(index()).replace("-", " ")}
+                    title={
+                      nodeState(index()) === "incomplete"
+                        ? "unfinished — open to see why"
+                        : nodeState(index())
+                    }
                     class={[
                       "ml-1 h-2 w-2 shrink-0 rounded-full",
                       {
-                        "bg-success": confirmedNode(index()),
-                        "border border-muted-foreground": !confirmedNode(index()),
+                        "bg-success": nodeState(index()) === "confirmed",
+                        "bg-warning": nodeState(index()) === "incomplete",
+                        "border border-muted-foreground": nodeState(index()) === "unconfirmed",
                       },
                     ]}
                   />
@@ -270,9 +347,7 @@ export function Cards() {
                     <Button
                       title="mark this card deliberately finished"
                       onClick={summaryAction(() => {
-                        const found = checkNode(node);
-                        setUnfinished({ ...unfinished(), [index()]: found });
-                        if (found.length === 0) confirmDefinition(`node:${index()}`, node);
+                        void confirmNode(index());
                       })}
                     >
                       Confirm

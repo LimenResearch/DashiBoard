@@ -273,6 +273,52 @@ describe('the authoring page', () => {
     expect(card.method).toBeUndefined();
   });
 
+  it('refuses to confirm a card DashiBoard would reject, and says so on the folded line', async () => {
+    // The UI's own rules cover only what the server *accepts*, so on their own they let an empty
+    // card through — `checkNode` sees a name and is satisfied while construction fails on
+    // `method` and `inputs`. Confirm has to ask the probe, which already knows.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: false,
+          cols: ['TEMP'],
+          errors: ['Schema Validation Error for card in node 1'],
+          nodes: [],
+          issues: [
+            {
+              pointer: '/nodes/0/card',
+              reason: 'required',
+              found: null,
+              allowed: null,
+              missing: ['method', 'inputs'],
+              related: [],
+              message: 'Schema Validation Error',
+            },
+          ],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { container, getByLabelText, getByText } = render(() => <Home />);
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'cluster');
+    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+
+    fireEvent.click(getByText('Confirm'));
+    // Confirm asks the probe itself, so the assertion waits on that round trip rather than on a
+    // tick — which is the race the old wiring lost.
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull(),
+    );
+    expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
+    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
+    expect(container.textContent).toMatch(/fill in method, inputs/i);
+  });
+
   it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
     // Unwired for now — the placement is what was specified, and it is what a later wiring will
     // have to keep. Order matters: the destructive control should not be the first one reached.

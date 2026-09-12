@@ -113,6 +113,8 @@ describe('GroupsEditor', () => {
     await flush();
     expect(container.textContent).toMatch(/at least one/i);
     expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
+    // Folded, the dot is the only thing on screen, so it has to carry the warning.
+    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
   });
 
   it('confirms a group that selects something, and shows it on the folded line', async () => {

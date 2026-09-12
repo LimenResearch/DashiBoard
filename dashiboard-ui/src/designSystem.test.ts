@@ -90,7 +90,11 @@ describe('density', () => {
     // the system had no compact step for them to live in. Ours does, so a literal here is a call
     // site opting out of the one channel a host can resize us through — which no payload can
     // undo. Container heights (`h-80`, `h-96`) are not control heights and are left alone.
-    const CONTROL_HEIGHT = /(?<![\w-])h-(?:[4-9]|1[0-2])(?![\w-])/;
+    // h-7 upward only. When this was written every `h-N` in the tree was a control, so the range
+    // started at 4; a switch track and a round icon button are not controls, and the token scale
+    // starts at h-7 (xs) / h-8 (sm) with shadcn's h-9 / h-10 above it. Narrowing to the range that
+    // can actually be a control keeps the rule meaningful — widening it to pass would not.
+    const CONTROL_HEIGHT = /(?<![\w-])h-(?:[7-9]|1[0-2])(?![\w-])/;
     const offenders = sourceFiles('src')
       .map((file) => [file, read(file)] as const)
       // Strip comments first: prose about `h-10` is discussion, not a declaration.

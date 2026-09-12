@@ -76,19 +76,18 @@ describe('IRField', () => {
         value={[]} onChange={() => {}}
       />
     ));
-    // a Direct section with a tab per selector kind
-    expect([...container.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Direct']);
+    // A tab per selector kind, and the open one lists its vocabulary a value at a time.
     const kinds = [...container.querySelectorAll('[role=tab]')].map((e) =>
       e.getAttribute('data-tab'),
     );
     expect(kinds).toEqual(['cols', 'groups', 'nodes']); // display order, not the oneOf's
-    // `cols` opens first, and its vocabulary is offered as checkboxes so a click adds
-    const cols = container.querySelector('[role=tabpanel][data-kind="cols"]')!;
-    const options = [...cols.querySelectorAll('input[type=checkbox]')].map(
-      (b) => (b as HTMLInputElement).value,
+    const values = [...container.querySelectorAll('[data-value]')].map((e) =>
+      e.getAttribute('data-value'),
     );
-    expect(options).toContain('TEMP');
-    expect(options).toContain('cbwd');
+    expect(values).toContain('TEMP');
+    expect(values).toContain('cbwd');
+    // each value carries a switch, because it holds a *list* of qualifications rather than a flag
+    expect(container.querySelectorAll('[role=switch]').length).toBe(values.length);
   });
 
   it('shows only the chosen variant subform', () => {

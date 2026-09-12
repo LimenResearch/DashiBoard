@@ -32,12 +32,13 @@ describe('GroupsEditor', () => {
     addGroup('weather');
     const { container } = mount();
     await flush();
-    const box = [...container.querySelectorAll('input[type=checkbox]')].find(
-      (b) => (b as HTMLInputElement).value === 'TEMP',
-    )!;
-    fireEvent.click(box);
+    // The picker asks direct-or-through rather than assuming, so selecting is two steps.
+    const row = container.querySelector('[data-value="TEMP"]')!;
+    fireEvent.click(row.querySelector('[role=switch]')!);
     await flush();
-    expect(exportCards().groups.weather).toEqual([{ cols: ['TEMP'] }]);
+    fireEvent.click(container.querySelector('[data-value="TEMP"] [data-specify="direct"]')!);
+    await flush();
+    expect(exportCards().groups.weather).toEqual([{ cols: 'TEMP' }]);
   });
 
   it('renames a group, carrying its selectors with it', async () => {
@@ -92,8 +93,8 @@ describe('a group cannot name itself', () => {
     )!;
     fireEvent.click(tab);
     await flush();
-    const panel = container.querySelector('[role=tabpanel][data-kind="groups"]')!;
-    expect(panel.textContent).toContain('none defined');
-    expect(panel.querySelectorAll('input[type=checkbox]')).toHaveLength(0);
+    // Its own name is not in the vocabulary it is offered, so the tab has nothing to list.
+    expect(container.querySelectorAll('[data-value]')).toHaveLength(0);
+    expect(container.textContent).toContain('none defined');
   });
 });

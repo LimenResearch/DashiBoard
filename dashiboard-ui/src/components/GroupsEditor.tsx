@@ -1,7 +1,8 @@
 import { createSignal, For, Show } from "solid-js";
 
 import { Button } from "./Button";
-import { SelectorField, type SelectorItem } from "./SelectorField";
+import { SelectorField } from "./SelectorField";
+import type { SelectorItem } from "../selector";
 import { CARDS_STORE, addGroup, removeGroup, renameGroup, setGroup, type Selector } from "../stores";
 import { withoutOption, type Defs, type IRNode } from "../ir";
 

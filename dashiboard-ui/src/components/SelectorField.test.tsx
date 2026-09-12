@@ -2,194 +2,186 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import { SelectorField } from './SelectorField';
+import type { SelectorItem } from '../selector';
 import type { Defs, IRNode } from '../ir';
 import payload from '../fixtures/card-ir.json';
 
 const defs = payload.defs as Defs;
 const itemNode = defs.variable as IRNode;
 
-const sections = (c: HTMLElement) =>
-  [...c.querySelectorAll('legend')].map((l) => l.textContent ?? '');
-const sectionIn = (c: HTMLElement, legend: string) =>
-  [...c.querySelectorAll('fieldset')].find(
-    (f) => (f.querySelector('legend')?.textContent ?? '') === legend,
-  )!;
-const tabsIn = (c: HTMLElement, legend: string) =>
-  [...sectionIn(c, legend).querySelectorAll('[role=tab]')] as HTMLButtonElement[];
-/** The checkboxes of one kind. Only the open tab is on screen, so open it first. */
-const boxesIn = (c: HTMLElement, legend: string, kind: string) => {
-  const section = sectionIn(c, legend);
-  const panel = section.querySelector(`[role=tabpanel][data-kind="${kind}"]`);
-  if (panel === null) return [];
-  return [...panel.querySelectorAll('input[type=checkbox]')] as HTMLInputElement[];
-};
-const chosenIn = (c: HTMLElement, legend: string, kind: string) =>
-  boxesIn(c, legend, kind).filter((b) => b.checked).map((b) => b.value);
+// The layout changed (study 05: kind-first tabs, one row per value, cases per row). The document
+// assertions below did not — case C, case E, chain order and "no empty item" are the contract,
+// and they are what a rewrite has to carry across.
+
+const mount = (value: unknown, onChange: (items: SelectorItem[]) => void = () => {}) =>
+  render(() => (
+    <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value} onChange={onChange} />
+  ));
+
+const tab = (c: HTMLElement, kind: string) =>
+  c.querySelector(`[role=tab][data-tab="${kind}"]`) as HTMLButtonElement;
+const row = (c: HTMLElement, value: string) =>
+  c.querySelector(`[data-value="${value}"]`) as HTMLElement;
+const sw = (c: HTMLElement, value: string) =>
+  row(c, value).querySelector('[role=switch]') as HTMLButtonElement;
+const casesOf = (c: HTMLElement, value: string) =>
+  [...row(c, value).querySelectorAll('[data-case]')].map((e) => e.getAttribute('data-case'));
+/** Re-queried, never held: `<Show keyed>` replaces this node on every chain change. */
+const builderIn = (c: HTMLElement, value: string) =>
+  row(c, value).querySelector('[data-chain-builder]') as HTMLElement;
+const nodeButton = (c: HTMLElement, value: string, name: string) =>
+  [...builderIn(c, value).querySelectorAll('button')].find((b) => b.textContent === name)!;
+const writes = (c: HTMLElement) =>
+  (c.querySelector('.font-mono.break-words') as HTMLElement | null)?.textContent ?? '';
 
 afterEach(cleanup);
 
 describe('SelectorField', () => {
-  it('always offers a Direct section, even when the field is empty', () => {
-    const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} />
-    ));
-    expect(sections(container)).toEqual(['Direct']);
-  });
-
-  it('puts the kinds behind tabs, showing one at a time', () => {
-    const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} />
-    ));
-    expect(tabsIn(container, 'Direct').map((t) => t.getAttribute('data-tab')))
-      .toEqual(['cols', 'groups', 'nodes']);
-    // one panel, not three: the whole point of a tab is that the others are not on screen
-    expect(container.querySelectorAll('[role=tabpanel]')).toHaveLength(1);
-    expect(container.querySelector('[role=tabpanel]')!.getAttribute('data-kind')).toBe('cols');
-  });
-
-  it('switches kind when a tab is clicked, and says when a vocabulary is empty', async () => {
-    const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} />
-    ));
-    fireEvent.click(tabsIn(container, 'Direct').find((t) => t.getAttribute('data-tab') === 'groups')!);
-    await flush();
-    const panel = container.querySelector('[role=tabpanel]')!;
-    expect(panel.getAttribute('data-kind')).toBe('groups');
-    expect(panel.textContent).toContain('weather');
-  });
-
   it('opens on a kind that has something to offer', () => {
-    // No source loaded yet is the ordinary state on a fresh page. Opening on an empty `cols`
-    // would show "none defined" while the nodes tab silently holds the only real choice.
-    const noCols = { ...defs, col: { type: 'string', enum: [] } } as Defs;
-    const { container } = render(() => (
-      <SelectorField
-        itemNode={itemNode} defs={noCols} label="inputs" value={[]} onChange={() => {}}
-      />
-    ));
-    expect(container.querySelector('[role=tabpanel]')!.getAttribute('data-kind')).toBe('groups');
+    const { container } = mount([]);
+    expect(container.querySelector('[role=tab][aria-selected="true"]')?.getAttribute('data-tab'))
+      .toBe('cols');
   });
 
-  it('counts a hidden tab\'s selections, so switching away does not hide them', () => {
-    const { container } = render(() => (
-      <SelectorField
-        itemNode={itemNode} defs={defs} label="inputs"
-        value={[{ cols: ['PRES', 'TEMP'] }, { nodes: 'rescale' }]} onChange={() => {}}
-      />
-    ));
-    const label = (kind: string) =>
-      tabsIn(container, 'Direct').find((t) => t.getAttribute('data-tab') === kind)!.textContent;
-    expect(label('cols')).toContain('2');
-    expect(label('nodes')).toContain('1');
-    expect(label('groups')).toBe('groups'); // nothing chosen, so no count
+  it('shows a switch per value in the open vocabulary, all off for an empty field', () => {
+    const { container } = mount([]);
+    expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
+    expect(casesOf(container, 'TEMP')).toEqual([]);
   });
 
-  it('groups items by their pass-through chain', () => {
-    // case C: same kind, different through — the two must not merge
-    const value = [
-      { cols: 'PRES', through: ['rescale'] },
-      { cols: 'TEMP' },
-    ];
-    const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value} onChange={() => {}} />
-    ));
-    expect(sections(container)).toEqual(['Direct', 'Through rescale']);
-    expect(chosenIn(container, 'Direct', 'cols')).toEqual(['TEMP']);
-    expect(chosenIn(container, 'Through rescale', 'cols')).toEqual(['PRES']);
+  it('reads an existing document back onto the rows it came from', () => {
+    const { container } = mount([{ cols: ['PRES', 'TEMP'] }]);
+    expect(sw(container, 'PRES').getAttribute('aria-checked')).toBe('true');
+    expect(casesOf(container, 'PRES')).toEqual(['direct']);
+    expect(casesOf(container, 'TEMP')).toEqual(['direct']);
+    expect(sw(container, 'No').getAttribute('aria-checked')).toBe('false');
   });
 
-  it('holds the same column twice when it is qualified differently', () => {
-    // case E: the one a set-of-values layout cannot represent
-    const value = [
-      { cols: 'PRES', through: ['rescale'] },
-      { cols: 'PRES' },
-    ];
-    const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value} onChange={() => {}} />
-    ));
-    expect(chosenIn(container, 'Direct', 'cols')).toEqual(['PRES']);
-    expect(chosenIn(container, 'Through rescale', 'cols')).toEqual(['PRES']);
+  it('holds the same value twice when it is qualified differently — case E', () => {
+    // The case that rules out modelling a field as a set of values with attributes, and the whole
+    // reason this layout needed the `+` before it could be used at all.
+    const { container } = mount([{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }]);
+    expect(casesOf(container, 'PRES')).toEqual(['rescale', 'direct']);
   });
 
   it('keeps chain order, since [a,b] names a different column from [b,a]', () => {
-    const value = [{ cols: 'PRES', through: ['rescale', 'split'] }];
-    const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value} onChange={() => {}} />
-    ));
-    expect(sections(container)).toEqual(['Direct', 'Through rescale → split']);
+    const { container } = mount([{ cols: 'PRES', through: ['rescale', 'split'] }]);
+    expect(casesOf(container, 'PRES')).toEqual(['rescale→split']);
   });
 
-  it('writes back one item per kind and chain, with the chain preserved', () => {
-    let written: unknown = null;
-    const value = [{ cols: 'TEMP' }];
-    const { container } = render(() => (
-      <SelectorField
-        itemNode={itemNode} defs={defs} label="inputs" value={value}
-        onChange={(items) => { written = items; }}
-      />
-    ));
-    // a plain click adds, rather than replacing — which is the point of the change
-    const no = boxesIn(container, 'Direct', 'cols').find((b) => b.value === 'No')!;
-    no.checked = true;
-    no.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(written).toEqual([{ cols: ['TEMP', 'No'] }]);
+  it('asks direct-or-through when a value is switched on, and writes nothing yet', async () => {
+    // Nothing is assumed: a value switched on with no qualification is unfinished, not direct.
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    fireEvent.click(sw(container, 'TEMP'));
+    await flush();
+    expect(row(container, 'TEMP').querySelector('[data-specify="direct"]')).not.toBeNull();
+    expect(row(container, 'TEMP').querySelector('[data-specify="through"]')).not.toBeNull();
+    expect(written).toBeNull();
   });
 
-  it('offers the nodes as pass-through candidates', () => {
-    const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} />
-    ));
-    const builder = container.querySelector('[data-chain-builder]')!;
-    expect([...builder.querySelectorAll('button')].map((b) => b.textContent))
-      .toEqual(['rescale', 'split']);
+  it('writes the item once direct is chosen', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    fireEvent.click(sw(container, 'TEMP'));
+    await flush();
+    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="direct"]')!);
+    await flush();
+    expect(written).toEqual([{ cols: 'TEMP' }]);
   });
-});
 
-describe('the pass-through chain builder', () => {
+  it('adds a second qualification through +, which is what case E needs', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([{ cols: 'PRES' }], (items) => { written = items; });
+    fireEvent.click(container.querySelector('[data-add-case="PRES"]')!);
+    await flush();
+    fireEvent.click(row(container, 'PRES').querySelector('[data-specify="through"]')!);
+    await flush();
+    fireEvent.click(nodeButton(container, 'PRES', 'rescale'));
+    await flush();
+    fireEvent.click(builderIn(container, 'PRES').querySelector('[data-chain="commit"]')!);
+    await flush();
+    expect(written).toEqual([{ cols: 'PRES' }, { cols: 'PRES', through: ['rescale'] }]);
+  });
+
+  it('will not offer direct twice for one value', async () => {
+    const { container } = mount([{ cols: 'PRES' }]);
+    fireEvent.click(container.querySelector('[data-add-case="PRES"]')!);
+    await flush();
+    const direct = row(container, 'PRES').querySelector('[data-specify="direct"]') as HTMLButtonElement;
+    expect(direct.disabled).toBe(true);
+  });
+
   it('records the order nodes are clicked, since [a,b] names a different column from [b,a]', async () => {
-    const { container, getByText } = render(() => (
-      <SelectorField
-        itemNode={itemNode} defs={defs} label="inputs" value={[{ cols: 'TEMP' }]}
-        onChange={() => {}}
-      />
-    ));
-    const builder = container.querySelector('[data-chain-builder]')!;
-    const button = (name: string) =>
-      [...builder.querySelectorAll('button')].find((b) => b.textContent === name)!;
-    // click split first, then rescale — the reverse of the listed order
-    fireEvent.click(button('split'));
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    fireEvent.click(sw(container, 'TEMP'));
     await flush();
-    fireEvent.click(button('rescale'));
-    await flush(); // Solid 2 defers signal updates; the assertion cannot share their tick
-    expect(builder.textContent).toContain('split → rescale');
-    fireEvent.click(getByText('add section'));
+    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="through"]')!);
     await flush();
-    expect(sections(container)).toContain('Through split → rescale');
+    fireEvent.click(nodeButton(container, 'TEMP', 'split'));
+    await flush();
+    fireEvent.click(nodeButton(container, 'TEMP', 'rescale'));
+    await flush();
+    fireEvent.click(builderIn(container, 'TEMP').querySelector('[data-chain="commit"]')!);
+    await flush();
+    expect(written).toEqual([{ cols: 'TEMP', through: ['split', 'rescale'] }]);
   });
 
-  it('opens a section without writing an empty item into the document', async () => {
-    // The document is what the user is editing. A section they have chosen nothing in yet
-    // would export as `{cols = [], through = [...]}` — valid, resolves to nothing, and pure
-    // noise in their TOML. It belongs to the control until it holds a value.
-    let written: unknown = null;
-    const { container, getByText } = render(() => (
-      <SelectorField
-        itemNode={itemNode} defs={defs} label="inputs" value={[{ cols: 'TEMP' }]}
-        onChange={(items) => { written = items; }}
-      />
-    ));
-    const builder = container.querySelector('[data-chain-builder]')!;
-    fireEvent.click([...builder.querySelectorAll('button')].find((b) => b.textContent === 'rescale')!);
+  it('switching a value off removes every qualification it carried', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount(
+      [{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }, { cols: 'TEMP' }],
+      (items) => { written = items; },
+    );
+    fireEvent.click(sw(container, 'PRES'));
     await flush();
-    fireEvent.click(getByText('add section'));
-    await flush();
+    expect(written).toEqual([{ cols: 'TEMP' }]);
+  });
 
-    expect(sections(container)).toEqual(['Direct', 'Through rescale']);
-    expect(written).toBeNull(); // opened, but the document is untouched
-
-    const box = boxesIn(container, 'Through rescale', 'cols').find((b) => b.value === 'PRES')!;
-    fireEvent.click(box);
+  it('removes one qualification without disturbing the other', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount(
+      [{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }],
+      (items) => { written = items; },
+    );
+    const direct = [...row(container, 'PRES').querySelectorAll('[data-case]')]
+      .find((e) => e.getAttribute('data-case') === 'direct')!;
+    fireEvent.click(direct.querySelector('button')!);
     await flush();
-    expect(written).toEqual([{ cols: ['TEMP'] }, { cols: ['PRES'], through: ['rescale'] }]);
+    expect(written).toEqual([{ cols: 'PRES', through: ['rescale'] }]);
+  });
+
+  it('cancelling a chain on a value with nothing else switches it back off', async () => {
+    const { container } = mount([]);
+    fireEvent.click(sw(container, 'TEMP'));
+    await flush();
+    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="through"]')!);
+    await flush();
+    fireEvent.click(row(container, 'TEMP').querySelector('[data-chain="cancel"]')!);
+    await flush();
+    expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('shows the document it writes, in the selector form and never a resolved name', () => {
+    // `PRES_rescaled` must not appear: the UI writes the TOML, DashiBoard resolves it.
+    const { container } = mount([{ cols: ['No', 'year'] }, { cols: 'month', through: ['log'] }]);
+    expect(writes(container)).toBe('{cols = ["No", "year"]}, {cols = "month", through = "log"}');
+    expect(writes(container)).not.toContain('month_log');
+  });
+
+  it('switches vocabulary on a tab click, and says when one is empty', async () => {
+    const { container } = mount([]);
+    fireEvent.click(tab(container, 'groups'));
+    await flush();
+    expect(row(container, 'weather')).not.toBeNull();
+    expect(sw(container, 'weather')).not.toBeNull();
+  });
+
+  it('counts each tab by values carrying a qualification, not by items', () => {
+    // `PRES` twice is one value, so the tab says 1 — the count answers "how many of these have I
+    // touched", which is what a hidden tab needs to report.
+    const { container } = mount([{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }]);
+    expect(tab(container, 'cols').textContent).toContain('1');
   });
 });

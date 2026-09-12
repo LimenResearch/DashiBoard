@@ -221,19 +221,22 @@ describe('the authoring page', () => {
     }
     await flush();
 
-    const offered = [...container.querySelectorAll('[role=tabpanel][data-kind="nodes"] input')]
-      .map((b) => (b as HTMLInputElement).value);
+    const offered = [...container.querySelectorAll('[data-value]')]
+      .map((e) => e.getAttribute('data-value'));
     expect(offered).toContain('split');
     expect(offered).not.toContain('rescale');
 
-    // the same vocabulary feeds the chain builder, so it must be narrowed there too
-    const chains = [...container.querySelectorAll('[data-chain-builder]')];
-    expect(chains.length).toBeGreaterThan(0);
-    for (const builder of chains) {
-      const names = [...builder.querySelectorAll('button')].map((b) => b.textContent);
-      expect(names).toContain('split');
-      expect(names).not.toContain('rescale');
-    }
+    // The same vocabulary feeds the pass-through composer, so it must be narrowed there too.
+    // The composer opens per value, so one has to be opened to see what it offers.
+    const row = container.querySelector('[data-value="split"]')!;
+    fireEvent.click(row.querySelector('[role=switch]')!);
+    await flush();
+    fireEvent.click(container.querySelector('[data-value="split"] [data-specify="through"]')!);
+    await flush();
+    const builder = container.querySelector('[data-value="split"] [data-chain-builder]')!;
+    const names = [...builder.querySelectorAll('button')].map((b) => b.textContent);
+    expect(names).toContain('split');
+    expect(names).not.toContain('rescale');
   });
 
   it('shows what a chain resolved to, rather than making the UI compute it', async () => {

@@ -29,7 +29,7 @@ import {
   type ProbeIssue,
 } from "../stores";
 import { defaultsFor, withoutOption, type Defs, type IRNode } from "../ir";
-import { checkNode, type Incompleteness } from "../completeness";
+import { checkFields, checkNode, type Incompleteness } from "../completeness";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -205,12 +205,61 @@ export function Cards() {
       : schema;
   };
 
+  /**
+   * Confirm in two stages, in the order that answers fastest.
+   *
+   * **What the card says about itself** comes first, and comes back in the same tick as the
+   * press: `checkFields` walks the IR the server sent against the value the form holds, so every
+   * unanswered field is named at once, each against the control that fixes it. If it finds
+   * anything, that is the answer — there is nothing to ask the server about a card that is not
+   * finished being written, and a round trip would only delay saying so.
+   *
+   * **What only the graph can answer** comes second, and only once the first stage is clean. An
+   * unproduced reference, a duplicate id, a cycle: none of these is visible in one card, so none
+   * of them is ours. This is also the backstop — the first stage reads the IR, which does not
+   * carry every constraint the schema expresses, so a `missing` finding arriving here means the
+   * walk missed something and it is surfaced rather than swallowed.
+   *
+   * The probe is asked again rather than read from the store, because the continuous run is
+   * asynchronous: pressing Confirm on a card added a moment ago would otherwise consult an answer
+   * about the document as it was before it existed.
+   */
   async function confirmNode(index: number) {
     const node = state.nodes[index];
+    const ir = payload()?.cards[String(node.card.type)];
+    const here = [
+      ...checkNode(node),
+      ...(ir === undefined
+        ? []
+        : checkFields(ir, defsForNode(index), node.card, `/nodes/${index}/card`)),
+    ];
+    setUnfinished({ ...unfinished(), [index]: here });
+    if (here.length > 0) return;
+
     const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
-    const found = [...checkNode(node), ...serverFindings(answer, index)];
+    const found = serverFindings(answer, index);
     setUnfinished({ ...unfinished(), [index]: found });
     if (found.length === 0) confirmDefinition(`node:${index}`, node);
+  }
+
+  /**
+   * Findings follow their card when an earlier one is removed.
+   *
+   * Both this map and the confirmations are keyed by *position*, so a splice slides every later
+   * card's answer onto its neighbour. Confirmations survive that on their own — they store a
+   * signature of the content, so a shifted one simply stops matching — but findings carry no
+   * such check, and a precise field pointer attached to the wrong card is worse than no pointer
+   * at all. A stable per-node key would retire both workarounds; there is nothing in the document
+   * to make one from yet.
+   */
+  function shiftPast<T>(record: Record<number, T>, removed: number): Record<number, T> {
+    const out: Record<number, T> = {};
+    for (const [key, value] of Object.entries(record)) {
+      const at = Number(key);
+      if (at < removed) out[at] = value;
+      else if (at > removed) out[at - 1] = value;
+    }
+    return out;
   }
 
   /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
@@ -337,12 +386,11 @@ export function Cards() {
                   />
                   <span class="ml-auto flex items-center gap-2">
                     {/*
-                      Unwired, deliberately — placed now so its position can be judged, with the
-                      behaviour still to be designed. The distinction it will carry is
-                      *completeness*, not validity: an empty group passes schema validation
-                      (measured — `weather = []` constructs), and is still not something anyone
-                      meant to define. So Confirm cannot simply run the validator; the validator
-                      says yes.
+                      The distinction it carries is *completeness*, not validity, and the two come
+                      apart in both directions: an empty group passes schema validation (measured —
+                      `weather = []` constructs) and is still not something anyone meant to define,
+                      while a blank `suffix` is filled in and the schema rejects it. So Confirm
+                      cannot just be the validator — see `confirmNode` for what it is instead.
                     */}
                     <Button
                       title="mark this card deliberately finished"
@@ -352,7 +400,14 @@ export function Cards() {
                     >
                       Confirm
                     </Button>
-                    <Button variant="danger" onClick={summaryAction(() => removeNode(index()))}>
+                    <Button
+                      variant="danger"
+                      onClick={summaryAction(() => {
+                        const removed = index();
+                        removeNode(removed);
+                        setUnfinished(shiftPast(unfinished(), removed));
+                      })}
+                    >
                       Remove
                     </Button>
                   </span>
@@ -390,7 +445,15 @@ export function Cards() {
             */}
             <For each={unfinished()[index()] ?? []}>
               {(finding: Incompleteness) => (
-                <p class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
+                <p
+                  data-finding
+                  class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+                >
+                  {/* Same shape as a server finding just below: the field in mono, then what to
+                      do. Where they came from is not the reader's problem. */}
+                  <Show when={finding.pointer && fieldPath(finding.pointer) !== ""}>
+                    <span class="font-mono">{fieldPath(finding.pointer!)}</span>{" — "}
+                  </Show>
                   {finding.message}
                 </p>
               )}

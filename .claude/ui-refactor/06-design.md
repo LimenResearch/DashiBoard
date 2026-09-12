@@ -60,6 +60,7 @@ so the schema verdict is reached before any divergent code runs.
 | A8 | Validate the **node wrapper**, not only `node["card"]` | A typo like `trian = false` is accepted and silently ignored today. **Measured 2026-09-10, and it is worse than "ignored":** `DashiBoard/test/static/pipeline.json` passes `by` to two split cards, but `SplitCard` defines `group_by`. The flat `Card` constructor drops the unknown key, so `group_by` comes out `String[]` — those cards partition *globally* instead of by `cbwd`. Two documents, one correct and one typo'd, are indistinguishable to the flat constructor and produce **different pipelines with no error at either point** — the failure mode is a changed result, not a missing one, so nothing downstream can detect it. **Scope of the instance:** the only occurrence found is that test fixture, whose assertion checks the output column exists rather than how it partitions, so no real results are implicated; what it demonstrates is the hazard. **Nothing was broken by the migration** — verified on untouched `origin/main`, the group path already rejected `by` and accepted `group_by`, the `Card` construction path is unchanged, and the old `evaluate_pipeline` handler ran no validation at all. The check was intact and effective; the server bypassed it. Migrating turned it on. ExperimentTracking confirmed its own registry cannot hold such a document — validation precedes storage on the only path that writes there — so the exposure is documents authored through the flat path and persisted elsewhere. This is a correctness argument for the group API independent of any UI. |
 | A9 | Fail closed when the variable context is missing | `VariableConfig`'s `nothing` means *unconstrained*, so omitting `cols` validates everything. |
 | A10 | ~~Check that every resolved reference is actually produced, and serve it from a probe route~~ **DONE 2026-09-10** — `unproduced_references` + `POST /probe-pipeline` | Closes the systemic finding below rather than working around it in one client. See detail. |
+| A11 | Collect schema failures rather than throwing on the first | **Measured 2026-09-12.** `validate_pipeline_schema` `throw`s on the first card that fails and `probe_pipeline` wraps that one exception, so a document with *two* broken cards comes back with exactly one issue naming the first: two empty cards yield `[{pointer: "/nodes/0/card", missing: ["method", "inputs"]}]` and nothing at all about node 1. The failure branch also returns no `nodes`, so the graph analysis (A10) is unavailable on precisely the documents that most need it. Until this lands, the probe is a **first-failure reporter**, which is why the UI answers unanswered fields itself — see the note under A7. Fix: accumulate `SchemaValidationError`s across groups and nodes and return them all; `issue_report` is already per-error. |
 
 ### A3 in detail — the rules that are easy to get wrong
 
@@ -197,6 +198,18 @@ keyword; and on an enum failure its `val` **is the list of valid options** — w
 render a correction rather than a complaint. `SchemaValidationError` keeps only a prose culprit and
 the raw issue, so A7 is largely plumbing `SingleIssue` through. The `related` array is the only part
 with no existing source.
+
+**The probe reports one failure per document, so it cannot be the only answer.** Measured
+2026-09-12 and tracked as A11: validation throws on the first failing card and the handler wraps that
+single exception, so the second broken card is invisible and the failure branch carries no `nodes`.
+This is what splits the UI's Confirm in two. Unanswered fields are answered in the browser from the
+IR the server itself sent — `dashiboard-ui/src/completeness.ts`, `checkFields` — which names *every*
+one at once and costs no round trip; the probe stays the authority on everything that depends on the
+graph, where the UI has nothing to say. That is a split by **scope**, not a second validator: the IR
+is the server's own description fetched at runtime, and `widgetFor` is the same descriptor the
+renderer dispatches on, so a field the check names is always a field drawn on screen. Once A11 lands
+the split stays as it is — the value of answering in the browser is latency and completeness, not
+the server's inability.
 
 **Surface leaf errors, never composition summaries.** A validator may report the real failure *and*
 a summary from whichever combinator wrapped it. The summary is the useless line; the leaf beneath it

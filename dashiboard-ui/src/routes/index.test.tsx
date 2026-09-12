@@ -25,6 +25,10 @@ import Home from './index';
 
 const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [] };
 
+/** How many times the probe has been asked. Confirm's first stage must not add to this. */
+const probeCalls = () =>
+  postRequest.mock.calls.filter((call: unknown[]) => call[0] === 'probe-pipeline').length;
+
 beforeEach(() => {
   importCards(emptyCards());
   postRequest.mockReset();
@@ -273,34 +277,11 @@ describe('the authoring page', () => {
     expect(card.method).toBeUndefined();
   });
 
-  it('refuses to confirm a card DashiBoard would reject, and says so on the folded line', async () => {
-    // The UI's own rules cover only what the server *accepts*, so on their own they let an empty
-    // card through — `checkNode` sees a name and is satisfied while construction fails on
-    // `method` and `inputs`. Confirm has to ask the probe, which already knows.
-    postRequest.mockImplementation((page: string) => {
-      if (page === 'get-card-ir') return Promise.resolve(payload);
-      if (page === 'probe-pipeline') {
-        return Promise.resolve({
-          valid: false,
-          cols: ['TEMP'],
-          errors: ['Schema Validation Error for card in node 1'],
-          nodes: [],
-          issues: [
-            {
-              pointer: '/nodes/0/card',
-              reason: 'required',
-              found: null,
-              allowed: null,
-              missing: ['method', 'inputs'],
-              related: [],
-              message: 'Schema Validation Error',
-            },
-          ],
-        });
-      }
-      return Promise.resolve([]);
-    });
-
+  it('answers an unfinished card itself, naming every field and asking nobody', async () => {
+    // The split: what can be seen in the card in front of you is the UI's to answer, immediately.
+    // Both missing fields are named, each against the control that fixes it — which the server
+    // structurally cannot do, because `validate_pipeline_schema` throws on the first failing card
+    // and the handler wraps that one exception (measured).
     const { container, getByLabelText, getByText } = render(() => <Home />);
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
@@ -308,20 +289,124 @@ describe('the authoring page', () => {
     fireEvent.click(getByText(/add card/i));
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
 
+    const probesBefore = probeCalls();
     fireEvent.click(getByText('Confirm'));
-    // Confirm asks the probe itself, so the assertion waits on that round trip rather than on a
-    // tick — which is the race the old wiring lost.
+    await flush();
+
+    // No round trip. Asserted by count rather than by timing: the continuous probe fires on every
+    // document change, so "the probe was called" proves nothing — "it was not called *again*" does.
+    expect(probeCalls()).toBe(probesBefore);
+    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
+    expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
+
+    const findings = [...container.querySelectorAll('[data-finding]')].map((e) => e.textContent);
+    expect(findings).toHaveLength(2);
+    expect(findings[0]).toContain('method');
+    expect(findings[0]).toContain('choose one of: dbscan, affinity_propagation, kmeans');
+    expect(findings[1]).toContain('inputs');
+  });
+
+  it('asks the server once the card itself is answered, and reports what only it can see', async () => {
+    // The other half. Nothing about this card is unfilled, so the UI has no more to say — and an
+    // unproduced reference is invisible without the rest of the graph, which is the probe's.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: true,
+          cols: ['TEMP'],
+          errors: [],
+          nodes: [{ id: 'c', inputs: [], outputs: [], unproduced: ['zscored_TEMP'] }],
+          issues: [],
+        });
+      }
+      return Promise.resolve([]);
+    });
+    importCards({
+      nodes: [
+        {
+          id: 'c',
+          card: {
+            type: 'cluster',
+            method: { type: 'dbscan', radius: 0.5, dissimilarity: { type: 'euclidean' } },
+            inputs: [{ cols: 'zscored_TEMP' }],
+            output: 'cluster',
+          },
+        },
+      ],
+      groups: {},
+    });
+
+    const { container, getByText } = render(() => <Home />);
+    await openTab(container, 'Process');
+    await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
+
+    const probesBefore = probeCalls();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(probeCalls()).toBeGreaterThan(probesBefore));
     await waitFor(() =>
       expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull(),
     );
-    expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
-    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
-    expect(container.textContent).toMatch(/fill in method, inputs/i);
+    expect(container.textContent).toMatch(/nothing produces zscored_TEMP/i);
+  });
+
+  it('confirms a card both halves accept', async () => {
+    importCards({
+      nodes: [
+        {
+          id: 'c',
+          card: {
+            type: 'cluster',
+            method: { type: 'dbscan', radius: 0.5, dissimilarity: { type: 'euclidean' } },
+            inputs: [{ cols: 'TEMP' }],
+            output: 'cluster',
+          },
+        },
+      ],
+      groups: {},
+    });
+    const { container, getByText } = render(() => <Home />);
+    await openTab(container, 'Process');
+    await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
+
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull(),
+    );
+    expect(container.querySelector('[data-finding]')).toBeNull();
+  });
+
+  it('keeps findings with their card when an earlier one is removed', async () => {
+    // Findings are keyed by position, so a splice would slide the second card's answer onto the
+    // first. A precise field pointer on the wrong card is worse than no pointer at all.
+    const { container, getByLabelText, getByText } = render(() => <Home />);
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await selectOption(picker, 'cluster');
+    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(2));
+
+    // Confirm the *second* card only, so the two cards are distinguishable by their findings.
+    const cardOf = (type: string) =>
+      [...container.querySelectorAll('details')].find((d) =>
+        d.querySelector('summary')?.textContent?.includes(type),
+      )!;
+    fireEvent.click([...cardOf('cluster').querySelectorAll('summary button')][0]);
+    await flush();
+    expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0);
+    expect(cardOf('rescale').querySelectorAll('[data-finding]')).toHaveLength(0);
+
+    // Remove the first card. The cluster card slides from index 1 to index 0.
+    fireEvent.click([...cardOf('rescale').querySelectorAll('summary button')][1]);
+    await flush();
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+    expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0);
   });
 
   it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
-    // Unwired for now — the placement is what was specified, and it is what a later wiring will
-    // have to keep. Order matters: the destructive control should not be the first one reached.
+    // Order matters: the destructive control should not be the first one reached.
     const { container, getByLabelText, getByText } = render(() => <Home />);
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;

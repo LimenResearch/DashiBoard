@@ -239,6 +239,23 @@ describe('the authoring page', () => {
     expect(names).not.toContain('rescale');
   });
 
+  it('folds a card to one line naming its type and the id others refer to it by', async () => {
+    const { container, getByLabelText, getByText } = render(() => <Home />);
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    const card = [...container.querySelectorAll('details')].find((d) =>
+      d.querySelector('summary')?.textContent?.includes('rescale'),
+    ) as HTMLDetailsElement;
+    expect(card).toBeDefined();
+    expect(card.open).toBe(false);
+    // type, then the name the rest of the document refers to it by
+    expect(card.querySelector('summary')!.textContent).toContain('rescale');
+  });
+
   it('shows what a chain resolved to, rather than making the UI compute it', async () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);

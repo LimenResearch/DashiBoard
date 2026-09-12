@@ -1,5 +1,7 @@
 import { For, Show } from "solid-js";
 import type { Element as JSXElement } from "solid-js";
+
+import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
 import { SelectorField } from "./SelectorField";
 import { widgetFor, type Defs, type IRNode, type Widget } from "../ir";
@@ -52,27 +54,6 @@ function Label(props: { for?: string; text: string; required?: boolean }) {
   );
 }
 
-/** Chevron, not a filled triangle: it points at where the content will appear, and rotating it
- *  90° is a movement you can see. A solid glyph at this size reads as a bullet. */
-function Chevron() {
-  return (
-    <svg
-      viewBox="0 0 12 12"
-      aria-hidden="true"
-      class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150 group-open:rotate-90"
-    >
-      <path
-        d="M4.5 2.5 L8 6 L4.5 9.5"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  );
-}
-
 /**
  * A field that resolves in one control — pick from a list, or type a value.
  *
@@ -111,13 +92,9 @@ function Row(props: {
  */
 function Collapsible(props: { label: string; required?: boolean; children: JSXElement }) {
   return (
-    <details open class="group">
-      <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-sm py-0.5 hover:bg-muted [&::-webkit-details-marker]:hidden">
-        <Chevron />
-        <Label text={props.label} required={props.required} />
-      </summary>
-      <div class="ml-1.5 flex flex-col gap-0.5 border-l border-border pl-3">{props.children}</div>
-    </details>
+    <Disclosure summary={<Label text={props.label} required={props.required} />}>
+      {props.children}
+    </Disclosure>
   );
 }
 

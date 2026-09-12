@@ -39,7 +39,9 @@ function className(variant: ButtonVariant, size: ButtonSize, disabled: boolean) 
 }
 
 type ButtonProps = {
-  onClick?: () => void;
+  /** Receives the event, because a button inside a `<summary>` has to stop it toggling the
+   *  disclosure. Handlers that ignore it stay assignable. */
+  onClick?: (event: MouseEvent) => void;
   disabled?: boolean;
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -49,7 +51,7 @@ type ButtonProps = {
 export function Button(props: ButtonProps) {
   return (
     <button
-      onClick={() => props.onClick?.()}
+      onClick={(event) => props.onClick?.(event)}
       disabled={props.disabled ?? false}
       class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
     >

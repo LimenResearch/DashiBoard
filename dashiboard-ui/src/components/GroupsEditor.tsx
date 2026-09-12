@@ -1,6 +1,7 @@
 import { createSignal, For, Show } from "solid-js";
 
 import { Button } from "./Button";
+import { Disclosure, summaryAction } from "./Disclosure";
 import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
 import { CARDS_STORE, addGroup, removeGroup, renameGroup, setGroup, type Selector } from "../stores";
@@ -58,29 +59,51 @@ export function GroupsEditor(props: { defs: Defs }) {
       >
         <For each={Object.keys(state.groups)}>
           {(name) => (
-            <div class="my-4 rounded-sm border border-border p-3">
-              <div class="mb-2 flex items-center justify-between gap-2">
-                <input
-                  class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
-                  aria-label="group name"
-                  value={name}
-                  // `change`, not `input`: renaming on every keystroke would rewrite the document
-                  // once per character, and each rewrite is a name other cards may be referring to.
-                  onChange={(event) => rename(name, event.currentTarget)}
+            <div class="my-2 rounded-sm border border-border p-2">
+              <Disclosure
+                bodyClass="mt-2 flex flex-col gap-1 border-t border-border pt-2"
+                summary={
+                  <>
+                    {/* Folded, this is the whole group: the key it is referred to by, and its
+                        name. A pipeline with six groups should read as six lines. */}
+                    <span class="text-control-xs font-semibold text-primary">name</span>
+                    <span class="text-muted-foreground">:</span>
+                    <span class="font-mono text-control-xs">{name}</span>
+                    <span class="ml-auto">
+                      <Button variant="danger" onClick={summaryAction(() => removeGroup(name))}>
+                        Remove
+                      </Button>
+                    </span>
+                  </>
+                }
+              >
+                <div class="flex items-center gap-2">
+                  <label
+                    for={`group-name-${name}`}
+                    class="w-32 shrink-0 text-control-xs font-semibold text-primary"
+                  >
+                    name
+                  </label>
+                  <input
+                    id={`group-name-${name}`}
+                    class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
+                    aria-label="group name"
+                    value={name}
+                    // `change`, not `input`: renaming on every keystroke would rewrite the document
+                    // once per character, and each rewrite is a name other cards may be referring to.
+                    onChange={(event) => rename(name, event.currentTarget)}
+                  />
+                </div>
+                <SelectorField
+                  itemNode={itemNode()}
+                  // A group naming itself is a loop — measured, and rejected as one — so its
+                  // own name is not on offer inside it.
+                  defs={withoutOption(props.defs, "group", name)}
+                  label={name}
+                  value={state.groups[name]}
+                  onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}
                 />
-                <Button variant="danger" onClick={() => removeGroup(name)}>
-                  Remove
-                </Button>
-              </div>
-              <SelectorField
-                itemNode={itemNode()}
-                // A group naming itself is a loop — measured, and rejected as one — so its own
-                // name is not on offer inside it.
-                defs={withoutOption(props.defs, "group", name)}
-                label={name}
-                value={state.groups[name]}
-                onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}
-              />
+              </Disclosure>
             </div>
           )}
         </For>

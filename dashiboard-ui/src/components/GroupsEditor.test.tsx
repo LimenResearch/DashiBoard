@@ -71,6 +71,31 @@ describe('GroupsEditor', () => {
     expect(container.textContent).toMatch(/already/i);
   });
 
+  it('folds to one line naming the group, so six groups read as six lines', async () => {
+    addGroup('weather');
+    const { container } = mount();
+    await flush();
+    const details = container.querySelector('details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.querySelector('summary')!.textContent).toContain('name');
+    expect(details.querySelector('summary')!.textContent).toContain('weather');
+  });
+
+  it('removes from the folded line without expanding it on the way out', async () => {
+    // A click inside `<summary>` toggles the disclosure unless the handler says it handled the
+    // event. Without that, deleting a group opens it first — briefly, and then it is gone.
+    addGroup('weather');
+    addGroup('other');
+    const { getAllByText } = mount();
+    await flush();
+    fireEvent.click(getAllByText('Remove')[0]);
+    await flush();
+    expect(Object.keys(exportCards().groups)).toEqual(['other']);
+    // The guard itself is pinned in Disclosure.test.tsx, where the element survives the click and
+    // its open state can actually be observed. Asserting it here checked the *surviving* group,
+    // which was never clicked — vacuously true, and it let a mutation through.
+  });
+
   it('removes a group', async () => {
     addGroup('a');
     const { getByText } = mount();

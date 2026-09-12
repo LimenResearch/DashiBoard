@@ -4,6 +4,7 @@ import { Button } from "../components/Button";
 import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
+import { Disclosure, summaryAction } from "../components/Disclosure";
 import { postRequest } from "../requests";
 import {
   CARDS_STORE,
@@ -181,6 +182,16 @@ export function Cards() {
         <p class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error()}</p>
       </Show>
 
+      {/*
+        Groups first, as their own section: a card's `groups:` selector can only offer names that
+        already exist, so authoring in the other order means scrolling past the cards to define a
+        group and back up to use it. "Add card" then sits directly above the cards it creates,
+        rather than above the groups — a control belongs next to what it produces.
+      */}
+      <Show when={payload()} keyed>
+        {(loaded: Payload) => <GroupsEditor defs={loaded.defs} />}
+      </Show>
+
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
         <div class="flex items-center gap-2 p-3">
           <label for="card-type" class="text-control-xs font-semibold text-primary">
@@ -198,37 +209,50 @@ export function Cards() {
         </div>
       </Show>
 
-      {/*
-        Groups come before the cards that refer to them: a card's `groups:` selector can only
-        offer names that already exist, so authoring in the other order means scrolling past the
-        cards to define a group and back up to use it.
-      */}
-      <Show when={payload()} keyed>
-        {(loaded: Payload) => <GroupsEditor defs={loaded.defs} />}
-      </Show>
-
       <For each={state.nodes}>
         {(node, index) => (
-          <div class="my-4 rounded-sm border border-border p-3">
-            <div class="mb-2 flex items-center justify-between gap-2">
+          <div class="my-2 rounded-sm border border-border p-2">
+            <Disclosure
+              bodyClass="mt-2 flex flex-col gap-1 border-t border-border pt-2"
+              summary={
+                <>
+                  {/* Folded, this line is all that survives — so it says what the card is and
+                      which name the rest of the document refers to it by. */}
+                  <span class="font-mono text-control-xs font-semibold text-primary">
+                    {String(node.card.type)}
+                  </span>
+                  <span class="text-muted-foreground">:</span>
+                  <span class="font-mono text-control-xs">
+                    {node.id || <span class="text-destructive italic">unnamed</span>}
+                  </span>
+                  <span class="ml-auto">
+                    <Button variant="danger" onClick={summaryAction(() => removeNode(index()))}>
+                      Remove
+                    </Button>
+                  </span>
+                </>
+              }
+            >
               <div class="flex items-center gap-2">
-                <span class="font-semibold text-primary">{String(node.card.type)}</span>
+                <label
+                  for={`node-id-${index()}`}
+                  class="w-32 shrink-0 text-control-xs font-semibold text-primary"
+                >
+                  name
+                </label>
                 {/*
                   The node's name, not the card's. It is what another card's `nodes:` selector or
                   `through:` chain refers to, and `Pipelines.get_id` defaults a missing one to "",
                   so two unnamed cards collide and the whole document is rejected.
                 */}
                 <input
+                  id={`node-id-${index()}`}
                   class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
                   aria-label="node id"
                   value={node.id ?? ""}
                   onChange={(event) => setNodeId(index(), event.currentTarget.value)}
                 />
               </div>
-              <Button variant="danger" onClick={() => removeNode(index())}>
-                Remove
-              </Button>
-            </div>
             {/*
               A7: the probe addresses each failure by JSON Pointer, so it is shown on the card it
               belongs to, naming the field and — for an enum — what would have been accepted.
@@ -287,6 +311,7 @@ export function Cards() {
                 />
               )}
             </Show>
+            </Disclosure>
           </div>
         )}
       </For>

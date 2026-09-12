@@ -178,6 +178,50 @@ describe('SelectorField', () => {
     expect(sw(container, 'weather')).not.toBeNull();
   });
 
+  describe('when the document defines no nodes', () => {
+    // A pass-through chain is built from nodes. With none defined there is no chain to build, so
+    // `through…` is a choice that cannot come out well — the same reasoning that took a card's own
+    // name out of its vocabulary rather than validating it afterwards.
+    const noNodes = { ...defs, node: { type: 'string', enum: [] } } as Defs;
+    const mountNoNodes = (value: unknown) =>
+      render(() => (
+        <SelectorField
+          itemNode={itemNode} defs={noNodes} label="inputs" value={value} onChange={() => {}}
+        />
+      ));
+
+    it('offers through… as unreachable rather than as a dead end', async () => {
+      const { container } = mountNoNodes([]);
+      fireEvent.click(sw(container, 'TEMP'));
+      await flush();
+      const through = row(container, 'TEMP')
+        .querySelector('[data-specify="through"]') as HTMLButtonElement;
+      expect(through.disabled).toBe(true);
+      expect(through.title).toMatch(/no nodes/i);
+    });
+
+    it('still offers direct, which is the one qualification that needs nothing', async () => {
+      const { container } = mountNoNodes([]);
+      fireEvent.click(sw(container, 'TEMP'));
+      await flush();
+      const direct = row(container, 'TEMP')
+        .querySelector('[data-specify="direct"]') as HTMLButtonElement;
+      expect(direct.disabled).toBe(false);
+    });
+
+    it('withholds + once direct is taken, since nothing further can be specified', () => {
+      // Both routes closed: direct is used and no chain can be built. A + here opens a panel
+      // whose every option is disabled, which is worse than not offering it.
+      const { container } = mountNoNodes([{ cols: 'PRES' }]);
+      expect(container.querySelector('[data-add-case="PRES"]')).toBeNull();
+    });
+
+    it('keeps + while a chain is still buildable', () => {
+      const { container } = mount([{ cols: 'PRES' }]);
+      expect(container.querySelector('[data-add-case="PRES"]')).not.toBeNull();
+    });
+  });
+
   it('counts each tab by values carrying a qualification, not by items', () => {
     // `PRES` twice is one value, so the tab says 1 — the count answers "how many of these have I
     // touched", which is what a hidden tab needs to report.

@@ -542,6 +542,37 @@
   stroke: hsl(var(--muted-foreground));
 }
 
+/*
+  Native form controls, which the browser draws itself.
+
+  `color-scheme` above is the right mechanism and it covers the control, the scrollbars and the
+  spinners — the closed `<select>` renders dark from it alone. It does not reach the *popup*:
+  several browsers draw the option list with OS widgets, Firefox on Linux most visibly, and there
+  `color-scheme` governs the chrome but not the rows. These rules reach the rows.
+
+  One limit worth writing down rather than rediscovering: the highlight on the row under the
+  cursor is drawn by the platform in some browsers and no CSS changes it. `option:checked` is
+  honoured and covers the selected row, which is the one that reads as wrong on a dark ground.
+*/
+select {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+option {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
+option:checked {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+option:disabled {
+  color: hsl(var(--muted-foreground));
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));

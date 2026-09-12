@@ -115,6 +115,16 @@ export function SelectorField(props: SelectorFieldProps) {
   const openKind = () =>
     picked() ?? kinds().find((k) => optionsOf(k).length > 0) ?? kinds()[0] ?? "";
 
+  /**
+   * Whether another qualification could be specified at all.
+   *
+   * `direct` is available until taken; `through` needs at least one node to build a chain from,
+   * and a document with no nodes yet has none. When neither route is open there is nothing to
+   * offer, so the `+` is withheld rather than opening a panel whose every option is disabled.
+   */
+  const canAddCase = (kind: string, value: string) =>
+    !casesFor(kind, value).some((c) => c.length === 0) || chainOptions().length > 0;
+
   /** On means: carries a qualification, or is part-way through choosing one. */
   const isLive = (kind: string, value: string) => {
     const id = idOf(kind, value);
@@ -301,7 +311,12 @@ export function SelectorField(props: SelectorFieldProps) {
                       {/* The + is the repair: it is what lets a value hold more than one
                           qualification, and so what makes case E expressible at all. */}
                       <Show
-                        when={cases().length > 0 && !isPending(id()) && chainBeingBuilt(id()) === null}
+                        when={
+                          cases().length > 0 &&
+                          !isPending(id()) &&
+                          chainBeingBuilt(id()) === null &&
+                          canAddCase(kind(), value)
+                        }
                       >
                         <button
                           type="button"
@@ -334,14 +349,23 @@ export function SelectorField(props: SelectorFieldProps) {
                           >
                             direct
                           </button>
+                          {/* A chain is built from nodes, so with none defined there is nothing to
+                              build one out of. Offered as unreachable rather than as a route that
+                              opens an empty composer. */}
                           <button
                             type="button"
                             data-specify="through"
+                            disabled={chainOptions().length === 0}
+                            title={
+                              chainOptions().length === 0
+                                ? "no nodes defined yet — a pass-through is built from them"
+                                : undefined
+                            }
                             onClick={() => {
                               clearPending(id());
                               setComposing({ key: id(), chain: [] });
                             }}
-                            class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary"
+                            class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-inherit"
                           >
                             through…
                           </button>

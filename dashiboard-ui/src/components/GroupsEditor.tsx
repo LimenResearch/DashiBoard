@@ -36,12 +36,12 @@ export function GroupsEditor(props: { defs: Defs }) {
   return (
     <div>
       <div class="flex items-center gap-2 p-3">
-        <span class="text-body font-semibold text-primary">Groups</span>
+        <span class="text-control-xs font-semibold text-primary">Groups</span>
         <Button onClick={() => void addGroup()}>Add group</Button>
       </div>
 
       <Show when={error()}>
-        <p class="mx-4 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-body text-destructive">
+        <p class="mx-4 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive">
           {error()}
         </p>
       </Show>
@@ -49,7 +49,7 @@ export function GroupsEditor(props: { defs: Defs }) {
       <Show
         when={Object.keys(state.groups).length > 0}
         fallback={
-          <p class="px-4 text-body text-muted-foreground">
+          <p class="px-4 text-control-xs text-muted-foreground">
             No groups defined. A group names a set of columns once, so several cards can refer to
             it — and nothing can refer to one until it exists.
           </p>
@@ -60,7 +60,7 @@ export function GroupsEditor(props: { defs: Defs }) {
             <div class="my-4 rounded-sm border border-border p-3">
               <div class="mb-2 flex items-center justify-between gap-2">
                 <input
-                  class="h-control rounded-sm border border-border px-2 font-mono text-body"
+                  class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
                   aria-label="group name"
                   value={name}
                   // `change`, not `input`: renaming on every keystroke would rewrite the document

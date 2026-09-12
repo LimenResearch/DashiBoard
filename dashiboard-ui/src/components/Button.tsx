@@ -6,10 +6,12 @@ import type { Element as JSXElement } from "solid-js";
 //
 // Three things changed when it became something to publish. It names its variants instead of
 // carrying a `danger` boolean, because a flag does not extend to a third option and a system's
-// card has to read "default / danger, two sizes". It sizes by *height* — stock shadcn is `h-10`
-// and the host runs `h-control`/`h-control-lg`, which §3b measures as the single biggest tell that an embedded
-// UI is foreign. And it brings no margin of its own: a component that positions itself is right
-// in the one place it was written for and wrong everywhere else.
+// card has to read "default / danger, two sizes". It sizes by *height*, and the heights are the
+// shared `--control-height-*` steps rather than literals — nexus-weaver left their own Button
+// untokenised because its ladder runs h-5 to h-11 and does not map onto three steps; ours has two
+// sizes that land exactly on `xs` and `sm`, which is why the same call is right here and wrong
+// there. And it brings no margin of its own: a component that positions itself is right in the one
+// place it was written for and wrong everywhere else.
 
 export type ButtonVariant = "default" | "danger";
 export type ButtonSize = "sm" | "md";
@@ -22,15 +24,15 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  sm: "h-control px-2.5",
-  md: "h-control-lg px-3",
+  sm: "h-control-xs px-2.5",
+  md: "h-control-sm px-3",
 };
 
 const DISABLED = "bg-secondary text-muted-foreground";
 
 function className(variant: ButtonVariant, size: ButtonSize, disabled: boolean) {
   return [
-    "inline-flex items-center rounded-sm border border-transparent text-body font-semibold",
+    "inline-flex items-center rounded-sm border border-transparent text-control-xs font-semibold",
     SIZES[size],
     disabled ? DISABLED : VARIANTS[variant],
   ].join(" ");

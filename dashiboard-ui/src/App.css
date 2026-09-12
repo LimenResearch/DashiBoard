@@ -66,23 +66,44 @@
     Density, as tokens rather than as literals — the other half of the adaptation contract.
 
     Colour was adaptable and density was not: a host could repaint this frame completely and
-    could not resize it at all. That asymmetry only became visible when nexus-weaver re-measured
-    their own census and it turned out there was no single host density to copy — they run two
-    conventions split by feature area. An axis that varies between surfaces cannot be handled by
-    matching one of them; it needs a channel, which is what these are.
+    could not resize it at all. That only became visible when nexus-weaver re-measured their
+    census and it turned out there was no single host density to copy — they run two conventions
+    split by feature area. An axis that varies between surfaces cannot be handled by matching one
+    of them.
 
-    C9 asks whether the standalone UI adopts the host's density or the frame applies a scale.
-    With these the answer is neither: it is configuration. We default to compact because we would
-    be embedded beside graph authoring, and a roomier host sends different values through the
-    same `:root` channel the palette already uses.
+    **Vocabulary agreed with nexus-weaver-pro, 2026-09-12**: `--control-<property>-<step>`, with
+    step names matching the variant API so `size="sm"` and `--control-height-sm` are visibly the
+    same thing. Values are theirs too, so a step means the same measurement on both sides; which
+    step an app *uses* is its own density choice. We run `xs`.
 
-    Height and text size are one decision, not two — nexus-weaver's census found 31 of 32 compact
-    inputs pairing them — so they move together or a control ends up the wrong shape.
+    Three properties per step, not two. Tailwind's `text-xs` sets font-size **and** line-height,
+    so a token carrying only the size silently drops the leading and the control inherits whatever
+    surrounds it — right on the page it was written for, drifting everywhere else. We shipped
+    exactly that bug for three commits; their warning is what found it.
+
+    These are geometry, so `:root` only and never `.dark` — they are named in the palette-parity
+    test's exception list for that reason.
+
+    The mechanism is inheritance rather than a message: a custom property inherits, so a subtree
+    that redeclares a step resizes every control inside it without a single call site naming a
+    size. That is also why density needs no postMessage channel of its own — a host that sets our
+    palette on a wrapper sets density in the same place.
   */
-  --control-h: 1.75rem;
-  --control-h-lg: 2rem;
-  --text-body: 0.75rem;
+  --control-height-default: 2.5rem;
+  --control-height-sm: 2rem;
+  --control-height-xs: 1.75rem;
+
+  --control-text-default: 0.875rem;
+  --control-text-sm: 0.75rem;
+  --control-text-xs: 0.75rem;
+
+  --control-leading-default: 1.25rem;
+  --control-leading-sm: 1rem;
+  --control-leading-xs: 1rem;
+
+  /* Secondary text — a label beside a control, not a control, so not on that scale. */
   --text-detail: 0.625rem;
+  --text-detail-leading: 0.875rem;
 
   --shadow-card: 0 1px 3px 0 hsl(220 20% 10% / 0.06), 0 1px 2px -1px hsl(220 20% 10% / 0.06);
   --shadow-elevated: 0 4px 12px -2px hsl(220 20% 10% / 0.08), 0 2px 6px -2px hsl(220 20% 10% / 0.04);
@@ -145,20 +166,37 @@
   The radius scale is *derived* rather than authored, matching §3b: transmit `--radius` and compute
   the rest, so a host that sends a different one reshapes the whole scale.
 */
-@utility h-control {
-  height: var(--control-h);
+@utility h-control-xs {
+  height: var(--control-height-xs);
 }
 
-@utility h-control-lg {
-  height: var(--control-h-lg);
+@utility h-control-sm {
+  height: var(--control-height-sm);
 }
 
-@utility text-body {
-  font-size: var(--text-body);
+@utility h-control-default {
+  height: var(--control-height-default);
+}
+
+/* Font size and leading together, always — separating them is how the leading goes missing. */
+@utility text-control-xs {
+  font-size: var(--control-text-xs);
+  line-height: var(--control-leading-xs);
+}
+
+@utility text-control-sm {
+  font-size: var(--control-text-sm);
+  line-height: var(--control-leading-sm);
+}
+
+@utility text-control-default {
+  font-size: var(--control-text-default);
+  line-height: var(--control-leading-default);
 }
 
 @utility text-detail {
   font-size: var(--text-detail);
+  line-height: var(--text-detail-leading);
 }
 
 @theme inline {

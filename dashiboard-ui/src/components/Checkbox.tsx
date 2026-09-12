@@ -22,7 +22,7 @@ type CheckboxProps = {
 
 export function Checkbox(props: CheckboxProps) {
   return (
-    <label class="inline-flex items-center gap-1.5 py-0.5 text-body">
+    <label class="inline-flex items-center gap-1.5 py-0.5 text-control-xs">
       <input
         type="checkbox"
         class="accent-primary"

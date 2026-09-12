@@ -79,7 +79,7 @@ export default function Home() {
               </Show>
               <pre
                 data-testid="report"
-                class="overflow-x-auto rounded-sm bg-muted p-3 text-body"
+                class="overflow-x-auto rounded-sm bg-muted p-3 text-control-xs"
               >{JSON.stringify(res.report ?? null, null, 2)}</pre>
             </div>
           )}
@@ -89,7 +89,7 @@ export default function Home() {
       <section data-section="The document" hidden={section() !== "The document"}>
         <pre
           data-testid="document"
-          class="overflow-x-auto rounded-sm bg-muted p-3 text-body"
+          class="overflow-x-auto rounded-sm bg-muted p-3 text-control-xs"
         >{JSON.stringify({ filters: getFilters(filters), ...getCards(cards) }, null, 2)}</pre>
       </section>
     </main>

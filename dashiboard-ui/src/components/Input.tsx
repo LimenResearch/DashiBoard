@@ -10,7 +10,7 @@
 // that information has nowhere to land but a banner above the page.
 
 const BASE =
-  "h-control rounded-sm border px-2 text-body outline-none ring-offset-2 focus:ring-2 focus:ring-ring";
+  "h-control-xs rounded-sm border px-2 text-control-xs outline-none ring-offset-2 focus:ring-2 focus:ring-ring";
 
 type InputProps = {
   type?: string;

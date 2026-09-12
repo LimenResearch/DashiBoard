@@ -185,7 +185,7 @@ export function SelectorField(props: SelectorFieldProps) {
 
     return (
       <fieldset class="my-2 rounded-sm border border-border p-2">
-        <legend class="px-1 text-body font-semibold text-muted-foreground">
+        <legend class="px-1 text-control-xs font-semibold text-muted-foreground">
           {sectionProps.chain.length === 0
             ? "Direct"
             : `Through ${sectionProps.chain.join(" → ")}`}
@@ -208,7 +208,7 @@ export function SelectorField(props: SelectorFieldProps) {
           */}
           <Show
             when={optionsOf(open()).length > 0}
-            fallback={<p class="text-body italic text-muted-foreground">none defined</p>}
+            fallback={<p class="text-control-xs italic text-muted-foreground">none defined</p>}
           >
             <div class="grid gap-x-3 sm:grid-cols-2 md:grid-cols-3">
               <For each={optionsOf(open())}>
@@ -232,7 +232,7 @@ export function SelectorField(props: SelectorFieldProps) {
 
   return (
     <div class="my-2">
-      <p class="text-body font-semibold text-primary">{props.label}</p>
+      <p class="text-control-xs font-semibold text-primary">{props.label}</p>
 
       <Show when={chips().length > 0}>
         <ul class="my-1 flex flex-wrap gap-1.5" aria-label={`${props.label} order`}>
@@ -241,7 +241,7 @@ export function SelectorField(props: SelectorFieldProps) {
               <li
                 data-chip={chipLabel(chip)}
                 draggable="true"
-                class="inline-flex items-center gap-1.5 rounded-sm border border-border bg-muted px-2 py-0.5 text-body"
+                class="inline-flex items-center gap-1.5 rounded-sm border border-border bg-muted px-2 py-0.5 text-control-xs"
                 onDragStart={() => setDragging(index())}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
@@ -288,7 +288,7 @@ export function SelectorField(props: SelectorFieldProps) {
           So the chain is built by appending on click and shown as it will be sent.
         */}
         <div class="mt-2" data-chain-builder>
-          <p class="text-body text-muted-foreground">
+          <p class="text-control-xs text-muted-foreground">
             add a pass-through
             <Show when={draft().length > 0}>
               <span class="ml-2 font-mono">{draft().join(" → ")}</span>
@@ -299,7 +299,7 @@ export function SelectorField(props: SelectorFieldProps) {
               {(option) => (
                 <button
                   type="button"
-                  class="rounded-sm border border-border px-2 py-0.5 text-body"
+                  class="rounded-sm border border-border px-2 py-0.5 text-control-xs"
                   onClick={() => setDraft([...draft(), option])}
                 >
                   {option}
@@ -310,7 +310,7 @@ export function SelectorField(props: SelectorFieldProps) {
               <button
                 type="button"
                 data-chain="commit"
-                class="rounded-sm border border-primary/30 bg-accent px-2 py-0.5 text-body text-primary"
+                class="rounded-sm border border-primary/30 bg-accent px-2 py-0.5 text-control-xs text-primary"
                 onClick={() => {
                   addChain(draft());
                   setDraft([]);
@@ -321,7 +321,7 @@ export function SelectorField(props: SelectorFieldProps) {
               <button
                 type="button"
                 data-chain="clear"
-                class="px-2 py-0.5 text-body text-muted-foreground"
+                class="px-2 py-0.5 text-control-xs text-muted-foreground"
                 onClick={() => setDraft([])}
               >
                 clear

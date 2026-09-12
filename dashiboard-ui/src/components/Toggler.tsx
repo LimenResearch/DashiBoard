@@ -27,7 +27,7 @@ export function Toggler(props: TogglerProps) {
       <div class="flex items-center border-b-2 border-border">
         <button
           type="button"
-          class="w-full flex-1 px-2 py-1.5 text-left text-body font-semibold text-primary hover:bg-secondary"
+          class="w-full flex-1 px-2 py-1.5 text-left text-control-xs font-semibold text-primary hover:bg-secondary"
           aria-expanded={open() ? "true" : "false"}
           onClick={() => setOpen(!open())}
         >
@@ -38,7 +38,7 @@ export function Toggler(props: TogglerProps) {
             type="button"
             aria-label={`reset ${props.name}`}
             title={`reset ${props.name}`}
-            class="px-2 py-1.5 text-body text-muted-foreground hover:text-destructive"
+            class="px-2 py-1.5 text-control-xs text-muted-foreground hover:text-destructive"
             onClick={(e) => props.onReset(e)}
           >
             ⬤

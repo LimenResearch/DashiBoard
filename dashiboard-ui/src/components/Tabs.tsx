@@ -12,8 +12,8 @@ export type TabSize = "sm" | "md";
 // resolving to `undefined` and silently rendering an unstyled tab — the shape that painted 12 of
 // 22 nodes black next door.
 const SIZING: Record<TabSize, string> = {
-  sm: "px-3 py-1 text-body",
-  md: "px-4 py-2 text-body",
+  sm: "px-3 py-1 text-control-xs",
+  md: "px-4 py-2 text-control-xs",
 };
 
 type TabsProps<T extends string> = {

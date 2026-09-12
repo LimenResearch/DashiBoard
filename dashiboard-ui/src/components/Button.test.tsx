@@ -29,9 +29,9 @@ describe('Button', () => {
     // Sized by height rather than by padding around a label, and the height is a token — so a
     // host that runs roomier resizes this rather than being matched by us in advance.
     const { container: sm } = render(() => <Button>a</Button>);
-    expect(btn(sm).className).toContain('h-control');
+    expect(btn(sm).className).toContain('h-control-xs');
     const { container: md } = render(() => <Button size="md">a</Button>);
-    expect(btn(md).className).toContain('h-control-lg');
+    expect(btn(md).className).toContain('h-control-sm');
   });
 
   it('distinguishes its variants', () => {

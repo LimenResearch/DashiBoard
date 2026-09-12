@@ -46,10 +46,10 @@ describe('the palette', () => {
     // which is the whole point of the check.
     const MODE_INDEPENDENT = [
       '--radius',
-      '--control-h',
-      '--control-h-lg',
-      '--text-body',
-      '--text-detail',
+      '--control-height-default', '--control-height-sm', '--control-height-xs',
+      '--control-text-default', '--control-text-sm', '--control-text-xs',
+      '--control-leading-default', '--control-leading-sm', '--control-leading-xs',
+      '--text-detail', '--text-detail-leading',
     ];
     const css = read('src/App.css');
     const light = blockOf(css, ':root');
@@ -97,5 +97,54 @@ describe('density', () => {
       .filter(([, body]) => CONTROL_HEIGHT.test(body))
       .map(([file]) => file);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('the control scale', () => {
+  const scale = () => {
+    const css = read('src/App.css');
+    const root = css.slice(css.indexOf(':root {'));
+    const value = (token: string) =>
+      root.match(new RegExp(`${token}:\\s*([^;]+);`))?.[1].trim();
+    return value;
+  };
+
+  it('pins every step to the size it stands in for', () => {
+    // nexus-weaver's sharpest point, and the uncomfortable one: the whole purpose of a token is
+    // that it can be varied, which means nothing else in the system will ever notice if it is
+    // varied by accident. Tokenising removes a guard rail at the same moment it adds a
+    // capability. This is the rail put back — the numbers are the Tailwind sizes these replaced.
+    const value = scale();
+    expect(value('--control-height-default')).toBe('2.5rem'); // h-10
+    expect(value('--control-height-sm')).toBe('2rem'); //        h-8
+    expect(value('--control-height-xs')).toBe('1.75rem'); //     h-7
+    expect(value('--control-text-default')).toBe('0.875rem'); // text-sm
+    expect(value('--control-text-sm')).toBe('0.75rem'); //       text-xs
+    expect(value('--control-text-xs')).toBe('0.75rem'); //       text-xs
+    expect(value('--control-leading-default')).toBe('1.25rem'); // text-sm's leading
+    expect(value('--control-leading-sm')).toBe('1rem'); //         text-xs's leading
+    expect(value('--control-leading-xs')).toBe('1rem'); //         text-xs's leading
+  });
+
+  it('names a leading wherever it names a font size', () => {
+    // Tailwind's `text-*` sets both; a token carrying only the size drops the leading silently,
+    // and the control inherits whatever surrounds it. We shipped that for three commits.
+    // Scoped to the control scale rather than to any `*-text-*` name: a looser pattern matches
+    // third-party variables like `--choices-text-color`, where "text" is a noun, not a size.
+    const css = read('src/App.css');
+    const steps = [...css.matchAll(/--control-text-(\w+):/g)].map((m) => m[1]);
+    const leadings = [...css.matchAll(/--control-leading-(\w+):/g)].map((m) => m[1]);
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps.filter((step) => !leadings.includes(step))).toEqual([]);
+  });
+
+  it('sets font size and leading together in every text utility', () => {
+    const css = read('src/App.css');
+    const utilities = [...css.matchAll(/@utility (text-[\w-]+) \{([^}]*)\}/g)];
+    expect(utilities.length).toBeGreaterThan(0);
+    const sizeOnly = utilities
+      .filter(([, , body]) => body.includes('font-size') && !body.includes('line-height'))
+      .map(([, name]) => name);
+    expect(sizeOnly).toEqual([]);
   });
 });

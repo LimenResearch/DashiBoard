@@ -181,10 +181,23 @@
   --muted-foreground: 220 10% 55%;
   --accent: 174 30% 15%;
   --accent-foreground: 174 62% 60%;
-  --destructive: 0 62% 50%;
-  /* Not a flip: destructive keeps white in both modes, unlike the status scales below. Copied
-     rather than reasoned about — 0 62% 50% carries white where lifted warning yellow does not. */
-  --destructive-foreground: 0 0% 100%;
+  /*
+    Lifted from L50%, and the foreground flipped — our one deliberate divergence from the host's
+    palette, because their value fails here.
+
+    Measured: `0 62% 50%` on `--card` is **3.49**, under AA, and `text-destructive` on a card is
+    shipped — probe errors, the invalid interval bound, the Remove label. L50% only looked safe
+    because their own contrast pass measured light-mode status colours on white and never measured
+    destructive-on-card in dark.
+
+    L60% takes it to 4.69 on card. That breaks white-on-fill (3.80), which is the same trade they
+    documented for `--primary` — and it has the same answer, already used for the other three
+    status scales in this block: the foreground flips to the page ground, giving 4.99. Destructive
+    was the only status colour in their dark palette still carrying white, which is precisely why
+    it was the one that failed. This applies their rule rather than inventing one.
+  */
+  --destructive: 0 62% 60%;
+  --destructive-foreground: 220 20% 7%;
   --border: 220 20% 18%;
   --input: 220 20% 18%;
   --ring: var(--primary);

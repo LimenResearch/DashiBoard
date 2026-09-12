@@ -256,6 +256,23 @@ describe('the authoring page', () => {
     expect(card.querySelector('summary')!.textContent).toContain('rescale');
   });
 
+  it('gives a new card the defaults its IR declares, not just a type', async () => {
+    // The form displayed `suffix: rescaled` either way; the document did not carry it, so what
+    // was on screen and what a download produced disagreed. `method` stays absent: it is required
+    // and the IR names no default option, so it is the author's to answer.
+    const { container, getByLabelText, getByText } = render(() => <Home />);
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+    const card = exportCards().nodes[0].card;
+    expect(card.type).toBe('rescale');
+    expect(card.suffix).toBe('rescaled');
+    expect(card.method).toBeUndefined();
+  });
+
   it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
     // Unwired for now — the placement is what was specified, and it is what a later wiring will
     // have to keep. Order matters: the destructive control should not be the first one reached.

@@ -26,7 +26,7 @@ import {
   type ProbeStore,
   type ProbeIssue,
 } from "../stores";
-import { withoutOption, type Defs, type IRNode } from "../ir";
+import { defaultsFor, withoutOption, type Defs, type IRNode } from "../ir";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -205,7 +205,20 @@ export function Cards() {
           >
             <For each={cardTypes()}>{(type) => <option value={type}>{type}</option>}</For>
           </select>
-          <Button onClick={() => addNode({ type: chosen() } as Card)}>Add card</Button>
+          {/*
+            The card starts with the defaults its IR declares, rather than with only a type. The
+            form displayed them either way; the document did not carry them, so what was on screen
+            and what a download produced disagreed.
+          */}
+          <Button
+            onClick={() => {
+              const ir = payload()?.cards[chosen()];
+              const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
+              addNode({ type: chosen(), ...(defaults as object) } as Card);
+            }}
+          >
+            Add card
+          </Button>
         </div>
       </Show>
 

@@ -141,17 +141,28 @@ export function IRField(props: IRFieldProps) {
           // A discriminated union: pick an option, then fill in that option's own fields. The
           // value is one object carrying `type` plus the chosen branch's keys.
           case "variant": {
+            // No fallback to `options[0]`. That list arrives from a Julia `Dict`, so its order
+            // carries no intent — preselecting from it asserts a choice nobody made, and the
+            // document then disagrees with the form about whether the question was answered.
             const chosen = () =>
-              (asRecord(props.value).type as string | undefined) ?? w.default ?? w.options[0];
+              (asRecord(props.value).type as string | undefined) ?? w.default ?? "";
             return (
               <Collapsible label={props.label} required={props.required}>
                 <Row for={`${props.label}-variant`} label="type">
                   <select
                     id={`${props.label}-variant`}
-                    class="h-control-xs rounded-sm border border-border px-2 text-control-xs"
+                    class={[
+                      "h-control-xs rounded-sm border px-2 text-control-xs",
+                      { "border-border": chosen() !== "", "border-warning": chosen() === "" },
+                    ]}
                     value={chosen()}
                     onChange={(event) => props.onChange({ type: event.currentTarget.value })}
                   >
+                    <Show when={chosen() === ""}>
+                      <option value="" disabled>
+                        choose…
+                      </option>
+                    </Show>
                     <For each={w.options}>{(option) => <option value={option}>{option}</option>}</For>
                   </select>
                 </Row>

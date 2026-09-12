@@ -210,3 +210,56 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
       return { kind: "unknown" };
   }
 }
+
+/**
+ * The value an IR node implies when nothing has been entered.
+ *
+ * A card added to the document used to carry only its `type`, while the form displayed every
+ * default the IR declares — so the screen said `suffix: rescaled` and the document said nothing,
+ * and downloading the cards produced a file that did not match what had been on screen. The
+ * server fills the same defaults on its way in, so the *behaviour* was consistent; what differed
+ * was the artefact the author was editing, which is the one they keep.
+ *
+ * Two things it deliberately does not do.
+ *
+ * It supplies nothing for a field that has no default. A required field without one is the
+ * author's to fill, and writing a value there would make an unanswered question look answered —
+ * which is exactly what a confirmation step exists to catch.
+ *
+ * And it leaves a variant unset unless the IR names a `default_option`. `options` arrives from a
+ * Julia `Dict`, so its order carries no intent: taking the first would assert a choice nobody
+ * made, and potentially a different one between two runs of the server.
+ */
+export function defaultsFor(node: IRNode, defs: Defs): unknown {
+  const w = widgetFor(node, defs);
+  switch (w.kind) {
+    case "object": {
+      const out: Record<string, unknown> = {};
+      for (const entry of w.properties) {
+        const value = defaultsFor(entry.value, defs);
+        if (value !== undefined) out[entry.key] = value;
+      }
+      return Object.keys(out).length > 0 ? out : undefined;
+    }
+
+    case "variant": {
+      if (w.default === undefined) return undefined;
+      const branch = w.objects[w.default];
+      const inner = branch === undefined ? undefined : defaultsFor(branch, defs);
+      return { type: w.default, ...(inner !== undefined ? (inner as object) : {}) };
+    }
+
+    case "select":
+    case "number":
+    case "toggle":
+    case "text":
+    case "multiselect":
+      return w.default;
+
+    // A repeater's default is an empty list, which is what an absent key already means; and an
+    // unknown node has nothing honest to offer.
+    case "repeater":
+    case "unknown":
+      return undefined;
+  }
+}

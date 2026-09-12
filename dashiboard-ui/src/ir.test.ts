@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { resolveRef, widgetFor, withoutOption, type Defs, type IRNode } from './ir';
+import {
+  defaultsFor,
+  resolveRef,
+  widgetFor,
+  withoutOption,
+  type Defs,
+  type IRNode,
+} from './ir';
 
 // Fixtures are the real shapes POST /get-card-ir serves, taken from an enumeration of
 // every node the ten registered cards produce.
@@ -199,5 +206,67 @@ describe('withoutOption', () => {
   it('is a no-op for a vocabulary that is absent or not an enum', () => {
     expect(withoutOption(defs, 'group', 'x')).toBe(defs);
     expect(withoutOption({ node: { type: 'object' } } as Defs, 'node', 'x').node.type).toBe('object');
+  });
+});
+
+describe('defaultsFor', () => {
+  const defs = {} as Defs;
+
+  it('gives back a scalar default', () => {
+    expect(defaultsFor({ type: 'string', default: 'rescaled' }, defs)).toBe('rescaled');
+    expect(defaultsFor({ type: 'number', default: 0.5 }, defs)).toBe(0.5);
+    expect(defaultsFor({ type: 'boolean', default: false }, defs)).toBe(false);
+  });
+
+  it('says nothing when a field has no default, rather than inventing one', () => {
+    // A required field without a default is the user's to fill. Supplying a value here would make
+    // an unanswered question look answered, which is the whole thing Confirm exists to catch.
+    expect(defaultsFor({ type: 'string' }, defs)).toBeUndefined();
+    expect(defaultsFor({ type: 'integer', minimum: 1 }, defs)).toBeUndefined();
+  });
+
+  it('collects an object from the properties that have one', () => {
+    const node: IRNode = {
+      type: 'object',
+      properties: [
+        { key: 'suffix', required: false, value: { type: 'string', default: 'rescaled' } },
+        { key: 'inputs', required: true, value: { type: 'string' } },
+      ],
+    };
+    expect(defaultsFor(node, defs)).toEqual({ suffix: 'rescaled' });
+  });
+
+  it('takes a variant only when the IR names a default option', () => {
+    const withDefault: IRNode = {
+      type: 'tagged_object',
+      options: ['identity', 'dayofyear'],
+      default_option: 'identity',
+      objects: {
+        identity: {
+          type: 'object',
+          properties: [{ key: 'max', required: false, value: { type: 'number', default: 1 } }],
+        },
+      },
+    };
+    expect(defaultsFor(withDefault, defs)).toEqual({ type: 'identity', max: 1 });
+  });
+
+  it('leaves a variant unset when the IR names no default option', () => {
+    // `options` arrives from a Julia Dict, so its order carries no intent. Picking the first would
+    // assert a choice nobody made, and one that could differ between two runs of the server.
+    const noDefault: IRNode = {
+      type: 'tagged_object',
+      options: ['maxabs', 'log', 'zscore'],
+      objects: {},
+    };
+    expect(defaultsFor(noDefault, defs)).toBeUndefined();
+  });
+
+  it('returns nothing for an object whose properties all lack defaults', () => {
+    const node: IRNode = {
+      type: 'object',
+      properties: [{ key: 'inputs', required: true, value: { type: 'string' } }],
+    };
+    expect(defaultsFor(node, defs)).toBeUndefined();
   });
 });

@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+/* Self-hosted rather than fetched from Google: DashiBoard runs standalone, sometimes on machines
+   that cannot reach a font CDN, and a webfont that silently falls back looks like a styling
+   decision rather than a missing dependency. These ship in the bundle. */
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
 /*
   The design tokens (C5).
 
@@ -61,6 +68,24 @@
   --info-foreground: 0 0% 100%;
 
   --radius: 0.5rem;
+
+  /*
+    Typeface, tokenised for the reason density is. A hardcoded family is one a host payload cannot
+    reach — and `--font-*` costs nothing until someone needs it.
+
+    Two faces because this UI names things. Column names, node ids and pass-through chains are
+    *identifiers*: `PRES`, `_tiled_partition`, `rescale → log`. Setting them in mono is not
+    decoration — it is the difference between reading a label and reading a name, and it makes a
+    trailing underscore or a doubled character visible instead of plausible.
+
+    Divergence worth knowing: nexus-weaver runs Inter. Embedded, our type will not match its host.
+    That is deliberate — this is DashiBoard's own identity, the same call as keeping our own
+    palette — but it is the one axis where matching was never attempted rather than attempted and
+    missed.
+  */
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
 
   /*
     Density, as tokens rather than as literals — the other half of the adaptation contract.
@@ -245,6 +270,9 @@
   --color-warning-foreground: hsl(var(--warning-foreground));
   --color-info: hsl(var(--info));
   --color-info-foreground: hsl(var(--info-foreground));
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -497,6 +525,9 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* custom atomic class to avoid "jumps" when scrollbar appears */

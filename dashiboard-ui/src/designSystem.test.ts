@@ -50,6 +50,7 @@ describe('the palette', () => {
       '--control-text-default', '--control-text-sm', '--control-text-xs',
       '--control-leading-default', '--control-leading-sm', '--control-leading-xs',
       '--text-detail', '--text-detail-leading',
+      '--font-sans', '--font-mono',
     ];
     const css = read('src/App.css');
     const light = blockOf(css, ':root');
@@ -181,6 +182,7 @@ describe('the authoring form', () => {
     '--control-leading-default', '--control-leading-sm', '--control-leading-xs',
     '--text-detail', '--text-detail-leading',
     '--shadow-card', '--shadow-elevated',
+    '--font-sans', '--font-mono',
     '--ring', // derived: `var(--primary)`, so the ring cannot drift from the button it rings
   ];
   const TRIPLET = /^\d+(\.\d+)?\s+\d+(\.\d+)?%\s+\d+(\.\d+)?%$/;

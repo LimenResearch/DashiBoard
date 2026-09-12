@@ -165,3 +165,49 @@ describe('the type scale', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('the authoring form', () => {
+  // Every colour token is a bare `H S% L%` triplet, never `hsl(...)` and never a hex.
+  //
+  // This is the contract's oddest-looking rule and the one most likely to be broken by a tool
+  // that thinks in colours rather than in strings: a design tool hands back `#0d9488`, it gets
+  // pasted in, and every `hsl(var(--primary))` consumer receives `hsl(#0d9488)` — which is
+  // invalid, so the declaration is dropped and the element renders unstyled rather than wrong.
+  // No error, no warning, and it looks like a styling mistake rather than a format one.
+  const NOT_A_COLOUR = [
+    '--radius',
+    '--control-height-default', '--control-height-sm', '--control-height-xs',
+    '--control-text-default', '--control-text-sm', '--control-text-xs',
+    '--control-leading-default', '--control-leading-sm', '--control-leading-xs',
+    '--text-detail', '--text-detail-leading',
+    '--shadow-card', '--shadow-elevated',
+    '--ring', // derived: `var(--primary)`, so the ring cannot drift from the button it rings
+  ];
+  const TRIPLET = /^\d+(\.\d+)?\s+\d+(\.\d+)?%\s+\d+(\.\d+)?%$/;
+
+  const declarations = (selector: string) => {
+    const css = read('src/App.css');
+    const open = css.indexOf(`${selector} {`);
+    let depth = 1;
+    let i = open + `${selector} {`.length;
+    while (depth > 0 && i < css.length) {
+      if (css[i] === '{') depth += 1;
+      else if (css[i] === '}') depth -= 1;
+      i += 1;
+    }
+    const body = css.slice(open + `${selector} {`.length, i - 1);
+    return [...body.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(
+      (m) => [m[1], m[2].trim()] as const,
+    );
+  };
+
+  for (const selector of [':root', '.dark']) {
+    it(`states every ${selector} colour as a bare triplet`, () => {
+      const wrong = declarations(selector)
+        .filter(([name]) => !NOT_A_COLOUR.includes(name))
+        .filter(([, value]) => !TRIPLET.test(value))
+        .map(([name, value]) => `${name}: ${value}`);
+      expect(wrong).toEqual([]);
+    });
+  }
+});

@@ -143,6 +143,16 @@ describe('checkFields', () => {
     expect(checkFields(node, defs, {}, '/nodes/0/card')).toEqual([]);
   });
 
+  it('stays silent about a required field the IR does not describe', () => {
+    // streamliner's `model` and `training` are required, empty, and *open* — Pipelines reads their
+    // widget definitions from `.wdgs` files at runtime, so the type describes nothing and the form
+    // has no control to draw. Naming them here would point at a field the author cannot answer,
+    // which is the "argues with you" failure this walk is supposed to avoid. The server does
+    // report them, and stage two is where that arrives.
+    const found = checkFields(cards.streamliner, defs, { type: 'streamliner' }, '/nodes/0/card');
+    expect(found.map((f) => f.pointer)).toEqual(['/nodes/0/card/funnel']);
+  });
+
   it('escapes a pointer segment, so an odd field name still addresses one field', () => {
     const node: IRNode = {
       type: 'object',

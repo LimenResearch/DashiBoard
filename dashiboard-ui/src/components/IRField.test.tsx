@@ -152,6 +152,68 @@ describe('IRField', () => {
     expect(defaultsFor(method, defs)).toBeUndefined();
   });
 
+  it('draws a parameterless branch as nothing at all', () => {
+    // `pca` is an object with no properties and `additionalProperties: false` — a method that
+    // takes no settings. It was rendering as a second `method` disclosure, nested inside the
+    // first, that opened onto nothing. 18 branches across rescale, window_function, cluster's
+    // `dissimilarity` and this card are parameterless, so it was most of the form.
+    const method = (cards.dimensionality_reduction as { properties: { key: string; value: IRNode }[] })
+      .properties.find((p) => p.key === 'method')!.value;
+    const { container } = render(() => (
+      <IRField
+        node={method} defs={defs} label="method"
+        value={{ type: 'pca' }} onChange={() => {}}
+      />
+    ));
+    // One disclosure — the variant's own. Nothing folds open onto an empty panel.
+    expect(container.querySelectorAll('details')).toHaveLength(1);
+    const summaries = [...container.querySelectorAll('summary')].map((e) => e.textContent);
+    expect(summaries).toEqual(['method']);
+    // And nothing *instead* of the fold either: `pca` is closed, so "takes no settings" is the
+    // truth. Asserted because treating every empty object as undescribed would also leave one
+    // disclosure standing, and would pass the two checks above while saying the wrong thing.
+    expect(container.textContent).not.toMatch(/not described/i);
+    expect(container.querySelectorAll('input, select')).toHaveLength(1); // the `type` chooser
+  });
+
+  it('puts a branch\'s fields at the variant\'s own level, not one deeper under a repeated name', () => {
+    // The same defect with the branch non-empty: the fields were wrapped in a second disclosure
+    // carrying the *same* label, so `radius` sat a level below `type` under a heading that said
+    // `method` twice. Indentation is how this form conveys structure, so a level that means
+    // nothing is a level that misleads.
+    const method = (cards.cluster as { properties: { key: string; value: IRNode }[] })
+      .properties.find((p) => p.key === 'method')!.value;
+    const { container } = render(() => (
+      <IRField
+        node={method} defs={defs} label="method"
+        value={{ type: 'dbscan', dissimilarity: { type: 'euclidean' } }} onChange={() => {}}
+      />
+    ));
+    // `method` and `dissimilarity`, each once: the two things that actually fold.
+    expect([...container.querySelectorAll('summary')].map((e) => e.textContent))
+      .toEqual(['method', 'dissimilarity']);
+    // `radius` is a sibling of the `type` row, inside the `method` disclosure.
+    // `radius*` — required, and the marker is part of the label's text (see the first test).
+    const radius = [...container.querySelectorAll('label')].find((l) => l.textContent === 'radius*')!;
+    expect(radius.closest('details')).toBe(container.querySelector('details'));
+  });
+
+  it('says an open object is undescribed rather than drawing it as having no settings', () => {
+    // `properties: []` means two different things, and the difference is `additionalProperties`.
+    // Closed, it is a method that takes no settings — draw nothing. Open, as streamliner's
+    // `model` and `training` are, the IR simply does not describe the field: the server accepts
+    // arbitrary keys there and requires them. An empty fold would claim there is nothing to fill
+    // in, which is the opposite of true.
+    const { container } = render(() => (
+      <IRField
+        node={{ type: 'object', properties: [], additionalProperties: true }}
+        defs={defs} label="model" value={undefined} onChange={() => {}}
+      />
+    ));
+    expect(container.textContent).toMatch(/not described/i);
+    expect(container.querySelector('details')).toBeNull();
+  });
+
   it('says so plainly when the IR does not describe a field', () => {
     const { container } = render(() => (
       <IRField node={{}} defs={defs} label="inputs" value={null} onChange={() => {}} />

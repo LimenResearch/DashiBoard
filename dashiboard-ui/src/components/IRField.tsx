@@ -22,6 +22,12 @@ type IRFieldProps = {
   defs: Defs;
   label: string;
   required?: boolean;
+  /**
+   * This object's caller has already drawn the container its fields belong in, so render them
+   * bare. True for a variant's chosen branch: `{type: "dbscan", radius: …}` is one flat object
+   * and one disclosure, not a `method` inside a `method`.
+   */
+  inline?: boolean;
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -124,11 +130,15 @@ export function IRField(props: IRFieldProps) {
                 )}
               </For>
             );
-            // The card itself is the outermost object and already sits in a bordered panel with
-            // its own header, so wrapping it again would be a box inside an identical box.
+            // Two objects render bare. The card is the outermost one and already sits in a
+            // bordered panel with its own header, so wrapping it again would be a box inside an
+            // identical box — that is what `title` marks. A variant's branch is the other: its
+            // caller drew the disclosure, and a second one repeating the same label put every
+            // branch field a level deeper than the `type` row it belongs beside.
+            const bare = () => props.inline === true || w.title !== undefined;
             return (
               <Show
-                when={w.title === undefined}
+                when={!bare()}
                 fallback={<div class="flex flex-col gap-0.5">{fields()}</div>}
               >
                 <Collapsible label={props.label} required={props.required}>
@@ -181,6 +191,7 @@ export function IRField(props: IRFieldProps) {
                       node={branch}
                       defs={props.defs}
                       label={props.label}
+                      inline
                       value={props.value}
                       onChange={(inner) => props.onChange({ ...asRecord(inner), type: chosen() })}
                     />

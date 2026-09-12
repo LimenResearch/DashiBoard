@@ -42,20 +42,38 @@ describe('the mapping covers the IR Julia actually serves', () => {
   });
 
   it('leaves nothing unmapped except genuinely unconstrained nodes', () => {
+    // Two shapes of "the IR does not constrain this", enumerated rather than described by a
+    // predicate, so a third one has to be added here deliberately instead of slipping in.
+    const unconstrained = (node: Record<string, unknown>) => {
+      const keys = Object.keys(node).sort();
+      // `ArrayIR{Any}()` serialises its items as `{}`.
+      if (keys.length === 0) return true;
+      // An *open* object with nothing described: the server accepts arbitrary keys here, so this
+      // says "undescribed", not "no settings". A closed one with no properties is the opposite —
+      // a method that takes no parameters — and must not land here.
+      return (
+        node.type === 'object' &&
+        node.additionalProperties === true &&
+        Array.isArray(node.properties) &&
+        node.properties.length === 0
+      );
+    };
+
     const unknown: string[] = [];
     for (const [key, card] of Object.entries(cards)) {
       for (const node of renderTargets(card)) {
         if (widgetFor(node, defs).kind !== 'unknown') continue;
-        // The only acceptable `unknown` is a node the IR does not constrain at all, i.e. `{}`.
         // A node carrying a `type` we do not handle is a gap, and names itself here.
-        expect(Object.keys(resolveRef(node, defs)), `${key}: ${JSON.stringify(node)}`).toEqual([]);
+        expect(unconstrained(resolveRef(node, defs)), `${key}: ${JSON.stringify(node)}`).toBe(true);
         unknown.push(key);
       }
     }
     // glm and mixed_model formulas use ArrayIR{Any}(), whose items serialise as {}. mixed_model
-    // is not registered by default, so glm is the only one here — and Pipelines carries a
-    // "make more specific" TODO for exactly this.
-    expect([...new Set(unknown)]).toEqual(['glm']);
+    // is not registered by default, so glm is the only one of those — and Pipelines carries a
+    // "make more specific" TODO for exactly this. streamliner's `model` and `training` are the
+    // open-object case: Pipelines reads their widget definitions from `.wdgs` files at runtime,
+    // so the type has nothing to describe and the card cannot be authored here yet.
+    expect([...new Set(unknown)].sort()).toEqual(['glm', 'streamliner']);
   });
 
   it('resolves a variables field to a repeater over selectors', () => {

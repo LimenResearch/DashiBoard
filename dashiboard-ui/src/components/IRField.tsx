@@ -4,7 +4,7 @@ import type { Element as JSXElement } from "solid-js";
 import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
 import { SelectorField } from "./SelectorField";
-import { widgetFor, type Defs, type IRNode, type Widget } from "../ir";
+import { defaultsFor, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
 // `widgetFor` returns. Decisions section 13 is what makes this a switch over a closed set
@@ -156,7 +156,16 @@ export function IRField(props: IRFieldProps) {
                       { "border-border": chosen() !== "", "border-warning": chosen() === "" },
                     ]}
                     value={chosen()}
-                    onChange={(event) => props.onChange({ type: event.currentTarget.value })}
+                    onChange={(event) => {
+                      // The branch's own defaults come with the choice. Writing `{type}` alone
+                      // left a form showing defaults the document did not hold — and after the
+                      // IR fix that lets `dissimilarity` name `euclidean`, those defaults exist
+                      // to be carried.
+                      const option = event.currentTarget.value;
+                      const branch = w.objects[option];
+                      const inner = branch === undefined ? undefined : defaultsFor(branch, props.defs);
+                      props.onChange({ ...(inner as object), type: option });
+                    }}
                   >
                     <Show when={chosen() === ""}>
                       <option value="" disabled>

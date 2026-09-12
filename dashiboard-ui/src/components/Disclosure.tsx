@@ -10,14 +10,20 @@ import type { Element as JSXElement } from "solid-js";
 // the long one turned out to be unreadable. Folded, a card is one line naming what it is, which is
 // what makes a pipeline of six of them scannable.
 
-/** Points at where the content will appear; a 90° turn is a movement you can see. A filled
- *  triangle at this size reads as a bullet whatever its angle. */
+/**
+ * Points at where the content will appear; a 90° turn is a movement you can see.
+ *
+ * Turned by a rule in App.css keyed on the *nearest* `details`, not by `group-open`. Tailwind's
+ * group variant compiles to `:is(.group:is([open]) *)`, which matches any descendant of any open
+ * group — so every nested chevron turned when an outer disclosure opened and then sat stuck,
+ * because its own state was never what the selector read.
+ */
 export function Chevron() {
   return (
     <svg
       viewBox="0 0 12 12"
       aria-hidden="true"
-      class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150 group-open:rotate-90"
+      class="disclosure-chevron h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150"
     >
       <path
         d="M4.5 2.5 L8 6 L4.5 9.5"
@@ -43,7 +49,7 @@ type DisclosureProps = {
 
 export function Disclosure(props: DisclosureProps) {
   return (
-    <details open={props.open ?? false} class={["group", props.class ?? ""]}>
+    <details open={props.open ?? false} class={props.class ?? ""}>
       <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-sm py-0.5 hover:bg-muted [&::-webkit-details-marker]:hidden">
         <Chevron />
         {props.summary}

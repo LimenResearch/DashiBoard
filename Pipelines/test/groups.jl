@@ -384,3 +384,30 @@ end
     # The prose survives alongside the data, for anything that only knows how to print.
     @test occursin("enum", bad_variant.message) || !isempty(bad_variant.message)
 end
+
+# A defaulted *variant* field must carry its default into the IR.
+#
+# `DBSCANMethod` declares `dissimilarity::D = EuclideanMethod()`, so a form rendering that card has
+# everything it needs to fill the field in — but only if the IR says which option the default is.
+# It did not: `@options`' `IR_from_type` compared the default *instance* against a Dict whose
+# values are *types*, so `findfirst(==(_default), methods)` never matched and `default_option` came
+# out `nothing`. Nothing downstream could tell "no default" from "a default we failed to name".
+@testset "a defaulted variant names its default option" begin
+    ir = Pipelines.card_ir("cluster")
+    method = only(p for p in ir.properties if p.key == "method").value
+    dbscan = method.objects["dbscan"]
+    dissimilarity = only(p for p in dbscan.properties if p.key == "dissimilarity").value
+
+    @test dissimilarity.default_option == "euclidean"
+    # and the option it names is one the field actually offers
+    @test dissimilarity.default_option in dissimilarity.options
+
+    # kmeans defaults to squared euclidean, which is a different branch of the same vocabulary —
+    # so this is the default of the *field*, not of the type.
+    kmeans = method.objects["kmeans"]
+    kdiss = only(p for p in kmeans.properties if p.key == "dissimilarity").value
+    @test kdiss.default_option == "sqeuclidean"
+
+    # A field with no declared default still says so, rather than inventing one.
+    @test method.default_option === nothing
+end

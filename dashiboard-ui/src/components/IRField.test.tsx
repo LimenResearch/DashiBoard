@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@solidjs/testing-library';
 import { IRField } from './IRField';
-import type { Defs, IRNode } from '../ir';
+import { defaultsFor, type Defs, type IRNode } from '../ir';
 import payload from '../fixtures/card-ir.json';
 
 const defs = payload.defs as Defs;
@@ -107,6 +107,49 @@ describe('IRField', () => {
     const labels = [...container.querySelectorAll('label')].map((l) => l.textContent ?? '');
     expect(labels.some((l) => l.includes('percentile'))).toBe(true);
     expect(labels.some((l) => l.includes('tiles'))).toBe(false); // the other branch stays hidden
+  });
+
+  it('carries the chosen branch\'s own defaults, not just its name', () => {
+    // The bug this was written for: picking `dbscan` wrote `{type: "dbscan"}` and left
+    // `dissimilarity` unset, even though Pipelines declares Euclidean as its default. The field
+    // then rendered `choose…` for something the author had never been asked about.
+    //
+    // Read from the real IR rather than a hand-built node, because the first half of the fix was in
+    // Julia — `IR_from_type` compared a default *instance* against a `Dict` of *types*, so
+    // `default_option` came out `nothing` for every defaulted variant and no frontend change could
+    // have recovered it.
+    const method = (cards.cluster as { properties: { key: string; value: IRNode }[] })
+      .properties.find((p) => p.key === 'method')!.value;
+    let seen: unknown = null;
+    const { container } = render(() => (
+      <IRField
+        node={method} defs={defs} label="method"
+        value={{}} onChange={(v) => { seen = v; }}
+      />
+    ));
+    const select = container.querySelector('select') as HTMLSelectElement;
+    select.value = 'dbscan';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    // All three kinds of declared default at once: `dissimilarity` from a `default_option`,
+    // the two integers from a scalar `default`. `radius` is absent because dbscan declares no
+    // default for it — which is the point of the distinction: what is left unset after this is
+    // exactly what the author still has to answer.
+    expect(seen).toEqual({
+      type: 'dbscan',
+      dissimilarity: { type: 'euclidean' },
+      min_neighbors: 1,
+      min_cluster_size: 1,
+    });
+    expect(seen).not.toHaveProperty('radius');
+  });
+
+  it('leaves a variant unchosen when the IR names no default', () => {
+    // `cluster.method` itself has no `default_option`, so there is nothing to inherit and
+    // guessing `options[0]` would pick whatever order a Julia `Dict` happened to have.
+    const method = (cards.cluster as { properties: { key: string; value: IRNode }[] })
+      .properties.find((p) => p.key === 'method')!.value;
+    expect((method as { default_option?: string }).default_option).toBeUndefined();
+    expect(defaultsFor(method, defs)).toBeUndefined();
   });
 
   it('says so plainly when the IR does not describe a field', () => {

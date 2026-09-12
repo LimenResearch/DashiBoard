@@ -543,6 +543,18 @@
 }
 
 /*
+  The disclosure chevron turns with its *own* disclosure.
+
+  `details[open] > summary` is a direct-child chain, so it reads the state of the nearest
+  `<details>` and nothing above it. Tailwind's `group-open` variant cannot express this: it
+  compiles to `:is(.group:is([open]) *)`, which matches every descendant of every open group, so a
+  nested chevron turned when its parent opened and then stayed turned regardless of its own state.
+*/
+details[open] > summary .disclosure-chevron {
+  rotate: 90deg;
+}
+
+/*
   Native form controls, which the browser draws itself.
 
   `color-scheme` above is the right mechanism and it covers the control, the scrollbars and the

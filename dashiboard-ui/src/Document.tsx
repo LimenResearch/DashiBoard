@@ -18,7 +18,7 @@ export default function Document(props: ParentProps) {
         <title>Solid App</title>
         <HydrationScript />
       </head>
-      <body class="text-center font-sans">{props.children}</body>
+      <body>{props.children}</body>
     </html>
   );
 }

@@ -67,6 +67,11 @@
   --info: 200 80% 39%;
   --info-foreground: 0 0% 100%;
 
+  /* Tells the browser which way to render the widgets it owns — the dropdown list and its
+     highlight, scrollbars, spinners. Styling `option` reaches almost none of that and is ignored
+     outright on several platforms, so this is the fix rather than a fallback. */
+  color-scheme: light;
+
   --radius: 0.5rem;
 
   /*
@@ -166,6 +171,8 @@
   from tinted to pure black at higher alpha, since a tinted shadow is invisible on a dark ground.
 */
 .dark {
+  color-scheme: dark;
+
   --background: 220 20% 7%;
   --foreground: 220 10% 90%;
   --card: 220 20% 10%;

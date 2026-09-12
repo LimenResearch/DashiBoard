@@ -399,6 +399,8 @@ gain this host can name.
 |---|---|---|
 | C1 | Recursive renderer over the **IR** | A3 |
 | C2 | The variable picker — selector kind, `through`, union repeater — reused for card fields and "Add group". Selector-kind must be unrepresentably wrong (A7) | A3, B2 |
+| C8 | **Key a dispatch table on its union where one exists; require a fallback where it does not** | — |
+| C9 | **Sync the host's type scale. Do not sync a density number — there isn't one** | — |
 | C3 | Canvas: auto-laid-out DAG, side editing panel, no stored positions | A4 |
 | C4 | Connect source, results panes | B7 |
 | C5 | `/embed` route and the `postMessage` contract. **Scope corrected and theming settled, 2026-09-09** — see *C5 in detail* below. The contract is far thinner than this row originally implied. | Track D |
@@ -406,6 +408,144 @@ gain this host can name.
 | C7 | Validate with the schema; attach errors to IR entries by pointer | A3, A7 |
 
 ---
+
+### C8 in detail — exhaustive dispatch, borrowed from a live bug next door
+
+Two components here dispatch on a closed set: C1 renders per IR entry kind, C2 per selector kind
+(`cols`/`nodes`/`groups`). Both are exactly the shape that produced a shipped defect in
+nexus-weaver-pro on 2026-09-10, documented in `05-nexus-weaver-brief.md` §3c.
+
+Their `GraphMinimap.dotColors` was `Record<string, string>`, keyed on node types that no longer
+existed while the union had gained one the table lacked. The missing key resolved to `undefined`,
+SVG fell back to its default, and **12 of 22 nodes painted black** — legible enough on a light card
+to look deliberate, invisible on a dark one. The table had drifted from its union in both directions
+at once, with no compiler complaint.
+
+**The rule: key on the union *where there is one*.** A missing variant then becomes a build error
+rather than a silent fallback. Their sweep found the same shape in three more places, each latent,
+and drew out the uncomfortable part — the two *guarded* maps were a throwaway mock page and a
+dialog, while the one that shipped unguarded was the live rendering component. Defensive coding
+landed where it mattered least.
+
+**Refined 2026-09-11, and the refinement matters here more than there.** Stated as an absolute —
+"never key on `string`" — the rule pushes you to invent unions the API does not have. Three of their
+tables correctly key on `string`, because the server types the field as a bare string or the domain
+is genuinely open; what those need is a *fallback*, not a union.
+
+For us the line falls in a specific and checkable place:
+
+- **IR entry kind and selector kind are closed**, server-defined and finite. Key on the union; a new
+  kind must fail the build. This is also what protects the property C2 depends on — selector-kind
+  must be **unrepresentably** wrong, and a table tolerating an unknown kind reintroduces exactly the
+  state the picker exists to make impossible.
+- **Card type is open by design.** `register_card` and `register_wild_card` are public, and
+  `WildCard` exists so a downstream package can add a type `Pipelines` has never seen. A renderer
+  dispatching on card type must therefore have a fallback and must render something honest for an
+  unknown one — never a blank panel.
+
+### C8 addendum — two Tailwind traps that are not ours, and one that is
+
+nexus-weaver-pro reported three findings on 2026-09-11. Checked against our tree: we are SolidJS +
+Tailwind with **no shadcn, no `tailwind-merge`, no `cva`**, and no `App.css`, so none applies as
+stated. Two generalise to plain Tailwind and are worth knowing before C1 and C2 are written.
+
+- **A parent's arbitrary-variant utility outranks a child's own class.** `[&_svg]:size-4` on a
+  parent compiles to a descendant selector at specificity (0,1,1); the child's `h-3` is (0,1,0), so
+  the parent wins. They had 39 call sites whose icon sizes were all dead, every one rendering 16px
+  in a 24px button — invisible in review, because the child's className reads correctly. If we write
+  arbitrary variants targeting descendants, the size must live on the parent variant.
+- **Responsive variants do not collapse with base utilities.** `text-xs` and `md:text-sm` are
+  different groups; both survive, and above the breakpoint the media query wins. Their compact
+  inputs were compact only on phones. This is plain CSS and applies to us whether or not we ever add
+  a class merger.
+
+Not applicable, recorded so nobody re-derives it: their ag-grid Theming API advice is conditional on
+ag-grid v33+, and we are on `@ag-grid-community/core` ^32.3.9 — legacy mode. And the unimported
+`App.css` finding is about their Vite scaffold; we have only `index.css`, and our density notes live
+in this plan rather than in a stylesheet.
+
+### C9 in detail — there is no density convention to sync
+
+**Corrected 2026-09-11 by nexus-weaver-pro, and it says close to the opposite of what this row said
+yesterday.** The figures in `05-nexus-weaver-brief.md` §3b came from a single-line grep that missed
+64 of 91 multi-line `<Input>` tags. Re-measured by brace-matching each opening tag:
+
+| Control | n | Distribution |
+|---|---|---|
+| Button | 186 | `h-9` ×80 (77 via `size="sm"`), `h-7` ×33, `h-10` ×22, `h-6` ×20, `h-8` ×15, `h-5` ×11, `h-4` ×5 |
+| Input | 91 | `h-10` ×54 (unsized default), `h-8` ×21, `h-7` ×11, `h-6` ×4, `h-9` ×1 |
+| SelectTrigger | 33 | `h-10` ×18 (unsized default), `h-8` ×7, `h-9` ×4, `h-7` ×4 |
+
+**Compact was a minority local override — 36 of 91 inputs — not a convention.** And it is not drift
+within files: it is *two* conventions split by feature area. Of 31 files rendering an Input or
+SelectTrigger, 14 are entirely compact, 13 entirely default, 4 mixed. The rule you would guess does
+not hold — their densest surface is a dialog, and so is one of their roomiest. What it tracks is
+which feature was built when.
+
+**Retracted 2026-09-12: the type scale is not safe to sync either.** The figures above were the
+second bad census from the same source and were withdrawn by it. Re-measured, **475 of 921 sized-text
+tokens — 51% — are arbitrary values below `text-xs`, in five distinct sizes, across 65 files.** The
+type scale is the *least* consolidated thing in that system, not the most.
+
+The cause was a regex: `\btext-(\[[0-9]+px\]|xs|sm|…)\b`, where `\b` cannot match between `-` and
+`[`, so the alternative naming the arbitrary form never matched. The pattern *said* it counted
+arbitrary sizes and returned none, and the tidy output was read as a tidy codebase.
+
+**Calibration for anyone implementing against `05-nexus-weaver-brief.md`:** two of its censuses have
+now been wrong, in different ways, and both looked clean. Its *token list* was read directly from
+`index.css` and remains reliable; its *counts* should be re-measured before anything is built on
+them. That is not a criticism of the brief — both errors were caught and corrected by its author —
+but a plan should not carry a number it has not seen produced.
+
+**Do not pin against a control height.** They have since made both conventions *expressible* — size
+recipes on Input and SelectTrigger — so choosing between them is a `defaultVariants` edit on two
+files rather than a 31-file sweep, and they have deliberately not chosen, because it is a product
+decision that is now cheap and reversible. A UI that hard-codes to today's majority will be wrong if
+that flips, at no warning.
+
+The general lesson is worth more than the numbers: **a census taken with a line-oriented grep
+undercounts multi-line tags silently**, and the undercount is not random — it concentrated in
+exactly the files whose markup had grown complex enough to wrap, which is a population with its own
+conventions.
+
+**[2026-09-12] The vocabulary to adopt.** nexus-weaver-pro has since tokenised density and proposed
+a shared naming, offering to rename if it collides with ours. It does not — we have nothing to
+collide with, which is the cleanest possible position to adopt from. Nine properties on `:root`,
+shaped `--control-<property>-<step>`:
+
+| | `default` | `sm` | `xs` |
+|---|---|---|---|
+| `--control-height-*` | `2.5rem` | `2rem` | `1.75rem` |
+| `--control-text-*` | `0.875rem` | `0.75rem` | `0.75rem` |
+| `--control-leading-*` | `1.25rem` | `1rem` | `1rem` |
+
+Their step names match their variant API, so `size="sm"` and `--control-height-sm` are visibly the
+same thing. **Our old frontend's "compact" is their `xs`.** These are geometry: `:root` only, never
+`.dark`, and they join `--radius` as documented exceptions to any palette-parity test — a test that
+checks `:root`/`.dark` parity without an allowlist will fail on them and look like a parity bug
+rather than a category difference.
+
+**Three properties per step, not two — and the third is the one that bites.** Tailwind's `text-xs`
+sets font-size *and* line-height. The arbitrary form needed to read a custom property,
+`text-[length:var(--x)]`, sets **font-size alone**, so a naive swap silently drops the line-height
+and the control inherits whatever the surrounding page had. It looks right on the page it was
+written for and drifts elsewhere — the same failure shape as a Graphviz `<text>` inheriting black.
+Worse, the combined syntax `text-[length:var(--a)]/[var(--b)]` **does not compile in Tailwind 3.4**
+and emits nothing, with no error; `leading-[var(--b)]` as a separate utility does. **We are on
+Tailwind ^3.4.19, so this reaches us directly.**
+
+**Our Button needs no reconciling.** They left theirs literal because its ladder runs `h-5` to `h-11`
+across six text steps and does not map onto three density steps, and asked whether ours lines up.
+It has no ladder at all: `frontend/src/components/button.jsx` is one size, padding-based
+(`py-2 px-4 text-xl`), and the whole frontend contains two `h-7` and no other height class. So there
+is nothing to align — and nothing to preserve either, since `text-xl` on a button is far rougher
+than either of their conventions.
+
+**Steal their pin test, for the reason they give.** Nine assertions tying each token to the Tailwind
+size it stands in for, checked in the built CSS at each link rather than reasoned about. Their
+rationale generalises well past CSS: *the entire point of a token is that it can be varied, which
+means nothing else in the system will ever notice if it is varied by accident.* Tokenising removes a
+guard rail at the same moment it adds a capability, and the pin is what puts the rail back.
 
 ### C2 in detail — the variable picker
 
@@ -451,15 +591,58 @@ Through[rescale], with no duplicate inside either control.
    order; each subpanel shows the items of its kind in that order; adding appends. Order is then
    preserved by construction, and reordering is simply not offered — acceptable while §12 is open,
    and revisitable if `inputs` stays ordered.
-2. **The chain control must be constrained to chains that exist.** `through` builds a column *name*
-   by concatenating suffixes; validation checks only that the *base* column exists. A chain naming
-   a column no node produces is **accepted** and fails later inside a task, naming neither the
-   column nor the node — `06`'s systemic finding landing on a concrete case, and the sharpest
-   instance of it, because the reference is never written down. The UI holds the whole document and
-   therefore knows every node's suffix and outputs, so it can offer only chains that resolve to
-   something a node actually emits, and show the resulting name as the chain is built
-   (`TEMP → r1 → r2 = TEMP_a_b`). That converts a late, uninformative SQL failure into an empty
-   dropdown. **This is the one place the UI can compute an answer the server will not check.**
+2. ~~**The chain control must be constrained to chains that exist.**~~ **WITHDRAWN 2026-09-12. It
+   contradicted a principle stated elsewhere in this same document, on the same day it was
+   written.**
+
+   A10's detail section already says, attributed to the owner and dated 2026-09-10: *"Where the
+   check does not belong: the UI. The obvious fix is for the picker to compute what a chain resolves
+   to and offer only chains that exist. That would be a second implementation of `pass_through` in
+   TypeScript — a second source of truth for a naming rule, which is the duplication this refactor
+   exists to remove. **The UI writes the TOML; DashiBoard resolves it.**"*
+
+   C2's clause below asks for exactly that computation. Both were written on 2026-09-10 and the
+   document has disagreed with itself since. This is not the owner changing position — it is C2
+   being wrong from the start, and the contradiction surviving because each section was read on its
+   own. The original is kept below because its reasoning about the *failure* is still right; only
+   its remedy is withdrawn.
+
+   > `through` builds a column *name* by concatenating suffixes; validation checks only that the
+   > *base* column exists. A chain naming a column no node produces is **accepted** and fails later
+   > inside a task, naming neither the column nor the node — `06`'s systemic finding landing on a
+   > concrete case, and the sharpest instance of it, because the reference is never written down.
+   > The UI holds the whole document and therefore knows every node's suffix and outputs, so it can
+   > offer only chains that resolve to something a node actually emits, and show the resulting name
+   > as the chain is built (`TEMP → r1 → r2 = TEMP_a_b`). That converts a late, uninformative SQL
+   > failure into an empty dropdown. **This is the one place the UI can compute an answer the server
+   > will not check.**
+
+   **What the document contains, which was never in question and is worth stating anyway:** the
+   selector form and only the selector form — `{cols = ["No","year"]}, {cols = "month", through =
+   "log"}`. Never `month_log`. The group dialect has always been a set of *references* that
+   DashiBoard resolves; a document holding resolved names would have resolved away the vocabulary
+   the picker exists to author.
+
+   **What is withdrawn:** the UI showing a resolved name, anywhere — including the chain composer's
+   `= TEMP_a_b` preview, which is what the original clause specifically asked for. Producing that
+   string requires implementing suffix concatenation in the browser, and that is a second source of
+   truth for a naming rule DashiBoard owns. It is the same duplication A10 was created to delete,
+   and the same shape as every other rule this project has found written down twice.
+
+   **What that costs, stated plainly.** The original remedy was *prevention*: filter the offer, so a
+   chain that names nothing is simply not on the menu. Without client-side naming the UI cannot
+   filter, so the protection moves from prevention to **reporting** — and the empty dropdown this
+   clause wanted is not available.
+
+   **What delivers it instead: A10, which did not exist when this was written.** `POST
+   /probe-pipeline` runs on every edit and reports unproduced references, addressed by JSON Pointer
+   (A7). So a chain naming nothing is caught *before a run*, which was this clause's actual goal —
+   later than an empty dropdown, far earlier than a failure inside a task, and it is the server's
+   own answer rather than a browser's guess at it.
+
+   **If prevention is wanted back**, the way to get it is for the *server* to enumerate the chains
+   that resolve, not for the UI to work them out. That is the only version of filtering that does
+   not duplicate the rule, and it is server work rather than UI work.
 
 What *is* caught server-side: a `through` naming the consuming node makes the graph cyclic and is
 rejected. So the unconstrained control's failure mode is narrower than "anything goes", but still
@@ -501,6 +684,34 @@ same-document. Settled 2026-09-09 with that session, owner-directed:
   the literal string `var(--primary)`, which the frame would write onto its own `:root` where it
   resolves against the *frame's* `--primary` or nothing — a wrong or invalid colour, with no error.
   Reported by that session against its own change.
+- **Density rides this same payload — it needs no new channel, but it does need this one.**
+  nexus-weaver-pro tokenised control density on 2026-09-12 as nine `--control-<property>-<step>`
+  properties, and suggested density may need no transport at all, because a custom property
+  inherits: a host that sets the palette on a wrapper sets density the same way, in the same place.
+  **That is true same-document and false across a frame** — which is the first line of this section.
+  Their suggestion is written from the host's position, where there is nobody to receive density
+  from. For us the correct reading is narrower and still useful: density needs no *new* transport,
+  because whatever carries the palette carries this too — no URL parameter, no second channel.
+
+  **Say "a payload someone will build", not "one that exists".** An earlier draft of this bullet said
+  density was nine more entries in a payload that already crosses. It is not: nothing crosses today.
+  Verified in the host's tree — no `postMessage` in `src/`, no `<iframe>` outside a comment about
+  byte-serving endpoints, no `getComputedStyle` export path, and `/dashiboard` still an 820-line mock.
+  That contradicted the first line of this very section, which says the contract is designed rather
+  than discovered. The cost of adding density is still near zero; the point is that a plan reading
+  "already crosses" will not budget for building the sender.
+
+  The inheritance property is worth having for a different reason. **Inside** the frame, a subtree
+  can redeclare `--control-height-default: var(--control-height-sm)` and every control within
+  follows without one call site naming a size. That is what makes "each surface declares its density"
+  expressible rather than a matter of discipline, and it is directly useful for a dense side panel
+  beside a roomy canvas.
+- **Enumerate the token set dynamically; never list the properties by name.** Density was missing
+  from this contract for exactly one reason: colour was enumerated by hand, and nobody conceived of
+  density as a thing that varies. A hand-written list reproduces that failure the next time a
+  category appears — spacing, motion, whatever it turns out to be. It is the same shape as a class
+  naming an uninstalled animation: **a payload omitting a token looks identical to a payload that is
+  complete.** Read the properties off the computed root rather than from a literal.
 - **The payload always carries the full token set, never a delta.** Same cause, different symptom.
   `--ring` derives from `--primary`, and `--gradient-primary` from `--primary` and `--primary-glow`,
   so editing `--primary` alone silently changes three computed values while only *one* declaration
@@ -700,6 +911,14 @@ at two confidence levels, and nothing in the format distinguishes them. AgentGra
 commissioned as "an honest account of how that went", which produces a post-mortem — and was then
 read as a specification, because it was the only account of a system nobody else could see. Three
 times a defect of theirs was taken as evidence of the same defect here.
+
+**A named mechanism stops being a question.** The sharpest failure in this exchange was not a
+missed measurement but a completed one. nexus-weaver-pro diagnosed correctly that values below
+Tailwind's scale can only be arbitrary values, that arbitrary values collide with nothing, and that
+this "is what let them multiply" — then removed the symptom from 48 buttons, left the cause in 65
+files, and reported the type scale as holding in the same message. Writing the mechanism down made
+it feel handled. **After naming a cause, ask where else it applies before treating it as closed** —
+the diagnosis is the beginning of the search, not the end of it.
 
 **Watch for synthesis that arrives after the verification.** The subtlest error in this
 reconnaissance was not reasoning where measurement was available — it was measuring two things

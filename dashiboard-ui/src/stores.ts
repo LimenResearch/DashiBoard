@@ -1,4 +1,4 @@
-import { createStore, reconcile, snapshot } from "solid-js";
+import { createSignal, createStore, reconcile, snapshot } from "solid-js";
 
 export class Interval {
   min: number;
@@ -289,4 +289,35 @@ export function removeNode(nodeIndex: number) {
   setCards((draft) => {
     draft.nodes.splice(nodeIndex, 1);
   });
+}
+
+// --- confirmation --------------------------------------------------------------------------
+//
+// Which definitions the author has deliberately marked finished.
+//
+// Not in the document, and not sent anywhere: this is an ergonomic step, so it lives as long as
+// the session and no longer. A reload shows everything unconfirmed, which is honest — it says
+// "you have not reviewed this here", not "this is wrong".
+//
+// Stored as a *signature of the content* rather than a flag. Editing a confirmed card changes its
+// signature and so un-confirms it automatically, which is the behaviour that matters: a card
+// confirmed and then changed is no longer something anyone declared finished, and a flag would go
+// quietly stale instead.
+
+const [confirmations, setConfirmations] = createSignal<Record<string, string>>({});
+
+const signatureOf = (value: unknown) => JSON.stringify(value);
+
+export function isConfirmed(key: string, value: unknown): boolean {
+  return confirmations()[key] === signatureOf(value);
+}
+
+export function confirmDefinition(key: string, value: unknown) {
+  setConfirmations({ ...confirmations(), [key]: signatureOf(value) });
+}
+
+export function forgetConfirmation(key: string) {
+  const next = { ...confirmations() };
+  delete next[key];
+  setConfirmations(next);
 }

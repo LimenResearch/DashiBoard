@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { flush } from 'solid-js';
 import {
   emptyCards, importCards, exportCards, setCard, setCardField, addNode, removeNode, setNodeId,
   issuesForNode, fieldPath, type ProbeIssue,
   addGroup, removeGroup, renameGroup, setGroup,
+  isConfirmed, confirmDefinition, forgetConfirmation,
   CARDS_STORE, type CardsStore,
 } from './stores';
 import { getCards } from './left-tabs/processing';
@@ -200,5 +202,42 @@ describe('groups', () => {
     addGroup('b');
     removeGroup('a');
     expect(Object.keys(exportCards().groups)).toEqual(['b']);
+  });
+});
+
+describe('confirmation', () => {
+  // Solid 2 defers signal updates, so a write and the read that checks it cannot share a tick.
+  it('remembers a definition as confirmed', async () => {
+    const card = { type: 'rescale', suffix: 'rescaled' };
+    expect(isConfirmed('node:a', card)).toBe(false);
+    confirmDefinition('node:a', card);
+    await flush();
+    expect(isConfirmed('node:a', card)).toBe(true);
+  });
+
+  it('un-confirms itself when the definition changes', async () => {
+    // Stored as a signature of the content rather than a flag. A card confirmed and then edited
+    // is no longer something anyone declared finished, and a flag would go quietly stale.
+    const card = { type: 'rescale', suffix: 'rescaled' };
+    confirmDefinition('node:b', card);
+    await flush();
+    expect(isConfirmed('node:b', card)).toBe(true);
+    expect(isConfirmed('node:b', { ...card, suffix: 'zscored' })).toBe(false);
+  });
+
+  it('keeps confirmations apart by key', async () => {
+    const card = { type: 'rescale' };
+    confirmDefinition('node:c', card);
+    await flush();
+    expect(isConfirmed('node:d', card)).toBe(false);
+  });
+
+  it('forgets one on request, for a definition that no longer exists', async () => {
+    const card = { type: 'rescale' };
+    confirmDefinition('node:e', card);
+    await flush();
+    forgetConfirmation('node:e');
+    await flush();
+    expect(isConfirmed('node:e', card)).toBe(false);
   });
 });

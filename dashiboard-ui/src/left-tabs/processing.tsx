@@ -15,6 +15,8 @@ import {
   removeNode,
   setCard,
   setNodeId,
+  isConfirmed,
+  confirmDefinition,
   issuesForNode,
   fieldPath,
   exportCards,
@@ -27,6 +29,7 @@ import {
   type ProbeIssue,
 } from "../stores";
 import { defaultsFor, withoutOption, type Defs, type IRNode } from "../ir";
+import { checkNode, type Incompleteness } from "../completeness";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -146,6 +149,12 @@ export function Cards() {
   );
 
   // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
+  // What Confirm found the last time it was pressed, per card. Not run continuously: the point
+  // of the step is that the author says when they are done, and a panel that argues while you
+  // type is the thing it exists to replace.
+  const [unfinished, setUnfinished] = createSignal<Record<number, Incompleteness[]>>({});
+  const confirmedNode = (index: number) => isConfirmed(`node:${index}`, state.nodes[index]);
+
   const probeNodes = createMemo(() => probe.nodes);
   const probeErrors = createMemo(() => probe.errors);
   const probeIssues = createMemo(() => probe.issues);
@@ -238,6 +247,17 @@ export function Cards() {
                   <span class="font-mono text-control-xs">
                     {node.id || <span class="text-destructive italic">unnamed</span>}
                   </span>
+                  <span
+                    aria-label={confirmedNode(index()) ? "confirmed" : "not confirmed"}
+                    title={confirmedNode(index()) ? "confirmed" : "not confirmed"}
+                    class={[
+                      "ml-1 h-2 w-2 shrink-0 rounded-full",
+                      {
+                        "bg-success": confirmedNode(index()),
+                        "border border-muted-foreground": !confirmedNode(index()),
+                      },
+                    ]}
+                  />
                   <span class="ml-auto flex items-center gap-2">
                     {/*
                       Unwired, deliberately — placed now so its position can be judged, with the
@@ -248,8 +268,12 @@ export function Cards() {
                       says yes.
                     */}
                     <Button
-                      title="not wired yet — this will mark the definition deliberately finished"
-                      onClick={summaryAction(() => {})}
+                      title="mark this card deliberately finished"
+                      onClick={summaryAction(() => {
+                        const found = checkNode(node);
+                        setUnfinished({ ...unfinished(), [index()]: found });
+                        if (found.length === 0) confirmDefinition(`node:${index()}`, node);
+                      })}
                     >
                       Confirm
                     </Button>
@@ -285,6 +309,17 @@ export function Cards() {
               belongs to, naming the field and — for an enum — what would have been accepted.
               Attaching to the whole page was the behaviour this replaces.
             */}
+            {/*
+              Warning rather than destructive: the document is legal and would run. What it would
+              not do is anything useful, which the schema has no way to say.
+            */}
+            <For each={unfinished()[index()] ?? []}>
+              {(finding: Incompleteness) => (
+                <p class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
+                  {finding.message}
+                </p>
+              )}
+            </For>
             <For each={schemaIssuesForNode(index())}>
               {(issue: ProbeIssue) => (
                 <p class="mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive">

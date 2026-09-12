@@ -104,6 +104,42 @@ describe('GroupsEditor', () => {
     expect(actions).toEqual(['Confirm', 'Remove']);
   });
 
+  it('refuses to confirm an empty group, and says what to do', async () => {
+    // Legal server-side — `weather = []` constructs — so this is the UI's to say or nobody's.
+    addGroup('weather');
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await flush();
+    expect(container.textContent).toMatch(/at least one/i);
+    expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
+  });
+
+  it('confirms a group that selects something, and shows it on the folded line', async () => {
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await flush();
+    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
+  });
+
+  it('un-confirms itself when the group is edited afterwards', async () => {
+    // The signature changes, so the confirmation stops matching. A flag would have gone stale and
+    // claimed the author had finished something they then changed.
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await flush();
+    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
+    setGroup('weather', [{ cols: 'PRES' }]);
+    await flush();
+    expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
+  });
+
   it('removes a group', async () => {
     addGroup('a');
     const { getByText } = mount();

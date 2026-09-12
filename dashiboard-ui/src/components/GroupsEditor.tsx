@@ -4,7 +4,17 @@ import { Button } from "./Button";
 import { Disclosure, summaryAction } from "./Disclosure";
 import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
-import { CARDS_STORE, addGroup, removeGroup, renameGroup, setGroup, type Selector } from "../stores";
+import {
+  CARDS_STORE,
+  addGroup,
+  confirmDefinition,
+  isConfirmed,
+  removeGroup,
+  renameGroup,
+  setGroup,
+  type Selector,
+} from "../stores";
+import { checkGroup, type Incompleteness } from "../completeness";
 import { withoutOption, type Defs, type IRNode } from "../ir";
 
 // Authoring `[groups]` — §6's "one picker, two levels".
@@ -20,6 +30,10 @@ import { withoutOption, type Defs, type IRNode } from "../ir";
 export function GroupsEditor(props: { defs: Defs }) {
   const [state] = CARDS_STORE;
   const [error, setError] = createSignal<string | null>(null);
+  // What Confirm found last time it was pressed, per group. Not run continuously — the step exists
+  // so the author says when they are done, not so a panel argues while they type.
+  const [unfinished, setUnfinished] = createSignal<Record<string, Incompleteness[]>>({});
+  const confirmed = (name: string) => isConfirmed(`group:${name}`, state.groups[name]);
 
   // The `$defs/variable` node: one item of a selector list, which is exactly what a group holds.
   const itemNode = () => (props.defs.variable ?? {}) as IRNode;
@@ -69,6 +83,17 @@ export function GroupsEditor(props: { defs: Defs }) {
                     <span class="text-control-xs font-semibold text-primary">name</span>
                     <span class="text-muted-foreground">:</span>
                     <span class="font-mono text-control-xs">{name}</span>
+                    <span
+                      aria-label={confirmed(name) ? "confirmed" : "not confirmed"}
+                      title={confirmed(name) ? "confirmed" : "not confirmed"}
+                      class={[
+                        "ml-1 h-2 w-2 shrink-0 rounded-full",
+                        {
+                          "bg-success": confirmed(name),
+                          "border border-muted-foreground": !confirmed(name),
+                        },
+                      ]}
+                    />
                     <span class="ml-auto flex items-center gap-2">
                       {/*
                         Unwired, deliberately — placed now so its position can be judged, with the
@@ -79,8 +104,12 @@ export function GroupsEditor(props: { defs: Defs }) {
                         says yes.
                       */}
                       <Button
-                        title="not wired yet — this will mark the definition deliberately finished"
-                        onClick={summaryAction(() => {})}
+                        title="mark this group deliberately finished"
+                        onClick={summaryAction(() => {
+                          const found = checkGroup(state.groups[name] ?? []);
+                          setUnfinished({ ...unfinished(), [name]: found });
+                          if (found.length === 0) confirmDefinition(`group:${name}`, state.groups[name]);
+                        })}
                       >
                         Confirm
                       </Button>
@@ -91,6 +120,15 @@ export function GroupsEditor(props: { defs: Defs }) {
                   </>
                 }
               >
+                {/* Warning rather than destructive: an empty group is legal and would run. It
+                    would simply select nothing, which the schema has no way to say. */}
+                <For each={unfinished()[name] ?? []}>
+                  {(finding: Incompleteness) => (
+                    <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
+                      {finding.message}
+                    </p>
+                  )}
+                </For>
                 <div class="flex items-center gap-2">
                   <label
                     for={`group-name-${name}`}

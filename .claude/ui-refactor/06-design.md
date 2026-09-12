@@ -415,7 +415,7 @@ gain this host can name.
 | C8 | **Key a dispatch table on its union where one exists; require a fallback where it does not** | — |
 | C9 | **Sync the host's type scale. Do not sync a density number — there isn't one** | — |
 | C3 | Canvas: auto-laid-out DAG, side editing panel, no stored positions | A4 |
-| C4 | Connect source, results panes | B7 |
+| C4 | ~~Connect source, results panes~~ **Results panes DONE 2026-09-12** — `dashiboard-ui/src/left-tabs/results.tsx`: output table, plots, graph, per-node report, CSV and report downloads | The B7 dependency was mis-stated: it gates *retiring the DashiBoard server*, not these panes. Every route they need already existed — `evaluate-pipeline` returns `summaries` recomputed after the run, `fetch-data` pages the `selection` table behind `processed: true`, and `get-processed-data` is a GET serving the CSV. What was missing was only the wiring. "Connect source" exists as the Load tab. **One deliberate difference from the retired `right-tabs/visualization.jsx`:** it rendered the server's SVG with `innerHTML`; this renders it as `<img src="data:image/svg+xml,…">`, because the plot's text comes from the user's own column names and an `<img>` cannot execute an event attribute whatever the bytes contain. Percent-encoded rather than base64 — `btoa` throws outside Latin-1. Do not "restore" the `innerHTML` form. |
 | C5 | `/embed` route and the `postMessage` contract. **Scope corrected and theming settled, 2026-09-09** — see *C5 in detail* below. The contract is far thinner than this row originally implied. | Track D |
 | C6 | Runtime API base address, never a build-time constant | — |
 | C7 | Validate with the schema; attach errors to IR entries by pointer | A3, A7 |

@@ -279,6 +279,12 @@ describe.
    `Pipelines.card_ir` output; switch to the served IR when the route exists.
 4. **Dual shell** — `/` with chrome, `/embed` without, `?theme=` read once, tokens by `postMessage`.
 5. **Canvas** (C3) — add `@viz-js/viz`; and the result panes, rebuilt per §7.
+   *The result panes landed 2026-09-12* (`left-tabs/results.tsx`) and `@viz-js/viz` is installed, so
+   what remains under this item is the canvas alone: three buttons, auto layout, a side editing
+   panel, no stored positions. Its blocker A4 is done — `graphviz(io, ::GroupDiGraph, nodes)` exists
+   in `Pipelines/src/group_api/dag.jl:33`. Note that the canvas is a *replacement* for the tabbed
+   shell (§7), not an addition to it, so it is a decision about the program rather than the next
+   increment of it.
 6. **Delete `frontend/`.** Then the DashiBoard server once the new UI serves, per *Do not do*.
 
 `frontend/src/create.js` is currently deleted by `pv/frontend` while eight modules still import it,

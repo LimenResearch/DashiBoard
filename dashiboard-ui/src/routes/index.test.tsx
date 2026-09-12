@@ -135,6 +135,38 @@ describe('the authoring page', () => {
     expect(Object.keys(run!.body as object).sort()).toEqual(['filters', 'groups', 'nodes']);
   });
 
+  it('shows the reader exactly what the run will post, not a second assembly of it', async () => {
+    // "The document" pane exists to answer "what am I about to send". Built separately from what
+    // is sent, it could be wrong in precisely that situation — so both go through `wireDocument`
+    // and this is the assertion that keeps them there.
+    const posted: Record<string, unknown>[] = [];
+    postRequest.mockImplementation((page: string, body: Record<string, unknown>) => {
+      posted.push({ page, body });
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'evaluate-pipeline') return Promise.resolve({ graph: 'digraph {a}', report: [] });
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+      return Promise.resolve([]);
+    });
+
+    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    await openTab(container, 'Run');
+    fireEvent.click(getByText(/run pipeline/i));
+    await waitFor(() => expect(posted.some((p) => p.page === 'evaluate-pipeline')).toBe(true));
+    const sent = posted.find((p) => p.page === 'evaluate-pipeline')!.body;
+
+    await openTab(container, 'The document');
+    const pane = await findByTestId('document');
+    // Through JSON both ways: the posted body holds store proxies, and the wire only ever carries
+    // what survives serialisation anyway.
+    expect(JSON.parse(pane.textContent ?? '{}')).toEqual(JSON.parse(JSON.stringify(sent)));
+  });
+
   it('surfaces references nothing produces, from the probe route', async () => {
     // A10: `through` names a column by concatenating suffixes and validation only checks the
     // base column, so an unproduced chain is accepted and fails late inside a task. The probe is

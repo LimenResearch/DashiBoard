@@ -1,38 +1,17 @@
-import { createSignal, Show } from "solid-js";
+import { createSignal } from "solid-js";
 import { Title } from "@solidjs/meta";
 
-import { Button } from "../components/Button";
 import { Tabs } from "../components/Tabs";
-import { Graph } from "../components/Graph";
 import { Loader } from "../left-tabs/loading";
-import { Filters, getFilters } from "../left-tabs/filtering";
-import { Cards, getCards } from "../left-tabs/processing";
-import { postRequest } from "../requests";
-import { CARDS_STORE, FILTERS_STORE } from "../stores";
-
-type RunResult = { graph?: string; report?: unknown; summaries?: unknown };
+import { Filters } from "../left-tabs/filtering";
+import { Cards } from "../left-tabs/processing";
+import { Results } from "../left-tabs/results";
+import { wireDocument } from "../wire";
 
 const SECTIONS = ["Load", "Filter", "Process", "Run", "The document"] as const;
 
 export default function Home() {
-  const [filters] = FILTERS_STORE;
-  const [cards] = CARDS_STORE;
   const [section, setSection] = createSignal<(typeof SECTIONS)[number]>("Load");
-
-  const [result, setResult] = createSignal<RunResult | null>(null);
-  const [running, setRunning] = createSignal(false);
-
-  async function run() {
-    setRunning(true);
-    try {
-      // `{filters, nodes, groups}` — the group dialect the server now runs. Assembled from the
-      // two stores by their own getters, rather than held in a third place.
-      const body = { filters: getFilters(filters), ...getCards(cards) };
-      setResult((await postRequest("evaluate-pipeline", body, null)) as RunResult | null);
-    } finally {
-      setRunning(false);
-    }
-  }
 
   return (
     <main class="mx-auto max-w-5xl px-4 py-2">
@@ -43,9 +22,10 @@ export default function Home() {
         process, run — and only one is being worked on at a time; stacked, the one in hand is
         wherever you last scrolled to.
 
-        Every section stays mounted and is hidden rather than unmounted: Load sets up choices.js
-        and Process fetches the card IR, so remounting on each switch would refetch and drop each
-        picker's open tab. The stores survive either way — the local state is what would not.
+        Every section stays mounted and is hidden rather than unmounted: Load sets up choices.js,
+        Process fetches the card IR and Run holds a grid that pages the output, so remounting on
+        each switch would refetch all three and drop each picker's open tab. The stores survive
+        either way — the local state is what would not.
       */}
       <Tabs
         group="sections"
@@ -68,29 +48,15 @@ export default function Home() {
       </section>
 
       <section data-section="Run" hidden={section() !== "Run"}>
-        <Button disabled={running() || cards.nodes.length === 0} onClick={() => void run()}>
-          {running() ? "Running…" : "Run pipeline"}
-        </Button>
-        <Show when={result()} keyed>
-          {(res: RunResult) => (
-            <div class="mt-4">
-              <Show when={res.graph} keyed>
-                {(dot: string) => <Graph dot={dot} />}
-              </Show>
-              <pre
-                data-testid="report"
-                class="overflow-x-auto rounded-sm bg-muted p-3 text-control-xs"
-              >{JSON.stringify(res.report ?? null, null, 2)}</pre>
-            </div>
-          )}
-        </Show>
+        <Results />
       </section>
 
+      {/* The same assembly the Run button posts, by construction — see `wireDocument`. */}
       <section data-section="The document" hidden={section() !== "The document"}>
         <pre
           data-testid="document"
           class="overflow-x-auto rounded-sm bg-muted p-3 text-control-xs"
-        >{JSON.stringify({ filters: getFilters(filters), ...getCards(cards) }, null, 2)}</pre>
+        >{JSON.stringify(wireDocument(), null, 2)}</pre>
       </section>
     </main>
   );

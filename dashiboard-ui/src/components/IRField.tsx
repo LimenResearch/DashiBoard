@@ -39,21 +39,46 @@ function optionByString(options: (string | number)[], raw: string): string | num
 function Label(props: { for?: string; text: string; required?: boolean }) {
   return (
     <label for={props.for} class="text-control-xs font-semibold text-primary">
+      {props.text}
+      {/* After the name, not before it, and muted: required is an annotation on the field rather
+          than part of what the field is called. Leading `* ` read as if the asterisk were the
+          first character of every other label. */}
       <Show when={props.required}>
-        <span aria-hidden="true" title="required">
-          *{" "}
+        <span class="ml-0.5 text-muted-foreground" title="required">
+          *
         </span>
       </Show>
-      {props.text}
     </label>
+  );
+}
+
+/** Chevron, not a filled triangle: it points at where the content will appear, and rotating it
+ *  90° is a movement you can see. A solid glyph at this size reads as a bullet. */
+function Chevron() {
+  return (
+    <svg
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+      class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150 group-open:rotate-90"
+    >
+      <path
+        d="M4.5 2.5 L8 6 L4.5 9.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
   );
 }
 
 /**
  * A field that resolves in one control — pick from a list, or type a value.
  *
- * Label and control share a line. Stacked, each of these cost two rows and a card of eight
- * settings became a column of sixteen, which is most of why the form read as long.
+ * Label and control share a line, with the labels in a fixed column so the controls line up down
+ * the form. Stacked, each of these cost two rows and a card of eight settings read as a column of
+ * sixteen.
  */
 function Row(props: {
   for?: string;
@@ -62,8 +87,8 @@ function Row(props: {
   children: JSXElement;
 }) {
   return (
-    <div class="flex flex-wrap items-center gap-2">
-      <span class="w-36 shrink-0">
+    <div class="flex flex-wrap items-center gap-2 py-0.5">
+      <span class="w-32 shrink-0">
         <Label for={props.for} text={props.label} required={props.required} />
       </span>
       {props.children}
@@ -72,27 +97,26 @@ function Row(props: {
 }
 
 /**
- * A field that needs a component to resolve — a nested object, a variant with its own branch, a
+ * A field that needs a component to resolve — a nested object, a variant with its branch, a
  * multi-selection, the variable picker.
  *
+ * Indentation carries the nesting, the way it does in YAML: one guide rule per level, and a
+ * child's chevron sits exactly where a sibling row's label sits. The previous version drew a box
+ * per level, whose border and padding pushed each nested label a few pixels further right than
+ * the rows beside it — so depth was visible but the alignment said nothing.
+ *
  * `<details>` rather than a signal: the disclosure, the keyboard path and the ARIA state all come
- * from the element, and one less piece of state is one less thing to get wrong. Open by default —
- * the ask was that these fold away, not that they start hidden, and a form whose contents are
- * invisible until clicked is worse than a long one.
+ * from the element. Open by default, since the ask was that these fold away rather than start
+ * hidden.
  */
 function Collapsible(props: { label: string; required?: boolean; children: JSXElement }) {
   return (
-    <details open class="group rounded-sm border border-border">
-      <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-sm px-2 py-1 hover:bg-muted [&::-webkit-details-marker]:hidden">
-        <span
-          aria-hidden="true"
-          class="text-muted-foreground transition-transform group-open:rotate-90"
-        >
-          ▶
-        </span>
+    <details open class="group">
+      <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-sm py-0.5 hover:bg-muted [&::-webkit-details-marker]:hidden">
+        <Chevron />
         <Label text={props.label} required={props.required} />
       </summary>
-      <div class="flex flex-col gap-2 px-2 pt-1 pb-2">{props.children}</div>
+      <div class="ml-1.5 flex flex-col gap-0.5 border-l border-border pl-3">{props.children}</div>
     </details>
   );
 }
@@ -128,7 +152,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <Show
                 when={w.title === undefined}
-                fallback={<div class="flex flex-col gap-2">{fields()}</div>}
+                fallback={<div class="flex flex-col gap-0.5">{fields()}</div>}
               >
                 <Collapsible label={props.label} required={props.required}>
                   {fields()}
@@ -270,13 +294,15 @@ export function IRField(props: IRFieldProps) {
             // its items are grouped by qualification rather than shown one per row.
             if (widgetFor(w.items, props.defs).kind === "selector") {
               return (
-                <SelectorField
-                  itemNode={w.items}
-                  defs={props.defs}
-                  label={props.label}
-                  value={props.value}
-                  onChange={(items) => props.onChange(items)}
-                />
+                <Collapsible label={props.label} required={props.required}>
+                  <SelectorField
+                    itemNode={w.items}
+                    defs={props.defs}
+                    label={props.label}
+                    value={props.value}
+                    onChange={(items) => props.onChange(items)}
+                  />
+                </Collapsible>
               );
             }
             return (

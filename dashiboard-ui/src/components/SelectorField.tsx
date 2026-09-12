@@ -138,8 +138,9 @@ export function SelectorField(props: SelectorFieldProps) {
 
   return (
     <div class="my-2 flex flex-col gap-2">
-      <p class="text-control-xs font-semibold text-primary">{props.label}</p>
-
+      {/* No heading of its own: every caller already names this field — IRField in the
+          disclosure it wraps this in, GroupsEditor in the name field directly above. Two labels
+          for one control is how a form starts looking like it was assembled rather than designed. */}
       {/*
         The ordering surface, and the only one.
 

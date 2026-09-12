@@ -25,7 +25,12 @@ describe('IRField', () => {
     // exact, not substring: 'target_suffix' contains 'suffix', so a substring check would
     // pass even with the order reversed.
     const labels = [...container.querySelectorAll('label')].map((l) => l.textContent ?? '');
-    expect(labels).toEqual(['* suffix', 'target_suffix']);
+    expect(labels).toEqual(['suffix*', 'target_suffix']);
+    // The marker follows the name rather than leading it — an annotation on the field, not the
+    // first character of its label. Asserted because it is the kind of thing a later tidy moves
+    // back without noticing it was a decision.
+    expect(labels[0].startsWith('*')).toBe(false);
+    expect(labels[0].endsWith('*')).toBe(true);
   });
 
   it('passes numeric bounds through to the input', () => {

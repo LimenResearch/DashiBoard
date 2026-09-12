@@ -14,6 +14,21 @@ const BASE =
 
 type InputProps = {
   type?: string;
+  /**
+   * Extra classes, for layout — `w-full` and the like.
+   *
+   * Concatenated, not merged. Solid's `class` array form joins strings and resolves nothing, so
+   * passing a *size* here does not override the base: both utilities apply and the one declared
+   * later in the generated CSS wins, which is `text-detail` over `text-control-xs` and
+   * `h-control-xs` over `h-control-sm` — an order nothing at the call site can see or influence.
+   *
+   * nexus-weaver hit the inverse with tailwind-merge, which does resolve conflicts but from a
+   * table of Tailwind's own names: a custom `text-detail` was unrecognised, fell back to being
+   * treated as a *colour*, and was destroyed outright by any colour class beside it — 43
+   * elements, whole suite green. Our composition cannot make that mistake because it makes no
+   * decision at all; the cost is that a collision here is silent in a different way. Pass layout,
+   * not size.
+   */
   class?: string;
   value?: string;
   placeholder?: string;

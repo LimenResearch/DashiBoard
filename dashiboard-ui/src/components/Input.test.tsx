@@ -9,7 +9,7 @@ const field = (c: HTMLElement) => c.querySelector('input')!;
 describe('Input', () => {
   it('matches the host control height rather than stock shadcn', () => {
     const { container } = render(() => <Input />);
-    expect(field(container).className).toContain('h-7');
+    expect(field(container).className).toContain('h-control');
   });
 
   it('reports changes', () => {
@@ -45,6 +45,6 @@ describe('Input', () => {
   it('takes extra classes from the caller without losing its own', () => {
     const { container } = render(() => <Input class="w-full" />);
     expect(field(container).className).toContain('w-full');
-    expect(field(container).className).toContain('h-7');
+    expect(field(container).className).toContain('h-control');
   });
 });

@@ -62,6 +62,28 @@
 
   --radius: 0.5rem;
 
+  /*
+    Density, as tokens rather than as literals — the other half of the adaptation contract.
+
+    Colour was adaptable and density was not: a host could repaint this frame completely and
+    could not resize it at all. That asymmetry only became visible when nexus-weaver re-measured
+    their own census and it turned out there was no single host density to copy — they run two
+    conventions split by feature area. An axis that varies between surfaces cannot be handled by
+    matching one of them; it needs a channel, which is what these are.
+
+    C9 asks whether the standalone UI adopts the host's density or the frame applies a scale.
+    With these the answer is neither: it is configuration. We default to compact because we would
+    be embedded beside graph authoring, and a roomier host sends different values through the
+    same `:root` channel the palette already uses.
+
+    Height and text size are one decision, not two — nexus-weaver's census found 31 of 32 compact
+    inputs pairing them — so they move together or a control ends up the wrong shape.
+  */
+  --control-h: 1.75rem;
+  --control-h-lg: 2rem;
+  --text-body: 0.75rem;
+  --text-detail: 0.625rem;
+
   --shadow-card: 0 1px 3px 0 hsl(220 20% 10% / 0.06), 0 1px 2px -1px hsl(220 20% 10% / 0.06);
   --shadow-elevated: 0 4px 12px -2px hsl(220 20% 10% / 0.08), 0 2px 6px -2px hsl(220 20% 10% / 0.04);
 }
@@ -123,6 +145,22 @@
   The radius scale is *derived* rather than authored, matching §3b: transmit `--radius` and compute
   the rest, so a host that sends a different one reshapes the whole scale.
 */
+@utility h-control {
+  height: var(--control-h);
+}
+
+@utility h-control-lg {
+  height: var(--control-h-lg);
+}
+
+@utility text-body {
+  font-size: var(--text-body);
+}
+
+@utility text-detail {
+  font-size: var(--text-detail);
+}
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));

@@ -37,7 +37,7 @@ function optionByString(options: (string | number)[], raw: string): string | num
 
 function Label(props: { for?: string; text: string; required?: boolean }) {
   return (
-    <label for={props.for} class="block text-xs font-semibold text-primary">
+    <label for={props.for} class="block text-body font-semibold text-primary">
       <Show when={props.required}>
         <span aria-hidden="true">* </span>
       </Show>
@@ -59,7 +59,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <fieldset class="border-l-2 border-border pl-3">
                 <Show when={w.title}>
-                  <legend class="text-xs text-muted-foreground">{w.title}</legend>
+                  <legend class="text-body text-muted-foreground">{w.title}</legend>
                 </Show>
                 <For each={w.properties}>
                   {(entry) => (
@@ -89,7 +89,7 @@ export function IRField(props: IRFieldProps) {
               <div>
                 <Label text={props.label} required={props.required} />
                 <select
-                  class="my-1 h-7 rounded-sm border border-border pl-2 text-xs"
+                  class="my-1 h-control rounded-sm border border-border pl-2 text-body"
                   value={chosen()}
                   onChange={(event) =>
                     props.onChange({ type: event.currentTarget.value })
@@ -122,7 +122,7 @@ export function IRField(props: IRFieldProps) {
                 <Label for={props.label} text={props.label} required={props.required} />
                 <select
                   id={props.label}
-                  class="my-1 h-7 rounded-sm border border-border pl-2 text-xs"
+                  class="my-1 h-control rounded-sm border border-border pl-2 text-body"
                   value={String(props.value ?? w.default ?? "")}
                   onChange={(event) =>
                     props.onChange(optionByString(w.options, event.currentTarget.value))
@@ -143,7 +143,7 @@ export function IRField(props: IRFieldProps) {
                   id={props.label}
                   multiple
                   size={Math.min(w.options.length, 8)}
-                  class="my-1 h-7 w-full rounded-sm border border-border px-2 text-xs"
+                  class="my-1 h-control w-full rounded-sm border border-border px-2 text-body"
                   onChange={(event) =>
                     props.onChange(
                       [...event.currentTarget.selectedOptions].map((option) =>
@@ -190,7 +190,7 @@ export function IRField(props: IRFieldProps) {
           case "toggle":
             return (
               <div>
-                <label class="inline-flex items-center text-xs font-semibold text-primary">
+                <label class="inline-flex items-center text-body font-semibold text-primary">
                   <input
                     type="checkbox"
                     checked={(props.value as boolean | undefined) ?? w.default ?? false}
@@ -261,7 +261,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <div>
                 <Label text={props.label} required={props.required} />
-                <p class="text-xs text-muted-foreground italic">
+                <p class="text-body text-muted-foreground italic">
                   {props.label}: not described by the schema yet
                 </p>
               </div>

@@ -56,7 +56,7 @@ export function IntervalFilter(props: IntervalFilterProps) {
           value={value().min.toString()}
           onChange={(e) => update(e.currentTarget.value, "min")}
         />
-        <span class="text-[10px] text-muted-foreground">to</span>
+        <span class="text-detail text-muted-foreground">to</span>
         <Input
           type="number"
           aria-label={`${props.name} upper bound`}

@@ -1,16 +1,16 @@
 // The text field.
 //
-// Height, not vertical padding: stock shadcn controls are `h-10`, and measured usage in the host
-// is `h-7` (65 sites) and `h-8` (63) against `h-10` (16). Inputs and selects take the same
-// treatment as buttons — the part §3b's list left out, and the single biggest tell that an
-// embedded UI is foreign.
+// Height, not vertical padding. Sizing a control by padding around a large font is what made our
+// Button three times the size of its host's. The height itself is a token now rather than a
+// literal, so a roomier host can resize this field through the same channel it repaints it — see
+// the density block in App.css.
 //
 // It carries an `invalid` state because A7 gives it something to say. The probe addresses each
 // failure by JSON Pointer, so a field can be told it is the offender; without a state to render,
 // that information has nowhere to land but a banner above the page.
 
 const BASE =
-  "h-7 rounded-sm border px-2 text-xs outline-none ring-offset-2 focus:ring-2 focus:ring-ring";
+  "h-control rounded-sm border px-2 text-body outline-none ring-offset-2 focus:ring-2 focus:ring-ring";
 
 type InputProps = {
   type?: string;

@@ -26,12 +26,12 @@ describe('Button', () => {
   });
 
   it('sizes by height, the way the host does', () => {
-    // Stock shadcn is h-10; the host runs h-7/h-8. Sizing by height rather than by padding around
-    // a large font is the single biggest tell that an embedded UI is foreign.
+    // Sized by height rather than by padding around a label, and the height is a token — so a
+    // host that runs roomier resizes this rather than being matched by us in advance.
     const { container: sm } = render(() => <Button>a</Button>);
-    expect(btn(sm).className).toContain('h-7');
+    expect(btn(sm).className).toContain('h-control');
     const { container: md } = render(() => <Button size="md">a</Button>);
-    expect(btn(md).className).toContain('h-8');
+    expect(btn(md).className).toContain('h-control-lg');
   });
 
   it('distinguishes its variants', () => {

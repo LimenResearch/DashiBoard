@@ -7,7 +7,7 @@ import type { Element as JSXElement } from "solid-js";
 // Three things changed when it became something to publish. It names its variants instead of
 // carrying a `danger` boolean, because a flag does not extend to a third option and a system's
 // card has to read "default / danger, two sizes". It sizes by *height* — stock shadcn is `h-10`
-// and the host runs `h-7`/`h-8`, which §3b measures as the single biggest tell that an embedded
+// and the host runs `h-control`/`h-control-lg`, which §3b measures as the single biggest tell that an embedded
 // UI is foreign. And it brings no margin of its own: a component that positions itself is right
 // in the one place it was written for and wrong everywhere else.
 
@@ -22,15 +22,15 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  sm: "h-7 px-2.5",
-  md: "h-8 px-3",
+  sm: "h-control px-2.5",
+  md: "h-control-lg px-3",
 };
 
 const DISABLED = "bg-secondary text-muted-foreground";
 
 function className(variant: ButtonVariant, size: ButtonSize, disabled: boolean) {
   return [
-    "inline-flex items-center rounded-sm border border-transparent text-xs font-semibold",
+    "inline-flex items-center rounded-sm border border-transparent text-body font-semibold",
     SIZES[size],
     disabled ? DISABLED : VARIANTS[variant],
   ].join(" ");

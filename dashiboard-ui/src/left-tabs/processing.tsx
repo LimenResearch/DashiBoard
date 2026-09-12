@@ -162,11 +162,11 @@ export function Cards() {
   return (
     <div>
       <Show when={probeErrors().length > 0 || looseIssues().length > 0}>
-        <div class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+        <div class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-body text-destructive">
           <For each={looseIssues()}>
             {(issue) => (
               <p>
-                <span class="font-mono text-xs">{issue.pointer}</span> — {issue.message}
+                <span class="font-mono text-body">{issue.pointer}</span> — {issue.message}
               </p>
             )}
           </For>
@@ -183,12 +183,12 @@ export function Cards() {
 
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
         <div class="flex items-center gap-2 p-3">
-          <label for="card-type" class="text-xs font-semibold text-primary">
+          <label for="card-type" class="text-body font-semibold text-primary">
             Card type
           </label>
           <select
             id="card-type"
-            class="h-7 rounded-sm border border-border pl-2 text-xs"
+            class="h-control rounded-sm border border-border pl-2 text-body"
             value={chosen()}
             onChange={(event) => setChosen(event.currentTarget.value)}
           >
@@ -219,7 +219,7 @@ export function Cards() {
                   so two unnamed cards collide and the whole document is rejected.
                 */}
                 <input
-                  class="h-7 rounded-sm border border-border px-2 font-mono text-xs"
+                  class="h-control rounded-sm border border-border px-2 font-mono text-body"
                   aria-label="node id"
                   value={node.id ?? ""}
                   onChange={(event) => setNodeId(index(), event.currentTarget.value)}
@@ -236,7 +236,7 @@ export function Cards() {
             */}
             <For each={schemaIssuesForNode(index())}>
               {(issue: ProbeIssue) => (
-                <p class="mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                <p class="mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-body text-destructive">
                   <Show when={fieldPath(issue.pointer) !== ""}>
                     <span class="font-mono">{fieldPath(issue.pointer)}</span>{" — "}
                   </Show>
@@ -256,7 +256,7 @@ export function Cards() {
             </For>
             <Show when={probeNodes()[index()]} keyed>
               {(reported: ProbeNode) => (
-                <div class="mb-2 text-xs">
+                <div class="mb-2 text-body">
                   <Show when={reported.unproduced.length > 0}>
                     <p class="rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-destructive">
                       nothing produces {reported.unproduced.join(", ")} — check the pass-through

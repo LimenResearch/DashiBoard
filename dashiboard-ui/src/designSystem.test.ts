@@ -36,14 +36,27 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe('the palette', () => {
-  it('gives every token a dark value, except the one that is a length', () => {
+  it('gives every colour token a dark value', () => {
     // This is nexus-weaver's §3c defect exactly: their `.dark` omitted the status scales and the
     // shadows, which was invisible only because dark mode could not be reached. Ours can be now,
     // but a missing dark value still fails silently in light — so it needs a test, not an eye.
+    //
+    // The exceptions are enumerated rather than inferred. Every one is a *length*, which has no
+    // light and dark form; listing them means adding a colour without a dark value still fails,
+    // which is the whole point of the check.
+    const MODE_INDEPENDENT = [
+      '--radius',
+      '--control-h',
+      '--control-h-lg',
+      '--text-body',
+      '--text-detail',
+    ];
     const css = read('src/App.css');
     const light = blockOf(css, ':root');
     const dark = blockOf(css, '.dark');
-    expect([...light].filter((token) => !dark.has(token))).toEqual(['--radius']);
+    expect([...light].filter((token) => !dark.has(token)).sort()).toEqual(
+      [...MODE_INDEPENDENT].sort(),
+    );
   });
 
   it('has no dark-only token, which would be a light mode with a hole in it', () => {
@@ -65,6 +78,23 @@ describe('colour', () => {
     const offenders = sourceFiles('src')
       .map((file) => [file, read(file)] as const)
       .filter(([, body]) => literal.test(body))
+      .map(([file]) => file);
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe('density', () => {
+  it('never sets a control height at the call site', () => {
+    // The ratchet, borrowed from nexus-weaver: 100 height overrides accumulated there because
+    // the system had no compact step for them to live in. Ours does, so a literal here is a call
+    // site opting out of the one channel a host can resize us through — which no payload can
+    // undo. Container heights (`h-80`, `h-96`) are not control heights and are left alone.
+    const CONTROL_HEIGHT = /(?<![\w-])h-(?:[4-9]|1[0-2])(?![\w-])/;
+    const offenders = sourceFiles('src')
+      .map((file) => [file, read(file)] as const)
+      // Strip comments first: prose about `h-10` is discussion, not a declaration.
+      .map(([file, body]) => [file, body.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')] as const)
+      .filter(([, body]) => CONTROL_HEIGHT.test(body))
       .map(([file]) => file);
     expect(offenders).toEqual([]);
   });

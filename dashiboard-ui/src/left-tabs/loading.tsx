@@ -45,7 +45,7 @@ export function Loader() {
       */}
       <Show when={state.length > 0}>
         <div class="p-3">
-          <p class="mb-1.5 text-[10px] tracking-wider text-muted-foreground uppercase">
+          <p class="mb-1.5 text-detail tracking-wider text-muted-foreground uppercase">
             {state.length} columns
           </p>
           <TableView processed={false} metadata={state} class="h-80" />

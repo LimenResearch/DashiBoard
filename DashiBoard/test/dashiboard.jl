@@ -227,6 +227,29 @@ mktempdir() do data_dir
             "Content-Length" => "0",
         ]
 
+
+        # ---- keep last: this one runs a pipeline that fails ----
+        #
+        # A failed run still rebuilds `selection` from `source` before it dies, so it
+        # drops every column the successful pipeline added. Anything asserting on that
+        # table — the CSV export above, for instance — has to have run already.
+        # A run that the schema accepts and the data defeats: PCA cannot take three components
+        # from one column. Nothing static can catch it — the probe says `valid: true` — so the
+        # only place it can be reported is the response to the run itself. Before this, the
+        # exception escaped the handler and HTTP.jl answered with a bare 500 carrying zero bytes
+        # and no CORS header, so the client had nothing to show and no way to tell a failed run
+        # from one that had never happened.
+        body = read(joinpath(@__DIR__, "static", "evaluate-bad.json"), String)
+        resp = HTTP.post(url * "probe-pipeline", body = body)
+        @test JSON.parse(resp.body)["valid"] == true   # static checks pass; this is a runtime fault
+        resp = HTTP.post(url * "evaluate-pipeline", body = body)
+        @test resp.status == 200
+        failed = JSON.parse(resp.body)
+        @test failed["valid"] == false
+        @test !isempty(failed["errors"])
+        @test failed["errors"][1] isa AbstractString && !isempty(failed["errors"][1])
+        # and the response is still a normal one, so a browser can read it
+        @test ("Access-Control-Allow-Origin" => "*") in resp.headers
     end
 
     close(server)

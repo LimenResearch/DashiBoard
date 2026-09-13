@@ -1,0 +1,16 @@
+{
+  "filters": [],
+  "nodes": [
+    {
+      "id": "pca",
+      "card": {
+        "type": "dimensionality_reduction",
+        "method": {"type": "pca"},
+        "inputs": [{"cols": "TEMP"}],
+        "n_components": 3,
+        "output": "component"
+      }
+    }
+  ],
+  "groups": {}
+}

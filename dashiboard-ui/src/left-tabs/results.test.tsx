@@ -161,6 +161,47 @@ describe('Results', () => {
     expect(active?.getAttribute('data-tab')).toBe('Graph');
   });
 
+  it('shows what the server said when the run failed', async () => {
+    // The gap this closes: a run that the schema accepts and the data defeats — PCA asked for more
+    // components than there are columns — used to leave the screen completely unchanged. The
+    // button went back to "Run pipeline" and nothing else happened, which reads as "nothing
+    // occurred" rather than "it failed".
+    serve({
+      valid: false,
+      errors: ['Binder Error: MethodError: no method matching add_result_column'],
+      issues: [],
+    });
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.textContent).toContain('Binder Error');
+    // and no panes, because there is no result to look at
+    expect(container.querySelector('[data-tabs="results"]')).toBeNull();
+    expect(container.querySelector('.ag-theme-quartz')).toBeNull();
+  });
+
+  it('says so when the server answers nothing at all', async () => {
+    // `postRequest` collapses a dead server, a non-JSON body and a network fault into `null`.
+    // Whatever the cause, the one thing the reader must not conclude is that the run succeeded.
+    postRequest.mockImplementation(() => Promise.resolve(null));
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.textContent).toMatch(/could not reach/i);
+  });
+
+  it('clears a previous failure once a run succeeds', async () => {
+    serve({ valid: false, errors: ['boom'], issues: [] });
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+
+    serve(RUN);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-tabs="results"]')).not.toBeNull());
+    expect(container.querySelector('[data-run-error]')).toBeNull();
+  });
+
   it('sends the document the run needs, and nothing it does not', async () => {
     const { getByText } = render(() => <Results />);
     await runPipeline(getByText);

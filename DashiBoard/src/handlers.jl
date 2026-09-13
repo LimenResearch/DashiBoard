@@ -147,17 +147,40 @@ function evaluate_pipeline(req::HTTP.Request)
     cols = String[summary.name for summary in available]
 
     groups = get(spec, "groups", Dict{String, Any}())
-    pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
-    p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
 
-    nodes = pipeline.nodes
-    report = Pipelines.report(REPOSITORY[], nodes)
-    vs = Pipelines.visualize(REPOSITORY[], nodes)
-    visualization = stringify_visualization.(vs)
-    graph = sprint(Pipelines.graphviz, p)
-    # Recomputed: the pipeline has added its output columns since `available` was taken.
-    summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-    return json_response((; summaries, visualization, graph, report))
+    # Running is the one step nothing static can vet. The probe answers everything that can be
+    # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
+    # more components than there are columns, a model that will not converge — and it surfaces only
+    # by being run. Uncaught, the exception escaped to HTTP.jl, which answered with a bare 500
+    # carrying zero bytes and no CORS header: the client could not show the error because it was
+    # never sent one, and could not tell a failed run from a run that never happened.
+    #
+    # Answered in the probe's shape — 200 with `valid` — deliberately. A failed run is a fact about
+    # the document and its data, which is the same reasoning `probe_pipeline` states, and one shape
+    # means a client reads both replies the same way. The cost is that a genuine server fault also
+    # arrives as `valid = false`; `@error` keeps the stacktrace where an operator will find it,
+    # which the old bare 500 at least did by accident.
+    return try
+        pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
+        p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+
+        nodes = pipeline.nodes
+        report = Pipelines.report(REPOSITORY[], nodes)
+        vs = Pipelines.visualize(REPOSITORY[], nodes)
+        visualization = stringify_visualization.(vs)
+        graph = sprint(Pipelines.graphviz, p)
+        # Recomputed: the pipeline has added its output columns since `available` was taken.
+        summaries = DataIngestion.summarize(REPOSITORY[], "selection")
+        json_response((; valid = true, summaries, visualization, graph, report))
+    catch exception
+        exception isa Exception || rethrow()
+        @error "evaluate-pipeline failed" exception = (exception, catch_backtrace())
+        # A schema failure cannot normally reach here — the probe would have caught it — but if one
+        # does it carries a pointer, and the client already renders those.
+        issues = exception isa Pipelines.SchemaValidationError ?
+            [Pipelines.issue_report(exception)] : []
+        json_response((; valid = false, errors = [sprint(showerror, exception)], issues))
+    end
 end
 
 struct Sorter

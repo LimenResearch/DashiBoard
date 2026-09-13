@@ -19,6 +19,10 @@ import { wireDocument } from "../wire";
 /** The shape of `POST /evaluate-pipeline`'s answer. Every field is optional: an older server, or
  *  a failed request, must degrade to an empty pane rather than a crash. */
 type RunResult = {
+  /** `false` when the run threw. Absent from a server predating the change, which then reads as
+   *  success — the same degradation the probe's `issues` field takes. */
+  valid?: boolean;
+  errors?: string[];
   graph?: string;
   report?: unknown[];
   /** One entry per node, `null` for every card that does not override `Pipelines.visualize`. */
@@ -34,6 +38,15 @@ export function Results() {
   const [cards] = CARDS_STORE;
   const [result, setResult] = createSignal<RunResult | null>(null);
   const [running, setRunning] = createSignal(false);
+  /**
+   * Why the last run produced nothing to look at.
+   *
+   * Held apart from `result`, which therefore only ever holds a run that succeeded — so every pane
+   * below can read it without asking whether it is real. The distinction the reader needs is
+   * between "not run yet" and "run, and it failed", and a single nullable result cannot make it:
+   * both are `null`.
+   */
+  const [failure, setFailure] = createSignal<string[] | null>(null);
   // Held outside the results block, and the block is updated rather than replaced, so a re-run
   // leaves the reader on the pane they were reading.
   const [pane, setPane] = createSignal<Pane>("Table");
@@ -41,7 +54,24 @@ export function Results() {
   async function run() {
     setRunning(true);
     try {
-      setResult((await postRequest("evaluate-pipeline", wireDocument(), null)) as RunResult | null);
+      const answer = (await postRequest("evaluate-pipeline", wireDocument(), null)) as
+        | RunResult
+        | null;
+      // `postRequest` collapses a dead server, a non-JSON body and a network fault alike into the
+      // default it was given. Whatever the cause, the reader must not be left thinking the run
+      // succeeded — which is what an unchanged screen says.
+      if (answer === null) {
+        setResult(null);
+        setFailure(["Could not reach DashiBoard. Is the server running?"]);
+        return;
+      }
+      if (answer.valid === false) {
+        setResult(null);
+        setFailure(answer.errors?.length ? answer.errors : ["The run failed, without saying why."]);
+        return;
+      }
+      setFailure(null);
+      setResult(answer);
     } finally {
       setRunning(false);
     }
@@ -103,6 +133,20 @@ export function Results() {
           <span class="text-control-xs text-muted-foreground">Add a card first.</span>
         </Show>
       </div>
+
+      {/*
+        Destructive styling, not the warning used for an unfinished card: this one already ran and
+        did not work. The text is the server's own — `showerror` on whatever Julia threw — because
+        a paraphrase of an error nobody anticipated is worth less than the error.
+      */}
+      <Show when={failure()}>
+        <div
+          data-run-error
+          class="mx-3 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
+        >
+          <For each={failure()}>{(line: string) => <p class="font-mono break-words">{line}</p>}</For>
+        </div>
+      </Show>
 
       {/* Updated in place rather than keyed: a keyed block would rebuild the grid on every run,
           and it would rebuild it inside whichever pane is hidden at the time — where ag-grid has

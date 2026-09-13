@@ -38,6 +38,28 @@ function get_card_ir(req::HTTP.Request)
 end
 
 """
+    failure_report(kind, exception)
+
+The body both pipeline routes answer with when they cannot do what was asked.
+
+`kind` says *where* it broke, not whose fault it is: `"pipeline"` for a document that could not be
+turned into a pipeline — a schema failure, a duplicate id, a cycle — and `"execution"` for one that
+built and then died while running. That split is on which call threw, which is observable;
+"is this the author's mistake or ours" is not, and a field that claims to know would be guessing.
+
+A client reads the two the same way and means different things by them: a `pipeline` failure sends
+the author back to the cards, an `execution` failure back to the data.
+"""
+function failure_report(kind::AbstractString, exception::Exception)
+    # A7: a schema failure carries a JSON Pointer into the document and what would have been
+    # accepted, so the form can address the control and offer a correction. Anything else — a
+    # cyclic graph, a duplicate id, a binder error from DuckDB — has only its message.
+    issues = exception isa Pipelines.SchemaValidationError ?
+        [Pipelines.issue_report(exception)] : []
+    return (; valid = false, kind, errors = [sprint(showerror, exception)], issues)
+end
+
+"""
     probe_pipeline(req)
 
 Resolve a document without running it: which columns each node consumes and emits, and any it
@@ -68,14 +90,10 @@ function probe_pipeline(req::HTTP.Request)
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
         exception isa Exception || rethrow()
-        # A7: a schema failure carries a JSON Pointer into the document and what would have been
-        # accepted, so the form can address the control and offer a correction. Anything else —
-        # a cyclic graph, a duplicate id — has only its message, so `errors` carries both.
-        issues = exception isa Pipelines.SchemaValidationError ?
-            [Pipelines.issue_report(exception)] : []
-        return json_response(
-            (; valid = false, cols, errors = [sprint(showerror, exception)], issues)
-        )
+        # Always `pipeline`: this route resolves and never runs, so a fault it can see is by
+        # construction a fault of the document. Deliberately not logged — the probe fires on every
+        # edit, and most edits are documents the author has not finished writing yet.
+        return json_response((; failure_report("pipeline", exception)..., cols))
     end
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
@@ -111,6 +129,9 @@ function probe_pipeline(req::HTTP.Request)
 
     return json_response((;
         valid = isempty(absent),
+        # The probe's second way of being invalid, and the same kind as the first: a reference
+        # nothing produces is a fault of the document, found by resolving rather than by running.
+        kind = isempty(absent) ? nothing : "pipeline",
         cols,
         nodes,
         source_vars = Pipelines.get_source_vars(pipeline),
@@ -136,17 +157,6 @@ that §6's variable picker exists to author.
 """
 function evaluate_pipeline(req::HTTP.Request)
     spec = json_read(req)
-    filters = Filter.(spec["filters"])
-
-    orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
-    DataIngestion.select(REPOSITORY[], filters, orig => "selection")
-
-    # The columns available *to* the pipeline, so the group API can validate references against
-    # them rather than accepting a name that does not exist and failing later in SQL.
-    available = DataIngestion.summarize(REPOSITORY[], "selection")
-    cols = String[summary.name for summary in available]
-
-    groups = get(spec, "groups", Dict{String, Any}())
 
     # Running is the one step nothing static can vet. The probe answers everything that can be
     # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
@@ -160,8 +170,31 @@ function evaluate_pipeline(req::HTTP.Request)
     # means a client reads both replies the same way. The cost is that a genuine server fault also
     # arrives as `valid = false`; `@error` keeps the stacktrace where an operator will find it,
     # which the old bare 500 at least did by accident.
+    # Everything up to a built pipeline, in one `pipeline`-kind guard: filtering, materialising
+    # the selection, and construction itself. A client that probes first will rarely see this
+    # branch — but the route is public and cannot assume it was asked politely. `filters` is read
+    # with a default for the same reason: it was indexed directly, so a body without the key
+    # answered with the same bare 500 this whole change exists to remove.
+    pipeline = try
+        filters = Filter.(get(spec, "filters", []))
+        orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
+        DataIngestion.select(REPOSITORY[], filters, orig => "selection")
+
+        # The columns available *to* the pipeline, so the group API can validate references
+        # against them rather than accepting a name that does not exist and failing later in SQL.
+        available = DataIngestion.summarize(REPOSITORY[], "selection")
+        cols = String[summary.name for summary in available]
+
+        groups = get(spec, "groups", Dict{String, Any}())
+        Pipelines.Pipeline(spec["nodes"], groups, cols)
+    catch exception
+        exception isa Exception || rethrow()
+        @error "evaluate-pipeline: could not build the pipeline" exception =
+            (exception, catch_backtrace())
+        return json_response(failure_report("pipeline", exception))
+    end
+
     return try
-        pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
         p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
 
         nodes = pipeline.nodes
@@ -174,12 +207,10 @@ function evaluate_pipeline(req::HTTP.Request)
         json_response((; valid = true, summaries, visualization, graph, report))
     catch exception
         exception isa Exception || rethrow()
-        @error "evaluate-pipeline failed" exception = (exception, catch_backtrace())
-        # A schema failure cannot normally reach here — the probe would have caught it — but if one
-        # does it carries a pointer, and the client already renders those.
-        issues = exception isa Pipelines.SchemaValidationError ?
-            [Pipelines.issue_report(exception)] : []
-        json_response((; valid = false, errors = [sprint(showerror, exception)], issues))
+        # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
+        # the backtrace whether the cause was the data or a bug of ours.
+        @error "evaluate-pipeline: the run failed" exception = (exception, catch_backtrace())
+        json_response(failure_report("execution", exception))
     end
 end
 

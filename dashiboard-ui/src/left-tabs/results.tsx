@@ -22,6 +22,8 @@ type RunResult = {
   /** `false` when the run threw. Absent from a server predating the change, which then reads as
    *  success — the same degradation the probe's `issues` field takes. */
   valid?: boolean;
+  /** Where it broke: `"pipeline"` before anything ran, `"execution"` while running. */
+  kind?: string;
   errors?: string[];
   graph?: string;
   report?: unknown[];
@@ -46,7 +48,19 @@ export function Results() {
    * between "not run yet" and "run, and it failed", and a single nullable result cannot make it:
    * both are `null`.
    */
-  const [failure, setFailure] = createSignal<string[] | null>(null);
+  const [failure, setFailure] = createSignal<{ kind?: string; errors: string[] } | null>(null);
+
+  /**
+   * What the reader should do about it, which is the one thing the server's message cannot say.
+   *
+   * The two kinds call for opposite responses — a document that could not be built is fixed in
+   * the form above, a run that died is fixed in the data — so saying which is worth a line. An
+   * unrecognised or absent `kind` says nothing rather than guessing.
+   */
+  const HEADINGS: Record<string, string> = {
+    pipeline: "DashiBoard could not build this pipeline — the definition is at fault.",
+    execution: "The pipeline ran and failed — the definition is fine, the data or the run is not.",
+  };
   // Held outside the results block, and the block is updated rather than replaced, so a re-run
   // leaves the reader on the pane they were reading.
   const [pane, setPane] = createSignal<Pane>("Table");
@@ -62,12 +76,15 @@ export function Results() {
       // succeeded — which is what an unchanged screen says.
       if (answer === null) {
         setResult(null);
-        setFailure(["Could not reach DashiBoard. Is the server running?"]);
+        setFailure({ errors: ["Could not reach DashiBoard. Is the server running?"] });
         return;
       }
       if (answer.valid === false) {
         setResult(null);
-        setFailure(answer.errors?.length ? answer.errors : ["The run failed, without saying why."]);
+        setFailure({
+          kind: answer.kind,
+          errors: answer.errors?.length ? answer.errors : ["The run failed, without saying why."],
+        });
         return;
       }
       setFailure(null);
@@ -139,13 +156,20 @@ export function Results() {
         did not work. The text is the server's own — `showerror` on whatever Julia threw — because
         a paraphrase of an error nobody anticipated is worth less than the error.
       */}
-      <Show when={failure()}>
-        <div
-          data-run-error
-          class="mx-3 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
-        >
-          <For each={failure()}>{(line: string) => <p class="font-mono break-words">{line}</p>}</For>
-        </div>
+      <Show when={failure()} keyed>
+        {(f: { kind?: string; errors: string[] }) => (
+          <div
+            data-run-error={f.kind ?? ""}
+            class="mx-3 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
+          >
+            <Show when={f.kind !== undefined && HEADINGS[f.kind]}>
+              <p class="mb-1.5 font-semibold">{HEADINGS[f.kind!]}</p>
+            </Show>
+            <For each={f.errors}>
+              {(line: string) => <p class="font-mono break-words">{line}</p>}
+            </For>
+          </div>
+        )}
       </Show>
 
       {/* Updated in place rather than keyed: a keyed block would rebuild the grid on every run,

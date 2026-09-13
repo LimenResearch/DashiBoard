@@ -146,6 +146,7 @@ mktempdir() do data_dir
         resp = HTTP.post(url * "probe-pipeline", body = body)
         probe = JSON.parse(resp.body)
         @test probe["valid"] == false
+        @test probe["kind"] == "pipeline"   # an unproduced reference is a document fault too
         offender = only(filter(n -> !isempty(n["unproduced"]), probe["nodes"]))
         @test offender["id"] == "bad"
         @test offender["unproduced"] == ["TEMP_a_a"]
@@ -166,6 +167,9 @@ mktempdir() do data_dir
         @test resp.status == 200
         probe = JSON.parse(resp.body)
         @test probe["valid"] == false
+        # The probe never runs anything, so every fault it can see is a `pipeline` one — said
+        # explicitly rather than left to be inferred from which route answered.
+        @test probe["kind"] == "pipeline"
         @test occursin("id", only(probe["errors"]))
 
         # A7: a schema failure comes back as data, addressed by JSON Pointer into the document,
@@ -246,10 +250,25 @@ mktempdir() do data_dir
         @test resp.status == 200
         failed = JSON.parse(resp.body)
         @test failed["valid"] == false
+        # `execution`, not `pipeline`: the document built fine and the *run* is what died. The
+        # split is on which call threw, which is observable, rather than on whose fault it is,
+        # which is not.
+        @test failed["kind"] == "execution"
         @test !isempty(failed["errors"])
         @test failed["errors"][1] isa AbstractString && !isempty(failed["errors"][1])
         # and the response is still a normal one, so a browser can read it
         @test ("Access-Control-Allow-Origin" => "*") in resp.headers
+
+        # The other kind on the same route. A client that probes first would never send this, but
+        # the route is public and cannot assume it was asked politely: two unnamed nodes both
+        # resolve to "" and the dependency graph rejects the pair, before anything runs.
+        body = read(joinpath(@__DIR__, "static", "probe-noid.json"), String)
+        resp = HTTP.post(url * "evaluate-pipeline", body = body, status_exception = false)
+        @test resp.status == 200
+        failed = JSON.parse(resp.body)
+        @test failed["valid"] == false
+        @test failed["kind"] == "pipeline"
+        @test occursin("id", only(failed["errors"]))
     end
 
     close(server)

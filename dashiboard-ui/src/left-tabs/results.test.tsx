@@ -180,6 +180,31 @@ describe('Results', () => {
     expect(container.querySelector('.ag-theme-quartz')).toBeNull();
   });
 
+  it('sends the reader to the cards or to the data, depending on where it broke', async () => {
+    // `kind` is the only thing that distinguishes these two, and they call for opposite responses:
+    // a document that could not be built is fixed in the form, a run that died is fixed in the
+    // data. The server's own text is shown either way — it is the part nobody could have written
+    // in advance.
+    serve({ valid: false, kind: 'pipeline', errors: ['duplicate id ""'], issues: [] });
+    const { container, getByText, unmount } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.querySelector('[data-run-error]')!.getAttribute('data-run-error')).toBe('pipeline');
+    expect(container.textContent).toMatch(/could not build/i);
+    expect(container.textContent).toContain('duplicate id');
+    unmount();
+
+    serve({ valid: false, kind: 'execution', errors: ['Binder Error'], issues: [] });
+    const second = render(() => <Results />);
+    await runPipeline(second.getByText);
+    await waitFor(() =>
+      expect(second.container.querySelector('[data-run-error]')).not.toBeNull(),
+    );
+    expect(second.container.querySelector('[data-run-error]')!.getAttribute('data-run-error'))
+      .toBe('execution');
+    expect(second.container.textContent).toMatch(/ran and failed/i);
+  });
+
   it('says so when the server answers nothing at all', async () => {
     // `postRequest` collapses a dead server, a non-JSON body and a network fault into `null`.
     // Whatever the cause, the one thing the reader must not conclude is that the run succeeded.

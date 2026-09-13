@@ -19,6 +19,43 @@ settings = Pipelines.WildCardSettings(
 )
 Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 
+@testset "root_causes" begin
+    # Pipelines evaluates nodes as tasks, so every runtime failure reaches the handler wrapped in
+    # `TaskFailedException` — twice over, in practice. `showerror` on the wrapper prints the
+    # scheduler's stacktrace and not one word about what actually went wrong, which is what a user
+    # was being shown.
+    wrapped = try
+        t = Threads.@spawn error("the real problem")
+        wait(t)
+    catch exception
+        exception
+    end
+    @test wrapped isa TaskFailedException
+    @test occursin("TaskFailedException", sprint(showerror, wrapped))
+    @test occursin("the real problem", sprint(showerror, only(DashiBoard.root_causes(wrapped))))
+
+    # Nested, which is the shape the pipeline actually produces.
+    twice = try
+        outer = Threads.@spawn begin
+            inner = Threads.@spawn error("buried")
+            wait(inner)
+        end
+        wait(outer)
+    catch exception
+        exception
+    end
+    @test occursin("buried", sprint(showerror, only(DashiBoard.root_causes(twice))))
+
+    # Several tasks failing at once are several messages, not one chosen arbitrarily.
+    many = CompositeException([ErrorException("first"), ErrorException("second")])
+    @test [sprint(showerror, e) for e in DashiBoard.root_causes(many)] ==
+        ["first", "second"]
+
+    # Anything else is its own root cause.
+    plain = ArgumentError("as is")
+    @test only(DashiBoard.root_causes(plain)) === plain
+end
+
 mktempdir() do data_dir
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
@@ -255,7 +292,11 @@ mktempdir() do data_dir
         # which is not.
         @test failed["kind"] == "execution"
         @test !isempty(failed["errors"])
-        @test failed["errors"][1] isa AbstractString && !isempty(failed["errors"][1])
+        # The message is the cause, not the wrapper. Before unwrapping, this said
+        # "TaskFailedException" followed by forty lines of scheduler stacktrace, and the sentence
+        # naming the actual fault was buried two levels inside it.
+        @test !occursin("TaskFailedException", failed["errors"][1])
+        @test occursin("Binder Error", failed["errors"][1])
         # and the response is still a normal one, so a browser can read it
         @test ("Access-Control-Allow-Origin" => "*") in resp.headers
 

@@ -38,6 +38,34 @@ function get_card_ir(req::HTTP.Request)
 end
 
 """
+    root_causes(exception) -> Vector{Exception}
+
+Peel the scheduler off an exception, leaving what actually went wrong.
+
+`Pipelines` evaluates nodes as tasks, so a failure inside a card reaches a handler wrapped in
+`TaskFailedException` — twice over in practice, since the node loop spawns inside a spawn. Running
+`showerror` on the wrapper prints the scheduler's stacktrace and not one word about the cause: a
+missing column came back as "TaskFailedException" and forty lines of `threads_overloads.jl`, with
+the sentence that names the fault buried two levels inside it.
+
+A `CompositeException` expands rather than collapses, because several cards failing at once is
+several things to say. `errors` is already a list, so they have somewhere to go.
+"""
+function root_causes(exception)::Vector{Exception}
+    if exception isa TaskFailedException && exception.task.result isa Exception
+        return root_causes(exception.task.result)
+    elseif exception isa CompositeException
+        return isempty(exception.exceptions) ? Exception[exception] :
+            reduce(vcat, root_causes.(exception.exceptions))
+    elseif exception isa Exception
+        return Exception[exception]
+    else
+        # A task can fail with a value that is not an `Exception`; say so rather than throw here.
+        return Exception[ErrorException(sprint(show, exception))]
+    end
+end
+
+"""
     failure_report(kind, exception)
 
 The body both pipeline routes answer with when they cannot do what was asked.
@@ -56,7 +84,11 @@ function failure_report(kind::AbstractString, exception::Exception)
     # cyclic graph, a duplicate id, a binder error from DuckDB — has only its message.
     issues = exception isa Pipelines.SchemaValidationError ?
         [Pipelines.issue_report(exception)] : []
-    return (; valid = false, kind, errors = [sprint(showerror, exception)], issues)
+    return (;
+        valid = false, kind,
+        errors = [sprint(showerror, cause) for cause in root_causes(exception)],
+        issues,
+    )
 end
 
 """

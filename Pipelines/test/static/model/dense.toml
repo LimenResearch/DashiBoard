@@ -16,16 +16,6 @@ agg = "mean"
 name = "mae"
 agg = "mean"
 
-[[widgets]]
-key = "features"
-widget = "input"
-label = "Features"
-placeholder = "Select number of features"
-type = "number"
-min = 1
-step = 1
-value = 5
-
 [[properties]]
 key = "features"
 title = "Features"

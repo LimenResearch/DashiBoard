@@ -177,10 +177,10 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
       const properties = (Array.isArray(n.properties) ? n.properties : []) as PropertyEntry[];
       // `properties: []` means two different things, and `additionalProperties` is the difference.
       // Closed, it is a thing that takes no settings — `pca`, `log`, `euclidean`; 18 branches say
-      // this. Open, it is a field the IR does not describe at all: streamliner's `model` and
-      // `training` accept arbitrary keys and *require* them, because Pipelines reads their widget
-      // definitions from `.wdgs` files at runtime rather than from the type. Calling that an
-      // object with no properties draws a form saying there is nothing to fill in, which is the
+      // this. Open, it is a field the IR does not describe at all: streamliner's `funnel` branch,
+      // built by `EmptyTaggedObjectIR(...; additionalProperties = true)` under a standing
+      // "make schema more specific" TODO in `Pipelines/src/cards/streamliner.jl`. Calling that an
+      // object with no settings draws a form saying there is nothing to fill in, which is the
       // opposite of true — so it is reported as undescribed, the same as `ArrayIR{Any}`.
       if (properties.length === 0 && n.additionalProperties === true) return { kind: "unknown" };
       const kinds = selectorKinds(n);

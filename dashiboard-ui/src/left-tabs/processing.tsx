@@ -47,11 +47,9 @@ export function Cards() {
   const [chosen, setChosen] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
 
-  // The IR is what the renderer builds from (§13). It replaced `get-card-widgets`, a
-  // hand-written second description of every card that A2 deleted on 2026-09-13 — both the route
-  // and the `CardWidget` machinery behind it are gone, so this is now the only description there
-  // is. Which nodes and groups are referenceable depends on the document being edited, not only
-  // on the source, so this re-runs when either changes.
+  // The IR is what the renderer builds from, and since A2 it is the only description of a card
+  // that exists (§13). Which nodes and groups are referenceable depends on the document being
+  // edited, not only on the source, so this re-runs when either changes.
   async function loadIR() {
     const received = (await postRequest(
       "get-card-ir",

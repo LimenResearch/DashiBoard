@@ -13,6 +13,7 @@
 # `weather` group and the two nodes in `DashiBoard/test/static/pipeline.json`.
 
 using Pipelines, JSON
+using Base.ScopedValues: @with
 
 # The `trivial` wild card, verbatim from `DashiBoard/test/dashiboard.jl`. A `WildCard` is registered
 # by the *host*, not by Pipelines, so without this the fixture describes nine card types and the UI
@@ -39,8 +40,23 @@ variable_config = Pipelines.VariableConfig(
     nodes = ["rescale", "split"],
 )
 
-defs = Pipelines.ir_definitions(variable_config)
-cards = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
+# The streamliner card's `model` and `training` are described by the `[[properties]]` blocks in
+# the model and training directories, read at request time — so `card_ir` gives a different answer
+# depending on whether those scoped values are set. `launch` always sets them
+# (`DashiBoard/src/launch.jl`), and the test server points them at this repository's `static/`, so
+# a fixture generated without them is not the payload any client receives: `model` and `training`
+# collapse from a `tagged_object` over the available configurations to an empty open object, and
+# the `title`/`description` each property carries disappear. Measured, after a fixture generated
+# without them was used for two days.
+root = joinpath(@__DIR__, "..", "..", "..")
+defs, cards = @with(
+    Pipelines.MODEL_DIR => joinpath(root, "static", "model"),
+    Pipelines.TRAINING_DIR => joinpath(root, "static", "training"),
+    (
+        Pipelines.ir_definitions(variable_config),
+        Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS)),
+    )
+)
 
 # `omit_null = true` is the route's own setting, and it is load-bearing rather than cosmetic: the IR
 # uses `nothing` for "the type declares no default", and a serialised `null` turns that absence into

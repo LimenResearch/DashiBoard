@@ -100,9 +100,8 @@ mktempdir() do data_dir
         # field entries are an ordered array, and the card label travels in the IR
         @test payload["cards"]["split"]["properties"] isa AbstractVector
         @test payload["cards"]["split"]["title"] isa AbstractString
-        # CORS, moved here from the retired `get-card-widgets` block — which was the only place
-        # the response headers and the OPTIONS preflight were ever asserted, so deleting it
-        # wholesale would have dropped the server's CORS coverage without a failing test.
+        # The only place the response headers and the OPTIONS preflight are asserted, so this
+        # covers CORS for every route rather than for this one.
         #
         # Before the `String(resp.body)` below, not after: `String(::Vector{UInt8})` takes
         # ownership of the buffer and leaves it empty, so a `length(resp.body)` that follows it

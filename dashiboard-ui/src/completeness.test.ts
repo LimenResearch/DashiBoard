@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { checkGroup, checkNode, checkFields, type Incompleteness } from './completeness';
-import type { Defs, IRNode } from './ir';
+import { defaultsFor, type Defs, type IRNode } from './ir';
 import payload from './fixtures/card-ir.json';
 
 const defs = payload.defs as Defs;
@@ -143,14 +143,45 @@ describe('checkFields', () => {
     expect(checkFields(node, defs, {}, '/nodes/0/card')).toEqual([]);
   });
 
-  it('stays silent about a required field the IR does not describe', () => {
-    // streamliner's `model` and `training` are required, empty, and *open* — Pipelines reads their
-    // widget definitions from `.wdgs` files at runtime, so the type describes nothing and the form
-    // has no control to draw. Naming them here would point at a field the author cannot answer,
-    // which is the "argues with you" failure this walk is supposed to avoid. The server does
-    // report them, and stage two is where that arrives.
+  it('asks for streamliner\'s configurations, which the IR does describe', () => {
+    // A correction worth keeping. These two were believed undescribed, on the evidence of a
+    // fixture generated without `MODEL_DIR`/`TRAINING_DIR` — which is not a payload any client
+    // receives, because `launch` always sets them. With them set, each is a `tagged_object` over
+    // the configurations on disk, built from their `[[properties]]` blocks, so they are perfectly
+    // answerable and this walk is right to ask.
     const found = checkFields(cards.streamliner, defs, { type: 'streamliner' }, '/nodes/0/card');
-    expect(found.map((f) => f.pointer)).toEqual(['/nodes/0/card/funnel']);
+    expect(found.map((f) => f.pointer)).toEqual([
+      '/nodes/0/card/model',
+      '/nodes/0/card/training',
+      '/nodes/0/card/funnel',
+    ]);
+    expect(found[0].message).toBe('choose one of: classifier, dense');
+    expect(found[1].message).toBe('choose one of: batched');
+  });
+
+  it('says nothing about the inside of a branch the IR does not describe', () => {
+    // `funnel` names its branch — it has a `default_option`, so a card created through
+    // `defaultsFor` carries one and is never asked. What that branch *contains* is undescribed:
+    // an open object with no properties, under a standing "make schema more specific" TODO in
+    // `Pipelines/src/cards/streamliner.jl`. Descending into it would name a field the author has
+    // no control to answer, which is the "argues with you" failure this walk exists to avoid.
+    const filled = defaultsFor(cards.streamliner, defs) as Record<string, unknown>;
+    expect(filled.funnel).toEqual({ type: '' });
+
+    const found = checkFields(
+      cards.streamliner, defs,
+      {
+        type: 'streamliner',
+        ...filled,
+        // Both configurations' own required fields come from the `[[properties]]` blocks in
+        // `static/model/dense.toml` and `static/training/batched.toml` — the walk descends into
+        // the chosen branch and asks for them, which is the whole point of describing them there.
+        model: { type: 'dense', features: 8 },
+        training: { type: 'batched', iterations: 100 },
+      },
+      '/nodes/0/card',
+    );
+    expect(found).toEqual([]);
   });
 
   it('escapes a pointer segment, so an odd field name still addresses one field', () => {

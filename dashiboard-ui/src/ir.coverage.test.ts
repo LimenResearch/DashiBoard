@@ -70,9 +70,11 @@ describe('the mapping covers the IR Julia actually serves', () => {
     }
     // glm and mixed_model formulas use ArrayIR{Any}(), whose items serialise as {}. mixed_model
     // is not registered by default, so glm is the only one of those — and Pipelines carries a
-    // "make more specific" TODO for exactly this. streamliner's `model` and `training` are the
-    // open-object case: Pipelines reads their widget definitions from `.wdgs` files at runtime,
-    // so the type has nothing to describe and the card cannot be authored here yet.
+    // "make more specific" TODO for exactly this. streamliner is here for its `funnel`, whose
+    // single branch is `EmptyTaggedObjectIR(...; additionalProperties = true)` under the same
+    // standing TODO. Its `model` and `training` are *not* here: they are described, by the
+    // `[[properties]]` blocks in the model and training directories, and reach the IR as
+    // `tagged_object`s over the available configurations.
     expect([...new Set(unknown)].sort()).toEqual(['glm', 'streamliner']);
   });
 

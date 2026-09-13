@@ -78,22 +78,6 @@ mktempdir() do data_dir
     @testset "request" begin
         url = "http://127.0.0.1:$(port)/"
 
-        body = read(joinpath(@__DIR__, "static", "card-widgets.json"), String)
-        resp = HTTP.post(url * "get-card-widgets", body = body)
-        configs = JSON.parse(resp.body)
-        @test configs isa AbstractVector
-        @test length(configs) == length(Pipelines.CARD_SPECS)
-        @test resp.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "application/json",
-            "Content-Length" => string(length(resp.body)),
-        ]
-        resp = HTTP.options(url * "get-card-widgets")
-        @test resp.headers == [
-            DashiBoard.CORS_OPTIONS_HEADERS...,
-            "Content-Length" => "0",
-        ]
-
         body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)
         resp = HTTP.post(url * "get-card-ir", body = body)
         payload = JSON.parse(resp.body)
@@ -116,8 +100,25 @@ mktempdir() do data_dir
         # field entries are an ordered array, and the card label travels in the IR
         @test payload["cards"]["split"]["properties"] isa AbstractVector
         @test payload["cards"]["split"]["title"] isa AbstractString
+        # CORS, moved here from the retired `get-card-widgets` block — which was the only place
+        # the response headers and the OPTIONS preflight were ever asserted, so deleting it
+        # wholesale would have dropped the server's CORS coverage without a failing test.
+        #
+        # Before the `String(resp.body)` below, not after: `String(::Vector{UInt8})` takes
+        # ownership of the buffer and leaves it empty, so a `length(resp.body)` that follows it
+        # reads 0 and the Content-Length assertion fails against its own response.
+        @test resp.headers == [
+            DashiBoard.CORS_RES_HEADERS...,
+            "Content-Type" => "application/json",
+            "Content-Length" => string(length(resp.body)),
+        ]
         # nulls are omitted rather than shipped
         @test !occursin(":null", String(resp.body))
+        resp = HTTP.options(url * "get-card-ir")
+        @test resp.headers == [
+            DashiBoard.CORS_OPTIONS_HEADERS...,
+            "Content-Length" => "0",
+        ]
 
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load-files", body = body)

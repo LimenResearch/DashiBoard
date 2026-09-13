@@ -20,7 +20,7 @@ graph TB
     subgraph JL["Julia"]
         ET["ExperimentTracking.jl<br/>registry · orchestration<br/>JSON-RPC POST api/v1"]
         DB["DashiBoard<br/>HTTP server"]
-        FE["frontend/<br/>SolidJS · to be rebuilt"]
+        FE["dashiboard-ui/<br/>SolidJS 2 · the UI"]
         PL["Pipelines<br/>Card · Node · DAG · CARD_SPECS"]
         DI["DataIngestion<br/>Filter · select · readers"]
         SC["StreamlinerCore<br/>ML training"]

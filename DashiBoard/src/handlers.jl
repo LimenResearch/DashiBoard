@@ -11,12 +11,6 @@ function load_files(req::HTTP.Request)
     return json_response(summaries)
 end
 
-function get_card_widgets(req::HTTP.Request)
-    spec = json_read(req)
-    configs = Pipelines.card_widgets(spec)
-    return json_response(configs)
-end
-
 """
     get_card_ir(req)
 

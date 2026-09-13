@@ -5,6 +5,13 @@ those are in `01-decisions.md`. The other three projects are in `02-stack.md`.
 
 Line numbers are against DashiBoard `main` at commit `e6f4794`.
 
+> **`frontend/` was deleted on 2026-09-13** (A2), along with the `CardWidget`/`Widget`/`OutputSpec`
+> machinery and the `/get-card-widgets` route. Every citation below to `frontend/src/...`,
+> `Pipelines/src/widgets.jl` or `Pipelines/assets/config/*.toml` therefore describes a state that no
+> longer exists on disk; it is still readable at `e6f4794`. Left as written rather than revised —
+> this file is a record of what was there before the refactor, and rewriting it would destroy the
+> only account of what the migration replaced. `dashiboard-ui/` is the UI now.
+
 ## Packages
 
 `/home/dariosarra/Documents/Limen/DashiBoard` is a Julia monorepo implementing a

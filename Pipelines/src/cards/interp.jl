@@ -124,33 +124,3 @@ function (ic::InterpCard)(itps, t, id_var::AbstractPrimaryKey)
 
     return pred_table
 end
-
-## UI representation
-
-function CardWidget(
-        ::Type{InterpCard}, key::AbstractString;
-        global_options::AbstractDict, user_options::AbstractDict
-    )
-
-    config = CardWidgetConfigs(parse_toml_config("config", key))
-    c = combine_options(config.widget_configs; global_options, user_options)
-
-    methods = collect(keys(INTERPOLATION_METHODS))
-    extrapolation_options = enum_instances(ExtrapolationType.T)
-    direction_options = ["left", "right"]
-
-    fields = vcat(
-        [
-            Widget("input", c),
-            Widget("targets", c),
-            Widget("method", c; options = methods),
-        ],
-        method_dependent_widgets(c, "method", config.methods),
-        [
-            Widget("partition", c, required = false),
-            Widget("suffix", c, value = "hat"),
-        ]
-    )
-
-    return CardWidget(key, fields, OutputSpec("targets", "suffix"))
-end

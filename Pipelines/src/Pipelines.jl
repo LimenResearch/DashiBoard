@@ -13,7 +13,7 @@ export Card,
     StreamlinerCard,
     WildCard
 
-public get_metadata, register_card, CardSpec, card_widgets
+public get_metadata, register_card, CardSpec
 
 # The two artefacts of one traversal. `card_schema` was already called by
 # ExperimentTracking without being declared; `card_ir` and `ir_definitions` are its consumers'
@@ -37,9 +37,6 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
-
-using TOML: TOML
-using RelocatableFolders: @path
 
 using JLD2: jldopen
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
@@ -166,14 +163,7 @@ using Dates: hour, minute
 const AbstractPrimaryKey = AbstractString
 const PrimaryKey = String
 
-function parse_toml_config(args...)::StringDict
-    fs..., l = args
-    path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
-    return TOML.parsefile(path)
-end
-
 include("tables.jl")
-include("widgets.jl")
 include("utils.jl")
 
 include("dict_helpers.jl")

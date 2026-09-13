@@ -285,7 +285,7 @@ describe.
    in `Pipelines/src/group_api/dag.jl:33`. Note that the canvas is a *replacement* for the tabbed
    shell (§7), not an addition to it, so it is a decision about the program rather than the next
    increment of it.
-6. **Delete `frontend/`.** Then the DashiBoard server once the new UI serves, per *Do not do*.
+6. ~~**Delete `frontend/`.**~~ **DONE 2026-09-13**, with the legacy widget path (A2). The half-state §7 warned about — `create.js` deleted while eight modules imported it — is resolved by deletion as this plan intended. Retiring the DashiBoard server is still open and still gated on the visualization question in §8.
 
 `frontend/src/create.js` is currently deleted by `pv/frontend` while eight modules still import it,
 so `frontend/` does not build (`Could not resolve "./create" from "src/App.jsx"`). Under this plan

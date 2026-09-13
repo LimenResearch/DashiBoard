@@ -47,8 +47,11 @@ describe('checkFields', () => {
   const at = (f: Incompleteness) => f.pointer;
 
   it('names every unanswered required field on an empty card, not just the first', () => {
-    // The motivating case. A cluster card with nothing filled in is missing two things, and the
-    // author should see both at once — see the module docstring for why the server cannot say so.
+    // Both at once — which is a difference *across* cards, not within one. JSONSchema lists every
+    // absent required name in a single issue, so for this card the server says
+    // `missing: ["method", "inputs"]` too (measured 2026-09-13). What it will not do is say
+    // anything about a *second* broken card, or say it without a round trip, or offer the choice:
+    // it names what is absent, this names what to do about it.
     const found = checkFields(cluster, defs, { type: 'cluster' }, '/nodes/0/card');
     expect(found.map(at)).toEqual(['/nodes/0/card/method', '/nodes/0/card/inputs']);
     // Pinned as strings because they are what the author reads, rendered after the field path:

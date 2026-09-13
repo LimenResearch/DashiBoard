@@ -33,6 +33,29 @@ import type { PipelineNode, Selector } from "./stores";
 // Everything here is therefore derived from the IR rather than decided in this file. Where a rule
 // looks like a judgement call — may a required list be empty? — it is read from the node, because
 // the same question has different answers on different cards (see `checkFields`).
+//
+// **What this duplicates, stated plainly, because it is easy to overstate the case for it.**
+// Measured 2026-09-13 against `validate_pipeline_schema`, card by card:
+//
+//   * `required` — the server reports it, with every absent name in one issue and a pointer at
+//     the object. Nested too: a dbscan without `radius` comes back as `required` at
+//     `/nodes/0/card/method`, `missing: ["radius"]`. `checkFields` finds exactly the same set.
+//   * `minItems` — likewise, pointed at the field.
+//   * `enum`, `minimum`, `maximum`, `additionalProperties` — the server's alone. This file does
+//     not look at them.
+//
+// So detection of unanswered fields *within one card* is duplicated, and honestly so. Three things
+// are not:
+//
+//   1. **Across cards.** Validation throws on the first failing card, so a document with two
+//      broken cards yields one issue about the first (A11). This walks all of them.
+//   2. **Without a round trip**, which is what lets Confirm answer in the tick it was pressed.
+//   3. **What to do**, rather than what is absent: `missing: ["method"]` against
+//      "choose one of: dbscan, affinity_propagation, kmeans". That difference is presentation,
+//      and it is the only one A11 will not erase.
+//
+// `checkGroup` and `checkNode` are a different matter — the server *accepts* both documents
+// (measured), so those two are not duplication at all.
 
 export type Incompleteness = {
   /** What the author would do about it, phrased as the thing to do rather than as a complaint. */

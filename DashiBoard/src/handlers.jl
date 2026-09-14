@@ -82,13 +82,53 @@ function failure_report(kind::AbstractString, exception::Exception)
     # A7: a schema failure carries a JSON Pointer into the document and what would have been
     # accepted, so the form can address the control and offer a correction. Anything else — a
     # cyclic graph, a duplicate id, a binder error from DuckDB — has only its message.
-    issues = exception isa Pipelines.SchemaValidationError ?
-        [Pipelines.issue_report(exception)] : []
+    # A11: validation collects, so one failure and twenty arrive in the same shape.
+    issues = exception isa Pipelines.SchemaValidationErrors ?
+        Pipelines.issue_report(exception) : []
     return (;
         valid = false, kind,
         errors = [sprint(showerror, cause) for cause in root_causes(exception)],
         issues,
     )
+end
+
+"""
+    validate_card(req)
+
+Check one card against its own schema, without resolving a document.
+
+The targeted counterpart to `probe-pipeline`. A form editing a single card needs to know whether
+that card is answerable — has a method been chosen, are the inputs named — and none of that
+depends on the other cards. Asking the whole document costs a graph walk and answers about the
+first failing card rather than this one.
+
+Takes the same vocabularies `get-card-ir` does, because the schema a card is checked against is
+built from them: a column that does not exist is a schema failure only if the server knows which
+columns do. `base` is where the card sits in the document, so the pointers come back
+document-relative and the client reads them exactly as it reads the probe's.
+
+What it cannot answer stays with the probe: unproduced references, duplicate ids, cycles — every
+question that needs the other cards.
+"""
+function validate_card(req::HTTP.Request)
+    spec = json_read(req)
+    maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
+    variable_config = Pipelines.VariableConfig(
+        nodes = maybe_strings("nodes"),
+        groups = maybe_strings("groups"),
+        cols = maybe_strings("cols"),
+    )
+    return try
+        issues = Pipelines.card_issues(
+            spec["card"], variable_config; base = get(spec, "base", "")
+        )
+        json_response((; valid = isempty(issues), issues); omit_null = true)
+    catch exception
+        exception isa Exception || rethrow()
+        # An unknown card type has no schema to build, and a malformed request has no card. Both
+        # are faults of what was sent, so they answer in the same envelope as everything else.
+        json_response(failure_report("pipeline", exception))
+    end
 end
 
 """

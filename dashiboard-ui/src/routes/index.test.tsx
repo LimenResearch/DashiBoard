@@ -35,6 +35,7 @@ beforeEach(() => {
   postRequest.mockImplementation((page: string) => {
     if (page === 'get-card-ir') return Promise.resolve(payload);
     if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+    if (page === 'validate-card') return Promise.resolve({ valid: true, issues: [] });
     return Promise.resolve([]);
   });
 });
@@ -309,11 +310,27 @@ describe('the authoring page', () => {
     expect(card.method).toBeUndefined();
   });
 
-  it('answers an unfinished card itself, naming every field and asking nobody', async () => {
-    // The split: what can be seen in the card in front of you is the UI's to answer, immediately.
-    // Both missing fields are named, each against the control that fixes it — which the server
-    // structurally cannot do, because `validate_pipeline_schema` throws on the first failing card
-    // and the handler wraps that one exception (measured).
+  it('asks the card\'s own validator, not the whole document', async () => {
+    // The consolidation of 2026-09-14. There was a walk in the UI that re-implemented `required`
+    // and `minItems`; measured, it found exactly what the card's schema already reports. So the
+    // question goes to Pipelines — for this card alone, which is why it is not the probe.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+      if (page === 'validate-card') {
+        return Promise.resolve({
+          valid: false,
+          issues: [{
+            pointer: '/nodes/0/card', reason: 'required', found: null, allowed: null,
+            missing: ['method', 'inputs'],
+            related: ['/nodes/0/card/method', '/nodes/0/card/inputs'],
+            message: 'Schema Validation Error',
+          }],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
     const { container, getByLabelText, getByText } = render(() => <Home />);
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
@@ -323,19 +340,24 @@ describe('the authoring page', () => {
 
     const probesBefore = probeCalls();
     fireEvent.click(getByText('Confirm'));
-    await flush();
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull(),
+    );
 
-    // No round trip. Asserted by count rather than by timing: the continuous probe fires on every
-    // document change, so "the probe was called" proves nothing — "it was not called *again*" does.
-    expect(probeCalls()).toBe(probesBefore);
-    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
-    expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
-
+    // One finding per absent field, each placed on its own control — the server's `related`
+    // pointers, not a sentence listing them.
     const findings = [...container.querySelectorAll('[data-finding]')].map((e) => e.textContent);
     expect(findings).toHaveLength(2);
     expect(findings[0]).toContain('method');
-    expect(findings[0]).toContain('choose one of: dbscan, affinity_propagation, kmeans');
     expect(findings[1]).toContain('inputs');
+
+    // And the document was never resolved: a card that does not build has nothing to say about
+    // the graph, so there is nothing to ask it.
+    expect(probeCalls()).toBe(probesBefore);
+    const asked = postRequest.mock.calls.find((c: unknown[]) => c[0] === 'validate-card');
+    expect(asked).toBeDefined();
+    expect(Object.keys(asked![1] as object).sort())
+      .toEqual(['base', 'card', 'cols', 'groups', 'nodes']);
   });
 
   it('asks the server once the card itself is answered, and reports what only it can see', async () => {
@@ -409,6 +431,21 @@ describe('the authoring page', () => {
   });
 
   it('keeps findings with their card when an earlier one is removed', async () => {
+    postRequest.mockImplementation((page: string, body: Record<string, unknown>) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+      if (page === 'validate-card') {
+        // Only the cluster card is unfinished, so the two cards are distinguishable by findings.
+        const type = (body.card as { type?: string })?.type;
+        return Promise.resolve(type === 'cluster'
+          ? { valid: false, issues: [{
+              pointer: String(body.base), reason: 'required', found: null, allowed: null,
+              missing: ['method'], related: [`${body.base}/method`], message: 'x',
+            }] }
+          : { valid: true, issues: [] });
+      }
+      return Promise.resolve([]);
+    });
     // Findings are keyed by position, so a splice would slide the second card's answer onto the
     // first. A precise field pointer on the wrong card is worse than no pointer at all.
     const { container, getByLabelText, getByText } = render(() => <Home />);
@@ -426,8 +463,9 @@ describe('the authoring page', () => {
         d.querySelector('summary')?.textContent?.includes(type),
       )!;
     fireEvent.click([...cardOf('cluster').querySelectorAll('summary button')][0]);
-    await flush();
-    expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0),
+    );
     expect(cardOf('rescale').querySelectorAll('[data-finding]')).toHaveLength(0);
 
     // Remove the first card. The cluster card slides from index 1 to index 0.

@@ -1,4 +1,3 @@
-import { widgetFor, type Defs, type IRNode, type Widget } from "./ir";
 import type { PipelineNode, Selector } from "./stores";
 
 // What the UI can answer about a definition on its own, without asking the server.
@@ -34,28 +33,15 @@ import type { PipelineNode, Selector } from "./stores";
 // looks like a judgement call — may a required list be empty? — it is read from the node, because
 // the same question has different answers on different cards (see `checkFields`).
 //
-// **What this duplicates, stated plainly, because it is easy to overstate the case for it.**
-// Measured 2026-09-13 against `validate_pipeline_schema`, card by card:
+// **The line, after the consolidation of 2026-09-14.** This file holds only checks with no server
+// counterpart. Everything a card's schema can answer — a required field absent, a list below its
+// minimum, a value outside an enum — is asked of Pipelines directly, per card, through
+// `POST /validate-card` over `Pipelines.card_issues`. There was a walk here that re-implemented
+// `required` and `minItems` in TypeScript; measured against `validate_pipeline_schema` it found
+// exactly the same set, nested cases included, and it is gone.
 //
-//   * `required` — the server reports it, with every absent name in one issue and a pointer at
-//     the object. Nested too: a dbscan without `radius` comes back as `required` at
-//     `/nodes/0/card/method`, `missing: ["radius"]`. `checkFields` finds exactly the same set.
-//   * `minItems` — likewise, pointed at the field.
-//   * `enum`, `minimum`, `maximum`, `additionalProperties` — the server's alone. This file does
-//     not look at them.
-//
-// So detection of unanswered fields *within one card* is duplicated, and honestly so. Three things
-// are not:
-//
-//   1. **Across cards.** Validation throws on the first failing card, so a document with two
-//      broken cards yields one issue about the first (A11). This walks all of them.
-//   2. **Without a round trip**, which is what lets Confirm answer in the tick it was pressed.
-//   3. **What to do**, rather than what is absent: `missing: ["method"]` against
-//      "choose one of: dbscan, affinity_propagation, kmeans". That difference is presentation,
-//      and it is the only one A11 will not erase.
-//
-// `checkGroup` and `checkNode` are a different matter — the server *accepts* both documents
-// (measured), so those two are not duplication at all.
+// `checkGroup` and `checkNode` are what is left, and they are not duplication at all: the server
+// *accepts* both documents (measured), so if this file did not say it nobody would.
 
 export type Incompleteness = {
   /** What the author would do about it, phrased as the thing to do rather than as a complaint. */
@@ -95,135 +81,4 @@ export function checkNode(node: PipelineNode): Incompleteness[] {
     return [{ message: "Give this card a name — nothing can refer to it until it has one." }];
   }
   return [];
-}
-
-// --- unanswered fields ------------------------------------------------------------------------
-
-/** `~` before `/`, or the escape introduced by the first pass would be escaped by the second. */
-const escapeToken = (token: string) => token.replace(/~/g, "~0").replace(/\//g, "~1");
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
-
-const absent = (value: unknown) => value === undefined || value === null;
-
-const oneOf = (options: readonly (string | number)[]) =>
-  `choose one of: ${options.map(String).join(", ")}`;
-
-/**
- * What this node still needs, or `null` if the value answers it.
- *
- * One case per widget kind, so the question asked of a field is the one its own control poses: a
- * variant wants a branch named, a repeater wants items, a number wants a number.
- */
-function unanswered(w: Widget, value: unknown): string | null {
-  switch (w.kind) {
-    // Nothing honest to say. `ArrayIR{Any}()` serialises its items as `{}` — glm's formula — and
-    // a check that guesses at a field it cannot describe is a check that argues with the author.
-    case "unknown":
-      return null;
-
-    case "object":
-      return isRecord(value) ? null : "needs a value";
-
-    case "variant": {
-      const chosen = isRecord(value) ? value.type : undefined;
-      return typeof chosen === "string" && w.options.includes(chosen) ? null : oneOf(w.options);
-    }
-
-    case "select":
-      return absent(value) ? oneOf(w.options) : null;
-
-    case "number":
-      return typeof value === "number" ? null : "needs a number";
-
-    case "toggle":
-      return typeof value === "boolean" ? null : "needs true or false";
-
-    case "text":
-      if (typeof value !== "string") return "needs a value";
-      // Blank counts as unanswered only where the IR says a value must have length — which it
-      // does for `suffix`, and does not for a free-text field that may legitimately be empty.
-      return value === "" && (w.minLength ?? 0) > 0 ? "needs a value" : null;
-
-    case "multiselect":
-    case "repeater": {
-      const min = w.minItems ?? 0;
-      if (Array.isArray(value) && value.length >= min) return null;
-      // A minimum is the more useful thing to say, whether the list is empty or absent: "select
-      // at least one" tells the author what to do, where "needs a value" only says something is
-      // wrong. Without a minimum there is nothing to quantify, so an absent list falls back.
-      if (min >= 1) return min === 1 ? "select at least one" : `select at least ${min}`;
-      return "needs a value";
-    }
-
-    // One selector item. `kinds` comes from the `oneOf` the IR carries, so this asks the question
-    // the schema asks. Only *none chosen* is reported: whether two kinds were given at once is
-    // the server's to judge, and C2 makes it unrepresentable here anyway.
-    case "selector": {
-      if (!isRecord(value)) return "needs a value";
-      return w.kinds.some((kind) => !absent(value[kind])) ? null : oneOf(w.kinds);
-    }
-  }
-}
-
-/**
- * Every required field below `node` that nobody has answered, each addressed by pointer.
- *
- * `pointer` is where `node` sits in the document — `/nodes/0/card` for a card — and grows by one
- * segment per level, so a finding addresses the control that would fix it. Numeric segments are
- * document positions, which `fieldPath` shifts for display.
- *
- * Two structural decisions worth stating, because both are places a reasonable implementation
- * would differ:
- *
- * A **variant's branch shares its parent's pointer and value.** `{type: "dbscan", radius: …}` is
- * one flat object, which is how the renderer draws it too, so `radius` is `…/method/radius` and
- * not `…/method/dbscan/radius`.
- *
- * **Requiredness comes from the parent's property entry**, never from the node, because that is
- * where the IR puts it. So the same `$defs/variables` node is unfinished when empty on a cluster
- * card and finished when empty on a rescale card — `nonempty_variables` sets `minItems`, plain
- * `variables` does not. A rule of this module's own invention would have had to pick one.
- */
-export function checkFields(
-  node: IRNode,
-  defs: Defs,
-  value: unknown,
-  pointer: string,
-  required = true,
-): Incompleteness[] {
-  const w = widgetFor(node, defs);
-  const gap = unanswered(w, value);
-  // Answered or not, an optional field nobody filled in is finished — and there is nothing below
-  // an absent object worth descending into.
-  if (gap !== null) return required ? [{ message: gap, pointer }] : [];
-
-  switch (w.kind) {
-    case "object":
-      return w.properties.flatMap((entry) =>
-        checkFields(
-          entry.value,
-          defs,
-          (value as Record<string, unknown>)[entry.key],
-          `${pointer}/${escapeToken(entry.key)}`,
-          entry.required,
-        ),
-      );
-
-    case "variant": {
-      const branch = w.objects[(value as Record<string, unknown>).type as string];
-      return branch === undefined ? [] : checkFields(branch, defs, value, pointer, true);
-    }
-
-    // An item that exists has to be answered, however the list got its length. Reachable through
-    // an uploaded document rather than through the picker, which never writes an empty item.
-    case "repeater":
-      return (value as unknown[]).flatMap((item, index) =>
-        checkFields(w.items, defs, item, `${pointer}/${index}`, true),
-      );
-
-    default:
-      return [];
-  }
 }

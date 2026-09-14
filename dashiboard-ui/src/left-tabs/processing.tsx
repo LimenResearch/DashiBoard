@@ -29,7 +29,7 @@ import {
   type ProbeIssue,
 } from "../stores";
 import { defaultsFor, withoutOption, type Defs, type IRNode } from "../ir";
-import { checkFields, checkNode, type Incompleteness } from "../completeness";
+import { checkNode, type Incompleteness } from "../completeness";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -183,60 +183,88 @@ export function Cards() {
    * while construction fails on `method` and `inputs`. The probe already knows; Confirm was
    * simply not reading it.
    */
-  const serverFindings = (answer: ProbeStore, index: number): Incompleteness[] => {
-    const schema = issuesForNode(answer.issues, index)
-      .filter((issue) => issue.reason !== "unproduced")
-      .map((issue) => {
-      const where = fieldPath(issue.pointer);
+  /**
+   * Schema issues as findings, one per control rather than one per issue.
+   *
+   * A `required` failure names every absent field at once and carries a `related` pointer per
+   * name (A7), so the server already knows which control each belongs to — the work here is
+   * placing them, not finding them.
+   */
+  const issueFindings = (issues: readonly ProbeIssue[]): Incompleteness[] =>
+    issues.flatMap((issue) => {
       if (issue.missing.length > 0) {
-        return { message: `Fill in ${issue.missing.join(", ")} — DashiBoard needs them to build this card.` };
+        return issue.missing.map((name, at) => ({
+          message: "needs a value",
+          pointer: issue.related[at] ?? `${issue.pointer}/${name}`,
+        }));
       }
       if (issue.reason === "enum" && issue.allowed) {
-        return {
-          message: `${where || "This card"} must be one of: ${issue.allowed.map(String).join(", ")}.`,
-        };
+        return [{
+          message: `must be one of: ${issue.allowed.map(String).join(", ")}`,
+          pointer: issue.pointer,
+        }];
       }
-      return { message: `${where || "This card"} is not accepted (${issue.reason}).` };
+      return [{ message: `not accepted (${issue.reason})`, pointer: issue.pointer }];
     });
+
+  /**
+   * Ask Pipelines about this card, and only this card.
+   *
+   * `POST /validate-card` builds the card's own schema from the same vocabularies the IR was
+   * built from and validates against it — the server's own check, not a copy of it. There was a
+   * walk here that re-implemented `required` and `minItems` in TypeScript; measured against
+   * `validate_pipeline_schema` it found exactly the same set, so it is gone.
+   */
+  async function askCard(index: number): Promise<ProbeIssue[]> {
+    const answer = (await postRequest(
+      "validate-card",
+      {
+        card: JSON.parse(JSON.stringify(state.nodes[index].card)),
+        cols: metadata.map((entry) => entry.name),
+        nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
+        groups: Object.keys(state.groups),
+        base: `/nodes/${index}/card`,
+      },
+      null,
+    )) as { issues?: ProbeIssue[]; errors?: string[] } | null;
+    if (answer === null) return [];
+    return Array.isArray(answer.issues) ? answer.issues : [];
+  }
+
+  /**
+   * What only the whole document can answer: a reference nothing produces, and — as a backstop —
+   * any schema failure `validate-card` could not see because it needs the other cards.
+   */
+  const graphFindings = (answer: ProbeStore, index: number): Incompleteness[] => {
+    const schema = issueFindings(
+      issuesForNode(answer.issues, index).filter((issue) => issue.reason !== "unproduced"),
+    );
     const absent = answer.nodes[index]?.unproduced ?? [];
     return absent.length > 0
       ? [...schema, { message: `Nothing produces ${absent.join(", ")} — check the pass-through chain.` }]
       : schema;
   };
 
-  /**
-   * Confirm in two stages, in the order that answers fastest.
-   *
-   * **What the card says about itself** comes first, and comes back in the same tick as the
-   * press: `checkFields` walks the IR the server sent against the value the form holds, so every
-   * unanswered field is named at once, each against the control that fixes it. If it finds
-   * anything, that is the answer — there is nothing to ask the server about a card that is not
-   * finished being written, and a round trip would only delay saying so.
-   *
-   * **What only the graph can answer** comes second, and only once the first stage is clean. An
-   * unproduced reference, a duplicate id, a cycle: none of these is visible in one card, so none
-   * of them is ours. This is also the backstop — the first stage reads the IR, which does not
-   * carry every constraint the schema expresses, so a `missing` finding arriving here means the
-   * walk missed something and it is surfaced rather than swallowed.
-   *
-   * The probe is asked again rather than read from the store, because the continuous run is
-   * asynchronous: pressing Confirm on a card added a moment ago would otherwise consult an answer
-   * about the document as it was before it existed.
-   */
   async function confirmNode(index: number) {
     const node = state.nodes[index];
-    const ir = payload()?.cards[String(node.card.type)];
-    const here = [
-      ...checkNode(node),
-      ...(ir === undefined
-        ? []
-        : checkFields(ir, defsForNode(index), node.card, `/nodes/${index}/card`)),
-    ];
-    setUnfinished({ ...unfinished(), [index]: here });
-    if (here.length > 0) return;
+
+    // Ours alone: an unnamed node is a document the server accepts, so if this does not say it
+    // nobody will. It is also the cheapest question, and answering it first keeps a card with no
+    // name from spending two round trips to be told so.
+    const named = checkNode(node);
+    if (named.length > 0) {
+      setUnfinished({ ...unfinished(), [index]: named });
+      return;
+    }
+
+    const issues = await askCard(index);
+    if (issues.length > 0) {
+      setUnfinished({ ...unfinished(), [index]: issueFindings(issues) });
+      return;
+    }
 
     const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
-    const found = serverFindings(answer, index);
+    const found = graphFindings(answer, index);
     setUnfinished({ ...unfinished(), [index]: found });
     if (found.length === 0) confirmDefinition(`node:${index}`, node);
   }

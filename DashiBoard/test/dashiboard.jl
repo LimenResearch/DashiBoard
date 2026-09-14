@@ -177,6 +177,42 @@ mktempdir() do data_dir
         @test startswith(parsed["graph"], "digraph G{")
         @test occursin("\"wind\"", parsed["graph"])
 
+        # A card checked on its own, which is what a form editing one card actually needs. No
+        # document, no graph walk — and `related` gives a pointer per absent name, so the answer
+        # lands on the control rather than on the card.
+        body = JSON.json((;
+            card = Dict("type" => "cluster"),
+            cols = ["No", "TEMP"], nodes = String[], groups = String[],
+            base = "/nodes/0/card",
+        ))
+        resp = HTTP.post(url * "validate-card", body = body)
+        @test resp.status == 200
+        parsed = JSON.parse(resp.body)
+        issue = only(parsed["issues"])
+        @test issue["reason"] == "required"
+        @test issue["missing"] == ["method", "inputs"]
+        @test issue["related"] == ["/nodes/0/card/method", "/nodes/0/card/inputs"]
+
+        # A card with nothing wrong says nothing, rather than saying it is valid in some other way.
+        body = JSON.json((;
+            card = Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("cols" => "TEMP")],
+            ),
+            cols = ["No", "TEMP"], nodes = String[], groups = String[],
+        ))
+        resp = HTTP.post(url * "validate-card", body = body)
+        @test isempty(JSON.parse(resp.body)["issues"])
+
+        # An unknown card type has no schema to check against, so it answers as a failure rather
+        # than throwing out of the handler.
+        body = JSON.json((; card = Dict("type" => "nosuchcard"), cols = ["TEMP"]))
+        resp = HTTP.post(url * "validate-card", body = body, status_exception = false)
+        @test resp.status == 200
+        parsed = JSON.parse(resp.body)
+        @test parsed["valid"] == false
+        @test parsed["kind"] == "pipeline"
+
         # A10: probing constructs without executing, and reports references nothing produces.
         # `through = ["r","r"]` names TEMP_a_a, which no node emits — schema validation accepts it.
         body = read(joinpath(@__DIR__, "static", "probe-bad.json"), String)

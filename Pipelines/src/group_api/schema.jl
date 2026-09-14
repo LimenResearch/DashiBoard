@@ -86,6 +86,32 @@ function Base.showerror(io::IO, err::SchemaValidationError)
     return show(io, err.issue)
 end
 
+"""
+    SchemaValidationErrors(errors)
+
+Every schema failure in one document, rather than whichever came first (A11).
+
+Validation used to `throw` on the first bad group or card, so a document with two mistakes
+reported one and hid the other — and fixing it revealed the next, one round trip at a time. Worse,
+groups were checked before cards, so a single bad group hid every card in the document.
+
+This is the only type validation throws, singular case included: a caller that reads one shape is
+a caller that cannot forget the plural one exists.
+"""
+struct SchemaValidationErrors <: Exception
+    errors::Vector{SchemaValidationError}
+end
+
+function Base.showerror(io::IO, err::SchemaValidationErrors)
+    n = length(err.errors)
+    n == 1 || println(io, n, " schema validation errors:")
+    for e in err.errors
+        showerror(io, e)
+        println(io)
+    end
+    return
+end
+
 escape_pointer(token::AbstractString) = replace(token, "~" => "~0", "/" => "~1")
 
 """
@@ -133,6 +159,8 @@ with the name that is absent and a `related` pointer to the control that should 
 `required` needs that help because it reports at the **parent** path and carries *every* required
 name in `val`, not the missing one — so neither half identifies the control on its own.
 """
+issue_report(errs::SchemaValidationErrors) = map(issue_report, errs.errors)
+
 function issue_report(err::SchemaValidationError)
     issue = err.issue
     pointer = json_pointer(err.pointer_base, issue.path, err.object)
@@ -160,6 +188,35 @@ function issue_report(err::SchemaValidationError)
     )
 end
 
+"""
+    card_issues(card, variable_config; base = "")
+
+Validate one card against its own schema, and report what failed as data.
+
+The targeted half of `validate_pipeline_schema`. A form editing a single card does not need a
+whole document resolved to learn that `method` has not been chosen — that question is answerable
+from the card and the vocabulary alone, and asking it this way costs one schema build instead of a
+graph walk over every other card.
+
+`base` is where the card sits in the document, so the pointers come back document-relative and a
+client reads them exactly as it reads a probe's. Left empty they are card-relative, which is what
+a caller holding one card in isolation wants.
+
+What it deliberately cannot answer: anything about the *graph*. Whether a referenced node actually
+produces the column named through it, whether two cards collide on an id, whether the whole thing
+is acyclic — all of those need the other cards, and `Pipeline` is where they are asked.
+"""
+function card_issues(
+        card::AbstractDict, variable_config::VariableConfig;
+        base::AbstractString = ""
+    )
+    schema = JSONSchema.Schema(card_schema(card["type"], variable_config))
+    issue = JSONSchema.validate(card, schema)
+    errors = isnothing(issue) ? SchemaValidationError[] :
+        [SchemaValidationError("card", base, card, issue)]
+    return map(issue_report, errors)
+end
+
 function validate_pipeline_schema(
         nodes::AbstractVector,
         groups::AbstractDict,
@@ -176,9 +233,14 @@ function validate_pipeline_schema(
         card_schemas[key] = JSONSchema.Schema(card_schema(key, variable_config))
     end
 
+    # Collected, not thrown one at a time (A11). Groups first because that is document order, but
+    # a bad group no longer stops the cards from being looked at.
+    errors = SchemaValidationError[]
+
     for (grp_key, grp_val) in pairs(groups)
         issue = JSONSchema.validate(grp_val, grp_schema)
-        isnothing(issue) || throw(
+        isnothing(issue) || push!(
+            errors,
             SchemaValidationError(
                 "group $(grp_key)", "/groups/" * escape_pointer(string(grp_key)), grp_val, issue
             )
@@ -189,9 +251,15 @@ function validate_pipeline_schema(
         card = node["card"]
         card_schema = card_schemas[card["type"]]
         issue = JSONSchema.validate(card, card_schema)
-        isnothing(issue) || throw(
+        isnothing(issue) || push!(
+            errors,
             SchemaValidationError("card in node $(i)", "/nodes/$(i - 1)/card", card, issue)
         )
     end
+
+    # One issue per card is still all JSONSchema.jl offers — `validate` returns a `SingleIssue` —
+    # so this widens the report across the document, not within a card. A `required` failure does
+    # carry every absent name at once, which is why that common case looks complete either way.
+    isempty(errors) || throw(SchemaValidationErrors(errors))
     return
 end

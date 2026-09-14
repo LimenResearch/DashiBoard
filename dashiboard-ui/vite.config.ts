@@ -29,6 +29,7 @@ export default defineConfig({
         '/get-acceptable-paths',
         '/load-files',
         '/get-card-ir',
+        '/validate-card',
         '/evaluate-pipeline',
         '/fetch-data',
         '/get-processed-data',

@@ -222,7 +222,7 @@ end
         d["nodes"][3]["card"]["inputs"] = inputs
         return Pipelines.Pipeline(d["nodes"], d["groups"], cols).nodes[3].card.inputs
     end
-    rejects(inputs) = (@test_throws Pipelines.SchemaValidationError resolve(inputs))
+    rejects(inputs) = (@test_throws Pipelines.SchemaValidationErrors resolve(inputs))
 
     # A ≡ B: one item with two values and two items with one value each are indistinguishable.
     # So the item boundary carries no meaning *until* a `through` differs.
@@ -315,6 +315,103 @@ end
 #     so a JSON Pointer must subtract one — otherwise the form highlights the wrong row.
 #   * a `required` failure carries *every* required name in `val`, not the missing one, and
 #     reports at the parent path. The missing name is `val` minus the keys actually present.
+@testset "A11: every failing card is reported, not only the first" begin
+    cols = ["No", "TEMP", "PRES"]
+    bare(type) = Dict{String, Any}("type" => type)
+    nodes = [
+        Dict{String, Any}("id" => "a", "card" => bare("cluster")),
+        Dict{String, Any}("id" => "b", "card" => bare("rescale")),
+    ]
+
+    err = try
+        Pipelines.Pipeline(nodes, Dict{String, Any}(), cols)
+        nothing
+    catch exception
+        exception
+    end
+    @test err isa Pipelines.SchemaValidationErrors
+
+    reports = Pipelines.issue_report(err)
+    @test length(reports) == 2
+    @test [r.pointer for r in reports] == ["/nodes/0/card", "/nodes/1/card"]
+    # Each still carries everything a single failure did: which names are absent, and a pointer
+    # per name so a form can address the control rather than the card.
+    @test reports[1].missing == ["method", "inputs"]
+    @test reports[1].related == ["/nodes/0/card/method", "/nodes/0/card/inputs"]
+    @test reports[2].missing == ["method", "inputs"]
+
+    # Groups are collected alongside cards rather than short-circuiting them: a bad group used to
+    # throw before any card was looked at, so one mistake hid every other.
+    bad_groups = Dict{String, Any}("g" => "not a list of selectors")
+    err = try
+        Pipelines.Pipeline(nodes, bad_groups, cols)
+        nothing
+    catch exception
+        exception
+    end
+    reports = Pipelines.issue_report(err)
+    @test length(reports) == 3
+    @test first(reports).pointer == "/groups/g"
+
+    # One failure is still one report — the plural type is the only shape, so a caller reads one.
+    err = try
+        Pipelines.Pipeline(nodes[1:1], Dict{String, Any}(), cols)
+        nothing
+    catch exception
+        exception
+    end
+    @test err isa Pipelines.SchemaValidationErrors
+    @test length(Pipelines.issue_report(err)) == 1
+
+    # `showerror` says how many, then each of them, so a client with no structured path still
+    # learns there was more than one thing wrong.
+    text = sprint(showerror, err)
+    @test occursin("Schema Validation Error", text)
+end
+
+@testset "card_issues: one card, checked on its own" begin
+    vc = Pipelines.VariableConfig(cols = ["No", "TEMP"], groups = ["weather"], nodes = ["r"])
+
+    # A card that is fine says nothing.
+    good = Dict{String, Any}(
+        "type" => "rescale", "method" => Dict("type" => "zscore"),
+        "inputs" => [Dict("cols" => "TEMP")],
+    )
+    @test isempty(Pipelines.card_issues(good, vc))
+
+    # A bare card reports what is absent, and — this is the point of using it instead of a whole
+    # document probe — a pointer per absent name, so a form can address each control.
+    reports = Pipelines.card_issues(Dict{String, Any}("type" => "cluster"), vc)
+    r = only(reports)
+    @test r.reason == "required"
+    @test r.missing == ["method", "inputs"]
+    @test r.related == ["/method", "/inputs"]
+
+    # Rooted wherever the caller says, so the pointers come back document-relative and a client
+    # reads them exactly as it reads the probe's.
+    r = only(Pipelines.card_issues(Dict{String, Any}("type" => "cluster"), vc; base = "/nodes/2/card"))
+    @test r.pointer == "/nodes/2/card"
+    @test r.related == ["/nodes/2/card/method", "/nodes/2/card/inputs"]
+
+    # The vocabulary is the caller's, so a column that does not exist is caught here too.
+    r = only(Pipelines.card_issues(
+        Dict{String, Any}(
+            "type" => "rescale", "method" => Dict("type" => "zscore"),
+            "inputs" => [Dict("cols" => "NOSUCH")],
+        ), vc))
+    @test r.reason == "enum"
+    @test "TEMP" in r.allowed
+
+    # It validates one card and nothing else: a reference to a node that is not in the vocabulary
+    # is a schema failure, but whether that node *produces* what is asked of it is a question about
+    # the graph, and this call cannot see one.
+    @test isempty(Pipelines.card_issues(
+        Dict{String, Any}(
+            "type" => "rescale", "method" => Dict("type" => "zscore"),
+            "inputs" => [Dict("nodes" => "r", "through" => ["r", "r"])],
+        ), vc))
+end
+
 @testset "A7: a validation failure as data" begin
     cols = ["No", "TEMP", "PRES"]
     groups = Dict{String, Any}("weather" => [Dict("cols" => ["PRES", "TEMP"])])
@@ -327,8 +424,8 @@ end
         catch exception
             exception
         end
-        @test err isa Pipelines.SchemaValidationError
-        return Pipelines.issue_report(err)
+        @test err isa Pipelines.SchemaValidationErrors
+        return only(Pipelines.issue_report(err))
     end
 
     rescale(; kw...) = merge(

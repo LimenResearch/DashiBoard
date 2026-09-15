@@ -8,6 +8,7 @@ import { Disclosure, summaryAction } from "../components/Disclosure";
 import { postRequest } from "../requests";
 import {
   CARDS_STORE,
+  CARDS_JSON,
   CardsStore,
   Card,
   LOADER_STORE,
@@ -103,70 +104,47 @@ export function Cards() {
     return self ? withoutOption(defs, "node", self) : defs;
   };
 
-  // Probe on every document change. Construction is cheap and materialises nothing, so this is
-  // the feedback loop for references the schema cannot check.
-  /**
-   * Ask the probe about a document and return something of the right shape.
-   *
-   * Shared by the continuous run and by Confirm. Confirm asks *again* rather than reading the
-   * last answer, because the continuous probe is asynchronous: press Confirm on a card added a
-   * moment ago and the reply is still in flight, so the stale answer says nothing is wrong and
-   * the card confirms green. One request per press is the cost of the answer being current.
-   */
+  /** Coerce a probe reply into something the store can hold, whatever the server sent. */
+  const usableProbe = (result: unknown): ProbeStore => {
+    const reported = result as ProbeStore | null;
+    const ok = reported !== null && typeof reported === "object" &&
+      Array.isArray(reported.nodes) && Array.isArray(reported.errors);
+    return ok ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] } : emptyProbe();
+  };
+
+  /** Ask once and get the shape back. Confirm uses this; the continuous probe below does too. */
   async function askProbe(document: CardsStore): Promise<ProbeStore> {
-    const result = await postRequest("probe-pipeline", document, null);
-    const reported = result as ProbeStore | null;
-    const usable =
-      reported !== null &&
-      typeof reported === "object" &&
-      Array.isArray(reported.nodes) &&
-      Array.isArray(reported.errors);
-    return usable
-      ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] }
-      : emptyProbe();
+    return usableProbe(await postRequest("probe-pipeline", document, null));
   }
 
-  async function runProbe(document: CardsStore | null) {
-    if (document === null) {
-      setProbe(reconcile(emptyProbe()));
-      return;
-    }
-    const result = await postRequest("probe-pipeline", document, null);
-    // Validate the shape rather than trusting it. An unexpected response used to reach the store
-    // and throw on the first `.length`, which halts Solid's reactive system for the whole page —
-    // a far worse outcome than showing no probe result.
-    const reported = result as ProbeStore | null;
-    const usable =
-      reported !== null &&
-      typeof reported === "object" &&
-      Array.isArray(reported.nodes) &&
-      Array.isArray(reported.errors);
-    // `issues` is normalised rather than required. A server predating A7 does not send it, and
-    // rejecting the whole response over an absent field would silently switch the probe off
-    // against it — the same class of silent failure the shape check exists to prevent.
-    setProbe(
-      reconcile(
-        usable
-          ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] }
-          : emptyProbe(),
-      ),
-    );
-  }
+  // The continuous probe. Three things it does that a plain effect did not:
+  //
+  //   * reads the document from `CARDS_JSON`, which persistence already serialises — one deep
+  //     read of the store instead of two;
+  //   * waits 200 ms of quiet before asking, so a burst of edits is one request;
+  //   * numbers each request and applies a reply only if it is still the newest, because
+  //     replies are async and a slow answer to an old document used to overwrite a fast answer
+  //     to the new one.
+  let probeSeq = 0;
+  let probeTimer: ReturnType<typeof setTimeout> | undefined;
+  const PROBE_QUIET_MS = 200;
 
-  // Every reactive read happens in the *compute* function; the callback only performs the call.
-  // Reading the store inside the callback is untracked and never updates — Solid 2 says so with
-  // STRICT_READ_UNTRACKED, and its versioned skill prescribes exactly this shape. The effect must
-  // also return void rather than a promise, hence the wrapper.
-  createEffect(
-    // Reads the store proxy, so this *tracks*. `exportCards()` would not: it goes through
-    // `snapshot`, which is deliberately untracked, so using it here registered no dependency and
-    // the probe never fired.
-    () => JSON.stringify(state),
-    (serialised) => {
-      const document = JSON.parse(serialised) as CardsStore;
-      void runProbe(document.nodes.length === 0 ? null : document);
-    },
-  );
+  createEffect(CARDS_JSON, (json) => {
+    clearTimeout(probeTimer);
+    probeTimer = setTimeout(() => {
+      const document = JSON.parse(json) as CardsStore;
+      if (document.nodes.length === 0) {
+        probeSeq += 1;
+        setProbe(reconcile(emptyProbe()));
+        return;
+      }
+      const seq = ++probeSeq;
+      void askProbe(document).then((answer) => {
+        if (seq !== probeSeq) return;            // a newer request is out; this answer is stale
+        setProbe(reconcile(answer));
+      });
+    }, PROBE_QUIET_MS);
+  });
 
   // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
   // What Confirm found the last time it was pressed, per card. Not run continuously: the point

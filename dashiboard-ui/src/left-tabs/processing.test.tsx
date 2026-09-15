@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, waitFor } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
-import { importCards, addGroup } from '../stores';
+import { importCards, addGroup, setNodeId } from '../stores';
 
 const postRequest = vi.fn();
 vi.mock('../requests', () => ({
@@ -16,6 +16,7 @@ import { Cards } from './processing';
 const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [], issues: [] };
 
 beforeEach(() => {
+  sessionStorage.clear();
   postRequest.mockReset();
   postRequest.mockImplementation((page: string) =>
     Promise.resolve(
@@ -65,5 +66,57 @@ describe('an IR refetch', () => {
     expect(q('#group-name-g')).toBe(before.groupInput);
     expect(q('[data-tabs="kinds"]')).toBe(before.groupPicker);
     expect(groupDetails.open).toBe(true);
+  });
+});
+
+describe('the continuous probe', () => {
+  const probeCalls = () => postRequest.mock.calls.filter((c) => c[0] === 'probe-pipeline');
+
+  it('coalesces a burst of edits into one request', async () => {
+    // It fired one POST per committed edit. Every keystroke that commits — every field, every
+    // chip — became a document-wide resolve on the server.
+    vi.useFakeTimers();
+    try {
+      render(() => <Cards />);
+      await vi.advanceTimersByTimeAsync(300);   // settle the mount-time probe
+      const n = probeCalls().length;
+      setNodeId(0, 'a'); await flush();
+      setNodeId(0, 'ab'); await flush();
+      setNodeId(0, 'abc'); await flush();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(probeCalls().length).toBe(n);        // still inside the quiet window
+      await vi.advanceTimersByTimeAsync(200);
+      expect(probeCalls().length).toBe(n + 1);    // one request for three edits
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('discards a reply that arrives after a newer request was sent', async () => {
+    // Replies are async and the server is not obliged to answer in order. Without a guard the
+    // slow answer to the *old* document overwrote the fast answer to the new one.
+    vi.useFakeTimers();
+    const pending: Array<(v: unknown) => void> = [];
+    postRequest.mockImplementation((page: string, body: { nodes?: { id: string }[] }) => {
+      if (page === 'get-card-ir') return Promise.resolve(structuredClone(payload));
+      if (page === 'probe-pipeline') {
+        return new Promise((resolve) => pending.push((v) => resolve({ ...CLEAN_PROBE, cols: [body.nodes?.[0]?.id ?? ''] , ...(v as object) })));
+      }
+      return Promise.resolve([]);
+    });
+    try {
+      render(() => <Cards />);
+      await vi.advanceTimersByTimeAsync(300);
+      const { PROBE_STORE } = await import('../stores');
+      setNodeId(0, 'first'); await flush(); await vi.advanceTimersByTimeAsync(250);
+      setNodeId(0, 'second'); await flush(); await vi.advanceTimersByTimeAsync(250);
+      expect(pending.length).toBeGreaterThanOrEqual(2);
+      const [old, fresh] = pending.slice(-2);
+      fresh({}); await flush(); await vi.advanceTimersByTimeAsync(0);
+      old({});   await flush(); await vi.advanceTimersByTimeAsync(0);
+      expect(PROBE_STORE[0].cols).toEqual(['second']);   // the old reply did not win
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

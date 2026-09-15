@@ -108,6 +108,14 @@ describe('the page is a set of tabs', () => {
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     expect(onScreen(container)).toEqual(['Load']);
   });
+
+  it('falls back to Load when the URL names a section that does not exist', async () => {
+    const { container } = renderHome('/?tab=nope');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Load']);
+    const active = sectionTabs(container).find((t) => t.getAttribute('aria-selected') === 'true');
+    expect(active?.textContent).toBe('Load');
+  });
 });
 
 describe('the authoring page', () => {

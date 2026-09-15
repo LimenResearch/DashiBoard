@@ -531,6 +531,7 @@ export function Cards() {
                 node={payload()!.cards[String(node.card.type)]}
                 defs={defsForNode(index())}
                 label={String(node.card.type)}
+                idPrefix={`node-${index()}`}
                 value={node.card}
                 onChange={(card) => setCard(index(), card as Card)}
               />

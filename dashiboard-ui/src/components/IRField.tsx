@@ -28,6 +28,8 @@ type IRFieldProps = {
    * and one disclosure, not a `method` inside a `method`.
    */
   inline?: boolean;
+  /** Prefix for every id below this field, so two cards of one type do not collide. */
+  idPrefix?: string;
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -106,6 +108,7 @@ function Collapsible(props: { label: string; required?: boolean; children: JSXEl
 
 export function IRField(props: IRFieldProps) {
   const widget = (): Widget => widgetFor(props.node, props.defs);
+  const id = () => (props.idPrefix ? `${props.idPrefix}-${props.label}` : props.label);
 
   return (
     // Keyed on the *kind*, not the descriptor. `widgetFor` returns a fresh object on every
@@ -139,6 +142,7 @@ export function IRField(props: IRFieldProps) {
                     defs={props.defs}
                     label={entry().key}
                     required={entry().required}
+                    idPrefix={id()}
                     value={asRecord(props.value)[entry().key]}
                     onChange={(inner) =>
                       props.onChange({ ...asRecord(props.value), [entry().key]: inner })
@@ -177,9 +181,9 @@ export function IRField(props: IRFieldProps) {
               (asRecord(props.value).type as string | undefined) ?? w().default ?? "";
             return (
               <Collapsible label={props.label} required={props.required}>
-                <Row for={`${props.label}-variant`} label="type">
+                <Row for={`${id()}-variant`} label="type">
                   <select
-                    id={`${props.label}-variant`}
+                    id={`${id()}-variant`}
                     class={[
                       "h-control-xs rounded-sm border px-2 text-control-xs",
                       { "border-border": chosen() !== "", "border-warning": chosen() === "" },
@@ -210,6 +214,7 @@ export function IRField(props: IRFieldProps) {
                     defs={props.defs}
                     label={props.label}
                     inline
+                    idPrefix={id()}
                     value={props.value}
                     onChange={(inner) => props.onChange({ ...asRecord(inner), type: chosen() })}
                   />
@@ -222,9 +227,9 @@ export function IRField(props: IRFieldProps) {
             // Re-narrowed locally — see the comment in `case "object"`.
             const w = () => widget() as Extract<Widget, { kind: "select" }>;
             return (
-              <Row for={props.label} label={props.label} required={props.required}>
+              <Row for={id()} label={props.label} required={props.required}>
                 <select
-                  id={props.label}
+                  id={id()}
                   class="h-control-xs rounded-sm border border-border px-2 text-control-xs"
                   value={String(props.value ?? w().default ?? "")}
                   onChange={(event) =>
@@ -245,7 +250,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <Collapsible label={props.label} required={props.required}>
                 <select
-                  id={props.label}
+                  id={id()}
                   multiple
                   size={Math.min(w().options.length, 8)}
                   class="my-1 h-control-xs w-full rounded-sm border border-border px-2 text-control-xs"
@@ -276,9 +281,9 @@ export function IRField(props: IRFieldProps) {
             // Re-narrowed locally — see the comment in `case "object"`.
             const w = () => widget() as Extract<Widget, { kind: "number" }>;
             return (
-              <Row for={props.label} label={props.label} required={props.required}>
+              <Row for={id()} label={props.label} required={props.required}>
                 <Input
-                  id={props.label}
+                  id={id()}
                   type="number"
                   required={props.required}
                   min={w().min ?? w().exclusiveMin}
@@ -313,9 +318,9 @@ export function IRField(props: IRFieldProps) {
 
           case "text":
             return (
-              <Row for={props.label} label={props.label} required={props.required}>
+              <Row for={id()} label={props.label} required={props.required}>
                 <Input
-                  id={props.label}
+                  id={id()}
                   type="text"
                   required={props.required}
                   value={props.value === undefined ? undefined : String(props.value)}
@@ -352,6 +357,7 @@ export function IRField(props: IRFieldProps) {
                       node={w().items}
                       defs={props.defs}
                       label={`${props.label}[${index()}]`}
+                      idPrefix={`${id()}-${index()}`}
                       value={item}
                       onChange={(inner) => {
                         const next = [...asArray(props.value)];

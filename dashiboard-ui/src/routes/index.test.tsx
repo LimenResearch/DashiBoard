@@ -40,6 +40,7 @@ const probeCalls = () =>
   postRequest.mock.calls.filter((call: unknown[]) => call[0] === 'probe-pipeline').length;
 
 beforeEach(() => {
+  sessionStorage.clear();
   importCards(emptyCards());
   postRequest.mockReset();
   postRequest.mockImplementation((page: string) => {

@@ -49,6 +49,7 @@ async function runPipeline(getByText: (m: RegExp) => HTMLElement) {
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   importCards(structuredClone(DOCUMENT));
   postRequest.mockReset();
   serve();

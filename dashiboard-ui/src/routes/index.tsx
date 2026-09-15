@@ -1,5 +1,6 @@
 import { useSearchParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
+import { createEffect, onSettled } from "solid-js";
 
 import { Tabs } from "../components/Tabs";
 import { Loader } from "../left-tabs/loading";
@@ -7,6 +8,7 @@ import { Filters } from "../left-tabs/filtering";
 import { Cards } from "../left-tabs/processing";
 import { Results } from "../left-tabs/results";
 import { wireDocument } from "../wire";
+import { persistedSignal } from "../persist";
 
 const SECTIONS = ["Load", "Filter", "Process", "The document"] as const;
 type Section = (typeof SECTIONS)[number];
@@ -22,6 +24,16 @@ export default function Home() {
   // on the section they name; writing it with `replace` keeps typing through tabs out of history.
   const section = () => fromSlug(params.tab);
   const setSection = (s: Section) => setParams({ tab: slug(s) }, { replace: true });
+
+  // Read once, on mount, rather than at module scope: `Home` mounts once per page load in the
+  // browser, which is exactly when a fresh read of `sessionStorage` is wanted. A module-level
+  // signal would instead be created once for the life of the whole script and never re-read.
+  const [lastTab, setLastTab] = persistedSignal<string>("dashi.tab", "load");
+  // A bare `/` reopens where you were; a URL that names a tab wins. Read once, on mount.
+  onSettled(() => {
+    if (params.tab === undefined && lastTab() !== "load") setParams({ tab: lastTab() }, { replace: true });
+  });
+  createEffect(() => params.tab, (tab) => { if (tab !== undefined) setLastTab(tab); });
 
   return (
     <main class="grid grid-cols-5 gap-6 px-4 py-2">

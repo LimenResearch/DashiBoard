@@ -76,11 +76,21 @@ export function TableView(props: TableViewProps) {
               params.failCallback();
               return;
             }
-            // `data.length` is the table's total row count, not `values.length` — the route
-            // answers `{"values": …, "length": nrows}`. -1 means "more to come", so the grid
-            // keeps asking; a real count is what stops the infinite scroll.
-            const lastRow = data.length <= endRow ? data.length : -1;
-            params.successCallback(data.values, lastRow);
+            // `data.length` is the table's *total* row count, not `values.length` — the route
+            // answers `{"values": …, "length": nrows}` and does so on every page.
+            //
+            // Passed through as-is. It used to be withheld unless the block happened to reach the
+            // end (`data.length <= endRow ? data.length : -1`), and -1 tells the grid "unknown,
+            // keep asking" — so a 200-row table fetched a second block to discover a number the
+            // first response had already carried. The count is global information, fetched once
+            // with the first page; asking the backend for exact rows is what the rest of this is
+            // for.
+            //
+            // Not covered by a test: the second fetch it prevents only happens in a real viewport,
+            // and jsdom gives the grid no layout, so it never asks for a second block either way.
+            // A test here passed against both versions — verified in the server's access log
+            // instead, where a 200-row table went from two `fetch-data` calls to one.
+            params.successCallback(data.values, data.length);
           });
         },
       };

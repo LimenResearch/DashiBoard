@@ -10,6 +10,10 @@ options_handler(::HTTP.Request) = HTTP.Response(200, headers = CORS_OPTIONS_HEAD
 cors404(::HTTP.Request) = HTTP.Response(404, headers = CORS_RES_HEADERS, body = "")
 cors405(::HTTP.Request) = HTTP.Response(405, headers = CORS_RES_HEADERS, body = "")
 
+# Requests answered since the process started, so a gap in the log reads as a gap rather than as
+# quiet. Atomic because HTTP serves connections concurrently.
+const REQUEST_COUNT = Threads.Atomic{Int}(0)
+
 """
     LoggingMiddleware(handler)
 
@@ -46,6 +50,13 @@ thirty-field mutable struct that cannot reasonably be constructed in a test.
 function LoggingMiddleware(handler)
     return function (stream)
         request = stream.message
+        n = Threads.atomic_add!(REQUEST_COUNT, 1) + 1
+        # Stamped on *arrival*, not on completion, though the line is written when the request
+        # finishes. Requests overlap, so completion order is not arrival order: a 9.4s call that
+        # started first finished after an 8.5s call that started second, and the log read
+        # `#2 … 23.636` above `#1 … 24.329`. An access log whose numbers and clock disagree is
+        # worse than one with neither.
+        arrived = Dates.now()
         started = time()
         try
             return handler(stream)
@@ -55,9 +66,18 @@ function LoggingMiddleware(handler)
             # whatever had been set *before* the throw: HTTP.jl substitutes its own 500 further
             # out, after this has already unwound.
             response = stream.response
-            @debug "$(request.method) $(request.target)" status =
-                response === nothing ? nothing : response.status seconds =
-                round(time() - started, digits = 3)
+            status = response === nothing ? "-" : response.status
+            elapsed = round(time() - started, digits = 3)
+            # One line, not a `@debug` with keyword arguments. Julia renders those over five lines
+            # with a box drawing around them, which is unreadable at one request per keystroke and
+            # needs a parser to answer "what happened between 17:05 and 17:06". The fields are in a
+            # fixed order, so `grep` and `awk` still work.
+            #
+            # The timestamp is the field this log shipped without, and its absence made the log
+            # unable to answer the first question asked of it — which of these requests belong to
+            # that page load. Full date because a server outlives a day.
+            @debug "$(Dates.format(arrived, "yyyy-mm-dd HH:MM:SS.sss")) " *
+                "#$(n) $(request.method) $(request.target) $(status) $(elapsed)s"
             # Julia block-buffers `stderr` when it is not a terminal, so a redirected log stays
             # empty until the process exits — measured: a server that had failed a run showed a
             # zero-byte file for as long as it kept running. A log nobody can read while the

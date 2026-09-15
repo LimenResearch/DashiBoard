@@ -8,6 +8,8 @@ using Base.ScopedValues: @with, ScopedValue
 
 using HTTP: HTTP, startread, startwrite, closeread
 
+using Dates: Dates
+
 using Scratch: @get_scratch!
 
 using JSON: JSON

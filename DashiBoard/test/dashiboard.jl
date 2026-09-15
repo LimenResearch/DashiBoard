@@ -42,17 +42,56 @@ Pipelines.register_wild_card(:trivial, "Trivial"; settings)
         return logs.logs
     end
 
+    before = DashiBoard.REQUEST_COUNT[]
     record = only(serve("POST", "/probe-pipeline"))
     @test record.level == Debug
-    @test record.message == "POST /probe-pipeline"
-    kv = Dict(record.kwargs)
-    @test kv[:status] == 200
-    @test kv[:seconds] isa Real && kv[:seconds] >= 0
+    # One line, fields in a fixed order: when, which request, what was asked, what came back, how
+    # long. The timestamp is the field the first version shipped without, and its absence made the
+    # log unable to answer the question it was built for — which requests belong to which page
+    # load.
+    @test occursin(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} ", record.message)
+    @test occursin("POST /probe-pipeline 200 ", record.message)
+    @test occursin(r"\d+\.\d+s$", record.message)
+    # Numbered, so a gap in the log reads as a gap rather than as quiet.
+    @test occursin("#$(before + 1) ", record.message)
+    @test DashiBoard.REQUEST_COUNT[] == before + 1
+
+    # Numbers and clock agree, because both are taken on arrival. Requests overlap, so a slow one
+    # that arrived first can finish last — stamping at completion put `#2` above `#1` in a real
+    # log. Checked by holding the first request open while a second arrives and finishes.
+    stamp(rec) = match(r"^(\S+ \S+) #(\d+)", rec.message)
+    slow, fast = Test.TestLogger(min_level = Debug), Test.TestLogger(min_level = Debug)
+    gate = Threads.Event()
+    first_done = Threads.@spawn with_logger(slow) do
+        DashiBoard.LoggingMiddleware(_ -> wait(gate))(
+            FakeStream(HTTP.Request("POST", "/slow"), HTTP.Response(200))
+        )
+    end
+    sleep(0.05)
+    with_logger(fast) do
+        DashiBoard.LoggingMiddleware(_ -> nothing)(
+            FakeStream(HTTP.Request("POST", "/fast"), HTTP.Response(200))
+        )
+    end
+    notify(gate)
+    wait(first_done)
+    slow_at, slow_n = stamp(only(slow.logs)).captures
+    fast_at, fast_n = stamp(only(fast.logs)).captures
+    @test parse(Int, slow_n) < parse(Int, fast_n)   # the slow one arrived first
+    @test slow_at <= fast_at                        # ...and its stamp says so, though it finished last
 
     # A route that was never registered is still a request, and is the one you most want to see
     # when a client is pointed at the wrong place. It never reaches a handler, so only a middleware
     # outside the router can report it.
-    @test Dict(only(serve("POST", "/nosuchroute"; status = 404)).kwargs)[:status] == 404
+    @test occursin("POST /nosuchroute 404 ", only(serve("POST", "/nosuchroute"; status = 404)).message)
+
+    # A response that never got as far as being written says so, rather than claiming a status.
+    stream = FakeStream(HTTP.Request("POST", "/probe-pipeline"), nothing)
+    logs = Test.TestLogger(min_level = Debug)
+    with_logger(logs) do
+        DashiBoard.LoggingMiddleware(_ -> nothing)(stream)
+    end
+    @test occursin("POST /probe-pipeline - ", only(logs.logs).message)
 
     # A handler that throws is still reported, and the exception still propagates. The status is
     # whatever was set before the throw — HTTP.jl substitutes its own 500 further out, after this
@@ -62,7 +101,7 @@ Pipelines.register_wild_card(:trivial, "Trivial"; settings)
     @test_throws ErrorException with_logger(logs) do
         DashiBoard.LoggingMiddleware(_ -> error("boom"))(stream)
     end
-    @test only(logs.logs).message == "POST /evaluate-pipeline"
+    @test occursin("POST /evaluate-pipeline", only(logs.logs).message)
 
     # Silent unless asked for: `@debug` is filtered by level, so with an ordinary logger nothing is
     # emitted and nothing is even formatted.

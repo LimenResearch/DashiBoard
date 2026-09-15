@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { flush } from 'solid-js';
+import { flush, createRoot } from 'solid-js';
 import { persisted, persistedSignal } from './persist';
 
 beforeEach(() => sessionStorage.clear());
@@ -44,5 +44,21 @@ describe('persistedSignal', () => {
     await flush();
     const [b] = persistedSignal('t.sig', 'x');
     expect(b()).toBe('y');
+  });
+
+  it('stops writing once its owner is disposed', async () => {
+    // A signal created during a component's render (Home's `lastTab`) must not keep a write
+    // effect alive after the component unmounts — that would be one leaked root per mount.
+    let dispose!: () => void;
+    let setV!: (v: string) => void;
+    createRoot((d) => {
+      dispose = d;
+      [, setV] = persistedSignal('t.owned', 'a');
+    });
+    await flush();
+    dispose();
+    setV('b');
+    await flush();
+    expect(sessionStorage.getItem('t.owned')).toBe(JSON.stringify('a'));
   });
 });

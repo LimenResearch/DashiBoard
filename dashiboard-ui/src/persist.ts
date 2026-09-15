@@ -1,5 +1,5 @@
 import {
-  createEffect, createMemo, createRoot, createSignal, createStore,
+  createEffect, createMemo, createRoot, createSignal, createStore, getOwner,
   type Accessor, type Setter, type Store, type StoreSetter,
 } from "solid-js";
 
@@ -36,6 +36,20 @@ function write(key: string, json: string) {
 }
 
 /**
+ * Own the write effect wherever it can be cleaned up.
+ *
+ * `persisted`/`persistedSignal` are called from two kinds of place: inside a component's render,
+ * where there is already an owner and the component's own unmount should dispose the write effect
+ * with it — a plain `createEffect`/`createMemo` call attaches to that ambient owner and needs
+ * nothing more; or at module scope (the module-level stores' own `persisted(...)` calls), where
+ * there is no owner at all and the write must live for the app's whole lifetime, which is what a
+ * fresh `createRoot` is for.
+ */
+function withOwner<T>(fn: () => T): T {
+  return getOwner() ? fn() : createRoot(fn);
+}
+
+/**
  * A `createStore` that remembers itself.
  *
  * The write effect reads the whole store — `JSON.stringify` touches every leaf — so it tracks
@@ -53,7 +67,7 @@ export function persisted<T extends object>(
   // `createStore`'s `NoFn<T>` guards against — the cast is for the checker; callers of `persisted`
   // never pass a function as `initial`.
   const [store, setStore] = createStore<T>((saved ?? initial) as never);
-  const json = createRoot(() => {
+  const json = withOwner(() => {
     const memo = createMemo(() => JSON.stringify(codec.encode(store)));
     createEffect(memo, (value) => write(key, value));
     return memo;
@@ -66,6 +80,6 @@ export function persistedSignal<T>(key: string, initial: T): [Accessor<T>, Sette
   // Same cast as in `persisted`: `createSignal`'s overloads split on whether `T` could be a
   // function (a compute function vs. a plain value), which an unconstrained generic can't resolve.
   const [value, setValue] = createSignal<T>((saved === undefined ? initial : saved) as never);
-  createRoot(() => createEffect(value, (v) => write(key, JSON.stringify(v))));
+  withOwner(() => createEffect(value, (v) => write(key, JSON.stringify(v))));
   return [value, setValue];
 }

@@ -68,7 +68,7 @@ describe('the page is a set of tabs', () => {
     const { container } = renderHome();
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     expect(sectionTabs(container).map((t) => t.textContent)).toEqual([
-      'Load', 'Filter', 'Process', 'Run', 'The document',
+      'Load', 'Filter', 'Process', 'The document',
     ]);
     expect(onScreen(container)).toEqual(['Load']);
 
@@ -83,7 +83,7 @@ describe('the page is a set of tabs', () => {
     const { container } = renderHome();
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     const before = postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir').length;
-    await openTab(container, 'Run');
+    await openTab(container, 'Filter');
     await openTab(container, 'Process');
     expect(postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir')).toHaveLength(before);
   });
@@ -115,6 +115,17 @@ describe('the page is a set of tabs', () => {
     expect(onScreen(container)).toEqual(['Load']);
     const active = sectionTabs(container).find((t) => t.getAttribute('aria-selected') === 'true');
     expect(active?.textContent).toBe('Load');
+  });
+
+  it('shows results beside the authoring tabs, not behind one', async () => {
+    // The old frontend had two panes: what you are building on the left, what it produced on
+    // the right. Folding results into a fourth tab meant the thing you ran was hidden by the
+    // thing you were editing.
+    const { container } = renderHome('/?tab=process');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(container.querySelector('[data-pane="results"]')).not.toBeNull();
+    expect(container.querySelector('[data-pane="results"]')!.textContent).toMatch(/run pipeline/i);
+    expect(onScreen(container)).toEqual(['Process']);      // left pane unaffected
   });
 });
 
@@ -164,7 +175,6 @@ describe('the authoring page', () => {
     fireEvent.click(getByText(/add card/i));
     await flush();
 
-    await openTab(container, 'Run');
     fireEvent.click(getByText(/run pipeline/i));
     const report = await findByTestId('report');
     await waitFor(() => expect(report.textContent).toContain('split'));
@@ -195,7 +205,6 @@ describe('the authoring page', () => {
     fireEvent.click(getByText(/add card/i));
     await flush();
 
-    await openTab(container, 'Run');
     fireEvent.click(getByText(/run pipeline/i));
     await waitFor(() => expect(posted.some((p) => p.page === 'evaluate-pipeline')).toBe(true));
     const sent = posted.find((p) => p.page === 'evaluate-pipeline')!.body;

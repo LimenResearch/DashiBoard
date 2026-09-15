@@ -22,6 +22,16 @@ vi.mock('../requests', () => ({
 }));
 
 import Home from './index';
+import { createRouter, memoryHistory } from '@solidjs/router';
+
+/** The page inside a router, at `url`. The real app mounts it the same way through `App`. */
+function renderHome(url = '/') {
+  const TestRouter = createRouter({
+    routes: [{ path: '/', component: Home }],
+    history: memoryHistory(url),
+  });
+  return render(() => <TestRouter />);
+}
 
 const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [] };
 
@@ -55,7 +65,7 @@ async function openTab(c: HTMLElement, name: string) {
 
 describe('the page is a set of tabs', () => {
   it('shows one section at a time, and switches on click', async () => {
-    const { container } = render(() => <Home />);
+    const { container } = renderHome();
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     expect(sectionTabs(container).map((t) => t.textContent)).toEqual([
       'Load', 'Filter', 'Process', 'Run', 'The document',
@@ -70,18 +80,39 @@ describe('the page is a set of tabs', () => {
     // Load sets up choices.js and Process fetches the card IR; remounting on every switch would
     // refetch and drop each picker's open tab. The stores survive either way — the local state
     // is what does not.
-    const { container } = render(() => <Home />);
+    const { container } = renderHome();
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     const before = postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir').length;
     await openTab(container, 'Run');
     await openTab(container, 'Process');
     expect(postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir')).toHaveLength(before);
   });
+
+  it('takes the open section from the URL, and writes it back', async () => {
+    // The tab was a local signal: a reload, a shared link or the browser's back button all lost
+    // it. It is now `?tab=`, so all three work, and the URL says what is on screen.
+    const { container } = renderHome('/?tab=process');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Process']);
+
+    await openTab(container, 'Filter');
+    expect(onScreen(container)).toEqual(['Filter']);
+    expect(window.location.search).toBe('');            // memory history: the DOM URL is untouched
+    // the router's own location is what moved
+    const active = sectionTabs(container).find((t) => t.getAttribute('aria-selected') === 'true');
+    expect(active?.textContent).toBe('Filter');
+  });
+
+  it('opens on Load when the URL says nothing', async () => {
+    const { container } = renderHome('/');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Load']);
+  });
 });
 
 describe('the authoring page', () => {
   it('offers every card type the server describes', async () => {
-    const { container, getByLabelText } = render(() => <Home />);
+    const { container, getByLabelText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     expect(picker.options).toHaveLength(10);
@@ -89,7 +120,7 @@ describe('the authoring page', () => {
   });
 
   it('adds a card and shows it in the authored document', async () => {
-    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -118,7 +149,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'split');
@@ -149,7 +180,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -186,7 +217,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -223,7 +254,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -244,7 +275,7 @@ describe('the authoring page', () => {
     // A card naming itself is a cycle, and the server rejects the whole document for it. The
     // fixture's node vocabulary is ["rescale", "split"], and a rescale card is auto-named
     // "rescale" — so this is exactly the case the screen was getting wrong.
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -277,7 +308,7 @@ describe('the authoring page', () => {
   });
 
   it('folds a card to one line naming its type and the id others refer to it by', async () => {
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -297,7 +328,7 @@ describe('the authoring page', () => {
     // The form displayed `suffix: rescaled` either way; the document did not carry it, so what
     // was on screen and what a download produced disagreed. `method` stays absent: it is required
     // and the IR names no default option, so it is the author's to answer.
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -331,7 +362,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'cluster');
@@ -391,7 +422,7 @@ describe('the authoring page', () => {
       groups: {},
     });
 
-    const { container, getByText } = render(() => <Home />);
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
     await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
 
@@ -419,7 +450,7 @@ describe('the authoring page', () => {
       ],
       groups: {},
     });
-    const { container, getByText } = render(() => <Home />);
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
     await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
 
@@ -448,7 +479,7 @@ describe('the authoring page', () => {
     });
     // Findings are keyed by position, so a splice would slide the second card's answer onto the
     // first. A precise field pointer on the wrong card is worse than no pointer at all.
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -477,7 +508,7 @@ describe('the authoring page', () => {
 
   it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
     // Order matters: the destructive control should not be the first one reached.
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -502,7 +533,7 @@ describe('the authoring page', () => {
       }
       return Promise.resolve([]);
     });
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -512,7 +543,7 @@ describe('the authoring page', () => {
   });
 
   it('asks for the IR with the vocabularies the document defines', async () => {
-    const { container, getByLabelText } = render(() => <Home />);
+    const { container, getByLabelText } = renderHome();
     await openTab(container, 'Process');
     await waitFor(() => getByLabelText(/card type/i));
     const ask = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir');

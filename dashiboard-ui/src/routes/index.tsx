@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { useSearchParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
 
 import { Tabs } from "../components/Tabs";
@@ -9,9 +9,19 @@ import { Results } from "../left-tabs/results";
 import { wireDocument } from "../wire";
 
 const SECTIONS = ["Load", "Filter", "Process", "Run", "The document"] as const;
+type Section = (typeof SECTIONS)[number];
+
+/** `?tab=` value ↔ section name. Lower-case, one word, so the URL reads well. */
+const slug = (s: Section) => s.toLowerCase().replace(/^the /, "");
+const fromSlug = (v: string | undefined): Section =>
+  SECTIONS.find((s) => slug(s) === v) ?? "Load";
 
 export default function Home() {
-  const [section, setSection] = createSignal<(typeof SECTIONS)[number]>("Load");
+  const [params, setParams] = useSearchParams<{ tab?: string }>();
+  // The URL is the state. Reading it makes a reload, a shared link and the back button all land
+  // on the section they name; writing it with `replace` keeps typing through tabs out of history.
+  const section = () => fromSlug(params.tab);
+  const setSection = (s: Section) => setParams({ tab: slug(s) }, { replace: true });
 
   return (
     <main class="mx-auto max-w-5xl px-4 py-2">

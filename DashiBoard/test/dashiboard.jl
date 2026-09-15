@@ -3,6 +3,7 @@ using Sockets: Sockets
 using DashiBoard
 using Test
 using Downloads
+using Logging: Logging, with_logger, Debug
 
 # Add trivial card
 Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
@@ -18,6 +19,61 @@ settings = Pipelines.WildCardSettings(
     allows_weights = false
 )
 Pipelines.register_wild_card(:trivial, "Trivial"; settings)
+
+@testset "LoggingMiddleware" begin
+    # DashiBoard logged nothing on a successful request — not the route, not the status, not how
+    # long it took — so "what is the server doing" could only be inferred from CPU time and the
+    # DuckDB write-ahead log. This is the access log that was missing.
+
+    # A stand-in for the server stream. The real one is a thirty-field mutable struct that cannot
+    # be constructed outside a live connection, and the middleware reads exactly two things from
+    # it, so this is the whole contract.
+    mutable struct FakeStream
+        message::HTTP.Request
+        response::Union{Nothing, HTTP.Response}
+    end
+
+    function serve(method, target; status = 200, handler = _ -> nothing)
+        stream = FakeStream(HTTP.Request(method, target), HTTP.Response(status))
+        logs = Test.TestLogger(min_level = Debug)
+        with_logger(logs) do
+            DashiBoard.LoggingMiddleware(handler)(stream)
+        end
+        return logs.logs
+    end
+
+    record = only(serve("POST", "/probe-pipeline"))
+    @test record.level == Debug
+    @test record.message == "POST /probe-pipeline"
+    kv = Dict(record.kwargs)
+    @test kv[:status] == 200
+    @test kv[:seconds] isa Real && kv[:seconds] >= 0
+
+    # A route that was never registered is still a request, and is the one you most want to see
+    # when a client is pointed at the wrong place. It never reaches a handler, so only a middleware
+    # outside the router can report it.
+    @test Dict(only(serve("POST", "/nosuchroute"; status = 404)).kwargs)[:status] == 404
+
+    # A handler that throws is still reported, and the exception still propagates. The status is
+    # whatever was set before the throw — HTTP.jl substitutes its own 500 further out, after this
+    # has unwound — so what is pinned here is that the line exists, not what it claims.
+    logs = Test.TestLogger(min_level = Debug)
+    stream = FakeStream(HTTP.Request("POST", "/evaluate-pipeline"), HTTP.Response(200))
+    @test_throws ErrorException with_logger(logs) do
+        DashiBoard.LoggingMiddleware(_ -> error("boom"))(stream)
+    end
+    @test only(logs.logs).message == "POST /evaluate-pipeline"
+
+    # Silent unless asked for: `@debug` is filtered by level, so with an ordinary logger nothing is
+    # emitted and nothing is even formatted.
+    logs = Test.TestLogger(min_level = Logging.Info)
+    with_logger(logs) do
+        DashiBoard.LoggingMiddleware(_ -> nothing)(
+            FakeStream(HTTP.Request("POST", "/probe-pipeline"), HTTP.Response(200))
+        )
+    end
+    @test isempty(logs.logs)
+end
 
 @testset "root_causes" begin
     # Pipelines evaluates nodes as tasks, so every runtime failure reaches the handler wrapped in

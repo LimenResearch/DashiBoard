@@ -22,7 +22,9 @@ function launch(
     HTTP.register!(router, "POST", "/fetch-data", fetch_data)
     HTTP.register!(router, "GET", "/get-processed-data", get_processed_data)
 
-    cors_router = router |> CorsMiddleware
+    # Logging outermost, so it sees what the CORS layer answers itself (an `OPTIONS` preflight)
+    # and what the router rejects before any handler runs (a 404 or 405).
+    cors_router = router |> CorsMiddleware |> LoggingMiddleware
 
     return @with(
         Pipelines.PARSER => parser,

@@ -339,8 +339,8 @@ export function Cards() {
         group and back up to use it. "Add card" then sits directly above the cards it creates,
         rather than above the groups — a control belongs next to what it produces.
       */}
-      <Show when={payload()} keyed>
-        {(loaded: Payload) => <GroupsEditor defs={loaded.defs} />}
+      <Show when={payload()}>
+        <GroupsEditor defs={payload()!.defs} />
       </Show>
 
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
@@ -526,17 +526,14 @@ export function Cards() {
             <Show
               when={payload()?.cards[String(node.card.type)]}
               fallback={<p class="text-muted-foreground">No description for this card type.</p>}
-              keyed
             >
-              {(cardIR: IRNode) => (
-                <IRField
-                  node={cardIR}
-                  defs={defsForNode(index())}
-                  label={String(node.card.type)}
-                  value={node.card}
-                  onChange={(card) => setCard(index(), card as Card)}
-                />
-              )}
+              <IRField
+                node={payload()!.cards[String(node.card.type)]}
+                defs={defsForNode(index())}
+                label={String(node.card.type)}
+                value={node.card}
+                onChange={(card) => setCard(index(), card as Card)}
+              />
             </Show>
             </Disclosure>
           </div>

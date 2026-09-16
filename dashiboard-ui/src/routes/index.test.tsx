@@ -567,7 +567,8 @@ describe('the authoring page', () => {
     const ask = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir');
     expect(ask).toBeDefined();
     // the group dialect needs all three, since which nodes and groups are referenceable
-    // depends on the document being edited, not only on the source
-    expect(Object.keys(ask![1] as object).sort()).toEqual(['cols', 'groups', 'nodes']);
+    // depends on the document being edited, not only on the source; `include` says which
+    // halves of the IR this call wants (both, on the first request of a session)
+    expect(Object.keys(ask![1] as object).sort()).toEqual(['cols', 'groups', 'include', 'nodes']);
   });
 });

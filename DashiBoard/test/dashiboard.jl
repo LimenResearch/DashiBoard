@@ -206,6 +206,17 @@ mktempdir() do data_dir
         ]
         # nulls are omitted rather than shipped
         @test !occursin(":null", String(resp.body))
+        # `cards` is 96% of the payload and cannot change within a session — `card_ir` takes no
+        # vocabulary. A client that has it once asks for `defs` alone afterwards.
+        body = JSON.json((; cols = ["No", "TEMP"], nodes = String[], groups = String[], include = ["defs"]))
+        resp = HTTP.post(url * "get-card-ir", body = body)
+        only_defs = JSON.parse(resp.body)
+        @test collect(keys(only_defs)) == ["defs"]
+        @test only_defs["defs"]["col"]["enum"] == ["No", "TEMP"]
+        @test length(resp.body) < 4000                     # against ~19 KB for the full payload
+        body = JSON.json((; include = ["cards"]))
+        resp = HTTP.post(url * "get-card-ir", body = body)
+        @test collect(keys(JSON.parse(resp.body))) == ["cards"]
         resp = HTTP.options(url * "get-card-ir")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,

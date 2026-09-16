@@ -18,9 +18,12 @@ const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [], issues: [] }
 beforeEach(() => {
   sessionStorage.clear();
   postRequest.mockReset();
-  postRequest.mockImplementation((page: string) =>
+  postRequest.mockImplementation((page: string, body: unknown) =>
     Promise.resolve(
-      page === 'get-card-ir' ? structuredClone(payload)
+      page === 'get-card-ir'
+        ? (() => { const inc = (body as { include?: string[] })?.include ?? ['defs', 'cards'];
+                   const full = structuredClone(payload) as Record<string, unknown>;
+                   return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
       : page === 'probe-pipeline' ? CLEAN_PROBE
       : page === 'validate-card' ? { valid: true, issues: [] }
       : [],
@@ -118,5 +121,21 @@ describe('the continuous probe', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('the card IR', () => {
+  it('is fetched whole once, then only its vocabulary', async () => {
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(irCalls()).toBe(1));
+    const first = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir')![1] as { include?: string[] };
+    expect(first.include ?? ['defs', 'cards']).toEqual(expect.arrayContaining(['cards']));
+
+    addGroup();
+    await waitFor(() => expect(irCalls()).toBe(2));
+    const second = postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir')[1][1] as { include?: string[] };
+    expect(second.include).toEqual(['defs']);
+    // and the form still renders, from the cached cards
+    await waitFor(() => expect(container.querySelector('#node-0-rescale-method-variant')).not.toBeNull());
   });
 });

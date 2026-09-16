@@ -48,10 +48,19 @@ export function Cards() {
   const [chosen, setChosen] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
 
+  // `cards` is fetched once and kept; only `defs` follows the vocabulary. See the handler.
+  const [cardIRs, setCardIRs] = createSignal<{ [type: string]: IRNode } | null>(null);
+
   // The IR is what the renderer builds from, and since A2 it is the only description of a card
   // that exists (§13). Which nodes and groups are referenceable depends on the document being
   // edited, not only on the source, so this re-runs when either changes.
   async function loadIR() {
+    // Captured before the request, not re-read from the signal after `setCardIRs` below: a
+    // signal write stages into `_pendingValue` and an untracked read from this plain async
+    // continuation is not guaranteed to observe it before the next flush (Solid 2's transition
+    // model, unlike Solid 1's immediate same-tick reads).
+    const previousCards = cardIRs();
+    const include = previousCards === null ? ["defs", "cards"] : ["defs"];
     const received = (await postRequest(
       "get-card-ir",
       {
@@ -61,16 +70,20 @@ export function Cards() {
         // offering its position as a name offered one the server would never resolve.
         nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
         groups: Object.keys(state.groups),
+        include,
       },
       null,
-    )) as Payload | null;
-    if (!received) {
+    )) as Partial<Payload> | null;
+    if (!received || !received.defs) {
       setError("Could not reach DashiBoard. Is the server running?");
       return;
     }
     setError(null);
-    setPayload(received);
-    const types = Object.keys(received.cards).sort();
+    const cards = received.cards ?? previousCards;
+    if (cards === null) return;                       // cannot happen on the first call
+    setCardIRs(cards);
+    setPayload({ defs: received.defs, cards });
+    const types = Object.keys(cards).sort();
     if (!chosen() && types.length > 0) setChosen(types[0]);
   }
 

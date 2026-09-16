@@ -213,9 +213,13 @@ describe('GroupsEditor', () => {
   });
 
   it('shows the server\'s finding for an empty group after Confirm', async () => {
+    // The envelope verbatim, with no `nodes` key: the empty-group early return is
+    // `(; valid = false, kind, cols, errors, issues)`. Mocking `nodes: []` here — a key the
+    // server never sends on a failure — is how `usableProbe` discarding these replies survived
+    // every UI test (final review, 2026-09-16).
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: ['group `g` has no columns'],
+        ? { valid: false, kind: 'pipeline', cols: [], errors: ['group `g` has no columns'],
             issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] }
         : []));
     importCards({ nodes: [], groups: { g: [] } });

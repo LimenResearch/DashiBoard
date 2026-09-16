@@ -1,6 +1,6 @@
 import { useSearchParams } from "@solidjs/router";
 import { Title } from "@solidjs/meta";
-import { createEffect, onSettled } from "solid-js";
+import { createEffect, onSettled, untrack } from "solid-js";
 
 import { Tabs } from "../components/Tabs";
 import { Loader } from "../left-tabs/loading";
@@ -29,11 +29,16 @@ export default function Home() {
   // browser, which is exactly when a fresh read of `sessionStorage` is wanted. A module-level
   // signal would instead be created once for the life of the whole script and never re-read.
   const [lastTab, setLastTab] = persistedSignal<string>("dashi.tab", "load");
+  // What the session ended on, taken before this page writes anything back — the restore below
+  // must not read a value the effect has already replaced.
+  const restored = untrack(lastTab);
   // A bare `/` reopens where you were; a URL that names a tab wins. Read once, on mount.
   onSettled(() => {
-    if (params.tab === undefined && lastTab() !== "load") setParams({ tab: lastTab() }, { replace: true });
+    if (params.tab === undefined && restored !== "load") setParams({ tab: restored }, { replace: true });
   });
-  createEffect(() => params.tab, (tab) => { if (tab !== undefined) setLastTab(tab); });
+  // The *resolved* section, never the raw `?tab=`. `/?tab=nope` renders Load, and storing "nope"
+  // sent every later bare `/` to `?tab=nope` — a URL naming a section that does not exist.
+  createEffect(() => slug(section()), (tab) => { setLastTab(tab); });
 
   return (
     <main class="grid grid-cols-5 gap-6 px-4 py-2">

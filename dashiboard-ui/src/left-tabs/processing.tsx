@@ -280,14 +280,6 @@ export function Cards() {
     return out;
   }
 
-  /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
-  const nodeState = (index: number) =>
-    (unfinished()[index]?.length ?? 0) > 0
-      ? "incomplete"
-      : confirmedNode(index)
-        ? "confirmed"
-        : "unconfirmed";
-
   const probeNodes = createMemo(() => probe.nodes);
   const probeErrors = createMemo(() => probe.errors);
   const probeIssues = createMemo(() => probe.issues);
@@ -365,7 +357,17 @@ export function Cards() {
       </Show>
 
       <For each={state.nodes}>
-        {(node, index) => (
+        {(node, index) => {
+          /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
+          const nodeState = createMemo(() =>
+            (unfinished()[index()]?.length ?? 0) > 0
+              ? "incomplete"
+              : confirmedNode(index())
+                ? "confirmed"
+                : "unconfirmed",
+          );
+
+          return (
           <div class="my-2 rounded-sm border border-border p-2">
             <Disclosure
               bodyClass="mt-2 flex flex-col gap-1 border-t border-border pt-2"
@@ -386,19 +388,19 @@ export function Cards() {
                     nowhere — which is the state this third colour exists for.
                   */}
                   <span
-                    data-state={nodeState(index())}
-                    aria-label={nodeState(index()).replace("-", " ")}
+                    data-state={nodeState()}
+                    aria-label={nodeState().replace("-", " ")}
                     title={
-                      nodeState(index()) === "incomplete"
+                      nodeState() === "incomplete"
                         ? "unfinished — open to see why"
-                        : nodeState(index())
+                        : nodeState()
                     }
                     class={[
                       "ml-1 h-2 w-2 shrink-0 rounded-full",
                       {
-                        "bg-success": nodeState(index()) === "confirmed",
-                        "bg-warning": nodeState(index()) === "incomplete",
-                        "border border-muted-foreground": nodeState(index()) === "unconfirmed",
+                        "bg-success": nodeState() === "confirmed",
+                        "bg-warning": nodeState() === "incomplete",
+                        "border border-muted-foreground": nodeState() === "unconfirmed",
                       },
                     ]}
                   />
@@ -529,7 +531,8 @@ export function Cards() {
             </Show>
             </Disclosure>
           </div>
-        )}
+          );
+        }}
       </For>
 
       <div class="flex gap-2">

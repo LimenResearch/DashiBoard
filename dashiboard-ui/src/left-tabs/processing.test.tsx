@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
-import { importCards, addGroup, setNodeId } from '../stores';
+import { importCards, addGroup, setNodeId, confirmDefinition, reportRunIssues, exportCards } from '../stores';
 
 const postRequest = vi.fn();
 vi.mock('../requests', () => ({
@@ -204,6 +204,52 @@ describe('a card whose probe could not be reached', () => {
     fireEvent.click(container.querySelector('button[title="mark this card deliberately finished"]')!);
     await waitFor(() => expect(container.textContent).toMatch(/could not reach/i));
     expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
+  });
+});
+
+describe("the dot follows a live server finding, not only Confirm's last answer", () => {
+  // A run can fail before Confirm is ever pressed (`reportRunIssues`), or the continuous probe can
+  // find something after Confirm already marked the card done. Either way the server is the
+  // authority: a mark stored under an older server or a dead proxy must not outrank a live error.
+  // The mocked `probe-pipeline` reply mirrors the seeded issue so the continuous probe (which fires
+  // ~200ms after mount, with real timers here) settles on the same finding rather than a clean one
+  // racing it away.
+  const issueFor = (severity: 'error' | 'warning') => ({
+    pointer: '/nodes/0/card', reason: 'overwrites', severity, found: null,
+    allowed: null, missing: [], related: [], message: '`TEMP_z` already exists',
+  });
+
+  it('reads a live server error as incomplete, even over an existing confirmation', async () => {
+    confirmDefinition('node:0', exportCards().nodes[0]);
+    const issue = issueFor('error');
+    reportRunIssues([issue]);
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(
+        page === 'get-card-ir' ? structuredClone(payload)
+        : page === 'probe-pipeline' ? { ...CLEAN_PROBE, issues: [issue] }
+        : page === 'validate-card' ? { valid: true, issues: [] }
+        : [],
+      ),
+    );
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull());
+  });
+
+  it('leaves a confirmed card confirmed when the live probe only warns', async () => {
+    confirmDefinition('node:0', exportCards().nodes[0]);
+    const issue = issueFor('warning');
+    reportRunIssues([issue]);
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(
+        page === 'get-card-ir' ? structuredClone(payload)
+        : page === 'probe-pipeline' ? { ...CLEAN_PROBE, issues: [issue] }
+        : page === 'validate-card' ? { valid: true, issues: [] }
+        : [],
+      ),
+    );
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-card-title]')).not.toBeNull());
+    expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull();
   });
 });
 

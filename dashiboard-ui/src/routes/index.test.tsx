@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
-import { importCards, emptyCards, exportCards } from '../stores';
+import { importCards, emptyCards, exportCards, PROBE_STORE, emptyProbe } from '../stores';
 
 // Solid 2 defers signal updates, so an interaction and an assertion that depends on it cannot
 // share a tick: `flush()` settles the scheduler between them.
@@ -49,6 +49,11 @@ beforeEach(() => {
     if (page === 'validate-card') return Promise.resolve({ valid: true, issues: [] });
     return Promise.resolve([]);
   });
+  // `PROBE_STORE` is a module-level store, same as `CARDS_STORE` — a prior test's continuous
+  // probe (e.g. one that seeds a `/nodes/0/card` issue) outlives its own `cleanup()`, and since
+  // the dot now reads live probe findings too (Task 7), a stale one here would read as a card this
+  // test never asked about. See the identical reset in `GroupsEditor.test.tsx`/`processing.test.tsx`.
+  PROBE_STORE[1](reconcile(emptyProbe()));
 });
 afterEach(cleanup);
 

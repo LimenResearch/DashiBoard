@@ -40,9 +40,19 @@ export function GroupsEditor(props: { defs: Defs }) {
   const [unfinished, setUnfinished] = createSignal<Record<string, Incompleteness[]>>({});
   const confirmed = (name: string) => isConfirmed(`group:${name}`, state.groups[name]);
 
+  /**
+   * The continuous probe's own opinion of this group, right now — not only what the last Confirm
+   * captured. A stored confirmation was made against the document as it was then; the server is
+   * the authority on what is true of it now, so a live error must not be outranked by an older
+   * mark. A warning does not count: it renders live in the body already and was never something
+   * Confirm refused over.
+   */
+  const liveError = (name: string) =>
+    issuesForGroup(probe.issues, name).some((issue) => issue.severity !== "warning");
+
   /** unconfirmed · incomplete · confirmed — folded, the dot is the only thing on screen. */
   const groupState = (name: string) =>
-    (unfinished()[name]?.length ?? 0) > 0
+    (unfinished()[name]?.length ?? 0) > 0 || liveError(name)
       ? "incomplete"
       : confirmed(name)
         ? "confirmed"

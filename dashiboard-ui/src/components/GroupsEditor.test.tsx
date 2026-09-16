@@ -4,7 +4,7 @@ import { flush, reconcile } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
 import {
   importCards, exportCards, emptyCards, addGroup, setGroup, forgetConfirmation,
-  isConfirmed, PROBE_STORE, emptyProbe, reportRunIssues,
+  isConfirmed, PROBE_STORE, emptyProbe, reportRunIssues, confirmDefinition,
 } from '../stores';
 import type { Defs } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -273,6 +273,34 @@ describe('GroupsEditor', () => {
     fireEvent.click(getAllByText('Confirm')[0]);
     await waitFor(() => expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull());
     expect(container.textContent.split('has no columns').length - 1).toBe(1);
+  });
+  it('reads a live server error as incomplete, even over an existing confirmation', async () => {
+    // The server is the authority: a mark stored under an older server or a dead proxy must not
+    // outrank a finding it is reporting right now. Names local to this test (not in `GROUP_NAMES`)
+    // — nothing else in this file reads or writes them, so they need no forgetting.
+    addGroup('gerr');
+    setGroup('gerr', [{ cols: 'TEMP' }]);
+    confirmDefinition('group:gerr', [{ cols: 'TEMP' }]);
+    reportRunIssues([{
+      pointer: '/groups/gerr', reason: 'empty', severity: 'error', found: null,
+      allowed: null, missing: [], related: [], message: 'group `gerr` has no columns',
+    }]);
+    const { container } = mount();
+    await flush();
+    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
+  });
+
+  it('leaves a confirmed group confirmed when the live probe only warns', async () => {
+    addGroup('gwarn');
+    setGroup('gwarn', [{ cols: 'TEMP' }]);
+    confirmDefinition('group:gwarn', [{ cols: 'TEMP' }]);
+    reportRunIssues([{
+      pointer: '/groups/gwarn', reason: 'overwrites', severity: 'warning', found: null,
+      allowed: null, missing: [], related: [], message: '`TEMP_z` already exists',
+    }]);
+    const { container } = mount();
+    await flush();
+    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
   });
 });
 

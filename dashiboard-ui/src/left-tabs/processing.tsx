@@ -408,8 +408,16 @@ export function Cards() {
       <For each={state.nodes}>
         {(node, index) => {
           /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
+          // The continuous probe's own opinion of this card, right now — not only what the last
+          // Confirm captured. A stored confirmation was made against the document as it was then;
+          // the server is the authority on what is true of it now, so a live error must not be
+          // outranked by an older mark. A warning does not count: it renders live just below
+          // already and was never something Confirm refused over.
+          const liveError = () =>
+            issuesForNode(probeIssues(), index()).some((issue) => issue.severity !== "warning");
+
           const nodeState = createMemo(() =>
-            (unfinished()[index()]?.length ?? 0) > 0
+            (unfinished()[index()]?.length ?? 0) > 0 || liveError()
               ? "incomplete"
               : confirmedNode(index())
                 ? "confirmed"

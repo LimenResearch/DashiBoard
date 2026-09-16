@@ -83,8 +83,9 @@ describe('Loader', () => {
     await flush();
 
     // same names → kept
+    const served = [{ ...num('TEMP'), summary: { min: 0, max: 42 } }, num('cbwd')];
     postRequest.mockImplementation((page: string) =>
-      Promise.resolve(page === 'load-files' ? [num('TEMP'), num('cbwd')] : ['a.parquet']),
+      Promise.resolve(page === 'load-files' ? served : ['a.parquet']),
     );
 
     const { getByText } = render(() => <Loader />);
@@ -92,10 +93,14 @@ describe('Loader', () => {
     await flush();
     fireEvent.click(getByText(/^Load$/));
 
+    // Wait for the load to land by checking that the loaded data changed
     await waitFor(() => {
-      const filters = snapshot(FILTERS_STORE[0]);
-      expect(filters.numerical.TEMP).toBeInstanceOf(Interval);
+      const loader = snapshot(LOADER_STORE[0]);
+      expect((loader[0].summary as { max: number }).max).toBe(42);
     }, { timeout: 1000 });
+
+    // Now check that the filter survived the load
+    expect(snapshot(FILTERS_STORE[0]).numerical.TEMP).toBeInstanceOf(Interval);
 
     await flush();
 

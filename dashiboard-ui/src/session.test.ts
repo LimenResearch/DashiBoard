@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { flush, reconcile } from 'solid-js';
 
-// `session.ts` reads the gate flag once at module load into a signal (persist.ts's pattern:
-// module-level state, not a per-render read), so a stale cached module would carry a stale
-// answer across tests. `vi.resetModules()` forces every dynamic `import()` below to re-execute
-// the module against the sessionStorage this test just set up, exactly as a fresh tab would.
+// `session.ts` itself reads the gate flag from `sessionStorage` on demand — `hasPreviousSession()`
+// checks storage directly each call, with a `bump` signal only as JSX's tracked dependency — so
+// it has no stale module-level state of its own. The module graph still needs resetting because
+// `stores.ts`'s `CARDS_STORE`/`LOADER_STORE` are module-level `persisted` stores (persist.ts's
+// pattern) that restore themselves from storage once, at import, and would otherwise carry a
+// prior test's `importCards` across into this one. `vi.resetModules()` forces every dynamic
+// `import()` below to re-execute both modules against the sessionStorage this test just set up,
+// exactly as a fresh tab would.
 beforeEach(() => {
   sessionStorage.clear();
   vi.resetModules();

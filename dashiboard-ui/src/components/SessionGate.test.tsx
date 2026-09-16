@@ -6,10 +6,15 @@ import { flush } from 'solid-js';
 // render under jsdom (controller's resolution to the brief's layout risk) — so the gate and the
 // nav button are their own components, mounted directly here without a router.
 //
-// Both `SessionGate` and `StartOver` statically import `../session`, which itself reads the gate
-// flag into a module-level signal at import time (same reason as session.test.ts). `vi.resetModules()`
-// plus a dynamic `import()` of the component under test, per case, gives each test a fresh module
-// graph reading the sessionStorage that test just set up — no test-only reset hook needed.
+// Both `SessionGate` and `StartOver` statically import `../session`, which reads the gate flag
+// from `sessionStorage` on demand (`hasPreviousSession()` checks storage directly; `bump` is only
+// JSX's tracked dependency) — so `session.ts` carries no stale state of its own between tests. The
+// module graph still needs resetting because `../stores`'s `CARDS_STORE`/`LOADER_STORE` are
+// module-level `persisted` stores that restore themselves from storage once, at import, and would
+// otherwise carry a prior test's `importCards` into this one (same reason as session.test.ts).
+// `vi.resetModules()` plus a dynamic `import()` of the component under test, per case, gives each
+// test a fresh module graph reading the sessionStorage that test just set up — no test-only reset
+// hook needed.
 beforeEach(() => {
   sessionStorage.clear();
   vi.resetModules();

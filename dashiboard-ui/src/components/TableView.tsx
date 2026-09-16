@@ -41,6 +41,11 @@ type Column = { name: string; eltype: string };
 type TableViewProps = {
   /** Read the pipeline's output rather than the loaded source. */
   processed: boolean;
+  /**
+   * Bump when the rows behind `processed` changed — a new run, a new file. The datasource is
+   * rebuilt, and with it the grid's block cache; a column change alone must not do that.
+   */
+  revision: number;
   /** Readonly, because a store proxy is — and this only ever reads it. */
   metadata: readonly Column[];
   /** The grid needs a definite height; it cannot size to its content. */
@@ -83,9 +88,14 @@ export function TableView(props: TableViewProps) {
 
   // Two effects, not one. The datasource is what the infinite row model pages through, and
   // handing the grid a *new* one resets its block cache and refetches from row 0 — so it is
-  // built once per `processed` and never rebuilt for a column change. Columns are the cheap
+  // built once per set of rows and never rebuilt for a column change. Columns are the cheap
   // half and update on their own.
-  const datasource = createMemo(() => dataSource(props.processed));
+  const datasource = createMemo(() => {
+    // Read for the dependency, not for the value: `revision` is the caller saying the rows
+    // behind the grid changed, and this read is the whole mechanism that drops the block cache.
+    void props.revision;
+    return dataSource(props.processed);
+  });
   const columnDefs = createMemo(() =>
     props.metadata.map((x: Column) => ({
       field: x.name,

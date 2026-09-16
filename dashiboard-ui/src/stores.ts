@@ -51,6 +51,9 @@ export type LoaderStore = VariableSummary[];
 
 const loader = persisted<LoaderStore>("dashi.loader", [] as LoaderStore);
 export const LOADER_STORE: [Store<LoaderStore>, StoreSetter<LoaderStore>] = [loader[0], loader[1]];
+/** The loaded source, serialised once — as `CARDS_JSON` is for the document. The preview keys on
+ *  it to know a *different* source is in the store, which its column list cannot say. */
+export const LOADER_JSON = loader[2];
 
 export type FiltersStore = {
   numerical: { [key: string]: Interval | null };

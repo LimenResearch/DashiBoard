@@ -123,6 +123,34 @@ describe('the continuous probe', () => {
     }
   });
 
+  it('runs for a groups-only document', async () => {
+    // Groups first is the usual authoring order, and an empty group is a server-side finding —
+    // so short-circuiting on "no cards" left a groups-only document with no live finding at all
+    // until the first card existed (final review, 2026-09-16).
+    vi.useFakeTimers();
+    try {
+      importCards({ nodes: [], groups: { g: [] } });
+      render(() => <Cards />);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(probeCalls().length).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stays quiet for a document with nothing in it', async () => {
+    // Nothing to resolve, so nothing to ask: an empty document still answers locally.
+    vi.useFakeTimers();
+    try {
+      importCards({ nodes: [], groups: {} });
+      render(() => <Cards />);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(probeCalls().length).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not outlive the tab that scheduled it', async () => {
     // An edit schedules a probe 200 ms out. Unmounting inside that window used to leave the timer
     // running, so a POST went out for a tab that no longer exists — and with real timers it

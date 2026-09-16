@@ -154,7 +154,11 @@ export function Cards() {
     clearTimeout(probeTimer);
     probeTimer = setTimeout(() => {
       const document = JSON.parse(json) as CardsStore;
-      if (document.nodes.length === 0) {
+      // Nothing at all to resolve — no cards *and* no groups — is the one case answerable here.
+      // "No cards" alone is not: groups first is the usual authoring order, and an empty group is
+      // the server's finding to make, so short-circuiting on cards left a groups-only document
+      // with no live finding until the first card existed.
+      if (document.nodes.length === 0 && Object.keys(document.groups).length === 0) {
         probeSeq += 1;
         setProbe(reconcile(emptyProbe()));
         return;

@@ -433,6 +433,18 @@ mktempdir() do data_dir
         @test empty_run["valid"] == true
         @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
 
+        # Groups but no cards: the usual authoring order is groups first, so this is what the UI's
+        # continuous probe sends for most of the time a document is being written. It has to
+        # resolve — `group_outputs = c.outputs[1:end]` over zero nodes — or the author gets no
+        # live finding on their groups until the first card exists.
+        groups_only = JSON.json((;
+            filters = [],
+            nodes = [],
+            groups = Dict("g" => [Dict("cols" => "TEMP")]),
+        ))
+        resp = HTTP.post(url * "probe-pipeline", body = groups_only)
+        @test JSON.parse(resp.body)["valid"] == true
+
         # An empty group is a document the schema accepts (`weather = []` constructs) that
         # resolves to zero columns; a card reading it used to die inside the card constructor
         # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,

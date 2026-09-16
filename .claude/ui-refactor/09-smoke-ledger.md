@@ -132,6 +132,34 @@ pointers); `evaluate-pipeline`'s failure carries it as prose in `errors`. Return
 (the field exists on the response) and have the results pane hand them to the cards, so the
 pane says "2 cards are incomplete — see the marks" and the cards show `method`, `inputs`.
 
+### 16. The queue, re-run against `sdd/post-smoke` — ✅ 2026-09-16 (PR #170 @ d0fa658, `stress.parquet`)
+
+The branch's server launched from its worktree on port 3100 with its own cache
+(`DASHIBOARD_CACHE=/tmp/dashi-cache-post-smoke`), the same HTTP-driven cases as entry 14. Full
+table in the session scratchpad (`smoke-branch.md`). Everything unchanged by the branch answers as
+in entry 14; what the branch set out to change now does:
+
+| # | case | before (entry 14) | now |
+|---|---|---|---|
+| 5 | empty group referenced by a card | `execution`, `UndefKeywordError: keyword argument args not assigned` | **probe and run**: `valid=false`, `kind: pipeline`, one issue `error @ /groups/empty` reason `empty`, message "group `empty` has no columns" |
+| 7 | `zscore` on `constant` (A12) | `execution`, `NaN not allowed to be written in JSON` | **valid**; `constant_z` in the summaries; `fetch-data` rows carry `null`, no `NaN`/`Infinity` token in any body |
+| 9 | `rescale TEMP suffix = "rescaled"` (A13) | accepted silently | probe answers `valid=true` with `warning @ /nodes/0/card` reason `overwrites`; the run is allowed |
+| 11b | a filter that works, no cards (A14) | `pipeline`, "reducing over an empty collection" | **valid**, 11 summaries (the filtered source) |
+| 11c | nothing at all | same failure | **valid**, the source unchanged |
+| 11d | probe of a groups-only document | (not tried) | **valid** — the continuous probe now runs for it, so an empty group is reported live before any card exists |
+| 12 | two broken cards | both reported | both reported, each `severity: error`, on the probe and on the run |
+
+Timings on 1M rows: load 0.5 s (cache warm), rescale runs 0.6–0.8 s, pca 3.1 s, filter-only run
+0.7 s, page at offset 999,900 instant. First-use compilation is gone from these numbers because the
+server had already answered once.
+
+**Still open, by decision:** `_id` in the summaries (kept). **UI-side checks for the owner in a
+browser against this branch's UI** (`DASHI_API=http://127.0.0.1:3100 pnpm run dev` from the
+worktree's `dashiboard-ui/`): run failures landing on the cards; the empty-group finding on the group
+(and its duplicate sentence in the top banner — parked); deleting a group clearing the cards that
+used it; a missing chip's ×; filters clearing on a different table; the session gate flow; the header
+fold/truncate.
+
 ---
 
 ## To try

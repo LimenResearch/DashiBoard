@@ -308,6 +308,25 @@ describe('references follow the thing they name', () => {
     const out = s.exportCards();
     expect(out.nodes[0].card.inputs).toEqual([{ cols: 'PRES' }]);   // `through: ['r']` gone with r
   });
+  // Not every selector is a list. `$defs/variable` fields — `partition`, `weights`,
+  // `gaussian_encoding.input`, `interp.input`, `glm.formula.target` — hold one selector object,
+  // and a walk that only looked at arrays left them naming a group that no longer exists.
+  const lone = () => ({
+    nodes: [{ id: 'p', card: { type: 'split', partition: { groups: 'g' }, method: { type: 'tiles' } } }],
+    groups: { g: [{ cols: 'TEMP' }] },
+  });
+  it('removeGroup drops a lone selector object that named it', async () => {
+    const s = await import('./stores');
+    s.importCards(lone()); s.removeGroup('g'); await flush();
+    const card = s.exportCards().nodes[0].card;
+    expect('partition' in card).toBe(false);
+    expect(card.method).toEqual({ type: 'tiles' });   // a plain object beside it is untouched
+  });
+  it('renameGroup rewrites a lone selector object', async () => {
+    const s = await import('./stores');
+    s.importCards(lone()); s.renameGroup('g', 'wind'); await flush();
+    expect(s.exportCards().nodes[0].card.partition).toEqual({ groups: 'wind' });
+  });
   it('setNodeId rewrites nodes: items and through entries', async () => {
     const s = await import('./stores');
     s.importCards(doc()); s.setNodeId(0, 'rescaled'); await flush();

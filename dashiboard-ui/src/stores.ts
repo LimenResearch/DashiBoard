@@ -306,15 +306,23 @@ export function setGroup(name: string, items: Selector[]) {
  * `through`. Walked that way rather than by asking the IR which fields are selectors, so a field
  * this UI has never heard of is covered too. Items left with no value are dropped, and a group's
  * own selector list is walked like a card's — groups may name groups.
+ *
+ * A lone selector object counts too: the IR's `$defs/variable` fields — `partition`, `weights`,
+ * `gaussian_encoding.input`, `interp.input`, `glm.formula.target` — hold one, not a list, and an
+ * array-only walk left `partition: {groups: "g"}` naming a group that had just been removed.
  */
 function forEachSelector(draft: CardsStore, edit: (item: Selector) => Selector | null) {
-  const isSelector = (v: unknown): v is Selector[] =>
-    Array.isArray(v) && v.every((x) => x && typeof x === "object" &&
-      ["cols", "groups", "nodes", "through"].some((k) => k in (x as object)));
+  const isItem = (x: unknown): x is Selector =>
+    !!x && typeof x === "object" && ["cols", "groups", "nodes", "through"].some((k) => k in (x as object));
+  const isSelector = (v: unknown): v is Selector[] => Array.isArray(v) && v.every(isItem);
   const walk = (holder: Record<string, unknown>) => {
     for (const [key, value] of Object.entries(holder)) {
       if (isSelector(value)) {
         holder[key] = value.map(edit).filter((item): item is Selector => item !== null);
+      } else if (!Array.isArray(value) && isItem(value)) {
+        // Tested before the recursion below, which would otherwise descend past it into `cols`.
+        const next = edit(value);
+        if (next === null) delete holder[key]; else holder[key] = next;
       } else if (value && typeof value === "object" && !Array.isArray(value)) {
         walk(value as Record<string, unknown>);
       }

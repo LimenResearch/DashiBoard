@@ -27,7 +27,17 @@ export const usableProbe = (result: unknown): ProbeStore => {
   };
 };
 
-/** Ask once and get the shape back. */
-export async function askProbe(document: CardsStore): Promise<ProbeStore> {
-  return usableProbe(await postRequest("probe-pipeline", document, null));
+/**
+ * Ask once and get the shape back — or `null` when there is no shape to normalise.
+ *
+ * `postRequest` resolves to its `def` (`null`, passed below) on any failure to reach the server or
+ * parse its reply as JSON — including the 404 HTML a missing dev-server proxy route answers with
+ * (item 1). `usableProbe(null)` reads as `{valid: true, issues: []}`, the shape of a clean bill of
+ * health, which is how a probe that never reached the server used to look identical to one that
+ * found nothing wrong. Callers must treat `null` as "could not check", never as "no issues" — see
+ * `GroupsEditor.tsx`'s Confirm handler and `processing.tsx`'s `confirmNode`.
+ */
+export async function askProbe(document: CardsStore): Promise<ProbeStore | null> {
+  const result = await postRequest("probe-pipeline", document, null);
+  return result !== null && typeof result === "object" ? usableProbe(result) : null;
 }

@@ -166,6 +166,13 @@ export function Cards() {
       const seq = ++probeSeq;
       void askProbe(document).then((answer) => {
         if (seq !== probeSeq) return;            // a newer request is out; this answer is stale
+        if (answer === null) {
+          // Could not be asked at all (item 1's missing proxy route, or the server being down) —
+          // leave PROBE_STORE as it was. A stale answer is better than overwriting it with a false
+          // clean one, which is what `usableProbe(null)` used to do here.
+          console.warn("probe: could not reach DashiBoard");
+          return;
+        }
         setProbe(reconcile(answer));
       });
     }, PROBE_QUIET_MS);
@@ -281,6 +288,19 @@ export function Cards() {
     }
 
     const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
+    // `null` means the probe could not be asked at all (item 1: a missing dev-server proxy route,
+    // or the server being down) — not that it came back clean. Reading it as "no issues" is what
+    // let an empty group through Confirm with a green dot (final review, 2026-09-16); the same
+    // failure reaches a card's Confirm through this same `askProbe` call.
+    if (answer === null) {
+      setUnfinished({
+        ...unfinished(),
+        [index]: [{
+          message: "Could not reach DashiBoard to check this card — is the server running?",
+        }],
+      });
+      return;
+    }
     const found = graphFindings(answer, index);
     setUnfinished({ ...unfinished(), [index]: found });
     if (found.length === 0) confirmDefinition(`node:${index}`, node);

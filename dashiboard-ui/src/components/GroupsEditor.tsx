@@ -168,6 +168,19 @@ export function GroupsEditor(props: { defs: Defs }) {
                             // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
                             // one rule that used to live here (`checkGroup`) is gone.
                             const answer = await askProbe(document);
+                            // `null` means the probe could not be asked at all (item 1: a missing
+                            // dev-server proxy route, or the server being down) — not that it came
+                            // back clean. Reading it as "no issues" is what let an empty group
+                            // through Confirm with a green dot (final review, 2026-09-16).
+                            if (answer === null) {
+                              setUnfinished({
+                                ...unfinished(),
+                                [name]: [{
+                                  message: "Could not reach DashiBoard to check this group — is the server running?",
+                                }],
+                              });
+                              return;
+                            }
                             const found = issuesForGroup(answer.issues, name).map((issue) => ({
                               message: issue.message, pointer: issue.pointer,
                             }));

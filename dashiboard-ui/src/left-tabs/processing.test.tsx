@@ -186,6 +186,27 @@ describe('a warning from the probe', () => {
   });
 });
 
+describe('a card whose probe could not be reached', () => {
+  it('reads as "could not check", never as a clean card, and does not confirm', async () => {
+    // `validate-card` still answers cleanly — the card's own schema is fine — but the whole-document
+    // probe `confirmNode` asks next resolves to `null` (item 1's missing proxy route, mocked here
+    // as `postRequest`'s own failure default).
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(
+        page === 'get-card-ir' ? structuredClone(payload)
+        : page === 'validate-card' ? { valid: true, issues: [] }
+        : page === 'probe-pipeline' ? null
+        : [],
+      ),
+    );
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('button[title="mark this card deliberately finished"]')).not.toBeNull());
+    fireEvent.click(container.querySelector('button[title="mark this card deliberately finished"]')!);
+    await waitFor(() => expect(container.textContent).toMatch(/could not reach/i));
+    expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
+  });
+});
+
 describe('the card IR', () => {
   it('is fetched whole once, then only its vocabulary', async () => {
     const { container } = render(() => <Cards />);

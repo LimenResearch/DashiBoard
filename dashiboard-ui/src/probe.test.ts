@@ -1,6 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { usableProbe } from './probe';
-import { emptyProbe } from './stores';
+import { describe, it, expect, vi } from 'vitest';
+import { usableProbe, askProbe } from './probe';
+import { emptyProbe, emptyCards } from './stores';
+
+// `askProbe` sits directly on `postRequest`, so its own tests mock that boundary rather than the
+// network — the same seam `GroupsEditor.test.tsx` and `processing.test.tsx` mock.
+const postRequest = vi.fn();
+vi.mock('./requests', () => ({
+  postRequest: (...args: unknown[]) => postRequest(...args),
+}));
 
 // The envelope a failing probe actually sends. `failure_report` is `(; valid, kind, errors,
 // issues)` and the probe's schema path adds `cols` — there is no `nodes` key on any failure
@@ -39,5 +46,22 @@ describe('usableProbe', () => {
   it('falls back to an empty probe when there is no reply at all', () => {
     expect(usableProbe(null)).toEqual(emptyProbe());
     expect(usableProbe(undefined)).toEqual(emptyProbe());
+  });
+});
+
+describe('askProbe', () => {
+  // `postRequest` resolves to its `def` (`null`, passed at the call site) on any failure —
+  // including a 404 HTML body it cannot parse as JSON (item 1). `askProbe` used to paper over that
+  // with `usableProbe(null)`, which reads as `{valid: true, issues: []}` — a clean bill of health —
+  // so a probe that never reached the server looked identical to one that found nothing wrong.
+  it('reports null — not a clean bill of health — when postRequest could not ask', async () => {
+    postRequest.mockResolvedValueOnce(null);
+    expect(await askProbe(emptyCards())).toBeNull();
+  });
+
+  it('normalises a real reply the same way usableProbe does', async () => {
+    const reply = { valid: true, cols: ['TEMP'], nodes: [], errors: [], issues: [] };
+    postRequest.mockResolvedValueOnce(reply);
+    expect(await askProbe(emptyCards())).toEqual(usableProbe(reply));
   });
 });

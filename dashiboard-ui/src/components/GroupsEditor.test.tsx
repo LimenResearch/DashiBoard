@@ -229,6 +229,28 @@ describe('GroupsEditor', () => {
     expect(postRequest.mock.calls.some((c) => c[0] === 'probe-pipeline')).toBe(true);
   });
 
+  it('reads a failed probe as "could not check", never as a clean group', async () => {
+    // `postRequest` resolves to `null` on any failure (item 1) — including a proxy route that
+    // doesn't exist, which is exactly how this went unnoticed in the browser. Confirm must not
+    // read that silence as "no issues found".
+    //
+    // A name no other test in this file confirms (not in `GROUP_NAMES`): `forgetConfirmation`'s
+    // read-modify-write loop in `beforeEach` only survives a flush for the *last* key it forgets —
+    // a pre-existing staged-signal hazard in `stores.ts`, out of scope here — so reusing 'weather'
+    // right after a test that confirms it would assert against that leftover, not against this
+    // test's own Confirm click.
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline' ? null : []));
+    addGroup('offline');
+    setGroup('offline', [{ cols: 'TEMP' }]);
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(container.textContent).toMatch(/could not reach/i));
+    expect(isConfirmed('group:offline', exportCards().groups.offline)).toBe(false);
+    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
+  });
+
   it('shows one finding, not the last Confirm\'s copy and the live probe\'s copy both', async () => {
     // A run can fail on this group before Confirm is ever clicked (Task 5's `reportRunIssues`),
     // which is what seeds `PROBE_STORE` here. Confirm then asks the same question itself and gets

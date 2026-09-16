@@ -97,11 +97,17 @@ export function TableView(props: TableViewProps) {
     return dataSource(props.processed);
   });
   const columnDefs = createMemo(() =>
-    props.metadata.map((x: Column) => ({
-      field: x.name,
-      headerName: x.name,
-      valueFormatter: (params: { value: unknown }) => formatter(params.value, x.eltype),
-    })),
+    props.metadata.map((x: Column) => {
+      // Read here, in the memo, and closed over — rather than off the store proxy inside the
+      // formatter. ag-grid calls the formatter while it renders cells, which happens inside the
+      // effect below, where a store read is untracked and warns for it.
+      const { name, eltype } = x;
+      return {
+        field: name,
+        headerName: name,
+        valueFormatter: (params: { value: unknown }) => formatter(params.value, eltype),
+      };
+    }),
   );
 
   const gridOptions = {

@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import type { Element as JSXElement } from "solid-js";
 
 import { Disclosure } from "./Disclosure";
@@ -336,8 +336,36 @@ export function IRField(props: IRFieldProps) {
             const w = () => widget() as Extract<Widget, { kind: "repeater" }>;
             // A repeater over selector items is the variable picker (C2), not a generic list:
             // its items are grouped by qualification rather than shown one per row.
-            if (widgetFor(w().items, props.defs).kind === "selector") {
-              return (
+            //
+            // Decided in a memo and branched in JSX, not with an `if` here: this callback body
+            // runs inside the keyed `<Show>` above, which is not a tracking scope, and
+            // `widgetFor` walks `props.node` and `props.defs` — around half the suite's
+            // untracked-read warnings came from this one line.
+            const itemsWidget = createMemo(() => widgetFor(w().items, props.defs));
+            return (
+              <Show
+                when={itemsWidget().kind === "selector"}
+                fallback={
+                  <Collapsible label={props.label} required={props.required}>
+                    <For each={asArray(props.value)}>
+                      {(item, index) => (
+                        <IRField
+                          node={w().items}
+                          defs={props.defs}
+                          label={`${props.label}[${index()}]`}
+                          idPrefix={`${id()}-${index()}`}
+                          value={item}
+                          onChange={(inner) => {
+                            const next = [...asArray(props.value)];
+                            next[index()] = inner;
+                            props.onChange(next);
+                          }}
+                        />
+                      )}
+                    </For>
+                  </Collapsible>
+                }
+              >
                 <Collapsible label={props.label} required={props.required}>
                   <SelectorField
                     itemNode={w().items}
@@ -347,27 +375,7 @@ export function IRField(props: IRFieldProps) {
                     onChange={(items) => props.onChange(items)}
                   />
                 </Collapsible>
-              );
-            }
-            return (
-              <Collapsible label={props.label} required={props.required}>
-                <For each={asArray(props.value)}>
-                  {(item, index) => (
-                    <IRField
-                      node={w().items}
-                      defs={props.defs}
-                      label={`${props.label}[${index()}]`}
-                      idPrefix={`${id()}-${index()}`}
-                      value={item}
-                      onChange={(inner) => {
-                        const next = [...asArray(props.value)];
-                        next[index()] = inner;
-                        props.onChange(next);
-                      }}
-                    />
-                  )}
-                </For>
-              </Collapsible>
+              </Show>
             );
           }
 

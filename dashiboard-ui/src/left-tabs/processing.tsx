@@ -1,4 +1,6 @@
-import { createEffect, createMemo, createSignal, For, Show, Store, reconcile } from "solid-js";
+import {
+  createEffect, createMemo, createSignal, For, Show, Store, reconcile, untrack,
+} from "solid-js";
 
 import { Button } from "../components/Button";
 import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
@@ -39,6 +41,21 @@ export function getCards(state: Store<CardsStore>) {
 
 type Payload = { defs: Defs; cards: { [type: string]: IRNode } };
 
+/** Everything a card may name: the source's columns, the other cards, the groups. */
+type Vocabulary = { cols: string[]; nodes: string[]; groups: string[] };
+
+/**
+ * One IR fetch per vocabulary *change*, which reference equality cannot deliver.
+ *
+ * The three lists are rebuilt from the stores on every write, so a fresh object arrives whenever
+ * anything in the document moves — a field edited, a chip picked. Comparing their contents is
+ * what keeps the refetch tied to the vocabulary rather than to the keystroke.
+ */
+const sameVocabulary = (a: Vocabulary, b: Vocabulary) =>
+  (["cols", "nodes", "groups"] as const).every(
+    (part) => a[part].length === b[part].length && a[part].every((v, at) => v === b[part][at]),
+  );
+
 export function Cards() {
   const [state] = CARDS_STORE;
   const [metadata] = LOADER_STORE;
@@ -54,24 +71,21 @@ export function Cards() {
   // The IR is what the renderer builds from, and since A2 it is the only description of a card
   // that exists (§13). Which nodes and groups are referenceable depends on the document being
   // edited, not only on the source, so this re-runs when either changes.
-  async function loadIR() {
+  //
+  // The vocabulary arrives as an argument rather than being read here: this runs from an effect
+  // *callback*, where a read of a store or a signal is untracked — so reading the document here
+  // would be a dependency the effect does not have, and the diagnostics say so.
+  async function loadIR(vocabulary: Vocabulary) {
     // Captured before the request, not re-read from the signal after `setCardIRs` below: a
     // signal write stages into `_pendingValue` and an untracked read from this plain async
     // continuation is not guaranteed to observe it before the next flush (Solid 2's transition
-    // model, unlike Solid 1's immediate same-tick reads).
-    const previousCards = cardIRs();
+    // model, unlike Solid 1's immediate same-tick reads). `untrack` says that is deliberate:
+    // this is a cache lookup, not something the fetch should re-run for.
+    const previousCards = untrack(cardIRs);
     const include = previousCards === null ? ["defs", "cards"] : ["defs"];
     const received = (await postRequest(
       "get-card-ir",
-      {
-        cols: metadata.map((entry) => entry.name),
-        // Only names that exist. `Pipelines.get_id` is the naming rule, and it has no index
-        // fallback — a node with no `id` is called "" and is referenceable by nobody, so
-        // offering its position as a name offered one the server would never resolve.
-        nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
-        groups: Object.keys(state.groups),
-        include,
-      },
+      { ...vocabulary, include },
       null,
     )) as Partial<Payload> | null;
     if (!received || !received.defs) {
@@ -92,15 +106,21 @@ export function Cards() {
   // has nothing to offer; and adding or renaming a card changes what `nodes:` and `through:` can
   // name. Driving this from the document rather than from explicit calls after each mutation also
   // sidesteps reading the store before Solid has settled the write.
-  createEffect(
-    () =>
-      [
-        metadata.map((entry) => entry.name).join("\u0000"),
-        state.nodes.map((node) => node.id ?? "").join("\u0000"),
-        Object.keys(state.groups).join("\u0000"),
-      ].join("\u0001"),
-    () => void loadIR(),
+  //
+  // The memo is where the stores are read, so those reads are the effect's dependencies, and the
+  // value it produces is what the request is built from — it cannot drift from what triggered it.
+  const vocabulary = createMemo<Vocabulary>(
+    () => ({
+      cols: metadata.map((entry) => entry.name),
+      // Only names that exist. `Pipelines.get_id` is the naming rule, and it has no index
+      // fallback — a node with no `id` is called "" and is referenceable by nobody, so
+      // offering its position as a name offered one the server would never resolve.
+      nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
+      groups: Object.keys(state.groups),
+    }),
+    { equals: sameVocabulary },
   );
+  createEffect(vocabulary, (current) => void loadIR(current));
 
   const cardTypes = () => Object.keys(payload()?.cards ?? {}).sort();
 

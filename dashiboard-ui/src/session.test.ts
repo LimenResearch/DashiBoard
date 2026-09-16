@@ -22,15 +22,28 @@ describe('session', () => {
     expect(hasPreviousSession()).toBe(false);
   });
   it('has one when something was restored, until it is answered', async () => {
-    const { hasPreviousSession, recoverSession, sessionSummary } = await import('./session');
+    // The stores are filled *before* `./session` is imported, because that is what "restored"
+    // means: `persist.ts` puts the document back at import time, and the gate reads it once,
+    // there. Filling them afterwards is a document that grew during this session — the case the
+    // test below pins.
     const { importCards } = await import('./stores');
     importCards({ nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: { g: [] } }); await flush();
+    const { hasPreviousSession, recoverSession, sessionSummary } = await import('./session');
     expect(hasPreviousSession()).toBe(true);
     expect(sessionSummary()).toEqual({ columns: 0, groups: 1, cards: 1 });
     recoverSession();
     expect(hasPreviousSession()).toBe(false);
     expect(sessionStorage.getItem('dashi.gate')).toBe('answered');
   });
+  it('has none when the document only grew after load', async () => {
+    // A fresh tab loads a file: the stores fill, but nothing was restored, so there is no
+    // previous session to offer and no overlay whose "Start fresh" could wipe the new work.
+    const { hasPreviousSession } = await import('./session');
+    const { importCards } = await import('./stores');
+    importCards({ nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: { g: [] } }); await flush();
+    expect(hasPreviousSession()).toBe(false);
+  });
+
   it('resetSession removes exactly the dashi.* keys and reloads', async () => {
     const { resetSession } = await import('./session');
     sessionStorage.setItem('dashi.cards', '{}'); sessionStorage.setItem('dashi.tab', '"process"');

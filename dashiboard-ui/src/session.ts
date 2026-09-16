@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createSignal, untrack } from "solid-js";
 import { CARDS_STORE, LOADER_STORE } from "./stores";
 
 // The stores restore themselves from `sessionStorage` at module load (persist.ts). That is what
@@ -32,12 +32,23 @@ export function sessionSummary() {
   return { columns: loader.length, groups: Object.keys(cards.groups).length, cards: cards.nodes.length };
 }
 
+/**
+ * What was in the stores the moment this module loaded — i.e. what `persist.ts` restored.
+ *
+ * Read once, and untracked: "a previous session" is a fact about *load time*, not a live property
+ * of the stores. Asked live, a fresh tab (no `dashi.gate`, nothing restored) raised the overlay
+ * the instant the first Load landed — over a session that was never previous, and whose "Start
+ * fresh" would have wiped what had just been loaded. A store that grows during the session is the
+ * current session (final review, 2026-09-16). `untrack` keeps this read out of whatever reactive
+ * scope happens to be importing the module.
+ */
+const restored = untrack(() => sessionSummary());
+
 /** Something was restored, and this tab has not said what to do with it. */
 export function hasPreviousSession(): boolean {
   bump(); // dependency only, so a `recoverSession()` call is reflected in JSX — see `bump` above
   if (read()) return false;
-  const s = sessionSummary();
-  return s.columns + s.groups + s.cards > 0;
+  return restored.columns + restored.groups + restored.cards > 0;
 }
 
 export function recoverSession() {

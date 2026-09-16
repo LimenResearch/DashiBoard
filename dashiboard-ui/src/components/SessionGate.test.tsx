@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { flush, reconcile } from 'solid-js';
 
 // `App`'s `Router` is built from `virtual:file-routes` with browser history, which is fragile to
 // render under jsdom (controller's resolution to the brief's layout risk) — so the gate and the
@@ -46,6 +46,27 @@ describe('SessionGate', () => {
     const { container } = render(() => <SessionGate />);
     await flush();
     expect(container.querySelector('[data-session-gate]')).toBeNull();
+  });
+
+  it('does not gate a document that grew during this session', async () => {
+    // A fresh tab has no `dashi.gate` and nothing restored. The first Load used to raise the
+    // overlay — "A previous session is here: 12 columns loaded · 0 groups · 0 cards" — over a
+    // session that was never previous, where "Start fresh" would have wiped what had just been
+    // loaded. The gate is a fact about load time, so it is decided once (final review, 2026-09-16).
+    const { LOADER_STORE } = await import('../stores');
+    const { hasPreviousSession } = await import('../session');
+
+    const { SessionGate } = await import('./SessionGate');
+    const { container } = render(() => <SessionGate />);
+    await flush();
+
+    LOADER_STORE[1](reconcile([
+      { name: 'TEMP', type: 'numerical' as const, eltype: 'float', summary: { min: 0, max: 1 } },
+    ]));
+    await flush();
+
+    expect(container.querySelector('[data-session-gate]')).toBeNull();
+    expect(hasPreviousSession()).toBe(false);
   });
 
   it('Start over asks before clearing', async () => {

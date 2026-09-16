@@ -431,11 +431,17 @@ export function isConfirmed(key: string, value: unknown): boolean {
 }
 
 export function confirmDefinition(key: string, value: unknown) {
-  setConfirmations({ ...confirmations(), [key]: signatureOf(value) });
+  // A functional updater, not `{...confirmations(), ...}`: Solid 2 stages a signal write, so a
+  // plain read right after a write in the same tick still returns the pre-write value — two calls
+  // back to back would each build their map off the same stale read, and the second would be the
+  // only edit to survive a flush. An updater chains off the previous updater's return instead.
+  setConfirmations((prev) => ({ ...prev, [key]: signatureOf(value) }));
 }
 
 export function forgetConfirmation(key: string) {
-  const next = { ...confirmations() };
-  delete next[key];
-  setConfirmations(next);
+  setConfirmations((prev) => {
+    const next = { ...prev };
+    delete next[key];
+    return next;
+  });
 }

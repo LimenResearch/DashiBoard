@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
-import { importCards, addGroup, setNodeId, confirmDefinition, reportRunIssues, exportCards } from '../stores';
+import {
+  importCards, addGroup, setNodeId, confirmDefinition, reportRunIssues, exportCards,
+  PROBE_STORE, emptyProbe,
+} from '../stores';
 
 const postRequest = vi.fn();
 vi.mock('../requests', () => ({
@@ -33,6 +36,11 @@ beforeEach(() => {
     nodes: [{ id: 'r', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [] } }],
     groups: { g: [] },
   });
+  // `PROBE_STORE` is a module-level store, same as `CARDS_STORE` — `test.isolate: false` shares it
+  // across every file in this run, and a test that seeds it (`reportRunIssues`, or a mocked
+  // `probe-pipeline` reply carrying issues) must not leak that into the next test's render. See the
+  // identical reset in `GroupsEditor.test.tsx` and `routes/index.test.tsx`.
+  PROBE_STORE[1](reconcile(emptyProbe()));
 });
 afterEach(cleanup);
 

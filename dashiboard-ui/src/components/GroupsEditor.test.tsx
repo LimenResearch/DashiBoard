@@ -195,6 +195,12 @@ describe('GroupsEditor', () => {
     setGroup('weather', []);
     await flush();
     resolveProbe({ valid: true, kind: 'pipeline', cols: [], nodes: [], errors: [], issues: [] });
+    // Three, not two: `confirmDefinition` is a functional updater now (it chains off the previous
+    // updater's return rather than off a read — see `stores.ts`), and that costs one more `flush()`
+    // to settle than a plain value set did, on top of `askProbe`'s own async unwrap. Real usage
+    // notices nothing — Solid schedules its own flush automatically; only a test driving the
+    // scheduler by hand has to ask for the extra tick.
+    await flush();
     await flush();
     await flush();
     // Confirmed against what was actually sent to the probe...
@@ -233,21 +239,15 @@ describe('GroupsEditor', () => {
     // `postRequest` resolves to `null` on any failure (item 1) — including a proxy route that
     // doesn't exist, which is exactly how this went unnoticed in the browser. Confirm must not
     // read that silence as "no issues found".
-    //
-    // A name no other test in this file confirms (not in `GROUP_NAMES`): `forgetConfirmation`'s
-    // read-modify-write loop in `beforeEach` only survives a flush for the *last* key it forgets —
-    // a pre-existing staged-signal hazard in `stores.ts`, out of scope here — so reusing 'weather'
-    // right after a test that confirms it would assert against that leftover, not against this
-    // test's own Confirm click.
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline' ? null : []));
-    addGroup('offline');
-    setGroup('offline', [{ cols: 'TEMP' }]);
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
     await waitFor(() => expect(container.textContent).toMatch(/could not reach/i));
-    expect(isConfirmed('group:offline', exportCards().groups.offline)).toBe(false);
+    expect(isConfirmed('group:weather', exportCards().groups.weather)).toBe(false);
     expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
   });
 
@@ -276,14 +276,13 @@ describe('GroupsEditor', () => {
   });
   it('reads a live server error as incomplete, even over an existing confirmation', async () => {
     // The server is the authority: a mark stored under an older server or a dead proxy must not
-    // outrank a finding it is reporting right now. Names local to this test (not in `GROUP_NAMES`)
-    // — nothing else in this file reads or writes them, so they need no forgetting.
-    addGroup('gerr');
-    setGroup('gerr', [{ cols: 'TEMP' }]);
-    confirmDefinition('group:gerr', [{ cols: 'TEMP' }]);
+    // outrank a finding it is reporting right now.
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    confirmDefinition('group:weather', [{ cols: 'TEMP' }]);
     reportRunIssues([{
-      pointer: '/groups/gerr', reason: 'empty', severity: 'error', found: null,
-      allowed: null, missing: [], related: [], message: 'group `gerr` has no columns',
+      pointer: '/groups/weather', reason: 'empty', severity: 'error', found: null,
+      allowed: null, missing: [], related: [], message: 'group `weather` has no columns',
     }]);
     const { container } = mount();
     await flush();
@@ -291,11 +290,11 @@ describe('GroupsEditor', () => {
   });
 
   it('leaves a confirmed group confirmed when the live probe only warns', async () => {
-    addGroup('gwarn');
-    setGroup('gwarn', [{ cols: 'TEMP' }]);
-    confirmDefinition('group:gwarn', [{ cols: 'TEMP' }]);
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    confirmDefinition('group:weather', [{ cols: 'TEMP' }]);
     reportRunIssues([{
-      pointer: '/groups/gwarn', reason: 'overwrites', severity: 'warning', found: null,
+      pointer: '/groups/weather', reason: 'overwrites', severity: 'warning', found: null,
       allowed: null, missing: [], related: [], message: '`TEMP_z` already exists',
     }]);
     const { container } = mount();

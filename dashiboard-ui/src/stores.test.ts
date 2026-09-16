@@ -243,6 +243,34 @@ describe('confirmation', () => {
     await flush();
     expect(isConfirmed('node:e', card)).toBe(false);
   });
+
+  it('confirms two keys set back to back in the same tick, not only the last', async () => {
+    // Solid 2 stages a signal write: a plain read right after a write in the same tick still
+    // returns the pre-write value. Two `confirmDefinition` calls back to back used to each build
+    // their map off the same stale read, so the second call's edit was the only one to survive a
+    // flush — the fix is a functional updater, which chains off the previous updater's return
+    // value instead of off a read.
+    const card = { type: 'rescale' };
+    confirmDefinition('node:h', card);
+    confirmDefinition('node:i', card);
+    await flush();
+    expect(isConfirmed('node:h', card)).toBe(true);
+    expect(isConfirmed('node:i', card)).toBe(true);
+  });
+
+  it('forgets two keys set in the same synchronous loop, not only the last', async () => {
+    const card = { type: 'rescale' };
+    confirmDefinition('node:j', card);
+    confirmDefinition('node:k', card);
+    await flush();
+    expect(isConfirmed('node:j', card)).toBe(true);
+    expect(isConfirmed('node:k', card)).toBe(true);
+
+    for (const key of ['node:j', 'node:k']) forgetConfirmation(key);
+    await flush();
+    expect(isConfirmed('node:j', card)).toBe(false);
+    expect(isConfirmed('node:k', card)).toBe(false);
+  });
 });
 
 describe('the stores survive a reload', () => {

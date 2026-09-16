@@ -164,14 +164,20 @@ export function SelectorField(props: SelectorFieldProps) {
         values resolves exactly as several items holding one each (case A ≡ B).
       */}
       <Show when={rows().length > 0}>
+        {/* A value the picker cannot offer a switch for — a column the loaded table lacks, a
+            reference in an imported document — still has to be removable here; otherwise the only
+            way out is to rebuild the card (measured 2026-09-16). */}
         <ul class="flex flex-wrap gap-1" aria-label={`${props.label} order`}>
           <For each={rows()}>
             {(r, i) => {
               const label = () =>
                 `${r.kind}:${r.value}` + (r.chain.length ? `·${r.chain.join("→")}` : "");
+              const missing = () => !optionsOf(r.kind).includes(r.value);
               return (
                 <li
                   data-chip={label()}
+                  data-missing={missing() ? "true" : undefined}
+                  title={missing() ? `${r.value} is not in the loaded table — remove it, or load a table that has it` : undefined}
                   draggable="true"
                   onDragStart={() => setDragging(i())}
                   onDragOver={(event) => event.preventDefault()}
@@ -183,10 +189,26 @@ export function SelectorField(props: SelectorFieldProps) {
                     if (from !== null) reorder(from, i());
                     setDragging(null);
                   }}
-                  class="inline-flex h-5 items-center gap-1 rounded-sm border border-border bg-background pr-0.5 pl-2 font-mono text-control-xs"
+                  class={[
+                    "inline-flex h-5 items-center gap-1 rounded-sm pr-0.5 pl-2 font-mono text-control-xs",
+                    missing()
+                      ? "border border-destructive/50 bg-destructive/10 text-destructive line-through"
+                      : "border border-border bg-background"
+                  ]}
                 >
                   <span>{label()}</span>
                   <span class="flex">
+                    <Show when={missing()}>
+                      <button
+                        type="button"
+                        data-remove
+                        aria-label={`remove ${label()}`}
+                        onClick={() => switchOff(r.kind, r.value)}
+                        class="grid h-4 w-4 place-items-center rounded-sm text-destructive hover:bg-destructive/20"
+                      >
+                        ×
+                      </button>
+                    </Show>
                     <For each={[["earlier", -1] as const, ["later", 1] as const]}>
                       {([dir, delta]) => (
                         <button

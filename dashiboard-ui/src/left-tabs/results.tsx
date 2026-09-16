@@ -95,13 +95,33 @@ export function Results() {
         setResult(null);
         const issues = Array.isArray(answer.issues) ? answer.issues : [];
         if (issues.length > 0) reportRunIssues(issues);
-        const cards = new Set(issues.map((i) => i.pointer.split("/")[2]).filter(Boolean)).size;
+        // `parts[1]` distinguishes a node pointer (`/nodes/<i>/card/…`) from a group pointer
+        // (`/groups/<name>/…`) — counting `parts[2]` on its own, whatever `parts[1]` said, put an
+        // empty-group issue (`/groups/empty`) on the "cards" count with nothing on screen to show
+        // for it. Groups get their own mark from the same store in a later task; this only fixes
+        // the headline.
+        const namesAt = (kind: "nodes" | "groups") =>
+          new Set(
+            issues
+              .filter((i) => i.pointer.split("/")[1] === kind)
+              .map((i) => i.pointer.split("/")[2])
+              .filter(Boolean),
+          ).size;
+        const cardCount = namesAt("nodes");
+        const groupCount = namesAt("groups");
+        const phrases = [
+          ...(cardCount > 0 ? [`${cardCount} card${cardCount === 1 ? "" : "s"}`] : []),
+          ...(groupCount > 0 ? [`${groupCount} group${groupCount === 1 ? "" : "s"}`] : []),
+        ];
+        const headline = phrases.length > 0
+          ? `${phrases.join(" and ")} need${cardCount + groupCount === 1 ? "s" : ""} attention — see the marks on them.`
+          : null;
         setFailure({
           kind: answer.kind,
-          // Pointed issues are on the cards; the prose stays as the fallback for faults that
-          // carry no pointer — a cycle, a filter's SQL error.
+          // Pointed issues are on the cards or groups; the prose stays as the fallback for
+          // faults that carry no pointer — a cycle, a filter's SQL error.
           errors: [
-            ...(cards > 0 ? [`${cards} card${cards === 1 ? "" : "s"} need attention — see the marks on them.`] : []),
+            ...(headline ? [headline] : []),
             ...(answer.errors?.length ? answer.errors : ["The run failed, without saying why."]),
           ],
         });

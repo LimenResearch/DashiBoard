@@ -256,4 +256,21 @@ describe('a run that failed to build', () => {
     const { PROBE_STORE } = await import('../stores');
     expect(PROBE_STORE[0].issues.map((i) => i.pointer)).toEqual(['/nodes/0/card', '/nodes/1/card']);
   });
+
+  it('counts a group issue as a group, not a card', async () => {
+    // `/groups/g` is not `/nodes/<i>/card`: counting pointer segment 2 whatever segment 1 said
+    // put an empty-group failure on the card count, with nothing on screen to show for it.
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'evaluate-pipeline'
+        ? { valid: false, kind: 'pipeline', errors: ['group `g` has no columns'],
+            issues: [
+              { pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' },
+            ] }
+        : []));
+    const { container, getByText } = render(() => <Results />);
+    fireEvent.click(getByText(/run pipeline/i));
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.querySelector('[data-run-error]')!.textContent).toMatch(/1 group needs attention/);
+    expect(container.querySelector('[data-run-error]')!.textContent).not.toMatch(/card/);
+  });
 });

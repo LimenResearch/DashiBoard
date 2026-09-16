@@ -387,6 +387,29 @@ const ASC_DICT = Dict("asc" => Asc(), "desc" => Desc())
 
 Sorter(d::AbstractDict) = Sorter(d["colId"], ASC_DICT[d["sort"]])
 
+"""
+    finite_projection(repository, table)
+
+`Select` every column of `table`, with each floating-point column replaced by
+`CASE WHEN isfinite(col) THEN col END`.
+
+DuckDB's JSON writer emits bare `NaN` and `Infinity`, which are not JSON: a page of a z-scored
+constant column was unreadable to the browser (A12, measured 2026-09-16). The cast happens in
+SQL so the page is written once and never post-processed as text. Column types come from
+`information_schema`, which is a catalogue lookup — not a pass over the table.
+"""
+function finite_projection(repository, table::AbstractString)
+    types = DBInterface.execute(
+        DataFrame, repository,
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '$(table)'",
+    )
+    floaty = Set(("DOUBLE", "FLOAT", "REAL"))
+    return Select((
+        name => (type in floaty ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name))
+            for (name, type) in zip(types.column_name, types.data_type)
+    )...)
+end
+
 function fetch_data(stream::HTTP.Stream)
     spec = json_read(stream)
     table = spec["processed"] ? "selection" : "source"
@@ -398,7 +421,8 @@ function fetch_data(stream::HTTP.Stream)
 
     mktempdir() do dir
         path = joinpath(dir, "data.json")
-        q = From(table) |> Order(by = sorter_nodes) |> Limit(; limit, offset)
+        q = From(table) |> finite_projection(REPOSITORY[], table) |>
+            Order(by = sorter_nodes) |> Limit(; limit, offset)
         export_table(
             REPOSITORY[], q, path;
             format = "json", array = true

@@ -151,6 +151,17 @@ end
     @test only(DashiBoard.root_causes(plain)) === plain
 end
 
+@testset "json_response and non-finite floats" begin
+    # A12: `JSON.json` refuses NaN and Inf, so a run whose z-score of a constant column was NaN
+    # on every row was reported as an execution failure (measured on `constant = 42`, 2026-09-13
+    # and 2026-09-16). `null` is what every JSON client reads as "no value".
+    resp = DashiBoard.json_response((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
+    body = String(resp.body)
+    @test !occursin("NaN", body) && !occursin("Infinity", body)
+    @test JSON.parse(body)["a"] == [1.0, nothing, nothing, nothing]
+    @test JSON.parse(body)["b"]["x"] === nothing
+end
+
 mktempdir() do data_dir
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
@@ -483,6 +494,18 @@ mktempdir() do data_dir
         @test occursin("TEMP_z", warning["message"])
         resp = HTTP.post(url * "evaluate-pipeline", body = same_name)
         @test JSON.parse(resp.body)["valid"] == true
+
+        # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
+        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+        # Julia's parser accepts those tokens, so this asserts on the text.
+        DBInterface.execute(Returns(nothing), DashiBoard.REPOSITORY[],
+            "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s")
+        body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
+        resp = HTTP.post(url * "fetch-data", body = body)
+        page = String(resp.body)
+        @test !occursin("NaN", page) && !occursin("Infinity", page)
+        @test JSON.parse(page)["values"][1]["bad"] === nothing
+        @test JSON.parse(page)["values"][1]["good"] == 2.5
 
         # ---- keep last: this one runs a pipeline that fails ----
         #

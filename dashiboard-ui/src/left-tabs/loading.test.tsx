@@ -27,7 +27,7 @@ const SUMMARIES: LoaderStore = [
   { name: 'cbwd', type: 'categorical', eltype: 'string', summary: ['NW', 'SE'] },
 ];
 
-const num = (name: string): LoaderStore[number] => ({ name, type: 'numerical', eltype: 'float', summary: { min: 0, max: 1 } } as unknown as LoaderStore[number]);
+const num = (name: string): LoaderStore[number] => ({ name, type: 'numerical', eltype: 'float', summary: { min: 0, max: 1 } });
 
 beforeEach(() => {
   const [, setState] = LOADER_STORE;

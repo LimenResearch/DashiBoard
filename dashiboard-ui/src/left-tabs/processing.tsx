@@ -305,10 +305,13 @@ export function Cards() {
   const probeNodes = createMemo(() => probe.nodes);
   const probeErrors = createMemo(() => probe.errors);
   const probeIssues = createMemo(() => probe.issues);
-  // Anything the probe reported that no card claims — a group's schema failure, say. Without
-  // this an issue addressed at `/groups/weather/...` would be silently dropped.
+  // Anything the probe reported that no other view claims. `/nodes/...` renders on its card, and
+  // since Task 6 `/groups/...` renders on its group (the groups editor's live `<For>` over
+  // `issuesForGroup`) — so both are excluded here, or an empty-group finding would show twice.
   const looseIssues = createMemo(() =>
-    probeIssues().filter((issue) => !issue.pointer.startsWith("/nodes/")),
+    probeIssues().filter(
+      (issue) => !issue.pointer.startsWith("/nodes/") && !issue.pointer.startsWith("/groups/"),
+    ),
   );
   // Schema failures only. The probe also reports unproduced references here, for clients that
   // want one uniform list, but this one renders those from `nodes[].unproduced` just below —

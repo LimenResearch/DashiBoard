@@ -1,18 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkGroup, checkNode } from './completeness';
-
-describe('checkGroup', () => {
-  it('objects to a group that selects nothing', () => {
-    // `weather = []` constructs fine server-side — measured — so this is ours to say or nobody's.
-    expect(checkGroup([])).toHaveLength(1);
-    expect(checkGroup([])[0].message).toMatch(/at least one/i);
-  });
-
-  it('says nothing about a group that selects something', () => {
-    expect(checkGroup([{ cols: 'TEMP' }])).toEqual([]);
-    expect(checkGroup([{ cols: ['PRES', 'TEMP'] }, { nodes: 'rescale' }])).toEqual([]);
-  });
-});
+import { checkNode } from './completeness';
 
 describe('checkNode', () => {
   it('objects to a card nothing can refer to', () => {

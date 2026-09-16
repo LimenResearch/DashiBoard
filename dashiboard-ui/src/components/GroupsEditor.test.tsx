@@ -1,10 +1,20 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, fireEvent } from '@solidjs/testing-library';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
 import { importCards, exportCards, emptyCards, addGroup, setGroup } from '../stores';
 import type { Defs } from '../ir';
 import payload from '../fixtures/card-ir.json';
+
+// Confirm now asks the probe (Task 6), so every test that clicks it makes a request — mocked the
+// same way `processing.test.tsx` mocks it, so the two files don't disagree about the shape of a
+// probe reply.
+const postRequest = vi.fn();
+vi.mock('../requests', () => ({
+  postRequest: (...args: unknown[]) => postRequest(...args),
+  getURL: (page: string) => `/${page}`,
+  loadJSON: vi.fn(), downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
+}));
 
 const defs = payload.defs as Defs;
 const mount = () => render(() => <GroupsEditor defs={defs} />);
@@ -12,7 +22,13 @@ const nameFields = (c: HTMLElement) =>
   [...c.querySelectorAll('input[aria-label="group name"]')] as HTMLInputElement[];
 
 afterEach(cleanup);
-beforeEach(() => importCards(emptyCards()));
+beforeEach(() => {
+  // A clean probe by default — most of this file's tests never open the network tab, so a reply
+  // with no issues lets Confirm succeed exactly as it did when `checkGroup` decided that locally.
+  postRequest.mockReset();
+  postRequest.mockImplementation(() => Promise.resolve([]));
+  importCards(emptyCards());
+});
 
 describe('GroupsEditor', () => {
   it('says the document defines none, rather than showing an empty area', async () => {
@@ -105,13 +121,19 @@ describe('GroupsEditor', () => {
   });
 
   it('refuses to confirm an empty group, and says what to do', async () => {
-    // Legal server-side — `weather = []` constructs — so this is the UI's to say or nobody's.
+    // Legal server-side — `weather = []` constructs — so this is the server's to say now (Task 6):
+    // Confirm asks the probe and the empty-group finding comes back exactly as
+    // `empty_group_issues` phrases it, rather than as `checkGroup`'s own wording.
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: ['group `weather` has no columns'],
+            issues: [{ pointer: '/groups/weather', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `weather` has no columns' }] }
+        : []));
     addGroup('weather');
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
-    await flush();
-    expect(container.textContent).toMatch(/at least one/i);
+    await waitFor(() => expect(container.textContent).toMatch(/no columns/i));
     expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
     // Folded, the dot is the only thing on screen, so it has to carry the warning.
     expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
@@ -123,21 +145,25 @@ describe('GroupsEditor', () => {
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
-    await flush();
-    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
+    await waitFor(() => expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull());
   });
 
   it('un-confirms itself when the group is edited afterwards', async () => {
     // The signature changes, so the confirmation stops matching. A flag would have gone stale and
     // claimed the author had finished something they then changed.
-    addGroup('weather');
-    setGroup('weather', [{ cols: 'TEMP' }]);
+    //
+    // A name of its own, not `weather`: `confirmations` is a module-level signal (persisted, but
+    // read from `sessionStorage` only once, at import) and so outlives any one test in this file —
+    // an earlier test already confirms `group:weather` at this exact signature, and reusing it
+    // would make the "confirmed" check below true before this test's own Confirm click ever
+    // resolves, racing the assertion against the pending probe instead of testing against it.
+    addGroup('clouds');
+    setGroup('clouds', [{ cols: 'TEMP' }]);
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
-    await flush();
-    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
-    setGroup('weather', [{ cols: 'PRES' }]);
+    await waitFor(() => expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull());
+    setGroup('clouds', [{ cols: 'PRES' }]);
     await flush();
     expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
   });
@@ -149,6 +175,19 @@ describe('GroupsEditor', () => {
     fireEvent.click(getByText('Remove'));
     await flush();
     expect(exportCards().groups).toEqual({});
+  });
+
+  it('shows the server\'s finding for an empty group after Confirm', async () => {
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: ['group `g` has no columns'],
+            issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] }
+        : []));
+    importCards({ nodes: [], groups: { g: [] } });
+    const { container, getAllByText } = render(() => <GroupsEditor defs={defs} />);
+    fireEvent.click(getAllByText('Confirm')[0]);
+    await waitFor(() => expect(container.textContent).toMatch(/has no columns/));
+    expect(postRequest.mock.calls.some((c) => c[0] === 'probe-pipeline')).toBe(true);
   });
 });
 

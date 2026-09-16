@@ -6,15 +6,19 @@ import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
 import {
   CARDS_STORE,
+  PROBE_STORE,
   addGroup,
   confirmDefinition,
   isConfirmed,
+  issuesForGroup,
   removeGroup,
   renameGroup,
   setGroup,
+  type CardsStore,
   type Selector,
 } from "../stores";
-import { checkGroup, type Incompleteness } from "../completeness";
+import { askProbe } from "../probe";
+import type { Incompleteness } from "../completeness";
 import { withoutOption, type Defs, type IRNode } from "../ir";
 
 // Authoring `[groups]` — §6's "one picker, two levels".
@@ -29,6 +33,7 @@ import { withoutOption, type Defs, type IRNode } from "../ir";
 
 export function GroupsEditor(props: { defs: Defs }) {
   const [state] = CARDS_STORE;
+  const [probe] = PROBE_STORE;
   const [error, setError] = createSignal<string | null>(null);
   // What Confirm found last time it was pressed, per group. Not run continuously — the step exists
   // so the author says when they are done, not so a panel argues while they type.
@@ -112,19 +117,28 @@ export function GroupsEditor(props: { defs: Defs }) {
                     />
                     <span class="ml-auto flex items-center gap-2">
                       {/*
-                        Unwired, deliberately — placed now so its position can be judged, with the
-                        behaviour still to be designed. The distinction it will carry is
-                        *completeness*, not validity: an empty group passes schema validation
-                        (measured — `weather = []` constructs), and is still not something anyone
-                        meant to define. So Confirm cannot simply run the validator; the validator
-                        says yes.
+                        Asks the probe rather than judging locally: an empty group passes schema
+                        validation (measured — `weather = []` constructs), so completeness here was
+                        never the validator's to answer, and used to be `checkGroup`'s own guess at
+                        it. Since the 2026-09-16 fixes the server reports an empty group itself
+                        (`empty_group_issues`, surfaced as `/groups/<name>`), so Confirm now asks
+                        the same question the continuous probe asks and shows its answer — one
+                        source of truth instead of two that could disagree.
                       */}
                       <Button
                         title="mark this group deliberately finished"
                         onClick={summaryAction(() => {
-                          const found = checkGroup(state.groups[name] ?? []);
-                          setUnfinished({ ...unfinished(), [name]: found });
-                          if (found.length === 0) confirmDefinition(`group:${name}`, state.groups[name]);
+                          void (async () => {
+                            // The server's answer, not ours: an empty group is reported by the
+                            // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
+                            // one rule that used to live here (`checkGroup`) is gone.
+                            const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
+                            const found = issuesForGroup(answer.issues, name).map((issue) => ({
+                              message: issue.message, pointer: issue.pointer,
+                            }));
+                            setUnfinished({ ...unfinished(), [name]: found });
+                            if (found.length === 0) confirmDefinition(`group:${name}`, state.groups[name]);
+                          })();
                         })}
                       >
                         Confirm
@@ -142,6 +156,16 @@ export function GroupsEditor(props: { defs: Defs }) {
                   {(finding: Incompleteness) => (
                     <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
                       {finding.message}
+                    </p>
+                  )}
+                </For>
+                {/* The continuous probe's own finding for this group, live — not only what the
+                    last Confirm captured. A run that failed on this group (Task 5's
+                    `reportRunIssues`) lands here too, without a second Confirm. */}
+                <For each={issuesForGroup(probe.issues, name)}>
+                  {(issue) => (
+                    <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
+                      {issue.message}
                     </p>
                   )}
                 </For>

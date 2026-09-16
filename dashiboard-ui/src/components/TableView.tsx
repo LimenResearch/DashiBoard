@@ -1,6 +1,6 @@
 import { ModuleRegistry, createGrid, GridApi, RowModelType } from "@ag-grid-community/core";
 import { InfiniteRowModelModule } from "@ag-grid-community/infinite-row-model";
-import { createEffect, onSettled } from "solid-js";
+import { createEffect, createMemo, onSettled } from "solid-js";
 
 // Structural first, theme second — and both were missing. `ag-theme-quartz` was on the element
 // while `@ag-grid-community/styles` was not installed at all, so the class named a theme that did
@@ -48,55 +48,51 @@ type TableViewProps = {
 };
 
 export function TableView(props: TableViewProps) {
-  const dataSource = (columnDefs: {length: number}) => {
-    if (columnDefs.length == 0) {
-      return {
-        rowCount: 0,
-        getRows: (params: GetRowsParams) => params.successCallback([], 0),
-      };
-    } else {
-      return {
-        rowCount: undefined, // behave as infinite scroll
-        getRows: (params: GetRowsParams) => {
-          const { startRow, endRow, filterModel, sortModel } = params;
-          const offset = startRow;
-          const limit = endRow - startRow;
-          void postRequest(
-            "fetch-data",
-            {
-              offset,
-              limit,
-              filterModel,
-              sortModel,
-              processed: props.processed,
-            },
-            null,
-          ).then((data: FetchedRows | null) => {
-            if (!data) {
-              params.failCallback();
-              return;
-            }
-            // `data.length` is the table's total row count, not `values.length` — the route
-            // answers `{"values": …, "length": nrows}`. -1 means "more to come", so the grid
-            // keeps asking; a real count is what stops the infinite scroll.
-            const lastRow = data.length <= endRow ? data.length : -1;
-            params.successCallback(data.values, lastRow);
-          });
-        },
-      };
-    }
+  const dataSource = (processed: boolean) => {
+    return {
+      rowCount: undefined, // behave as infinite scroll
+      getRows: (params: GetRowsParams) => {
+        const { startRow, endRow, filterModel, sortModel } = params;
+        const offset = startRow;
+        const limit = endRow - startRow;
+        void postRequest(
+          "fetch-data",
+          {
+            offset,
+            limit,
+            filterModel,
+            sortModel,
+            processed,
+          },
+          null,
+        ).then((data: FetchedRows | null) => {
+          if (!data) {
+            params.failCallback();
+            return;
+          }
+          // `data.length` is the table's total row count, not `values.length` — the route
+          // answers `{"values": …, "length": nrows}`. Handing it over with every block tells
+          // the grid where the table ends from the first page on, so it never asks past it.
+          // Not testable in jsdom (no layout, so the grid never pages); the access log is the
+          // evidence.
+          params.successCallback(data.values, data.length);
+        });
+      },
+    };
   };
 
-  const options = () => {
-    const columnDefs = props.metadata.map((x: Column) => ({
+  // Two effects, not one. The datasource is what the infinite row model pages through, and
+  // handing the grid a *new* one resets its block cache and refetches from row 0 — so it is
+  // built once per `processed` and never rebuilt for a column change. Columns are the cheap
+  // half and update on their own.
+  const datasource = createMemo(() => dataSource(props.processed));
+  const columnDefs = createMemo(() =>
+    props.metadata.map((x: Column) => ({
       field: x.name,
       headerName: x.name,
       valueFormatter: (params: { value: unknown }) => formatter(params.value, x.eltype),
-    }));
-    const datasource = dataSource(columnDefs);
-    const suppressFieldDotNotation = true;
-    return { datasource, columnDefs, suppressFieldDotNotation };
-  };
+    })),
+  );
 
   const gridOptions = {
     defaultColDef: {
@@ -134,9 +130,10 @@ export function TableView(props: TableViewProps) {
     gridApi = createGrid(gridDiv, gridOptions);
   });
 
-  // `onSettled` runs before this fires in practice, but the grid is created there and read
-  // here, so the guard is the difference between a late render and a TypeError.
-  createEffect(options, (next) => gridApi?.updateGridOptions(next));
+  createEffect(datasource, (next) => gridApi?.updateGridOptions({ datasource: next }));
+  createEffect(columnDefs, (next) =>
+    gridApi?.updateGridOptions({ columnDefs: next, suppressFieldDotNotation: true }),
+  );
 
   return <div ref={gridDiv} class={["ag-theme-quartz", props.class ?? "h-96"]} />;
 }

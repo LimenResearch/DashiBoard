@@ -345,6 +345,10 @@ function evaluate_pipeline(req::HTTP.Request)
         cols = String[summary.name for summary in available]
 
         groups = get(spec, "groups", Dict{String, Any}())
+        # Before building: see `empty_group_issues` for why construction cannot report this itself.
+        # No `cols` in this envelope, unlike the probe's: a failure on this route has never carried
+        # one — `failure_report` is `(; valid, kind, errors, issues)` — and the run's client asks
+        # the probe for the column list.
         empty = empty_group_issues(groups)
         isempty(empty) || return json_response((;
             valid = false, kind = "pipeline",
@@ -397,6 +401,9 @@ DuckDB's JSON writer emits bare `NaN` and `Infinity`, which are not JSON: a page
 constant column was unreadable to the browser (A12, measured 2026-09-16). The cast happens in
 SQL so the page is written once and never post-processed as text. Column types come from
 `information_schema`, which is a catalogue lookup — not a pass over the table.
+
+It changes how those rows sort: a non-finite value reaches the sort as `NULL` — last under `ASC`
+in DuckDB — rather than as the `NaN` it used to be.
 """
 function finite_projection(repository, table::AbstractString)
     types = DBInterface.execute(

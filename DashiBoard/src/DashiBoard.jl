@@ -30,6 +30,8 @@ using FunSQL: SQLNode,
     Get,
     Asc,
     Desc,
+    # `Fun` for `finite_projection`'s `CASE WHEN isfinite(col) THEN col END` (handlers.jl): the
+    # projection is built as FunSQL nodes, so the SQL function call needs `Fun` in scope here.
     Fun
 
 using DuckDBUtils: Repository, export_table, to_nrow, colnames

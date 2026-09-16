@@ -146,10 +146,16 @@ export function TableView(props: TableViewProps) {
     gridApi = createGrid(gridDiv, gridOptions);
   });
 
-  createEffect(datasource, (next) => gridApi?.updateGridOptions({ datasource: next }));
+  // Columns before datasource, deliberately. The grid is created with neither, and ag-grid
+  // defers starting the row model until it has columns; that deferred start calls
+  // `setDatasource` itself. Datasource first meant: one cache and one request for block 0, then
+  // the columns arrive, start runs, a second cache replaces the first and asks for block 0
+  // again — every table opened with two `fetch-data` for one page. Columns first, start runs
+  // with no datasource and does nothing; the datasource then builds the one cache.
   createEffect(columnDefs, (next) =>
     gridApi?.updateGridOptions({ columnDefs: next, suppressFieldDotNotation: true }),
   );
+  createEffect(datasource, (next) => gridApi?.updateGridOptions({ datasource: next }));
 
   return <div ref={gridDiv} class={["ag-theme-quartz", props.class ?? "h-96"]} />;
 }

@@ -142,6 +142,36 @@ function validate_card(req::HTTP.Request)
 end
 
 """
+    empty_group_issues(groups)
+
+One `pipeline`-kind issue per group that names no columns.
+
+A group with an empty selector list is a legal document — `weather = []` constructs — and it
+resolves to zero columns, so a card reading it is built with no inputs and dies inside the card
+constructor with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
+smoke check 5). That message names the implementation, not the mistake. Checked here, before the
+pipeline is built, because the group API keeps no provenance from a resolved column list back to
+the group that produced it: by the time construction fails, which group was empty is no longer
+knowable. Reported by the probe and by the run alike, in the same shape as a schema failure, so a
+form addresses the group rather than printing a sentence above the page.
+"""
+function empty_group_issues(groups::AbstractDict)
+    return [
+        (;
+            pointer = "/groups/" * Pipelines.escape_pointer(String(name)),
+            reason = "empty",
+            severity = "error",
+            found = nothing,
+            allowed = nothing,
+            missing = String[],
+            related = String[],
+            message = "group `$(name)` has no columns",
+        )
+            for (name, items) in pairs(groups) if items isa AbstractVector && isempty(items)
+    ]
+end
+
+"""
     probe_pipeline(req)
 
 Resolve a document without running it: which columns each node consumes and emits, and any it
@@ -168,6 +198,13 @@ function probe_pipeline(req::HTTP.Request)
     cols = colnames(REPOSITORY[], "source")
     groups = get(spec, "groups", Dict{String, Any}())
 
+    # Before building: see `empty_group_issues` for why construction cannot report this itself.
+    empty = empty_group_issues(groups)
+    isempty(empty) || return json_response((;
+        valid = false, kind = "pipeline", cols,
+        errors = [issue.message for issue in empty], issues = empty,
+    ))
+
     pipeline = try
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
@@ -192,6 +229,8 @@ function probe_pipeline(req::HTTP.Request)
         (;
             pointer = "/nodes/$(i - 1)/card",
             reason = "unproduced",
+            # an error: nothing produces the column, so the document cannot run
+            severity = "error",
             found = nothing,
             allowed = nothing,
             missing = names,
@@ -268,6 +307,11 @@ function evaluate_pipeline(req::HTTP.Request)
         cols = String[summary.name for summary in available]
 
         groups = get(spec, "groups", Dict{String, Any}())
+        empty = empty_group_issues(groups)
+        isempty(empty) || return json_response((;
+            valid = false, kind = "pipeline",
+            errors = [issue.message for issue in empty], issues = empty,
+        ))
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
         exception isa Exception || rethrow()

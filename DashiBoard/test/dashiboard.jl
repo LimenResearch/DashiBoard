@@ -422,6 +422,44 @@ mktempdir() do data_dir
         @test empty_run["valid"] == true
         @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
 
+        # An empty group is a document the schema accepts (`weather = []` constructs) that
+        # resolves to zero columns; a card reading it used to die inside the card constructor
+        # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
+        # smoke check 5). The probe and the run both name the group instead.
+        reads_empty = JSON.json((;
+            filters = [],
+            nodes = [(; id = "z", card = Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
+            ))],
+            groups = Dict("empty" => []),
+        ))
+        for route in ("probe-pipeline", "evaluate-pipeline")
+            resp = HTTP.post(url * route, body = reads_empty)
+            answer = JSON.parse(resp.body)
+            @test answer["valid"] == false
+            @test answer["kind"] == "pipeline"
+            issue = only(answer["issues"])
+            @test issue["pointer"] == "/groups/empty"
+            @test issue["reason"] == "empty"
+            @test issue["severity"] == "error"
+            @test occursin("empty", issue["message"])
+            @test !occursin("UndefKeywordError", join(answer["errors"]))
+        end
+        # Every issue says how bad it is; a schema failure is an error.
+        two_broken = JSON.json((;
+            filters = [],
+            nodes = [(; id = "a", card = Dict("type" => "cluster")),
+                     (; id = "b", card = Dict("type" => "split"))],
+            groups = Dict{String, Any}(),
+        ))
+        resp = HTTP.post(url * "evaluate-pipeline", body = two_broken)
+        failed = JSON.parse(resp.body)
+        @test failed["valid"] == false && failed["kind"] == "pipeline"
+        @test [i["pointer"] for i in failed["issues"]] == ["/nodes/0/card", "/nodes/1/card"]
+        @test all(i["severity"] == "error" for i in failed["issues"])
+        @test !isempty(failed["errors"])
+
         # ---- keep last: this one runs a pipeline that fails ----
         #
         # A failed run still rebuilds `selection` from `source` before it dies, so it

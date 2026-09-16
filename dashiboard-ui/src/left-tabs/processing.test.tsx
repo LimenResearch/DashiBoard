@@ -173,3 +173,19 @@ describe('the card IR', () => {
     await waitFor(() => expect(container.querySelector('#node-0-rescale-method-variant')).not.toBeNull());
   });
 });
+
+describe('the card header', () => {
+  it('wraps its actions and truncates its title rather than overflowing', async () => {
+    // Check 8 by hand: `dimensionality_reduction : dimensionality_reduction` pushed Remove past
+    // the column's edge. jsdom has no layout, so this pins the classes and the full-text title.
+    importCards({ nodes: [{ id: 'dimensionality_reduction', card: { type: 'dimensionality_reduction' } }], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-card-title]')).not.toBeNull());
+    const summary = container.querySelector('[data-card-title]')!.closest('summary')!;
+    expect(summary.className).toMatch(/flex-wrap/);
+    const title = container.querySelector('[data-card-title]')!;
+    expect(title.className).toMatch(/min-w-0/); expect(title.className).toMatch(/truncate/);
+    expect(title.getAttribute('title')).toBe('dimensionality_reduction : dimensionality_reduction');
+    expect(container.querySelector('[data-card-actions]')!.className).toMatch(/shrink-0/);
+  });
+});

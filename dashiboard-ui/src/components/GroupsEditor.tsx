@@ -106,30 +106,39 @@ export function GroupsEditor(props: { defs: Defs }) {
                 summary={
                   <>
                     {/* Folded, this is the whole group: the key it is referred to by, and its
-                        name. A pipeline with six groups should read as six lines. */}
-                    <span class="text-control-xs font-semibold text-primary">name</span>
-                    <span class="text-muted-foreground">:</span>
-                    <span class="font-mono text-control-xs">{name}</span>
-                    {/* Orange when the last Confirm found something: the warning renders inside
-                        the body, which announces nothing while the group is folded. */}
+                        name. A pipeline with six groups should read as six lines. A long group
+                        name used to push Confirm/Remove past the pane's edge; `truncate` on this
+                        wrapper makes the title give way instead, and the full text still reaches
+                        the reader through `title`. */}
                     <span
-                      data-state={groupState(name)}
-                      aria-label={groupState(name)}
-                      title={
-                        groupState(name) === "incomplete"
-                          ? "unfinished — open to see why"
-                          : groupState(name)
-                      }
-                      class={[
-                        "ml-1 h-2 w-2 shrink-0 rounded-full",
-                        {
-                          "bg-success": groupState(name) === "confirmed",
-                          "bg-warning": groupState(name) === "incomplete",
-                          "border border-muted-foreground": groupState(name) === "unconfirmed",
-                        },
-                      ]}
-                    />
-                    <span class="ml-auto flex items-center gap-2">
+                      data-group-title
+                      title={`name : ${name}`}
+                      class="flex min-w-0 items-center gap-1.5 truncate"
+                    >
+                      <span class="text-control-xs font-semibold text-primary">name</span>
+                      <span class="text-muted-foreground">:</span>
+                      <span class="font-mono text-control-xs">{name}</span>
+                      {/* Orange when the last Confirm found something: the warning renders inside
+                          the body, which announces nothing while the group is folded. */}
+                      <span
+                        data-state={groupState(name)}
+                        aria-label={groupState(name)}
+                        title={
+                          groupState(name) === "incomplete"
+                            ? "unfinished — open to see why"
+                            : groupState(name)
+                        }
+                        class={[
+                          "ml-1 h-2 w-2 shrink-0 rounded-full",
+                          {
+                            "bg-success": groupState(name) === "confirmed",
+                            "bg-warning": groupState(name) === "incomplete",
+                            "border border-muted-foreground": groupState(name) === "unconfirmed",
+                          },
+                        ]}
+                      />
+                    </span>
+                    <span data-group-actions class="ml-auto flex shrink-0 items-center gap-2">
                       {/*
                         Asks the probe rather than judging locally: an empty group passes schema
                         validation (measured — `weather = []` constructs), so completeness here was

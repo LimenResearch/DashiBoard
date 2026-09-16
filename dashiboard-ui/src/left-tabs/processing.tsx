@@ -399,37 +399,46 @@ export function Cards() {
               summary={
                 <>
                   {/* Folded, this line is all that survives — so it says what the card is and
-                      which name the rest of the document refers to it by. */}
-                  <span class="font-mono text-control-xs font-semibold text-primary">
-                    {String(node.card.type)}
-                  </span>
-                  <span class="text-muted-foreground">:</span>
-                  <span class="font-mono text-control-xs">
-                    {node.id || <span class="text-destructive italic">unnamed</span>}
-                  </span>
-                  {/*
-                    Orange when the last Confirm found something. Folded, this dot is the only
-                    thing on screen, so a warning that renders inside the body announces itself
-                    nowhere — which is the state this third colour exists for.
-                  */}
+                      which name the rest of the document refers to it by. A long type name (e.g.
+                      `dimensionality_reduction`) used to push Confirm/Remove past the pane's edge;
+                      `truncate` on this wrapper makes the title give way instead, and the full
+                      text still reaches the reader through `title`. */}
                   <span
-                    data-state={nodeState()}
-                    aria-label={nodeState().replace("-", " ")}
-                    title={
-                      nodeState() === "incomplete"
-                        ? "unfinished — open to see why"
-                        : nodeState()
-                    }
-                    class={[
-                      "ml-1 h-2 w-2 shrink-0 rounded-full",
-                      {
-                        "bg-success": nodeState() === "confirmed",
-                        "bg-warning": nodeState() === "incomplete",
-                        "border border-muted-foreground": nodeState() === "unconfirmed",
-                      },
-                    ]}
-                  />
-                  <span class="ml-auto flex items-center gap-2">
+                    data-card-title
+                    title={`${String(node.card.type)} : ${node.id || "unnamed"}`}
+                    class="flex min-w-0 items-center gap-1.5 truncate"
+                  >
+                    <span class="font-mono text-control-xs font-semibold text-primary">
+                      {String(node.card.type)}
+                    </span>
+                    <span class="text-muted-foreground">:</span>
+                    <span class="font-mono text-control-xs">
+                      {node.id || <span class="text-destructive italic">unnamed</span>}
+                    </span>
+                    {/*
+                      Orange when the last Confirm found something. Folded, this dot is the only
+                      thing on screen, so a warning that renders inside the body announces itself
+                      nowhere — which is the state this third colour exists for.
+                    */}
+                    <span
+                      data-state={nodeState()}
+                      aria-label={nodeState().replace("-", " ")}
+                      title={
+                        nodeState() === "incomplete"
+                          ? "unfinished — open to see why"
+                          : nodeState()
+                      }
+                      class={[
+                        "ml-1 h-2 w-2 shrink-0 rounded-full",
+                        {
+                          "bg-success": nodeState() === "confirmed",
+                          "bg-warning": nodeState() === "incomplete",
+                          "border border-muted-foreground": nodeState() === "unconfirmed",
+                        },
+                      ]}
+                    />
+                  </span>
+                  <span data-card-actions class="ml-auto flex shrink-0 items-center gap-2">
                     {/*
                       The distinction it carries is *completeness*, not validity, and the two come
                       apart in both directions: an empty group passes schema validation (measured —

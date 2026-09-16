@@ -460,6 +460,30 @@ mktempdir() do data_dir
         @test all(i["severity"] == "error" for i in failed["issues"])
         @test !isempty(failed["errors"])
 
+        # A13: two cards emitting the same column name. The second silently replaced the first's
+        # output (and a source column would be replaced the same way — `rescale TEMP suffix =
+        # "rescaled"` over a source with `TEMP_rescaled`, measured 2026-09-13 and on 1M rows
+        # 2026-09-16). A warning, not a rejection: overwriting can be meant.
+        same_name = JSON.json((;
+            filters = [],
+            nodes = [
+                (; id = "one", card = Dict("type" => "rescale", "method" => Dict("type" => "zscore"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+                (; id = "two", card = Dict("type" => "rescale", "method" => Dict("type" => "minmax"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+            ],
+            groups = Dict{String, Any}(),
+        ))
+        resp = HTTP.post(url * "probe-pipeline", body = same_name)
+        probed = JSON.parse(resp.body)
+        @test probed["valid"] == true
+        warning = only(i for i in probed["issues"] if i["reason"] == "overwrites")
+        @test warning["severity"] == "warning"
+        @test warning["pointer"] == "/nodes/1/card"
+        @test occursin("TEMP_z", warning["message"])
+        resp = HTTP.post(url * "evaluate-pipeline", body = same_name)
+        @test JSON.parse(resp.body)["valid"] == true
+
         # ---- keep last: this one runs a pipeline that fails ----
         #
         # A failed run still rebuilds `selection` from `source` before it dies, so it

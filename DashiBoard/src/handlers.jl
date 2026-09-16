@@ -172,6 +172,42 @@ function empty_group_issues(groups::AbstractDict)
 end
 
 """
+    overwrite_warnings(pipeline, cols)
+
+A warning per node whose outputs replace a column that already exists — in the source, or emitted
+by an earlier node.
+
+`rescale TEMP suffix = "rescaled"` against a source that already holds `TEMP_rescaled` is accepted
+at every layer and silently replaces the column (A13, measured 2026-09-13 and on 1M rows
+2026-09-16). Overwriting can be meant, so `severity = "warning"`: `valid` stays true and the run is
+allowed; the form shows it on the card. Nodes are walked in document order, so the later of two
+cards emitting the same name is the one warned, and a name is compared against everything that
+exists *before* the node runs.
+"""
+function overwrite_warnings(pipeline, cols::AbstractVector)
+    seen = Set{String}(cols)
+    warnings = []
+    for (i, node) in enumerate(pipeline.nodes)
+        outputs = Pipelines.get_node_outputs(node)
+        clashing = [name for name in outputs if name in seen]
+        if !isempty(clashing)
+            push!(warnings, (;
+                pointer = "/nodes/$(i - 1)/card",
+                reason = "overwrites",
+                severity = "warning",
+                found = nothing,
+                allowed = nothing,
+                missing = String[],
+                related = String[],
+                message = join(("`$(name)` already exists and will be replaced" for name in clashing), "; "),
+            ))
+        end
+        union!(seen, outputs)
+    end
+    return warnings
+end
+
+"""
     probe_pipeline(req)
 
 Resolve a document without running it: which columns each node consumes and emits, and any it
@@ -260,7 +296,9 @@ function probe_pipeline(req::HTTP.Request)
         errors = String[],
         # Always present, so a client can read one shape rather than branch on which half of the
         # route answered.
-        issues = unproduced_issues,
+        # Errors first, then warnings: a client reading the list top-down sees what blocks the
+        # run before what merely deserves a look.
+        issues = vcat(unproduced_issues, overwrite_warnings(pipeline, cols)),
     ))
 end
 

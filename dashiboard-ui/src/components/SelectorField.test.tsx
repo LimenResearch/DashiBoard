@@ -234,11 +234,16 @@ describe('SelectorField', () => {
     // `rows()` was a plain function called from every row's `casesFor`, the chip list, the writes
     // strip and the tab counts — O(values × items) expansions per render.
     const spy = vi.spyOn(selector, 'expand');
-    render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs"
-        value={[{ cols: ['TEMP', 'PRES'] }]} onChange={() => {}} />
-    ));
-    expect(spy.mock.calls.length).toBeLessThanOrEqual(2);   // mount, plus at most one settle
-    spy.mockRestore();
+    // `finally`, because a failing assertion would otherwise leave the spy on the module for
+    // every test that runs after it — this suite does not isolate modules between files.
+    try {
+      render(() => (
+        <SelectorField itemNode={itemNode} defs={defs} label="inputs"
+          value={[{ cols: ['TEMP', 'PRES'] }]} onChange={() => {}} />
+      ));
+      expect(spy.mock.calls.length).toBeLessThanOrEqual(2);   // mount, plus at most one settle
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -298,9 +298,61 @@ export function setGroup(name: string, items: Selector[]) {
   });
 }
 
+/**
+ * Every selector item in the document, with a callback that returns the item to keep — or
+ * `null` to drop it.
+ *
+ * A selector is *structural*: any array whose objects carry `cols` / `groups` / `nodes` /
+ * `through`. Walked that way rather than by asking the IR which fields are selectors, so a field
+ * this UI has never heard of is covered too. Items left with no value are dropped, and a group's
+ * own selector list is walked like a card's — groups may name groups.
+ */
+function forEachSelector(draft: CardsStore, edit: (item: Selector) => Selector | null) {
+  const isSelector = (v: unknown): v is Selector[] =>
+    Array.isArray(v) && v.every((x) => x && typeof x === "object" &&
+      ["cols", "groups", "nodes", "through"].some((k) => k in (x as object)));
+  const walk = (holder: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(holder)) {
+      if (isSelector(value)) {
+        holder[key] = value.map(edit).filter((item): item is Selector => item !== null);
+      } else if (value && typeof value === "object" && !Array.isArray(value)) {
+        walk(value as Record<string, unknown>);
+      }
+    }
+  };
+  for (const node of draft.nodes) walk(node.card as Record<string, unknown>);
+  for (const name of Object.keys(draft.groups)) {
+    draft.groups[name] = draft.groups[name].map(edit).filter((item): item is Selector => item !== null);
+  }
+}
+
+/** `{kind: value}` with `name` taken out of the kind's one-or-many value; `null` when nothing is left. */
+function dropName(item: Selector, kind: "groups" | "nodes", name: string): Selector | null {
+  const out: Selector = { ...item };
+  const value = out[kind];
+  const rest = (Array.isArray(value) ? value : value === undefined ? [] : [value]).filter((v) => v !== name);
+  if (Array.isArray(value) || value === undefined) { if (rest.length === 0) delete out[kind]; else out[kind] = rest; }
+  else if (value === name) delete out[kind];
+  if (Array.isArray(out.through)) {
+    out.through = out.through.filter((v) => v !== name);
+    if (out.through.length === 0) delete out.through;
+  }
+  return "cols" in out || "groups" in out || "nodes" in out ? out : null;
+}
+
+function renameIn(item: Selector, kind: "groups" | "nodes", from: string, to: string): Selector {
+  const out: Selector = { ...item };
+  const value = out[kind];
+  if (Array.isArray(value)) out[kind] = value.map((v) => (v === from ? to : v));
+  else if (value === from) out[kind] = to;
+  if (Array.isArray(out.through)) out.through = out.through.map((v) => (v === from ? to : v));
+  return out;
+}
+
 export function removeGroup(name: string) {
   setCards((draft) => {
     delete draft.groups[name];
+    forEachSelector(draft, (item) => dropName(item, "groups", name));
   });
 }
 
@@ -324,6 +376,7 @@ export function renameGroup(from: string, to: string): boolean {
     draft.groups = Object.fromEntries(
       Object.entries(draft.groups).map(([key, value]) => [key === from ? to : key, value]),
     );
+    forEachSelector(draft, (item) => renameIn(item, "groups", from, to));
   });
   return renamed;
 }
@@ -331,13 +384,17 @@ export function renameGroup(from: string, to: string): boolean {
 /** Rename a node. The card is untouched: the id belongs to the wrapper, not the card. */
 export function setNodeId(nodeIndex: number, id: string) {
   setCards((draft) => {
+    const from = draft.nodes[nodeIndex].id;
     draft.nodes[nodeIndex].id = id;
+    if (from && from !== id) forEachSelector(draft, (item) => renameIn(item, "nodes", from, id));
   });
 }
 
 export function removeNode(nodeIndex: number) {
   setCards((draft) => {
+    const id = draft.nodes[nodeIndex]?.id;
     draft.nodes.splice(nodeIndex, 1);
+    if (id) forEachSelector(draft, (item) => dropName(item, "nodes", id));
   });
 }
 

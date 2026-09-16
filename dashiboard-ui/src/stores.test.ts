@@ -276,3 +276,42 @@ describe('the stores survive a reload', () => {
     expect(isConfirmed('node:0', { type: 'rescale' })).toBe(true);
   });
 });
+
+describe('references follow the thing they name', () => {
+  // Check 6 by hand: deleting the group `empty` left `groups:empty` on the card, with no way to
+  // remove it — the picker only offers switches for values in the vocabulary.
+  const doc = () => ({
+    nodes: [
+      { id: 'r', card: { type: 'rescale', inputs: [{ groups: 'g' }, { cols: 'TEMP' }], group_by: [{ groups: 'g' }] } },
+      { id: 's', card: { type: 'rescale', inputs: [{ nodes: 'r' }, { cols: 'PRES', through: ['r'] }] } },
+    ],
+    groups: { g: [{ cols: ['TEMP'] }], h: [{ groups: 'g' }, { cols: 'PRES' }] },
+  });
+  it('removeGroup drops every item naming the group', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.removeGroup('g'); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[0].card.inputs).toEqual([{ cols: 'TEMP' }]);
+    expect(out.nodes[0].card.group_by).toEqual([]);
+    expect(out.groups.h).toEqual([{ cols: 'PRES' }]);
+  });
+  it('renameGroup rewrites them', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.renameGroup('g', 'wind'); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[0].card.inputs).toEqual([{ groups: 'wind' }, { cols: 'TEMP' }]);
+    expect(out.groups.h[0]).toEqual({ groups: 'wind' });
+  });
+  it('removeNode drops nodes: items and through entries', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.removeNode(0); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[0].card.inputs).toEqual([{ cols: 'PRES' }]);   // `through: ['r']` gone with r
+  });
+  it('setNodeId rewrites nodes: items and through entries', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.setNodeId(0, 'rescaled'); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[1].card.inputs).toEqual([{ nodes: 'rescaled' }, { cols: 'PRES', through: ['rescaled'] }]);
+  });
+});

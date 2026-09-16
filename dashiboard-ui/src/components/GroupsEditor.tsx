@@ -51,6 +51,20 @@ export function GroupsEditor(props: { defs: Defs }) {
   // The `$defs/variable` node: one item of a selector list, which is exactly what a group holds.
   const itemNode = () => (props.defs.variable ?? {}) as IRNode;
 
+  /**
+   * What the last Confirm found, minus whatever the continuous probe already shows live.
+   *
+   * Both lists can carry the same finding — Confirm's own `askProbe` answer and `PROBE_STORE`
+   * (fed by the continuous probe, and by a failed run's issues via `reportRunIssues`) are two
+   * independent askings of the same question, and the server's empty-group message doesn't stop
+   * existing just because it was asked for twice. Filtering by message rather than merging the
+   * lists keeps this the *fallback* — an item the live list cannot see yet renders here still.
+   */
+  const staleFindings = (name: string) => {
+    const live = issuesForGroup(probe.issues, name).map((issue) => issue.message);
+    return (unfinished()[name] ?? []).filter((finding) => !live.includes(finding.message));
+  };
+
   function rename(from: string, field: HTMLInputElement) {
     const to = field.value.trim();
     if (renameGroup(from, to)) {
@@ -121,23 +135,30 @@ export function GroupsEditor(props: { defs: Defs }) {
                         validation (measured — `weather = []` constructs), so completeness here was
                         never the validator's to answer, and used to be `checkGroup`'s own guess at
                         it. Since the 2026-09-16 fixes the server reports an empty group itself
-                        (`empty_group_issues`, surfaced as `/groups/<name>`), so Confirm now asks
+                        (`empty_group_issues`, surfaced as `/groups/<name>`), Confirm now asks
                         the same question the continuous probe asks and shows its answer — one
                         source of truth instead of two that could disagree.
                       */}
                       <Button
                         title="mark this group deliberately finished"
                         onClick={summaryAction(() => {
+                          // Captured now, synchronously, before any `await` — not read back off
+                          // `state` once the probe answers. Mirrors `confirmNode` in
+                          // processing.tsx, which reads `state.nodes[index]` the same way: an edit
+                          // made while the request is in flight must confirm nothing, rather than
+                          // silently getting stamped as the thing that was probed.
+                          const items = state.groups[name];
+                          const document = JSON.parse(JSON.stringify(state)) as CardsStore;
                           void (async () => {
                             // The server's answer, not ours: an empty group is reported by the
                             // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
                             // one rule that used to live here (`checkGroup`) is gone.
-                            const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
+                            const answer = await askProbe(document);
                             const found = issuesForGroup(answer.issues, name).map((issue) => ({
                               message: issue.message, pointer: issue.pointer,
                             }));
                             setUnfinished({ ...unfinished(), [name]: found });
-                            if (found.length === 0) confirmDefinition(`group:${name}`, state.groups[name]);
+                            if (found.length === 0) confirmDefinition(`group:${name}`, items);
                           })();
                         })}
                       >
@@ -151,8 +172,9 @@ export function GroupsEditor(props: { defs: Defs }) {
                 }
               >
                 {/* Warning rather than destructive: an empty group is legal and would run. It
-                    would simply select nothing, which the schema has no way to say. */}
-                <For each={unfinished()[name] ?? []}>
+                    would simply select nothing, which the schema has no way to say. Filtered
+                    against the live list just below — the same finding does not render twice. */}
+                <For each={staleFindings(name)}>
                   {(finding: Incompleteness) => (
                     <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
                       {finding.message}

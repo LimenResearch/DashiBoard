@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { flush, reconcile } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
-import { importCards, exportCards, emptyCards, addGroup, setGroup } from '../stores';
+import {
+  importCards, exportCards, emptyCards, addGroup, setGroup, forgetConfirmation,
+  isConfirmed, PROBE_STORE, emptyProbe, reportRunIssues,
+} from '../stores';
 import type { Defs } from '../ir';
 import payload from '../fixtures/card-ir.json';
 
@@ -21,6 +24,14 @@ const mount = () => render(() => <GroupsEditor defs={defs} />);
 const nameFields = (c: HTMLElement) =>
   [...c.querySelectorAll('input[aria-label="group name"]')] as HTMLInputElement[];
 
+// Every group name any test in this file confirms. `confirmations` (`stores.ts`) is a
+// module-level signal that reads `sessionStorage` once, at import — so it outlives every test in
+// this file no matter what `importCards` resets, and a name two tests both confirm would let the
+// second inherit the first's mark before its own Confirm ever runs. `forgetConfirmation` clears
+// each key explicitly, rather than picking fresh names per test, so this stays true regardless of
+// which test happens to run first or what name a new test reaches for next.
+const GROUP_NAMES = ['weather', 'g', 'a', 'b', 'other'];
+
 afterEach(cleanup);
 beforeEach(() => {
   // A clean probe by default — most of this file's tests never open the network tab, so a reply
@@ -28,6 +39,10 @@ beforeEach(() => {
   postRequest.mockReset();
   postRequest.mockImplementation(() => Promise.resolve([]));
   importCards(emptyCards());
+  for (const name of GROUP_NAMES) forgetConfirmation(`group:${name}`);
+  // `PROBE_STORE` is a module-level store too, same reasoning as `GROUP_NAMES` above: a test that
+  // seeds it (a failed run's issues, say) must not leak that into the next test's render.
+  PROBE_STORE[1](reconcile(emptyProbe()));
 });
 
 describe('GroupsEditor', () => {
@@ -151,21 +166,41 @@ describe('GroupsEditor', () => {
   it('un-confirms itself when the group is edited afterwards', async () => {
     // The signature changes, so the confirmation stops matching. A flag would have gone stale and
     // claimed the author had finished something they then changed.
-    //
-    // A name of its own, not `weather`: `confirmations` is a module-level signal (persisted, but
-    // read from `sessionStorage` only once, at import) and so outlives any one test in this file —
-    // an earlier test already confirms `group:weather` at this exact signature, and reusing it
-    // would make the "confirmed" check below true before this test's own Confirm click ever
-    // resolves, racing the assertion against the pending probe instead of testing against it.
-    addGroup('clouds');
-    setGroup('clouds', [{ cols: 'TEMP' }]);
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
     await waitFor(() => expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull());
-    setGroup('clouds', [{ cols: 'PRES' }]);
+    setGroup('weather', [{ cols: 'PRES' }]);
     await flush();
     expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
+  });
+
+  it('confirms what was probed, not what the group became while the probe was in flight', async () => {
+    // A deferred reply, held open on purpose: the request is a round trip, and an edit landing in
+    // that window is a real possibility, not a contrived one. `state.groups[name]` read once the
+    // probe answers would capture the *edited* content and confirm a group nobody asked to probe.
+    let resolveProbe!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { resolveProbe = resolve; });
+    postRequest.mockImplementation((page: string) =>
+      page === 'probe-pipeline' ? pending : Promise.resolve([]));
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    const { getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await flush();
+    // Edited while the request is still in flight — before the probe has answered anything.
+    setGroup('weather', []);
+    await flush();
+    resolveProbe({ valid: true, kind: 'pipeline', cols: [], nodes: [], errors: [], issues: [] });
+    await flush();
+    await flush();
+    // Confirmed against what was actually sent to the probe...
+    expect(isConfirmed('group:weather', [{ cols: 'TEMP' }])).toBe(true);
+    // ...not against what the group turned into before the answer came back.
+    expect(isConfirmed('group:weather', exportCards().groups.weather)).toBe(false);
   });
 
   it('removes a group', async () => {
@@ -188,6 +223,30 @@ describe('GroupsEditor', () => {
     fireEvent.click(getAllByText('Confirm')[0]);
     await waitFor(() => expect(container.textContent).toMatch(/has no columns/));
     expect(postRequest.mock.calls.some((c) => c[0] === 'probe-pipeline')).toBe(true);
+  });
+
+  it('shows one finding, not the last Confirm\'s copy and the live probe\'s copy both', async () => {
+    // A run can fail on this group before Confirm is ever clicked (Task 5's `reportRunIssues`),
+    // which is what seeds `PROBE_STORE` here. Confirm then asks the same question itself and gets
+    // the identical answer back — the server has one opinion about an empty group, asked twice.
+    const issue = {
+      pointer: '/groups/g', reason: 'empty', severity: 'error' as const, found: null,
+      allowed: null, missing: [], related: [], message: 'group `g` has no columns',
+    };
+    reportRunIssues([issue]);
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: [issue.message], issues: [issue] }
+        : []));
+    importCards({ nodes: [], groups: { g: [] } });
+    const { container, getAllByText } = render(() => <GroupsEditor defs={defs} />);
+    // The live block already shows the seeded issue before any click — so waiting on the message
+    // alone would pass the instant `reportRunIssues` renders, before Confirm's own copy exists to
+    // (wrongly) join it. Waiting for `incomplete` instead — which only Confirm's own answer sets —
+    // guarantees both copies are on screen by the time the count below is taken.
+    fireEvent.click(getAllByText('Confirm')[0]);
+    await waitFor(() => expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull());
+    expect(container.textContent.split('has no columns').length - 1).toBe(1);
   });
 });
 

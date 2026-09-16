@@ -4,7 +4,7 @@ import { Button } from "../components/Button";
 import { FilePicker } from "../components/FilePicker";
 import { TableView } from "../components/TableView";
 import { postRequest } from "../requests";
-import { LOADER_JSON, LOADER_STORE, type LoaderStore } from "../stores";
+import { LOADER_JSON, LOADER_STORE, FILTERS_STORE, type LoaderStore } from "../stores";
 
 export function Loader() {
   const [state, setState] = LOADER_STORE;
@@ -27,11 +27,28 @@ export function Loader() {
 
   function loadData() {
     setLoading(true);
+    // Capture the before state (column names) at the top of loadData, synchronously, not inside
+    // the promise callback — Solid 2 does not warn for reads in promise callbacks, but we compute
+    // `before` here rather than inside `.then` to be safe and clear.
+    const before = state.map((s) => s.name).sort().join(" ");
+
     // A Solid 2 store setter takes a *function*, so `.then(setState)` handed it the response array
     // and nothing was stored — every column vocabulary downstream stayed empty with no error.
     // `reconcile` is the idiomatic wholesale replace.
     postRequest("load-files", { files: files() }, [])
-      .then((summaries: LoaderStore) => setState(reconcile(summaries ?? [])))
+      .then((summaries: LoaderStore) => {
+        const next = summaries ?? [];
+        // Filters are authored against one table's columns. A table with different columns
+        // makes them meaningless — a list filter on `cbwd` over a table with no `cbwd` failed
+        // the run (measured 2026-09-16) — so a changed column set clears them; the same names
+        // (the CSV and the parquet of one dataset) keep them.
+        const after = next.map((s) => s.name).sort().join(" ");
+        if (before !== after) {
+          const [, setFilters] = FILTERS_STORE;
+          setFilters(reconcile({ numerical: {}, categorical: {} }));
+        }
+        setState(reconcile(next));
+      })
       .finally(() => setLoading(false));
   }
 

@@ -508,3 +508,11 @@ end
     # A field with no declared default still says so, rather than inventing one.
     @test method.default_option === nothing
 end
+
+@testset "a document with no cards" begin
+    # A filter-only run — filter the source, run, look — and the probe of a document whose last
+    # card was just removed both build a `Pipeline` with zero nodes. Measured 2026-09-16: the
+    # `reduce(vcat, ...)` over zero node outputs threw "reducing over an empty collection".
+    p = Pipelines.Pipeline(Any[], Dict{String, Any}(), ["TEMP", "PRES"])
+    @test Pipelines.get_output_vars(p) == String[]
+end

@@ -410,6 +410,17 @@ mktempdir() do data_dir
             "Content-Length" => "0",
         ]
 
+        # A14: a document with no cards. Filter-only is a legitimate run (filter, run, look), and
+        # the probe of an empty document is what the UI sends when the last card is removed.
+        # Placed before the failing-run block below: this run succeeds and leaves `selection`
+        # equal to `source`, which that block's CSV assertion tolerates.
+        body = JSON.json((; filters = [], nodes = [], groups = Dict{String, Any}()))
+        resp = HTTP.post(url * "probe-pipeline", body = body)
+        @test JSON.parse(resp.body)["valid"] == true
+        resp = HTTP.post(url * "evaluate-pipeline", body = body)
+        empty_run = JSON.parse(resp.body)
+        @test empty_run["valid"] == true
+        @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
 
         # ---- keep last: this one runs a pipeline that fails ----
         #

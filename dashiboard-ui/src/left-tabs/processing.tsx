@@ -33,6 +33,7 @@ import {
 } from "../stores";
 import { defaultsFor, withoutOption, type Defs, type IRNode } from "../ir";
 import { checkNode, type Incompleteness } from "../completeness";
+import { askProbe } from "../probe";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -137,19 +138,6 @@ export function Cards() {
     return self ? withoutOption(defs, "node", self) : defs;
   };
 
-  /** Coerce a probe reply into something the store can hold, whatever the server sent. */
-  const usableProbe = (result: unknown): ProbeStore => {
-    const reported = result as ProbeStore | null;
-    const ok = reported !== null && typeof reported === "object" &&
-      Array.isArray(reported.nodes) && Array.isArray(reported.errors);
-    return ok ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] } : emptyProbe();
-  };
-
-  /** Ask once and get the shape back. Confirm uses this; the continuous probe below does too. */
-  async function askProbe(document: CardsStore): Promise<ProbeStore> {
-    return usableProbe(await postRequest("probe-pipeline", document, null));
-  }
-
   // The continuous probe. Three things it does that a plain effect did not:
   //
   //   * reads the document from `CARDS_JSON`, which persistence already serialises — one deep
@@ -210,6 +198,9 @@ export function Cards() {
    */
   const issueFindings = (issues: readonly ProbeIssue[]): Incompleteness[] =>
     issues.flatMap((issue) => {
+      if (issue.severity === "warning") {
+        return [{ message: issue.message, pointer: issue.pointer, severity: "warning" as const }];
+      }
       if (issue.missing.length > 0) {
         return issue.missing.map((name, at) => ({
           message: "needs a value",
@@ -254,8 +245,12 @@ export function Cards() {
    * any schema failure `validate-card` could not see because it needs the other cards.
    */
   const graphFindings = (answer: ProbeStore, index: number): Incompleteness[] => {
+    // A warning never counts as unfinished — it still renders live through the probe path, in
+    // the warning style, but does not stop Confirm from marking the card done.
     const schema = issueFindings(
-      issuesForNode(answer.issues, index).filter((issue) => issue.reason !== "unproduced"),
+      issuesForNode(answer.issues, index).filter(
+        (issue) => issue.reason !== "unproduced" && issue.severity !== "warning",
+      ),
     );
     const absent = answer.nodes[index]?.unproduced ?? [];
     return absent.length > 0
@@ -507,7 +502,15 @@ export function Cards() {
             </For>
             <For each={schemaIssuesForNode(index())}>
               {(issue: ProbeIssue) => (
-                <p class="mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive">
+                <p
+                  data-issue-severity={issue.severity ?? "error"}
+                  class={[
+                    "mb-2 rounded-sm border p-2 text-control-xs",
+                    issue.severity === "warning"
+                      ? "border-warning/40 bg-warning/10 text-foreground"
+                      : "border-destructive/30 bg-destructive/10 text-destructive",
+                  ]}
+                >
                   <Show when={fieldPath(issue.pointer) !== ""}>
                     <span class="font-mono">{fieldPath(issue.pointer)}</span>{" — "}
                   </Show>

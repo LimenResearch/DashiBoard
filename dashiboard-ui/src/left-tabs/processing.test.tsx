@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, waitFor } from '@solidjs/testing-library';
+import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import { importCards, addGroup, setNodeId } from '../stores';
@@ -135,6 +135,26 @@ describe('the continuous probe', () => {
     cleanup();                                                     // the tab goes away first
     await new Promise((r) => setTimeout(r, 300)); await flush();
     expect(probeCalls().length).toBe(before);
+  });
+});
+
+describe('a warning from the probe', () => {
+  it('renders in the warning style and does not block Confirm', async () => {
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(
+        page === 'get-card-ir' ? structuredClone(payload)
+        : page === 'probe-pipeline' ? { ...CLEAN_PROBE, issues: [{ pointer: '/nodes/0/card', reason: 'overwrites', severity: 'warning', found: null, allowed: null, missing: [], related: [], message: '`TEMP_z` already exists and will be replaced' }] }
+        : page === 'validate-card' ? { valid: true, issues: [] }
+        : [],
+      ),
+    );
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-issue-severity="warning"]')).not.toBeNull());
+    expect(container.querySelector('[data-issue-severity="warning"]')!.className).toMatch(/warning/);
+    // `getAllByText('Confirm')[0]` would press the groups editor's Confirm — it renders above the
+    // cards and `beforeEach` seeds group `g`. The card's own Confirm carries this title.
+    fireEvent.click(container.querySelector('button[title="mark this card deliberately finished"]')!);
+    await waitFor(() => expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull());
   });
 });
 

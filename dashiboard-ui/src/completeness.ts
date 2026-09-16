@@ -51,6 +51,8 @@ export type Incompleteness = {
    * from the server render through one code path and read the same way.
    */
   pointer?: string;
+  /** A probe finding carries this through; a UI-only check has none and reads as an error. */
+  severity?: "error" | "warning";
 };
 
 /**

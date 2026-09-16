@@ -134,6 +134,9 @@ export type ProbeNode = {
 export type ProbeIssue = {
   pointer: string;
   reason: string;
+  /** How bad: an error blocks the run; a warning (a column about to be overwritten) does not.
+   *  Absent from an older server means error. */
+  severity?: "error" | "warning";
   found: unknown;
   allowed: unknown[] | null;
   missing: string[];
@@ -171,6 +174,15 @@ export function issuesForNode(issues: ProbeIssue[], nodeIndex: number): ProbeIss
   });
 }
 
+/** The issues addressing one group — `/groups/<name>` and anything below it. */
+export function issuesForGroup(issues: ProbeIssue[], name: string): ProbeIssue[] {
+  const want = ["", "groups", name.replace(/~/g, "~0").replace(/\//g, "~1")];
+  return issues.filter((issue) => {
+    const parts = issue.pointer.split("/");
+    return want.every((segment, i) => parts[i] === segment);
+  });
+}
+
 const unescapeToken = (token: string) => token.replace(/~1/g, "/").replace(/~0/g, "~");
 
 /**
@@ -191,6 +203,19 @@ export function fieldPath(pointer: string): string {
 // Not persisted: it is derived from the document and recomputes within 200 ms of load (Task 6).
 // Persisting it would cost a write per probe for a value that is about to be replaced.
 export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
+
+/**
+ * A run that failed to build says where, in the probe's shape — so the cards show it as they
+ * show a probe finding. Written into `PROBE_STORE` rather than kept by the results pane: the
+ * cards already read one place, and the next edit's probe replaces this as it replaces any result.
+ */
+export function reportRunIssues(issues: ProbeIssue[]) {
+  const [, setProbe] = PROBE_STORE;
+  setProbe((draft) => {
+    draft.valid = false;
+    draft.issues = issues;
+  });
+}
 
 const cardsPersisted = persisted<CardsStore>("dashi.cards", emptyCards());
 export const CARDS_STORE: [Store<CardsStore>, StoreSetter<CardsStore>] = [cardsPersisted[0], cardsPersisted[1]];

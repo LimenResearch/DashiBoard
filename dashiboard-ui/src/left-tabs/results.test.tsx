@@ -235,3 +235,25 @@ describe('Results', () => {
     expect(Object.keys(body as object).sort()).toEqual(['filters', 'groups', 'nodes']);
   });
 });
+
+describe('a run that failed to build', () => {
+  it('puts the server\'s issues on the cards and names the count', async () => {
+    // Check 12 by hand: two incomplete cards, Run → the pane showed JSONSchema.jl's raw text
+    // while Confirm on the same card showed two field pointers. Same fault, one rendering.
+    importCards({ nodes: [{ id: 'a', card: { type: 'cluster' } }, { id: 'b', card: { type: 'split' } }], groups: {} });
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'evaluate-pipeline'
+        ? { valid: false, kind: 'pipeline', errors: ['2 schema validation errors: …'],
+            issues: [
+              { pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null, allowed: null, missing: ['method', 'inputs'], related: ['/nodes/0/card/method', '/nodes/0/card/inputs'], message: 'x' },
+              { pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null, allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'y' },
+            ] }
+        : []));
+    const { container, getByText } = render(() => <Results />);
+    fireEvent.click(getByText(/run pipeline/i));
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.querySelector('[data-run-error]')!.textContent).toMatch(/2 cards need attention/);
+    const { PROBE_STORE } = await import('../stores');
+    expect(PROBE_STORE[0].issues.map((i) => i.pointer)).toEqual(['/nodes/0/card', '/nodes/1/card']);
+  });
+});

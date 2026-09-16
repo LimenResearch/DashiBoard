@@ -6,7 +6,7 @@ import { Graph } from "../components/Graph";
 import { TableView } from "../components/TableView";
 import { Tabs } from "../components/Tabs";
 import { getURL, postRequest } from "../requests";
-import { CARDS_STORE, type VariableSummary } from "../stores";
+import { CARDS_STORE, reportRunIssues, type ProbeIssue, type VariableSummary } from "../stores";
 import { wireDocument } from "../wire";
 
 // What a run produced (C4). Four answers to four different questions, so four panes rather than
@@ -25,6 +25,10 @@ type RunResult = {
   /** Where it broke: `"pipeline"` before anything ran, `"execution"` while running. */
   kind?: string;
   errors?: string[];
+  /** Where a build failure landed, in the probe's shape — pointed issues go on the cards, the
+   *  same way a live probe finding does. Absent from an older server, or from a run that failed
+   *  with no pointer at all — a cycle, a filter's SQL error. */
+  issues?: ProbeIssue[];
   graph?: string;
   report?: unknown[];
   /** One entry per node, `null` for every card that does not override `Pipelines.visualize`. */
@@ -89,9 +93,17 @@ export function Results() {
       }
       if (answer.valid === false) {
         setResult(null);
+        const issues = Array.isArray(answer.issues) ? answer.issues : [];
+        if (issues.length > 0) reportRunIssues(issues);
+        const cards = new Set(issues.map((i) => i.pointer.split("/")[2]).filter(Boolean)).size;
         setFailure({
           kind: answer.kind,
-          errors: answer.errors?.length ? answer.errors : ["The run failed, without saying why."],
+          // Pointed issues are on the cards; the prose stays as the fallback for faults that
+          // carry no pointer — a cycle, a filter's SQL error.
+          errors: [
+            ...(cards > 0 ? [`${cards} card${cards === 1 ? "" : "s"} need attention — see the marks on them.`] : []),
+            ...(answer.errors?.length ? answer.errors : ["The run failed, without saying why."]),
+          ],
         });
         return;
       }

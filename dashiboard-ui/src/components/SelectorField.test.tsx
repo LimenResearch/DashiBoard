@@ -1,7 +1,8 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import { SelectorField } from './SelectorField';
+import * as selector from '../selector';
 import type { SelectorItem } from '../selector';
 import type { Defs, IRNode } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -227,5 +228,22 @@ describe('SelectorField', () => {
     // touched", which is what a hidden tab needs to report.
     const { container } = mount([{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }]);
     expect(tab(container, 'cols').textContent).toContain('1');
+  });
+
+  it('expands the document once per change, not once per read', () => {
+    // `rows()` was a plain function called from every row's `casesFor`, the chip list, the writes
+    // strip and the tab counts — O(values × items) expansions per render.
+    const spy = vi.spyOn(selector, 'expand');
+    // `finally`, because a failing assertion would otherwise leave the spy on the module for
+    // every test that runs after it — this suite does not isolate modules between files.
+    try {
+      render(() => (
+        <SelectorField itemNode={itemNode} defs={defs} label="inputs"
+          value={[{ cols: ['TEMP', 'PRES'] }]} onChange={() => {}} />
+      ));
+      expect(spy.mock.calls.length).toBeLessThanOrEqual(2);   // mount, plus at most one settle
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

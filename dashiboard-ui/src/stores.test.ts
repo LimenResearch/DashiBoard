@@ -6,8 +6,11 @@ import {
   addGroup, removeGroup, renameGroup, setGroup,
   isConfirmed, confirmDefinition, forgetConfirmation,
   CARDS_STORE, type CardsStore,
+  Interval,
 } from './stores';
 import { getCards } from './left-tabs/processing';
+
+beforeEach(() => sessionStorage.clear());
 
 // The authored card half of a Config, in the post-9bd6c28 group vocabulary: plural selectors are
 // arrays, singular ones are objects, and a selector value may be a string or a list.
@@ -239,5 +242,37 @@ describe('confirmation', () => {
     forgetConfirmation('node:e');
     await flush();
     expect(isConfirmed('node:e', card)).toBe(false);
+  });
+});
+
+describe('the stores survive a reload', () => {
+  it('cards: the document is restored verbatim', async () => {
+    // A fresh module instance stands in for a reload: the stores are module-level, so re-importing
+    // the module is exactly what a page load does.
+    const first = await import('./stores');
+    first.importCards({ nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: { g: [] } });
+    await flush();
+    expect(JSON.parse(sessionStorage.getItem('dashi.cards')!).nodes[0].id).toBe('r');
+  });
+
+  it('filters: Interval and Set come back as themselves', async () => {
+    const { FILTERS_STORE, filtersCodec } = await import('./stores');
+    const [, set] = FILTERS_STORE;
+    set((d) => { d.numerical.TEMP = new Interval(1, 2); d.categorical.cbwd = new Set(['NW']); });
+    await flush();
+    const raw = JSON.parse(sessionStorage.getItem('dashi.filters')!);
+    const back = filtersCodec.decode(raw);
+    expect(back.numerical.TEMP).toBeInstanceOf(Interval);
+    expect(back.numerical.TEMP!.max).toBe(2);
+    expect(back.categorical.cbwd).toBeInstanceOf(Set);
+    expect(back.categorical.cbwd!.has('NW')).toBe(true);
+  });
+
+  it('confirmations are kept', async () => {
+    const { confirmDefinition, isConfirmed } = await import('./stores');
+    confirmDefinition('node:0', { type: 'rescale' });
+    await flush();
+    expect(JSON.parse(sessionStorage.getItem('dashi.confirmations')!)['node:0']).toBeTypeOf('string');
+    expect(isConfirmed('node:0', { type: 'rescale' })).toBe(true);
   });
 });

@@ -27,14 +27,24 @@ function get_card_ir(req::HTTP.Request)
     # `nothing` means *unconstrained* in a `VariableConfig` (A9), so an absent key leaves that
     # definition without an enum rather than with an empty one — which would admit nothing.
     maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
-    variable_config = Pipelines.VariableConfig(
-        nodes = maybe_strings("nodes"),
-        groups = maybe_strings("groups"),
-        cols = maybe_strings("cols"),
-    )
-    defs = Pipelines.ir_definitions(variable_config)
-    cards = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
-    return json_response((; defs, cards); omit_null = true)
+    # Which halves to send. `cards` is the IR of every registered type and takes no vocabulary,
+    # so it is the same answer for the life of the server; `defs` is the three enums and changes
+    # with every column, group or node name. Measured: 18,449 of 19,152 bytes were `cards`, and
+    # they were being refetched to update 242 bytes of enum.
+    include = Set{String}(get(spec, "include", ["defs", "cards"]))
+    parts = Pair{Symbol, Any}[]
+    if "defs" in include
+        variable_config = Pipelines.VariableConfig(
+            nodes = maybe_strings("nodes"),
+            groups = maybe_strings("groups"),
+            cols = maybe_strings("cols"),
+        )
+        push!(parts, :defs => Pipelines.ir_definitions(variable_config))
+    end
+    if "cards" in include
+        push!(parts, :cards => Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS)))
+    end
+    return json_response((; parts...); omit_null = true)
 end
 
 """

@@ -5,6 +5,7 @@
 .DS_Store
 .vscode
 LocalPreferences.toml
+
 # local tooling scratch — never committed
 .claude/worktrees/
 .superpowers/

@@ -221,4 +221,23 @@ describe('IRField', () => {
     expect(container.textContent).toMatch(/not described/i);
     expect(container.querySelector('input')).toBeNull(); // no textarea pretending otherwise
   });
+
+  it('gives every control an id unique to its card', () => {
+    // `id={props.label}` made two cards of one type produce duplicate ids, so a `<label for>`
+    // in the second card focused the first card's input.
+    const { container } = render(() => (
+      <>
+        <IRField node={cards.rescale} defs={defs} label="rescale" idPrefix="node-0" value={{}} onChange={() => {}} />
+        <IRField node={cards.rescale} defs={defs} label="rescale" idPrefix="node-1" value={{}} onChange={() => {}} />
+      </>
+    ));
+    const ids = [...container.querySelectorAll('[id]')].map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain('node-0-rescale-suffix');
+    expect(ids).toContain('node-1-rescale-suffix');
+    // and each label points at its own card's control
+    const label = container.querySelector('label[for="node-1-rescale-suffix"]') as HTMLLabelElement;
+    expect(label).not.toBeNull();
+    expect(label.control?.id).toBe('node-1-rescale-suffix');
+  });
 });

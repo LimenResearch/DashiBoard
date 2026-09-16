@@ -1,16 +1,29 @@
-import { createSignal, reconcile, Show } from "solid-js";
+import { createMemo, createSignal, reconcile, Show } from "solid-js";
 
 import { Button } from "../components/Button";
 import { FilePicker } from "../components/FilePicker";
 import { TableView } from "../components/TableView";
 import { postRequest } from "../requests";
-import { LOADER_STORE, type LoaderStore } from "../stores";
+import { LOADER_JSON, LOADER_STORE, type LoaderStore } from "../stores";
 
 export function Loader() {
   const [state, setState] = LOADER_STORE;
 
   const [files, setFiles] = createSignal([]);
   const [loading, setLoading] = createSignal(false);
+
+  /**
+   * Which source the preview is showing — the table's `revision`.
+   *
+   * Counted off the store's own serialisation rather than bumped inside `loadData`, because the
+   * store *is* the loaded source: whoever writes it has replaced the rows, and a second file with
+   * the very same column names is still a different table. `LOADER_JSON` is the string
+   * persistence already builds, so this costs one comparison and no second walk of the store.
+   */
+  const revision = createMemo((previous: number | undefined) => {
+    void LOADER_JSON();
+    return (previous ?? 0) + 1;
+  });
 
   function loadData() {
     setLoading(true);
@@ -48,7 +61,7 @@ export function Loader() {
           <p class="mb-1.5 text-detail tracking-wider text-muted-foreground uppercase">
             {state.length} columns
           </p>
-          <TableView processed={false} metadata={state} class="h-80" />
+          <TableView processed={false} revision={revision()} metadata={state} class="h-80" />
         </div>
       </Show>
     </div>

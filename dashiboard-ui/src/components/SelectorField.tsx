@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { Tabs } from "./Tabs";
 import {
@@ -46,9 +46,9 @@ type SelectorFieldProps = {
 const KIND_ORDER = ["cols", "groups", "nodes"];
 
 export function SelectorField(props: SelectorFieldProps) {
-  const widget = () => widgetFor(props.itemNode, props.defs);
+  const widget = createMemo(() => widgetFor(props.itemNode, props.defs));
 
-  const kinds = () => {
+  const kinds = createMemo(() => {
     const w = widget();
     if (w.kind !== "selector") return [] as string[];
     const rank = (k: string) => {
@@ -56,7 +56,7 @@ export function SelectorField(props: SelectorFieldProps) {
       return at === -1 ? KIND_ORDER.length : at;
     };
     return [...w.kinds].sort((a, b) => rank(a) - rank(b));
-  };
+  });
 
   const optionsOf = (kind: string) => {
     const w = widget();
@@ -71,7 +71,7 @@ export function SelectorField(props: SelectorFieldProps) {
     return through.kind === "multiselect" ? through.options.map(String) : [];
   };
 
-  const rows = () => expand(asItems(props.value), kinds());
+  const rows = createMemo(() => expand(asItems(props.value), kinds()));
   const casesFor = (kind: string, value: string) =>
     rows().filter((r) => r.kind === kind && r.value === value).map((r) => r.chain);
 

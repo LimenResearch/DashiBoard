@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import type { Element as JSXElement } from "solid-js";
 
 import { Disclosure } from "./Disclosure";
@@ -28,6 +28,8 @@ type IRFieldProps = {
    * and one disclosure, not a `method` inside a `method`.
    */
   inline?: boolean;
+  /** Prefix for every id below this field, so two cards of one type do not collide. */
+  idPrefix?: string;
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -106,25 +108,44 @@ function Collapsible(props: { label: string; required?: boolean; children: JSXEl
 
 export function IRField(props: IRFieldProps) {
   const widget = (): Widget => widgetFor(props.node, props.defs);
+  const id = () => (props.idPrefix ? `${props.idPrefix}-${props.label}` : props.label);
 
   return (
-    <Show when={widget()} keyed>
-      {(w: Widget) => {
-        switch (w.kind) {
+    // Keyed on the *kind*, not the descriptor. `widgetFor` returns a fresh object on every
+    // evaluation, and keying on it remounted this whole subtree whenever `props.defs` changed —
+    // which is every IR refetch, i.e. every time a column, group or node name changed anywhere.
+    // A field only needs rebuilding when it becomes a different kind of control; everything else
+    // it reads reactively through `w()`.
+    <Show when={widget().kind} keyed>
+      {(kind: Widget["kind"]) => {
+        // `Extract<Widget, { kind: typeof kind }>` would need to be recomputed inside each case
+        // to narrow past this point — `kind` isn't narrowed yet here, before the switch — so each
+        // case below declares its own `w`, narrowed to that case's literal kind.
+        switch (kind) {
           // A container: render its properties in declaration order, each writing its own key
           // back into the object this field holds.
           case "object": {
+            // `Extract<Widget, { kind: typeof kind }>` above is computed before the switch
+            // narrows `kind`, so it resolves against the full `Widget["kind"]` union rather than
+            // this one case — re-narrow locally, per the brief's note on this step.
+            const w = () => widget() as Extract<Widget, { kind: "object" }>;
+            // Keyed on the property's *name*, not the entry object. The IR is refetched wholesale
+            // on every vocabulary change, so `w().properties` is a fresh array of fresh entries
+            // every time even when no property actually changed — reference-keying (`<For>`'s
+            // default) would remount every field in every card on every refetch, which is the
+            // same bug this file's outer `Show` was just fixed for, one level down.
             const fields = () => (
-              <For each={w.properties}>
+              <For each={w().properties} keyed={(entry) => entry.key}>
                 {(entry) => (
                   <IRField
-                    node={entry.value}
+                    node={entry().value}
                     defs={props.defs}
-                    label={entry.key}
-                    required={entry.required}
-                    value={asRecord(props.value)[entry.key]}
+                    label={entry().key}
+                    required={entry().required}
+                    idPrefix={id()}
+                    value={asRecord(props.value)[entry().key]}
                     onChange={(inner) =>
-                      props.onChange({ ...asRecord(props.value), [entry.key]: inner })
+                      props.onChange({ ...asRecord(props.value), [entry().key]: inner })
                     }
                   />
                 )}
@@ -135,7 +156,7 @@ export function IRField(props: IRFieldProps) {
             // identical box — that is what `title` marks. A variant's branch is the other: its
             // caller drew the disclosure, and a second one repeating the same label put every
             // branch field a level deeper than the `type` row it belongs beside.
-            const bare = () => props.inline === true || w.title !== undefined;
+            const bare = () => props.inline === true || w().title !== undefined;
             return (
               <Show
                 when={!bare()}
@@ -151,16 +172,18 @@ export function IRField(props: IRFieldProps) {
           // A discriminated union: pick an option, then fill in that option's own fields. The
           // value is one object carrying `type` plus the chosen branch's keys.
           case "variant": {
+            // Re-narrowed locally — see the comment in `case "object"`.
+            const w = () => widget() as Extract<Widget, { kind: "variant" }>;
             // No fallback to `options[0]`. That list arrives from a Julia `Dict`, so its order
             // carries no intent — preselecting from it asserts a choice nobody made, and the
             // document then disagrees with the form about whether the question was answered.
             const chosen = () =>
-              (asRecord(props.value).type as string | undefined) ?? w.default ?? "";
+              (asRecord(props.value).type as string | undefined) ?? w().default ?? "";
             return (
               <Collapsible label={props.label} required={props.required}>
-                <Row for={`${props.label}-variant`} label="type">
+                <Row for={`${id()}-variant`} label="type">
                   <select
-                    id={`${props.label}-variant`}
+                    id={`${id()}-variant`}
                     class={[
                       "h-control-xs rounded-sm border px-2 text-control-xs",
                       { "border-border": chosen() !== "", "border-warning": chosen() === "" },
@@ -172,7 +195,7 @@ export function IRField(props: IRFieldProps) {
                       // IR fix that lets `dissimilarity` name `euclidean`, those defaults exist
                       // to be carried.
                       const option = event.currentTarget.value;
-                      const branch = w.objects[option];
+                      const branch = w().objects[option];
                       const inner = branch === undefined ? undefined : defaultsFor(branch, props.defs);
                       props.onChange({ ...(inner as object), type: option });
                     }}
@@ -182,60 +205,64 @@ export function IRField(props: IRFieldProps) {
                         choose…
                       </option>
                     </Show>
-                    <For each={w.options}>{(option) => <option value={option}>{option}</option>}</For>
+                    <For each={w().options}>{(option) => <option value={option}>{option}</option>}</For>
                   </select>
                 </Row>
-                <Show when={w.objects[chosen()]} keyed>
-                  {(branch: IRNode) => (
-                    <IRField
-                      node={branch}
-                      defs={props.defs}
-                      label={props.label}
-                      inline
-                      value={props.value}
-                      onChange={(inner) => props.onChange({ ...asRecord(inner), type: chosen() })}
-                    />
-                  )}
+                <Show when={w().objects[chosen()]}>
+                  <IRField
+                    node={w().objects[chosen()]!}
+                    defs={props.defs}
+                    label={props.label}
+                    inline
+                    idPrefix={id()}
+                    value={props.value}
+                    onChange={(inner) => props.onChange({ ...asRecord(inner), type: chosen() })}
+                  />
                 </Show>
               </Collapsible>
             );
           }
 
-          case "select":
+          case "select": {
+            // Re-narrowed locally — see the comment in `case "object"`.
+            const w = () => widget() as Extract<Widget, { kind: "select" }>;
             return (
-              <Row for={props.label} label={props.label} required={props.required}>
+              <Row for={id()} label={props.label} required={props.required}>
                 <select
-                  id={props.label}
+                  id={id()}
                   class="h-control-xs rounded-sm border border-border px-2 text-control-xs"
-                  value={String(props.value ?? w.default ?? "")}
+                  value={String(props.value ?? w().default ?? "")}
                   onChange={(event) =>
-                    props.onChange(optionByString(w.options, event.currentTarget.value))
+                    props.onChange(optionByString(w().options, event.currentTarget.value))
                   }
                 >
-                  <For each={w.options}>
+                  <For each={w().options}>
                     {(option) => <option value={String(option)}>{option}</option>}
                   </For>
                 </select>
               </Row>
             );
+          }
 
-          case "multiselect":
+          case "multiselect": {
+            // Re-narrowed locally — see the comment in `case "object"`.
+            const w = () => widget() as Extract<Widget, { kind: "multiselect" }>;
             return (
               <Collapsible label={props.label} required={props.required}>
                 <select
-                  id={props.label}
+                  id={id()}
                   multiple
-                  size={Math.min(w.options.length, 8)}
+                  size={Math.min(w().options.length, 8)}
                   class="my-1 h-control-xs w-full rounded-sm border border-border px-2 text-control-xs"
                   onChange={(event) =>
                     props.onChange(
                       [...event.currentTarget.selectedOptions].map((option) =>
-                        optionByString(w.options, option.value),
+                        optionByString(w().options, option.value),
                       ),
                     )
                   }
                 >
-                  <For each={w.options}>
+                  <For each={w().options}>
                     {(option) => (
                       <option
                         value={String(option)}
@@ -248,45 +275,52 @@ export function IRField(props: IRFieldProps) {
                 </select>
               </Collapsible>
             );
+          }
 
-          case "number":
+          case "number": {
+            // Re-narrowed locally — see the comment in `case "object"`.
+            const w = () => widget() as Extract<Widget, { kind: "number" }>;
             return (
-              <Row for={props.label} label={props.label} required={props.required}>
+              <Row for={id()} label={props.label} required={props.required}>
                 <Input
-                  id={props.label}
+                  id={id()}
                   type="number"
                   required={props.required}
-                  min={w.min ?? w.exclusiveMin}
-                  max={w.max ?? w.exclusiveMax}
-                  step={w.integer ? 1 : undefined}
+                  min={w().min ?? w().exclusiveMin}
+                  max={w().max ?? w().exclusiveMax}
+                  step={w().integer ? 1 : undefined}
                   value={props.value === undefined ? undefined : String(props.value)}
                   onChange={(event) => {
                     const raw = (event.currentTarget as HTMLInputElement).value;
-                    const parsed = w.integer ? parseInt(raw, 10) : parseFloat(raw);
+                    const parsed = w().integer ? parseInt(raw, 10) : parseFloat(raw);
                     props.onChange(Number.isNaN(parsed) ? null : parsed);
                   }}
                 />
               </Row>
             );
+          }
 
-          case "toggle":
+          case "toggle": {
+            // Re-narrowed locally — see the comment in `case "object"`.
+            const w = () => widget() as Extract<Widget, { kind: "toggle" }>;
             return (
               <Row label={props.label} required={props.required}>
                 <input
                   type="checkbox"
                   class="accent-primary"
                   aria-label={props.label}
-                  checked={(props.value as boolean | undefined) ?? w.default ?? false}
+                  checked={(props.value as boolean | undefined) ?? w().default ?? false}
                   onChange={(event) => props.onChange(event.currentTarget.checked)}
                 />
               </Row>
             );
+          }
 
           case "text":
             return (
-              <Row for={props.label} label={props.label} required={props.required}>
+              <Row for={id()} label={props.label} required={props.required}>
                 <Input
-                  id={props.label}
+                  id={id()}
                   type="text"
                   required={props.required}
                   value={props.value === undefined ? undefined : String(props.value)}
@@ -298,39 +332,50 @@ export function IRField(props: IRFieldProps) {
             );
 
           case "repeater": {
+            // Re-narrowed locally — see the comment in `case "object"`.
+            const w = () => widget() as Extract<Widget, { kind: "repeater" }>;
             // A repeater over selector items is the variable picker (C2), not a generic list:
             // its items are grouped by qualification rather than shown one per row.
-            if (widgetFor(w.items, props.defs).kind === "selector") {
-              return (
+            //
+            // Decided in a memo and branched in JSX, not with an `if` here: this callback body
+            // runs inside the keyed `<Show>` above, which is not a tracking scope, and
+            // `widgetFor` walks `props.node` and `props.defs` — around half the suite's
+            // untracked-read warnings came from this one line.
+            const itemsWidget = createMemo(() => widgetFor(w().items, props.defs));
+            return (
+              <Show
+                when={itemsWidget().kind === "selector"}
+                fallback={
+                  <Collapsible label={props.label} required={props.required}>
+                    <For each={asArray(props.value)}>
+                      {(item, index) => (
+                        <IRField
+                          node={w().items}
+                          defs={props.defs}
+                          label={`${props.label}[${index()}]`}
+                          idPrefix={`${id()}-${index()}`}
+                          value={item}
+                          onChange={(inner) => {
+                            const next = [...asArray(props.value)];
+                            next[index()] = inner;
+                            props.onChange(next);
+                          }}
+                        />
+                      )}
+                    </For>
+                  </Collapsible>
+                }
+              >
                 <Collapsible label={props.label} required={props.required}>
                   <SelectorField
-                    itemNode={w.items}
+                    itemNode={w().items}
                     defs={props.defs}
                     label={props.label}
                     value={props.value}
                     onChange={(items) => props.onChange(items)}
                   />
                 </Collapsible>
-              );
-            }
-            return (
-              <Collapsible label={props.label} required={props.required}>
-                <For each={asArray(props.value)}>
-                  {(item, index) => (
-                    <IRField
-                      node={w.items}
-                      defs={props.defs}
-                      label={`${props.label}[${index()}]`}
-                      value={item}
-                      onChange={(inner) => {
-                        const next = [...asArray(props.value)];
-                        next[index()] = inner;
-                        props.onChange(next);
-                      }}
-                    />
-                  )}
-                </For>
-              </Collapsible>
+              </Show>
             );
           }
 

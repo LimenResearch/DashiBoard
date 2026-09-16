@@ -1,4 +1,8 @@
-import { createSignal, createStore, reconcile, snapshot } from "solid-js";
+import {
+  createStore, reconcile, snapshot,
+  type Store, type StoreSetter,
+} from "solid-js";
+import { persisted, persistedSignal } from "./persist";
 
 export class Interval {
   min: number;
@@ -45,17 +49,33 @@ export type VariableSummary = NumericalSummary | CategoricalSummary;
 
 export type LoaderStore = VariableSummary[];
 
-export const LOADER_STORE = createStore<LoaderStore>([] as LoaderStore);
+const loader = persisted<LoaderStore>("dashi.loader", [] as LoaderStore);
+export const LOADER_STORE: [Store<LoaderStore>, StoreSetter<LoaderStore>] = [loader[0], loader[1]];
+/** The loaded source, serialised once — as `CARDS_JSON` is for the document. The preview keys on
+ *  it to know a *different* source is in the store, which its column list cannot say. */
+export const LOADER_JSON = loader[2];
 
 export type FiltersStore = {
   numerical: { [key: string]: Interval | null };
   categorical: { [key: string]: List | null };
 };
 
-export const FILTERS_STORE = createStore<FiltersStore>({
-  numerical: {},
-  categorical: {},
-} as FiltersStore);
+/** `Interval` and `Set` are not JSON; carried as `{min,max}` and arrays, rebuilt on the way in. */
+export const filtersCodec = {
+  encode: (v: FiltersStore) => ({
+    numerical: Object.fromEntries(Object.entries(v.numerical).map(([k, i]) => [k, i && { min: i.min, max: i.max }])),
+    categorical: Object.fromEntries(Object.entries(v.categorical).map(([k, s]) => [k, s && [...s]])),
+  }),
+  decode: (raw: unknown): FiltersStore => {
+    const r = raw as { numerical?: Record<string, { min: number; max: number } | null>; categorical?: Record<string, unknown[] | null> };
+    return {
+      numerical: Object.fromEntries(Object.entries(r.numerical ?? {}).map(([k, i]) => [k, i && new Interval(i.min, i.max)])),
+      categorical: Object.fromEntries(Object.entries(r.categorical ?? {}).map(([k, l]) => [k, l && new Set(l)])),
+    };
+  },
+};
+const filters = persisted<FiltersStore>("dashi.filters", { numerical: {}, categorical: {} }, filtersCodec);
+export const FILTERS_STORE: [Store<FiltersStore>, StoreSetter<FiltersStore>] = [filters[0], filters[1]];
 
 // The authored half of the ExperimentTracking `Config` — `{nodes, groups}`. Filters live in
 // FILTERS_STORE and are converted at the wire boundary by `getFilters`, following the same
@@ -168,9 +188,14 @@ export function fieldPath(pointer: string): string {
     .join(" → ");
 }
 
+// Not persisted: it is derived from the document and recomputes within 200 ms of load (Task 6).
+// Persisting it would cost a write per probe for a value that is about to be replaced.
 export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
 
-export const CARDS_STORE = createStore<CardsStore>(emptyCards());
+const cardsPersisted = persisted<CardsStore>("dashi.cards", emptyCards());
+export const CARDS_STORE: [Store<CardsStore>, StoreSetter<CardsStore>] = [cardsPersisted[0], cardsPersisted[1]];
+/** The document, serialised once. Persistence writes it; the probe (Task 6) keys on it. */
+export const CARDS_JSON = cardsPersisted[2];
 
 const [cards, setCards] = CARDS_STORE;
 
@@ -295,16 +320,19 @@ export function removeNode(nodeIndex: number) {
 //
 // Which definitions the author has deliberately marked finished.
 //
-// Not in the document, and not sent anywhere: this is an ergonomic step, so it lives as long as
-// the session and no longer. A reload shows everything unconfirmed, which is honest — it says
-// "you have not reviewed this here", not "this is wrong".
+// Not in the document and not sent anywhere: this is an ergonomic mark. It is kept in
+// `sessionStorage` beside the document it describes, so a reload brings both back and the marks
+// still stand against the cards they were made on; closing the tab ends them, as it ends the
+// document.
 //
 // Stored as a *signature of the content* rather than a flag. Editing a confirmed card changes its
 // signature and so un-confirms it automatically, which is the behaviour that matters: a card
 // confirmed and then changed is no longer something anyone declared finished, and a flag would go
-// quietly stale instead.
+// quietly stale instead. It is also what makes the keys safe: they are node *indices*, so removing
+// an earlier card slides every later mark onto its neighbour — where it no longer matches, and so
+// reads as unconfirmed rather than as somebody else's approval.
 
-const [confirmations, setConfirmations] = createSignal<Record<string, string>>({});
+const [confirmations, setConfirmations] = persistedSignal<Record<string, string>>("dashi.confirmations", {});
 
 const signatureOf = (value: unknown) => JSON.stringify(value);
 

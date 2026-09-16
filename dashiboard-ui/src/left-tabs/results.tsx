@@ -41,6 +41,14 @@ export function Results() {
   const [result, setResult] = createSignal<RunResult | null>(null);
   const [running, setRunning] = createSignal(false);
   /**
+   * How many runs have landed — the table's `revision`.
+   *
+   * A second run produces new rows behind columns that are usually the *same* columns, and the
+   * grid pages through `fetch-data` rather than holding them, so nothing in `summaries()` tells
+   * it that what it cached is now the previous run's output. Counting the runs does.
+   */
+  const [runs, setRuns] = createSignal(0);
+  /**
    * Why the last run produced nothing to look at.
    *
    * Held apart from `result`, which therefore only ever holds a run that succeeded — so every pane
@@ -89,6 +97,7 @@ export function Results() {
       }
       setFailure(null);
       setResult(answer);
+      setRuns((n) => n + 1);
     } finally {
       setRunning(false);
     }
@@ -187,7 +196,7 @@ export function Results() {
                 </p>
                 {/* Paged through `fetch-data`, so this stays usable on an output larger than the
                     browser — the same reason the loader previews the source this way. */}
-                <TableView processed metadata={summaries()} class="h-96" />
+                <TableView processed revision={runs()} metadata={summaries()} class="h-96" />
                 <div class="mt-3">
                   <A href={getURL("get-processed-data")} download="processed-data.csv">
                     Download CSV

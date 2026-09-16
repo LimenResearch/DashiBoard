@@ -22,6 +22,16 @@ vi.mock('../requests', () => ({
 }));
 
 import Home from './index';
+import { createRouter, memoryHistory } from '@solidjs/router';
+
+/** The page inside a router, at `url`. The real app mounts it the same way through `App`. */
+function renderHome(url = '/') {
+  const TestRouter = createRouter({
+    routes: [{ path: '/', component: Home }],
+    history: memoryHistory(url),
+  });
+  return render(() => <TestRouter />);
+}
 
 const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [] };
 
@@ -30,6 +40,7 @@ const probeCalls = () =>
   postRequest.mock.calls.filter((call: unknown[]) => call[0] === 'probe-pipeline').length;
 
 beforeEach(() => {
+  sessionStorage.clear();
   importCards(emptyCards());
   postRequest.mockReset();
   postRequest.mockImplementation((page: string) => {
@@ -55,10 +66,10 @@ async function openTab(c: HTMLElement, name: string) {
 
 describe('the page is a set of tabs', () => {
   it('shows one section at a time, and switches on click', async () => {
-    const { container } = render(() => <Home />);
+    const { container } = renderHome();
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     expect(sectionTabs(container).map((t) => t.textContent)).toEqual([
-      'Load', 'Filter', 'Process', 'Run', 'The document',
+      'Load', 'Filter', 'Process', 'The document',
     ]);
     expect(onScreen(container)).toEqual(['Load']);
 
@@ -70,18 +81,94 @@ describe('the page is a set of tabs', () => {
     // Load sets up choices.js and Process fetches the card IR; remounting on every switch would
     // refetch and drop each picker's open tab. The stores survive either way — the local state
     // is what does not.
-    const { container } = render(() => <Home />);
+    const { container } = renderHome();
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     const before = postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir').length;
-    await openTab(container, 'Run');
+    await openTab(container, 'Filter');
     await openTab(container, 'Process');
     expect(postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir')).toHaveLength(before);
+  });
+
+  it('takes the open section from the URL, and writes it back', async () => {
+    // The tab was a local signal: a reload, a shared link or the browser's back button all lost
+    // it. It is now `?tab=`, so all three work, and the URL says what is on screen.
+    const { container } = renderHome('/?tab=process');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Process']);
+
+    await openTab(container, 'Filter');
+    expect(onScreen(container)).toEqual(['Filter']);
+    expect(window.location.search).toBe('');            // memory history: the DOM URL is untouched
+    // the router's own location is what moved
+    const active = sectionTabs(container).find((t) => t.getAttribute('aria-selected') === 'true');
+    expect(active?.textContent).toBe('Filter');
+  });
+
+  it('opens on Load when the URL says nothing', async () => {
+    const { container } = renderHome('/');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Load']);
+  });
+
+  it('falls back to Load when the URL names a section that does not exist', async () => {
+    const { container } = renderHome('/?tab=nope');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Load']);
+    const active = sectionTabs(container).find((t) => t.getAttribute('aria-selected') === 'true');
+    expect(active?.textContent).toBe('Load');
+  });
+
+  it('shows results beside the authoring tabs, not behind one', async () => {
+    // The old frontend had two panes: what you are building on the left, what it produced on
+    // the right. Folding results into a fourth tab meant the thing you ran was hidden by the
+    // thing you were editing.
+    const { container } = renderHome('/?tab=process');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(container.querySelector('[data-pane="results"]')).not.toBeNull();
+    expect(container.querySelector('[data-pane="results"]')!.textContent).toMatch(/run pipeline/i);
+    expect(onScreen(container)).toEqual(['Process']);      // left pane unaffected
+  });
+});
+
+// A reload lands on `/`, and landing on Load every time is the wrong answer for a page whose
+// work happens in Process. The session remembers which tab you were on; a URL that names one
+// still wins, because a shared link means what it says.
+describe('the remembered tab', () => {
+  it('a bare / reopens the tab stored in sessionStorage', async () => {
+    sessionStorage.setItem('dashi.tab', JSON.stringify('process'));
+    const { container } = renderHome('/');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    await waitFor(() => expect(onScreen(container)).toEqual(['Process']));
+  });
+
+  it('a URL that names a tab beats the stored one', async () => {
+    sessionStorage.setItem('dashi.tab', JSON.stringify('process'));
+    const { container } = renderHome('/?tab=filter');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 30)); await flush();
+    expect(onScreen(container)).toEqual(['Filter']);
+  });
+
+  it('clicking a tab stores it', async () => {
+    const { container } = renderHome('/');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    await openTab(container, 'Process');
+    await waitFor(() => expect(sessionStorage.getItem('dashi.tab')).toBe(JSON.stringify('process')));
+  });
+
+  it('remembers the section an unknown ?tab= resolved to, not the raw value', async () => {
+    // `?tab=nope` renders Load. Storing "nope" made every later bare `/` redirect to `?tab=nope`
+    // — a URL naming a section that does not exist, for the rest of the session.
+    const { container } = renderHome('/?tab=nope');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 30)); await flush();
+    expect(sessionStorage.getItem('dashi.tab')).toBe(JSON.stringify('load'));
   });
 });
 
 describe('the authoring page', () => {
   it('offers every card type the server describes', async () => {
-    const { container, getByLabelText } = render(() => <Home />);
+    const { container, getByLabelText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     expect(picker.options).toHaveLength(10);
@@ -89,7 +176,7 @@ describe('the authoring page', () => {
   });
 
   it('adds a card and shows it in the authored document', async () => {
-    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -118,14 +205,13 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'split');
     fireEvent.click(getByText(/add card/i));
     await flush();
 
-    await openTab(container, 'Run');
     fireEvent.click(getByText(/run pipeline/i));
     const report = await findByTestId('report');
     await waitFor(() => expect(report.textContent).toContain('split'));
@@ -149,14 +235,13 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText, findByTestId } = render(() => <Home />);
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
     await flush();
 
-    await openTab(container, 'Run');
     fireEvent.click(getByText(/run pipeline/i));
     await waitFor(() => expect(posted.some((p) => p.page === 'evaluate-pipeline')).toBe(true));
     const sent = posted.find((p) => p.page === 'evaluate-pipeline')!.body;
@@ -186,7 +271,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -223,7 +308,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -244,7 +329,7 @@ describe('the authoring page', () => {
     // A card naming itself is a cycle, and the server rejects the whole document for it. The
     // fixture's node vocabulary is ["rescale", "split"], and a rescale card is auto-named
     // "rescale" — so this is exactly the case the screen was getting wrong.
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -277,7 +362,7 @@ describe('the authoring page', () => {
   });
 
   it('folds a card to one line naming its type and the id others refer to it by', async () => {
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -297,7 +382,7 @@ describe('the authoring page', () => {
     // The form displayed `suffix: rescaled` either way; the document did not carry it, so what
     // was on screen and what a download produced disagreed. `method` stays absent: it is required
     // and the IR names no default option, so it is the author's to answer.
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -331,7 +416,7 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'cluster');
@@ -391,7 +476,7 @@ describe('the authoring page', () => {
       groups: {},
     });
 
-    const { container, getByText } = render(() => <Home />);
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
     await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
 
@@ -419,7 +504,7 @@ describe('the authoring page', () => {
       ],
       groups: {},
     });
-    const { container, getByText } = render(() => <Home />);
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
     await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
 
@@ -448,7 +533,7 @@ describe('the authoring page', () => {
     });
     // Findings are keyed by position, so a splice would slide the second card's answer onto the
     // first. A precise field pointer on the wrong card is worse than no pointer at all.
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -477,7 +562,7 @@ describe('the authoring page', () => {
 
   it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
     // Order matters: the destructive control should not be the first one reached.
-    const { container, getByLabelText, getByText } = render(() => <Home />);
+    const { container, getByLabelText, getByText } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -502,7 +587,7 @@ describe('the authoring page', () => {
       }
       return Promise.resolve([]);
     });
-    const { getByLabelText, getByText, container } = render(() => <Home />);
+    const { getByLabelText, getByText, container } = renderHome();
     await openTab(container, 'Process');
     const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
     await selectOption(picker, 'rescale');
@@ -512,13 +597,14 @@ describe('the authoring page', () => {
   });
 
   it('asks for the IR with the vocabularies the document defines', async () => {
-    const { container, getByLabelText } = render(() => <Home />);
+    const { container, getByLabelText } = renderHome();
     await openTab(container, 'Process');
     await waitFor(() => getByLabelText(/card type/i));
     const ask = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir');
     expect(ask).toBeDefined();
     // the group dialect needs all three, since which nodes and groups are referenceable
-    // depends on the document being edited, not only on the source
-    expect(Object.keys(ask![1] as object).sort()).toEqual(['cols', 'groups', 'nodes']);
+    // depends on the document being edited, not only on the source; `include` says which
+    // halves of the IR this call wants (both, on the first request of a session)
+    expect(Object.keys(ask![1] as object).sort()).toEqual(['cols', 'groups', 'include', 'nodes']);
   });
 });

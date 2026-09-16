@@ -1,4 +1,6 @@
-import { createEffect, createMemo, createSignal, For, Show, Store, reconcile } from "solid-js";
+import {
+  createEffect, createMemo, createSignal, For, onCleanup, Show, Store, reconcile, untrack,
+} from "solid-js";
 
 import { Button } from "../components/Button";
 import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
@@ -8,6 +10,7 @@ import { Disclosure, summaryAction } from "../components/Disclosure";
 import { postRequest } from "../requests";
 import {
   CARDS_STORE,
+  CARDS_JSON,
   CardsStore,
   Card,
   LOADER_STORE,
@@ -38,6 +41,21 @@ export function getCards(state: Store<CardsStore>) {
 
 type Payload = { defs: Defs; cards: { [type: string]: IRNode } };
 
+/** Everything a card may name: the source's columns, the other cards, the groups. */
+type Vocabulary = { cols: string[]; nodes: string[]; groups: string[] };
+
+/**
+ * One IR fetch per vocabulary *change*, which reference equality cannot deliver.
+ *
+ * The three lists are rebuilt from the stores on every write, so a fresh object arrives whenever
+ * anything in the document moves — a field edited, a chip picked. Comparing their contents is
+ * what keeps the refetch tied to the vocabulary rather than to the keystroke.
+ */
+const sameVocabulary = (a: Vocabulary, b: Vocabulary) =>
+  (["cols", "nodes", "groups"] as const).every(
+    (part) => a[part].length === b[part].length && a[part].every((v, at) => v === b[part][at]),
+  );
+
 export function Cards() {
   const [state] = CARDS_STORE;
   const [metadata] = LOADER_STORE;
@@ -47,29 +65,39 @@ export function Cards() {
   const [chosen, setChosen] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
 
+  // `cards` is fetched once and kept; only `defs` follows the vocabulary. See the handler.
+  const [cardIRs, setCardIRs] = createSignal<{ [type: string]: IRNode } | null>(null);
+
   // The IR is what the renderer builds from, and since A2 it is the only description of a card
   // that exists (§13). Which nodes and groups are referenceable depends on the document being
   // edited, not only on the source, so this re-runs when either changes.
-  async function loadIR() {
+  //
+  // The vocabulary arrives as an argument rather than being read here: this runs from an effect
+  // *callback*, where a read of a store or a signal is untracked — so reading the document here
+  // would be a dependency the effect does not have, and the diagnostics say so.
+  async function loadIR(vocabulary: Vocabulary) {
+    // Captured before the request, not re-read from the signal after `setCardIRs` below: a
+    // signal write stages into `_pendingValue` and an untracked read from this plain async
+    // continuation is not guaranteed to observe it before the next flush (Solid 2's transition
+    // model, unlike Solid 1's immediate same-tick reads). `untrack` says that is deliberate:
+    // this is a cache lookup, not something the fetch should re-run for.
+    const previousCards = untrack(cardIRs);
+    const include = previousCards === null ? ["defs", "cards"] : ["defs"];
     const received = (await postRequest(
       "get-card-ir",
-      {
-        cols: metadata.map((entry) => entry.name),
-        // Only names that exist. `Pipelines.get_id` is the naming rule, and it has no index
-        // fallback — a node with no `id` is called "" and is referenceable by nobody, so
-        // offering its position as a name offered one the server would never resolve.
-        nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
-        groups: Object.keys(state.groups),
-      },
+      { ...vocabulary, include },
       null,
-    )) as Payload | null;
-    if (!received) {
+    )) as Partial<Payload> | null;
+    if (!received || !received.defs) {
       setError("Could not reach DashiBoard. Is the server running?");
       return;
     }
     setError(null);
-    setPayload(received);
-    const types = Object.keys(received.cards).sort();
+    const cards = received.cards ?? previousCards;
+    if (cards === null) return;                       // cannot happen on the first call
+    setCardIRs(cards);
+    setPayload({ defs: received.defs, cards });
+    const types = Object.keys(cards).sort();
     if (!chosen() && types.length > 0) setChosen(types[0]);
   }
 
@@ -78,15 +106,21 @@ export function Cards() {
   // has nothing to offer; and adding or renaming a card changes what `nodes:` and `through:` can
   // name. Driving this from the document rather than from explicit calls after each mutation also
   // sidesteps reading the store before Solid has settled the write.
-  createEffect(
-    () =>
-      [
-        metadata.map((entry) => entry.name).join("\u0000"),
-        state.nodes.map((node) => node.id ?? "").join("\u0000"),
-        Object.keys(state.groups).join("\u0000"),
-      ].join("\u0001"),
-    () => void loadIR(),
+  //
+  // The memo is where the stores are read, so those reads are the effect's dependencies, and the
+  // value it produces is what the request is built from — it cannot drift from what triggered it.
+  const vocabulary = createMemo<Vocabulary>(
+    () => ({
+      cols: metadata.map((entry) => entry.name),
+      // Only names that exist. `Pipelines.get_id` is the naming rule, and it has no index
+      // fallback — a node with no `id` is called "" and is referenceable by nobody, so
+      // offering its position as a name offered one the server would never resolve.
+      nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
+      groups: Object.keys(state.groups),
+    }),
+    { equals: sameVocabulary },
   );
+  createEffect(vocabulary, (current) => void loadIR(current));
 
   const cardTypes = () => Object.keys(payload()?.cards ?? {}).sort();
 
@@ -103,70 +137,54 @@ export function Cards() {
     return self ? withoutOption(defs, "node", self) : defs;
   };
 
-  // Probe on every document change. Construction is cheap and materialises nothing, so this is
-  // the feedback loop for references the schema cannot check.
-  /**
-   * Ask the probe about a document and return something of the right shape.
-   *
-   * Shared by the continuous run and by Confirm. Confirm asks *again* rather than reading the
-   * last answer, because the continuous probe is asynchronous: press Confirm on a card added a
-   * moment ago and the reply is still in flight, so the stale answer says nothing is wrong and
-   * the card confirms green. One request per press is the cost of the answer being current.
-   */
+  /** Coerce a probe reply into something the store can hold, whatever the server sent. */
+  const usableProbe = (result: unknown): ProbeStore => {
+    const reported = result as ProbeStore | null;
+    const ok = reported !== null && typeof reported === "object" &&
+      Array.isArray(reported.nodes) && Array.isArray(reported.errors);
+    return ok ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] } : emptyProbe();
+  };
+
+  /** Ask once and get the shape back. Confirm uses this; the continuous probe below does too. */
   async function askProbe(document: CardsStore): Promise<ProbeStore> {
-    const result = await postRequest("probe-pipeline", document, null);
-    const reported = result as ProbeStore | null;
-    const usable =
-      reported !== null &&
-      typeof reported === "object" &&
-      Array.isArray(reported.nodes) &&
-      Array.isArray(reported.errors);
-    return usable
-      ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] }
-      : emptyProbe();
+    return usableProbe(await postRequest("probe-pipeline", document, null));
   }
 
-  async function runProbe(document: CardsStore | null) {
-    if (document === null) {
-      setProbe(reconcile(emptyProbe()));
-      return;
-    }
-    const result = await postRequest("probe-pipeline", document, null);
-    // Validate the shape rather than trusting it. An unexpected response used to reach the store
-    // and throw on the first `.length`, which halts Solid's reactive system for the whole page —
-    // a far worse outcome than showing no probe result.
-    const reported = result as ProbeStore | null;
-    const usable =
-      reported !== null &&
-      typeof reported === "object" &&
-      Array.isArray(reported.nodes) &&
-      Array.isArray(reported.errors);
-    // `issues` is normalised rather than required. A server predating A7 does not send it, and
-    // rejecting the whole response over an absent field would silently switch the probe off
-    // against it — the same class of silent failure the shape check exists to prevent.
-    setProbe(
-      reconcile(
-        usable
-          ? { ...reported, issues: Array.isArray(reported.issues) ? reported.issues : [] }
-          : emptyProbe(),
-      ),
-    );
-  }
+  // The continuous probe. Three things it does that a plain effect did not:
+  //
+  //   * reads the document from `CARDS_JSON`, which persistence already serialises — one deep
+  //     read of the store instead of two;
+  //   * waits 200 ms of quiet before asking, so a burst of edits is one request;
+  //   * numbers each request and applies a reply only if it is still the newest, because
+  //     replies are async and a slow answer to an old document used to overwrite a fast answer
+  //     to the new one.
+  let probeSeq = 0;
+  let probeTimer: ReturnType<typeof setTimeout> | undefined;
+  const PROBE_QUIET_MS = 200;
 
-  // Every reactive read happens in the *compute* function; the callback only performs the call.
-  // Reading the store inside the callback is untracked and never updates — Solid 2 says so with
-  // STRICT_READ_UNTRACKED, and its versioned skill prescribes exactly this shape. The effect must
-  // also return void rather than a promise, hence the wrapper.
-  createEffect(
-    // Reads the store proxy, so this *tracks*. `exportCards()` would not: it goes through
-    // `snapshot`, which is deliberately untracked, so using it here registered no dependency and
-    // the probe never fired.
-    () => JSON.stringify(state),
-    (serialised) => {
-      const document = JSON.parse(serialised) as CardsStore;
-      void runProbe(document.nodes.length === 0 ? null : document);
-    },
-  );
+  createEffect(CARDS_JSON, (json) => {
+    clearTimeout(probeTimer);
+    probeTimer = setTimeout(() => {
+      const document = JSON.parse(json) as CardsStore;
+      if (document.nodes.length === 0) {
+        probeSeq += 1;
+        setProbe(reconcile(emptyProbe()));
+        return;
+      }
+      const seq = ++probeSeq;
+      void askProbe(document).then((answer) => {
+        if (seq !== probeSeq) return;            // a newer request is out; this answer is stale
+        setProbe(reconcile(answer));
+      });
+    }, PROBE_QUIET_MS);
+  });
+
+  // A pending probe must not outlive the tab: the timer would post after unmount, and a reply
+  // already in flight would write the store. Moving the sequence past any live request discards it.
+  onCleanup(() => {
+    clearTimeout(probeTimer);
+    probeSeq = Number.MAX_SAFE_INTEGER;
+  });
 
   // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
   // What Confirm found the last time it was pressed, per card. Not run continuously: the point
@@ -289,14 +307,6 @@ export function Cards() {
     return out;
   }
 
-  /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
-  const nodeState = (index: number) =>
-    (unfinished()[index]?.length ?? 0) > 0
-      ? "incomplete"
-      : confirmedNode(index)
-        ? "confirmed"
-        : "unconfirmed";
-
   const probeNodes = createMemo(() => probe.nodes);
   const probeErrors = createMemo(() => probe.errors);
   const probeIssues = createMemo(() => probe.issues);
@@ -339,8 +349,8 @@ export function Cards() {
         group and back up to use it. "Add card" then sits directly above the cards it creates,
         rather than above the groups — a control belongs next to what it produces.
       */}
-      <Show when={payload()} keyed>
-        {(loaded: Payload) => <GroupsEditor defs={loaded.defs} />}
+      <Show when={payload()}>
+        <GroupsEditor defs={payload()!.defs} />
       </Show>
 
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
@@ -374,7 +384,17 @@ export function Cards() {
       </Show>
 
       <For each={state.nodes}>
-        {(node, index) => (
+        {(node, index) => {
+          /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
+          const nodeState = createMemo(() =>
+            (unfinished()[index()]?.length ?? 0) > 0
+              ? "incomplete"
+              : confirmedNode(index())
+                ? "confirmed"
+                : "unconfirmed",
+          );
+
+          return (
           <div class="my-2 rounded-sm border border-border p-2">
             <Disclosure
               bodyClass="mt-2 flex flex-col gap-1 border-t border-border pt-2"
@@ -395,19 +415,19 @@ export function Cards() {
                     nowhere — which is the state this third colour exists for.
                   */}
                   <span
-                    data-state={nodeState(index())}
-                    aria-label={nodeState(index()).replace("-", " ")}
+                    data-state={nodeState()}
+                    aria-label={nodeState().replace("-", " ")}
                     title={
-                      nodeState(index()) === "incomplete"
+                      nodeState() === "incomplete"
                         ? "unfinished — open to see why"
-                        : nodeState(index())
+                        : nodeState()
                     }
                     class={[
                       "ml-1 h-2 w-2 shrink-0 rounded-full",
                       {
-                        "bg-success": nodeState(index()) === "confirmed",
-                        "bg-warning": nodeState(index()) === "incomplete",
-                        "border border-muted-foreground": nodeState(index()) === "unconfirmed",
+                        "bg-success": nodeState() === "confirmed",
+                        "bg-warning": nodeState() === "incomplete",
+                        "border border-muted-foreground": nodeState() === "unconfirmed",
                       },
                     ]}
                   />
@@ -526,21 +546,20 @@ export function Cards() {
             <Show
               when={payload()?.cards[String(node.card.type)]}
               fallback={<p class="text-muted-foreground">No description for this card type.</p>}
-              keyed
             >
-              {(cardIR: IRNode) => (
-                <IRField
-                  node={cardIR}
-                  defs={defsForNode(index())}
-                  label={String(node.card.type)}
-                  value={node.card}
-                  onChange={(card) => setCard(index(), card as Card)}
-                />
-              )}
+              <IRField
+                node={payload()!.cards[String(node.card.type)]}
+                defs={defsForNode(index())}
+                label={String(node.card.type)}
+                idPrefix={`node-${index()}`}
+                value={node.card}
+                onChange={(card) => setCard(index(), card as Card)}
+              />
             </Show>
             </Disclosure>
           </div>
-        )}
+          );
+        }}
       </For>
 
       <div class="flex gap-2">

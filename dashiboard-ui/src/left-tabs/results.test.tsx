@@ -10,7 +10,7 @@ vi.mock('../requests', () => ({
 }));
 
 import { Results } from './results';
-import { importCards, emptyCards, type CardsStore } from '../stores';
+import { importCards, type CardsStore } from '../stores';
 
 /** Two nodes, so a per-node report has something to be paired with. */
 const DOCUMENT: CardsStore = {

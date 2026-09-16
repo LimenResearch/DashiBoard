@@ -27,9 +27,12 @@ export function Loader() {
 
   function loadData() {
     setLoading(true);
-    // Capture the before state (column names) at the top of loadData, synchronously, not inside
-    // the promise callback — Solid 2 does not warn for reads in promise callbacks, but we compute
-    // `before` here rather than inside `.then` to be safe and clear.
+    // The column names as they are *now*, read synchronously rather than inside the `.then`
+    // below. `before` has to mean "the table these filters were authored against", and only a
+    // read taken before the request is out can promise that: `loading()` defers a tick before it
+    // disables the button, and `setState` in the callback below is the one thing that can change
+    // `state` under a reply in flight. Read late, the comparison would be against the wrong
+    // table, and the filters kept or cleared on it.
     const before = state.map((s) => s.name).sort().join(" ");
 
     // A Solid 2 store setter takes a *function*, so `.then(setState)` handed it the response array

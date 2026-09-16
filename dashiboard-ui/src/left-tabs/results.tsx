@@ -98,8 +98,8 @@ export function Results() {
         // `parts[1]` distinguishes a node pointer (`/nodes/<i>/card/…`) from a group pointer
         // (`/groups/<name>/…`) — counting `parts[2]` on its own, whatever `parts[1]` said, put an
         // empty-group issue (`/groups/empty`) on the "cards" count with nothing on screen to show
-        // for it. Groups get their own mark from the same store in a later task; this only fixes
-        // the headline.
+        // for it. The headline and the marks now agree: `reportRunIssues` above writes the same
+        // issues into `PROBE_STORE`, and the groups editor draws a group's own from there.
         const namesAt = (kind: "nodes" | "groups") =>
           new Set(
             issues

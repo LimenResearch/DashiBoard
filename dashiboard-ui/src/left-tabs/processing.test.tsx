@@ -183,9 +183,16 @@ describe('the card header', () => {
     await waitFor(() => expect(container.querySelector('[data-card-title]')).not.toBeNull());
     const summary = container.querySelector('[data-card-title]')!.closest('summary')!;
     expect(summary.className).toMatch(/flex-wrap/);
+    // The title unit is a flex container (icon/dot alignment) and stays un-truncated itself:
+    // `text-overflow: ellipsis` only renders in a block/inline formatting context, so `truncate`
+    // has to sit on the inner, non-flex text run instead — see `data-card-text` below.
     const title = container.querySelector('[data-card-title]')!;
-    expect(title.className).toMatch(/min-w-0/); expect(title.className).toMatch(/truncate/);
+    expect(title.className).toMatch(/min-w-0/);
+    expect(title.className).not.toMatch(/truncate/);
     expect(title.getAttribute('title')).toBe('dimensionality_reduction : dimensionality_reduction');
+    const text = container.querySelector('[data-card-text]')!;
+    expect(text.className).toMatch(/truncate/);
+    expect(text.className).not.toMatch(/flex/);
     expect(container.querySelector('[data-card-actions]')!.className).toMatch(/shrink-0/);
   });
 });

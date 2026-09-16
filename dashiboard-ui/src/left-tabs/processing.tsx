@@ -400,20 +400,25 @@ export function Cards() {
                 <>
                   {/* Folded, this line is all that survives — so it says what the card is and
                       which name the rest of the document refers to it by. A long type name (e.g.
-                      `dimensionality_reduction`) used to push Confirm/Remove past the pane's edge;
-                      `truncate` on this wrapper makes the title give way instead, and the full
-                      text still reaches the reader through `title`. */}
+                      `dimensionality_reduction`) used to push Confirm/Remove past the pane's edge.
+                      `text-overflow: ellipsis` only renders in a block/inline formatting context —
+                      on a flex box `overflow:hidden` just hard-clips a child mid-character — so
+                      `truncate` lives on the inner, non-flex `data-card-text` span around the text
+                      run, not on this flex wrapper. The full text still reaches the reader through
+                      `title`. */}
                   <span
                     data-card-title
                     title={`${String(node.card.type)} : ${node.id || "unnamed"}`}
-                    class="flex min-w-0 items-center gap-1.5 truncate"
+                    class="flex min-w-0 items-center gap-1.5"
                   >
-                    <span class="font-mono text-control-xs font-semibold text-primary">
-                      {String(node.card.type)}
-                    </span>
-                    <span class="text-muted-foreground">:</span>
-                    <span class="font-mono text-control-xs">
-                      {node.id || <span class="text-destructive italic">unnamed</span>}
+                    <span data-card-text class="min-w-0 truncate">
+                      <span class="font-mono text-control-xs font-semibold text-primary">
+                        {String(node.card.type)}
+                      </span>
+                      <span class="text-muted-foreground">:</span>
+                      <span class="font-mono text-control-xs">
+                        {node.id || <span class="text-destructive italic">unnamed</span>}
+                      </span>
                     </span>
                     {/*
                       Orange when the last Confirm found something. Folded, this dot is the only

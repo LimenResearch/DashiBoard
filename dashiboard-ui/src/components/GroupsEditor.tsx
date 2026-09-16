@@ -107,17 +107,22 @@ export function GroupsEditor(props: { defs: Defs }) {
                   <>
                     {/* Folded, this is the whole group: the key it is referred to by, and its
                         name. A pipeline with six groups should read as six lines. A long group
-                        name used to push Confirm/Remove past the pane's edge; `truncate` on this
-                        wrapper makes the title give way instead, and the full text still reaches
-                        the reader through `title`. */}
+                        name used to push Confirm/Remove past the pane's edge.
+                        `text-overflow: ellipsis` only renders in a block/inline formatting context
+                        — on a flex box `overflow:hidden` just hard-clips a child mid-character —
+                        so `truncate` lives on the inner, non-flex `data-group-text` span around the
+                        text run, not on this flex wrapper. The full text still reaches the reader
+                        through `title`. */}
                     <span
                       data-group-title
                       title={`name : ${name}`}
-                      class="flex min-w-0 items-center gap-1.5 truncate"
+                      class="flex min-w-0 items-center gap-1.5"
                     >
-                      <span class="text-control-xs font-semibold text-primary">name</span>
-                      <span class="text-muted-foreground">:</span>
-                      <span class="font-mono text-control-xs">{name}</span>
+                      <span data-group-text class="min-w-0 truncate">
+                        <span class="text-control-xs font-semibold text-primary">name</span>
+                        <span class="text-muted-foreground">:</span>
+                        <span class="font-mono text-control-xs">{name}</span>
+                      </span>
                       {/* Orange when the last Confirm found something: the warning renders inside
                           the body, which announces nothing while the group is folded. */}
                       <span

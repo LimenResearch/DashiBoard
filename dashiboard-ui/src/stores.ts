@@ -320,14 +320,17 @@ export function removeNode(nodeIndex: number) {
 //
 // Which definitions the author has deliberately marked finished.
 //
-// Not in the document, and not sent anywhere: this is an ergonomic step, so it lives as long as
-// the session and no longer. A reload shows everything unconfirmed, which is honest — it says
-// "you have not reviewed this here", not "this is wrong".
+// Not in the document and not sent anywhere: this is an ergonomic mark. It is kept in
+// `sessionStorage` beside the document it describes, so a reload brings both back and the marks
+// still stand against the cards they were made on; closing the tab ends them, as it ends the
+// document.
 //
 // Stored as a *signature of the content* rather than a flag. Editing a confirmed card changes its
 // signature and so un-confirms it automatically, which is the behaviour that matters: a card
 // confirmed and then changed is no longer something anyone declared finished, and a flag would go
-// quietly stale instead.
+// quietly stale instead. It is also what makes the keys safe: they are node *indices*, so removing
+// an earlier card slides every later mark onto its neighbour — where it no longer matches, and so
+// reads as unconfirmed rather than as somebody else's approval.
 
 const [confirmations, setConfirmations] = persistedSignal<Record<string, string>>("dashi.confirmations", {});
 

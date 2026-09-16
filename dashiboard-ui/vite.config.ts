@@ -24,12 +24,19 @@ export default defineConfig({
     // Without this the app only works if you remember `?api=...`, and a POST to an unproxied
     // path returns Vite's 404 HTML, which reads as "the server is down".
     // Point it elsewhere with DASHI_API=http://127.0.0.1:8090 pnpm dev
+    //
+    // This list must name every route the UI posts to. A route left off falls through to Vite's
+    // own dev server, which answers a POST with its 404 HTML — not JSON, so `postRequest` can't
+    // parse it, swallows the parse failure, and resolves to its `def`. `/probe-pipeline` was
+    // missing this way until 2026-09-16: every probe silently came back as "no answer" in the
+    // browser, which `usableProbe(null)` used to read as a clean bill of health (see probe.ts).
     proxy: Object.fromEntries(
       [
         '/get-acceptable-paths',
         '/load-files',
         '/get-card-ir',
         '/validate-card',
+        '/probe-pipeline',
         '/evaluate-pipeline',
         '/fetch-data',
         '/get-processed-data',

@@ -122,6 +122,20 @@ describe('the continuous probe', () => {
       vi.useRealTimers();
     }
   });
+
+  it('does not outlive the tab that scheduled it', async () => {
+    // An edit schedules a probe 200 ms out. Unmounting inside that window used to leave the timer
+    // running, so a POST went out for a tab that no longer exists — and with real timers it
+    // landed in whatever ran next, which is what made the test above flaky on a slow worker.
+    render(() => <Cards />);
+    await waitFor(() => expect(irCalls()).toBe(1));
+    await new Promise((r) => setTimeout(r, 250)); await flush();   // let the mount-time probe go
+    const before = probeCalls().length;
+    addGroup(); await flush();                                     // schedules a probe in 200 ms
+    cleanup();                                                     // the tab goes away first
+    await new Promise((r) => setTimeout(r, 300)); await flush();
+    expect(probeCalls().length).toBe(before);
+  });
 });
 
 describe('the card IR', () => {

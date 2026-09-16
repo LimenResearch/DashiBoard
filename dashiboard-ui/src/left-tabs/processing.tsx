@@ -1,5 +1,5 @@
 import {
-  createEffect, createMemo, createSignal, For, Show, Store, reconcile, untrack,
+  createEffect, createMemo, createSignal, For, onCleanup, Show, Store, reconcile, untrack,
 } from "solid-js";
 
 import { Button } from "../components/Button";
@@ -177,6 +177,13 @@ export function Cards() {
         setProbe(reconcile(answer));
       });
     }, PROBE_QUIET_MS);
+  });
+
+  // A pending probe must not outlive the tab: the timer would post after unmount, and a reply
+  // already in flight would write the store. Moving the sequence past any live request discards it.
+  onCleanup(() => {
+    clearTimeout(probeTimer);
+    probeSeq = Number.MAX_SAFE_INTEGER;
   });
 
   // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.

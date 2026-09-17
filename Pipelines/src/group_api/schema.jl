@@ -158,6 +158,8 @@ with the name that is absent and a `related` pointer to the control that should 
 
 `required` needs that help because it reports at the **parent** path and carries *every* required
 name in `val`, not the missing one — so neither half identifies the control on its own.
+
+`severity` is `"error"` for every schema issue; warnings are emitted elsewhere with the same shape.
 """
 issue_report(errs::SchemaValidationErrors) = map(issue_report, errs.errors)
 
@@ -178,6 +180,10 @@ function issue_report(err::SchemaValidationError)
     return (;
         pointer,
         reason = issue.reason,
+        # A schema failure is always an error: the document cannot be built. The field exists
+        # so that the same list can carry warnings — an output that overwrites a column, say —
+        # and a client tells the two apart without a second list.
+        severity = "error",
         # For `required` the offending value is the whole container, which says nothing a pointer
         # has not already said and costs a copy of the card to send.
         found = issue.reason == "required" ? nothing : issue.x,

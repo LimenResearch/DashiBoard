@@ -151,6 +151,17 @@ end
     @test only(DashiBoard.root_causes(plain)) === plain
 end
 
+@testset "json_response and non-finite floats" begin
+    # A12: `JSON.json` refuses NaN and Inf, so a run whose z-score of a constant column was NaN
+    # on every row was reported as an execution failure (measured on `constant = 42`, 2026-09-13
+    # and 2026-09-16). `null` is what every JSON client reads as "no value".
+    resp = DashiBoard.json_response((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
+    body = String(resp.body)
+    @test !occursin("NaN", body) && !occursin("Infinity", body)
+    @test JSON.parse(body)["a"] == [1.0, nothing, nothing, nothing]
+    @test JSON.parse(body)["b"]["x"] === nothing
+end
+
 mktempdir() do data_dir
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
@@ -410,6 +421,103 @@ mktempdir() do data_dir
             "Content-Length" => "0",
         ]
 
+        # A14: a document with no cards. Filter-only is a legitimate run (filter, run, look), and
+        # the probe of an empty document is what the UI sends when the last card is removed.
+        # Placed before the failing-run block below: this run succeeds and leaves `selection`
+        # equal to `source`, which that block's CSV assertion tolerates.
+        body = JSON.json((; filters = [], nodes = [], groups = Dict{String, Any}()))
+        resp = HTTP.post(url * "probe-pipeline", body = body)
+        @test JSON.parse(resp.body)["valid"] == true
+        resp = HTTP.post(url * "evaluate-pipeline", body = body)
+        empty_run = JSON.parse(resp.body)
+        @test empty_run["valid"] == true
+        @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
+
+        # Groups but no cards: the usual authoring order is groups first, so this is what the UI's
+        # continuous probe sends for most of the time a document is being written. It has to
+        # resolve — `group_outputs = c.outputs[1:end]` over zero nodes — or the author gets no
+        # live finding on their groups until the first card exists.
+        groups_only = JSON.json((;
+            filters = [],
+            nodes = [],
+            groups = Dict("g" => [Dict("cols" => "TEMP")]),
+        ))
+        resp = HTTP.post(url * "probe-pipeline", body = groups_only)
+        @test JSON.parse(resp.body)["valid"] == true
+
+        # An empty group is a document the schema accepts (`weather = []` constructs) that
+        # resolves to zero columns; a card reading it used to die inside the card constructor
+        # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
+        # smoke check 5). The probe and the run both name the group instead.
+        reads_empty = JSON.json((;
+            filters = [],
+            nodes = [(; id = "z", card = Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
+            ))],
+            groups = Dict("empty" => []),
+        ))
+        for route in ("probe-pipeline", "evaluate-pipeline")
+            resp = HTTP.post(url * route, body = reads_empty)
+            answer = JSON.parse(resp.body)
+            @test answer["valid"] == false
+            @test answer["kind"] == "pipeline"
+            issue = only(answer["issues"])
+            @test issue["pointer"] == "/groups/empty"
+            @test issue["reason"] == "empty"
+            @test issue["severity"] == "error"
+            @test occursin("empty", issue["message"])
+            @test !occursin("UndefKeywordError", join(answer["errors"]))
+        end
+        # Every issue says how bad it is; a schema failure is an error.
+        two_broken = JSON.json((;
+            filters = [],
+            nodes = [(; id = "a", card = Dict("type" => "cluster")),
+                     (; id = "b", card = Dict("type" => "split"))],
+            groups = Dict{String, Any}(),
+        ))
+        resp = HTTP.post(url * "evaluate-pipeline", body = two_broken)
+        failed = JSON.parse(resp.body)
+        @test failed["valid"] == false && failed["kind"] == "pipeline"
+        @test [i["pointer"] for i in failed["issues"]] == ["/nodes/0/card", "/nodes/1/card"]
+        @test all(i["severity"] == "error" for i in failed["issues"])
+        @test !isempty(failed["errors"])
+
+        # A13: two cards emitting the same column name. The second silently replaced the first's
+        # output (and a source column would be replaced the same way — `rescale TEMP suffix =
+        # "rescaled"` over a source with `TEMP_rescaled`, measured 2026-09-13 and on 1M rows
+        # 2026-09-16). A warning, not a rejection: overwriting can be meant.
+        same_name = JSON.json((;
+            filters = [],
+            nodes = [
+                (; id = "one", card = Dict("type" => "rescale", "method" => Dict("type" => "zscore"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+                (; id = "two", card = Dict("type" => "rescale", "method" => Dict("type" => "minmax"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+            ],
+            groups = Dict{String, Any}(),
+        ))
+        resp = HTTP.post(url * "probe-pipeline", body = same_name)
+        probed = JSON.parse(resp.body)
+        @test probed["valid"] == true
+        warning = only(i for i in probed["issues"] if i["reason"] == "overwrites")
+        @test warning["severity"] == "warning"
+        @test warning["pointer"] == "/nodes/1/card"
+        @test occursin("TEMP_z", warning["message"])
+        resp = HTTP.post(url * "evaluate-pipeline", body = same_name)
+        @test JSON.parse(resp.body)["valid"] == true
+
+        # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
+        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+        # Julia's parser accepts those tokens, so this asserts on the text.
+        DBInterface.execute(Returns(nothing), DashiBoard.REPOSITORY[],
+            "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s")
+        body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
+        resp = HTTP.post(url * "fetch-data", body = body)
+        page = String(resp.body)
+        @test !occursin("NaN", page) && !occursin("Infinity", page)
+        @test JSON.parse(page)["values"][1]["bad"] === nothing
+        @test JSON.parse(page)["values"][1]["good"] == 2.5
 
         # ---- keep last: this one runs a pipeline that fails ----
         #

@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { Button } from "./Button";
 import { Disclosure, summaryAction } from "./Disclosure";
@@ -6,15 +6,21 @@ import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
 import {
   CARDS_STORE,
+  PROBE_STORE,
   addGroup,
-  confirmDefinition,
-  isConfirmed,
+  exportCards,
+  issuesForGroup,
+  recordVerdict,
+  verdictOf,
   removeGroup,
   renameGroup,
   setGroup,
+  type CardsStore,
   type Selector,
 } from "../stores";
-import { checkGroup, type Incompleteness } from "../completeness";
+import { askProbe } from "../probe";
+import { issueFindings } from "../findings";
+import type { Incompleteness } from "../completeness";
 import { withoutOption, type Defs, type IRNode } from "../ir";
 
 // Authoring `[groups]` — §6's "one picker, two levels".
@@ -29,19 +35,21 @@ import { withoutOption, type Defs, type IRNode } from "../ir";
 
 export function GroupsEditor(props: { defs: Defs }) {
   const [state] = CARDS_STORE;
+  const [probe] = PROBE_STORE;
   const [error, setError] = createSignal<string | null>(null);
-  // What Confirm found last time it was pressed, per group. Not run continuously — the step exists
-  // so the author says when they are done, not so a panel argues while they type.
-  const [unfinished, setUnfinished] = createSignal<Record<string, Incompleteness[]>>({});
-  const confirmed = (name: string) => isConfirmed(`group:${name}`, state.groups[name]);
 
-  /** unconfirmed · incomplete · confirmed — folded, the dot is the only thing on screen. */
-  const groupState = (name: string) =>
-    (unfinished()[name]?.length ?? 0) > 0
-      ? "incomplete"
-      : confirmed(name)
-        ? "confirmed"
-        : "unconfirmed";
+  // The last verdict on exactly this group's content — null once it is edited (`stores.ts`,
+  // verdicts). Findings travel with it, so there is no per-component list to keep in step.
+  const verdict = (name: string) => verdictOf(`group:${name}`, state.groups[name]);
+  /** unconfirmed · confirmed · rejected — amber until asked; folded, the dot is all there is. */
+  const groupState = (name: string) => verdict(name)?.verdict ?? "unconfirmed";
+  const findings = (name: string): Incompleteness[] => {
+    const v = verdict(name);
+    return v?.verdict === "rejected" ? v.findings : [];
+  };
+  // What the continuous probe says live about a group is only its *warnings*. Its errors are not
+  // shown here: red is reserved for what Confirm or a Run found (decided 2026-09-17).
+  const warnings = createMemo(() => probe.issues.filter((issue) => issue.severity === "warning"));
 
   // The `$defs/variable` node: one item of a selector list, which is exactly what a group holds.
   const itemNode = () => (props.defs.variable ?? {}) as IRNode;
@@ -87,44 +95,91 @@ export function GroupsEditor(props: { defs: Defs }) {
                 summary={
                   <>
                     {/* Folded, this is the whole group: the key it is referred to by, and its
-                        name. A pipeline with six groups should read as six lines. */}
-                    <span class="text-control-xs font-semibold text-primary">name</span>
-                    <span class="text-muted-foreground">:</span>
-                    <span class="font-mono text-control-xs">{name}</span>
-                    {/* Orange when the last Confirm found something: the warning renders inside
-                        the body, which announces nothing while the group is folded. */}
+                        name. A pipeline with six groups should read as six lines. A long group
+                        name used to push Confirm/Remove past the pane's edge.
+                        `text-overflow: ellipsis` only renders in a block/inline formatting context
+                        — on a flex box `overflow:hidden` just hard-clips a child mid-character —
+                        so `truncate` lives on the inner, non-flex `data-group-text` span around the
+                        text run, not on this flex wrapper. The full text still reaches the reader
+                        through `title`. */}
                     <span
-                      data-state={groupState(name)}
-                      aria-label={groupState(name)}
-                      title={
-                        groupState(name) === "incomplete"
-                          ? "unfinished — open to see why"
-                          : groupState(name)
-                      }
-                      class={[
-                        "ml-1 h-2 w-2 shrink-0 rounded-full",
-                        {
-                          "bg-success": groupState(name) === "confirmed",
-                          "bg-warning": groupState(name) === "incomplete",
-                          "border border-muted-foreground": groupState(name) === "unconfirmed",
-                        },
-                      ]}
-                    />
-                    <span class="ml-auto flex items-center gap-2">
+                      data-group-title
+                      title={`name : ${name}`}
+                      class="flex min-w-0 items-center gap-1.5"
+                    >
+                      <span data-group-text class="min-w-0 truncate">
+                        <span class="text-control-xs font-semibold text-primary">name</span>
+                        <span class="text-muted-foreground">:</span>
+                        <span class="font-mono text-control-xs">{name}</span>
+                      </span>
+                      {/* Amber until asked, then green or red on what the server answered: the
+                          findings render inside the body, which announces nothing while the
+                          group is folded. */}
+                      <span
+                        data-state={groupState(name)}
+                        aria-label={groupState(name)}
+                        title={
+                          groupState(name) === "rejected"
+                            ? "the server found something wrong — open to see what"
+                            : groupState(name) === "confirmed"
+                              ? "confirmed"
+                              : "not confirmed yet"
+                        }
+                        class={[
+                          "ml-1 h-2 w-2 shrink-0 rounded-full",
+                          {
+                            "bg-success": groupState(name) === "confirmed",
+                            "bg-destructive": groupState(name) === "rejected",
+                            "bg-warning": groupState(name) === "unconfirmed",
+                          },
+                        ]}
+                      />
+                    </span>
+                    <span data-group-actions class="ml-auto flex shrink-0 items-center gap-2">
                       {/*
-                        Unwired, deliberately — placed now so its position can be judged, with the
-                        behaviour still to be designed. The distinction it will carry is
-                        *completeness*, not validity: an empty group passes schema validation
-                        (measured — `weather = []` constructs), and is still not something anyone
-                        meant to define. So Confirm cannot simply run the validator; the validator
-                        says yes.
+                        Asks the probe rather than judging locally: an empty group passes schema
+                        validation (measured — `weather = []` constructs), so completeness here was
+                        never the validator's to answer, and used to be `checkGroup`'s own guess at
+                        it. Since the 2026-09-16 fixes the server reports an empty group itself
+                        (`empty_group_issues`, surfaced as `/groups/<name>`), Confirm now asks
+                        the same question the continuous probe asks and shows its answer — one
+                        source of truth instead of two that could disagree.
                       */}
                       <Button
                         title="mark this group deliberately finished"
                         onClick={summaryAction(() => {
-                          const found = checkGroup(state.groups[name] ?? []);
-                          setUnfinished({ ...unfinished(), [name]: found });
-                          if (found.length === 0) confirmDefinition(`group:${name}`, state.groups[name]);
+                          // One plain snapshot, taken before any `await`, is what gets probed
+                          // and what the verdict binds to — never a store proxy, which would
+                          // read the group as it is once the reply lands. Mirrors `confirmNode`
+                          // in processing.tsx: an edit made while the request is in flight must
+                          // leave the group unasked, not stamp it with an answer about content
+                          // the server never saw.
+                          const document = exportCards();
+                          const items = document.groups[name];
+                          const key = `group:${name}`;
+                          const decide = (found: Incompleteness[]) =>
+                            recordVerdict(key, items, found.length > 0 ? "rejected" : "confirmed", found);
+                          void (async () => {
+                            // The server's answer, not ours: an empty group is reported by the
+                            // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
+                            // one rule that used to live here (`checkGroup`) is gone.
+                            const answer = await askProbe(document);
+                            // `null` means the probe could not be asked at all (item 1: a missing
+                            // dev-server proxy route, or the server being down) — not that it came
+                            // back clean. Reading it as "no issues" is what let an empty group
+                            // through Confirm with a green dot (final review, 2026-09-16).
+                            if (answer === null) {
+                              decide([{
+                                message: "Could not reach DashiBoard to check this group — is the server running?",
+                              }]);
+                              return;
+                            }
+                            // A warning is not a finding: it renders live, amber, and never
+                            // stops Confirm.
+                            decide(issueFindings(
+                              issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
+                            ));
+                          })();
                         })}
                       >
                         Confirm
@@ -136,12 +191,27 @@ export function GroupsEditor(props: { defs: Defs }) {
                   </>
                 }
               >
-                {/* Warning rather than destructive: an empty group is legal and would run. It
-                    would simply select nothing, which the schema has no way to say. */}
-                <For each={unfinished()[name] ?? []}>
+                {/* What Confirm (or a failed run, through `reportRunIssues`) found on this exact
+                    content: red, and only while the verdict is a rejection — an edit drops it
+                    with the verdict. */}
+                <For each={findings(name)}>
                   {(finding: Incompleteness) => (
-                    <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
+                    <p
+                      data-finding
+                      class="rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive"
+                    >
                       {finding.message}
+                    </p>
+                  )}
+                </For>
+                {/* Live, amber, and not a verdict: the document is legal and would run. */}
+                <For each={issuesForGroup(warnings(), name)}>
+                  {(issue) => (
+                    <p
+                      data-issue-severity="warning"
+                      class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+                    >
+                      {issue.message}
                     </p>
                   )}
                 </For>

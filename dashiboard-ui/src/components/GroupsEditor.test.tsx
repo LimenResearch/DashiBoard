@@ -1,10 +1,23 @@
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, fireEvent } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
+import { flush, reconcile } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
-import { importCards, exportCards, emptyCards, addGroup, setGroup } from '../stores';
+import {
+  importCards, exportCards, emptyCards, addGroup, setGroup, forgetAllVerdicts,
+  isConfirmed, PROBE_STORE, emptyProbe, reportRunIssues, confirmDefinition,
+} from '../stores';
 import type { Defs } from '../ir';
 import payload from '../fixtures/card-ir.json';
+
+// Confirm now asks the probe (Task 6), so every test that clicks it makes a request — mocked the
+// same way `processing.test.tsx` mocks it, so the two files don't disagree about the shape of a
+// probe reply.
+const postRequest = vi.fn();
+vi.mock('../requests', () => ({
+  postRequest: (...args: unknown[]) => postRequest(...args),
+  getURL: (page: string) => `/${page}`,
+  loadJSON: vi.fn(), downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
+}));
 
 const defs = payload.defs as Defs;
 const mount = () => render(() => <GroupsEditor defs={defs} />);
@@ -12,7 +25,20 @@ const nameFields = (c: HTMLElement) =>
   [...c.querySelectorAll('input[aria-label="group name"]')] as HTMLInputElement[];
 
 afterEach(cleanup);
-beforeEach(() => importCards(emptyCards()));
+beforeEach(() => {
+  // A clean probe by default — most of this file's tests never open the network tab, so a reply
+  // with no issues lets Confirm succeed exactly as it did when `checkGroup` decided that locally.
+  postRequest.mockReset();
+  postRequest.mockImplementation(() => Promise.resolve([]));
+  importCards(emptyCards());
+  // The verdicts (`stores.ts`) are a module-level signal that reads `sessionStorage` once, at
+  // import — so they outlive every test in this file no matter what `importCards` resets, and a
+  // name two tests both confirm would let the second inherit the first's mark before its own
+  // Confirm ever runs. `PROBE_STORE` is a module-level store too: a test that seeds it (a failed
+  // run's issues, say) must not leak that into the next test's render.
+  forgetAllVerdicts();
+  PROBE_STORE[1](reconcile(emptyProbe()));
+});
 
 describe('GroupsEditor', () => {
   it('says the document defines none, rather than showing an empty area', async () => {
@@ -105,16 +131,22 @@ describe('GroupsEditor', () => {
   });
 
   it('refuses to confirm an empty group, and says what to do', async () => {
-    // Legal server-side — `weather = []` constructs — so this is the UI's to say or nobody's.
+    // Legal server-side — `weather = []` constructs — so this is the server's to say now (Task 6):
+    // Confirm asks the probe and the empty-group finding comes back exactly as
+    // `empty_group_issues` phrases it, rather than as `checkGroup`'s own wording.
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: ['group `weather` has no columns'],
+            issues: [{ pointer: '/groups/weather', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `weather` has no columns' }] }
+        : []));
     addGroup('weather');
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
-    await flush();
-    expect(container.textContent).toMatch(/at least one/i);
+    await waitFor(() => expect(container.textContent).toMatch(/no columns/i));
     expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
-    // Folded, the dot is the only thing on screen, so it has to carry the warning.
-    expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull();
+    // Folded, the dot is the only thing on screen, so it has to carry the answer.
+    expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
   });
 
   it('confirms a group that selects something, and shows it on the folded line', async () => {
@@ -123,8 +155,7 @@ describe('GroupsEditor', () => {
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
-    await flush();
-    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
+    await waitFor(() => expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull());
   });
 
   it('un-confirms itself when the group is edited afterwards', async () => {
@@ -135,11 +166,42 @@ describe('GroupsEditor', () => {
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
-    await flush();
-    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
+    await waitFor(() => expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull());
     setGroup('weather', [{ cols: 'PRES' }]);
     await flush();
     expect(container.querySelector('[aria-label="confirmed"]')).toBeNull();
+  });
+
+  it('confirms what was probed, not what the group became while the probe was in flight', async () => {
+    // A deferred reply, held open on purpose: the request is a round trip, and an edit landing in
+    // that window is a real possibility, not a contrived one. `state.groups[name]` read once the
+    // probe answers would capture the *edited* content and confirm a group nobody asked to probe.
+    let resolveProbe!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { resolveProbe = resolve; });
+    postRequest.mockImplementation((page: string) =>
+      page === 'probe-pipeline' ? pending : Promise.resolve([]));
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    const { getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await flush();
+    // Edited while the request is still in flight — before the probe has answered anything.
+    setGroup('weather', []);
+    await flush();
+    resolveProbe({ valid: true, kind: 'pipeline', cols: [], nodes: [], errors: [], issues: [] });
+    // Three, not two: `confirmDefinition` is a functional updater now (it chains off the previous
+    // updater's return rather than off a read — see `stores.ts`), and that costs one more `flush()`
+    // to settle than a plain value set did, on top of `askProbe`'s own async unwrap. Real usage
+    // notices nothing — Solid schedules its own flush automatically; only a test driving the
+    // scheduler by hand has to ask for the extra tick.
+    await flush();
+    await flush();
+    await flush();
+    // Confirmed against what was actually sent to the probe...
+    expect(isConfirmed('group:weather', [{ cols: 'TEMP' }])).toBe(true);
+    // ...not against what the group turned into before the answer came back.
+    expect(isConfirmed('group:weather', exportCards().groups.weather)).toBe(false);
   });
 
   it('removes a group', async () => {
@@ -149,6 +211,131 @@ describe('GroupsEditor', () => {
     fireEvent.click(getByText('Remove'));
     await flush();
     expect(exportCards().groups).toEqual({});
+  });
+
+  it('shows the server\'s finding for an empty group after Confirm', async () => {
+    // The envelope verbatim, with no `nodes` key: the empty-group early return is
+    // `(; valid = false, kind, cols, errors, issues)`. Mocking `nodes: []` here — a key the
+    // server never sends on a failure — is how `usableProbe` discarding these replies survived
+    // every UI test (final review, 2026-09-16).
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [], errors: ['group `g` has no columns'],
+            issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] }
+        : []));
+    importCards({ nodes: [], groups: { g: [] } });
+    const { container, getAllByText } = render(() => <GroupsEditor defs={defs} />);
+    fireEvent.click(getAllByText('Confirm')[0]);
+    await waitFor(() => expect(container.textContent).toMatch(/has no columns/));
+    expect(postRequest.mock.calls.some((c) => c[0] === 'probe-pipeline')).toBe(true);
+  });
+
+  it('reads a failed probe as "could not check", never as a clean group', async () => {
+    // `postRequest` resolves to `null` on any failure (item 1) — including a proxy route that
+    // doesn't exist, which is exactly how this went unnoticed in the browser. Confirm must not
+    // read that silence as "no issues found".
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline' ? null : []));
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(container.textContent).toMatch(/could not reach/i));
+    expect(isConfirmed('group:weather', exportCards().groups.weather)).toBe(false);
+    expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
+  });
+
+  it('shows one finding, not the failed run\'s copy and Confirm\'s copy both', async () => {
+    // A run can fail on this group before Confirm is ever clicked (`reportRunIssues`), which
+    // records a rejected verdict here. Confirm then asks the same question itself and gets the
+    // identical answer back — one verdict replaces the other, it does not stack.
+    const issue = {
+      pointer: '/groups/g', reason: 'empty', severity: 'error' as const, found: null,
+      allowed: null, missing: [], related: [], message: 'group `g` has no columns',
+    };
+    // Confirm's reply is worded differently from the run's, so the assertion below can tell
+    // "replaced" from "the reply has not landed yet".
+    const reworded = { ...issue, message: 'group `g` selects nothing' };
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: [reworded.message], issues: [reworded] }
+        : []));
+    importCards({ nodes: [], groups: { g: [] } });
+    await flush(); // a verdict binds to the document as it is *after* the staged write lands
+    reportRunIssues([issue]);
+    const { container, getAllByText } = render(() => <GroupsEditor defs={defs} />);
+    expect(container.textContent.split('has no columns').length - 1).toBe(1);
+    fireEvent.click(getAllByText('Confirm')[0]);
+    await waitFor(() => expect(container.textContent).toMatch(/selects nothing/));
+    expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/has no columns/);
+    expect(container.querySelectorAll('[data-finding]')).toHaveLength(1);
+  });
+  it('a failed run rejects the group, even over an existing confirmation', async () => {
+    // A Run is the author asking, exactly like Confirm: its answer replaces the older mark.
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    confirmDefinition('group:weather', [{ cols: 'TEMP' }]);
+    await flush(); // the run's verdict binds to the group as it is once the staged writes land
+    reportRunIssues([{
+      pointer: '/groups/weather', reason: 'empty', severity: 'error', found: null,
+      allowed: null, missing: [], related: [], message: 'group `weather` has no columns',
+    }]);
+    const { container } = mount();
+    await flush();
+    expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
+    expect(container.textContent).toMatch(/has no columns/);
+  });
+
+  it('shows no red before Confirm, even while the probe reports an error for it', async () => {
+    // Decided 2026-09-17: red is reserved for "you asked, and it was wrong". The continuous probe
+    // writes to `PROBE_STORE` only — never a verdict — so its error paints nothing on the group.
+    importCards({ nodes: [], groups: { g: [] } });
+    PROBE_STORE[1]((d) => {
+      d.valid = false;
+      d.issues = [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }];
+    });
+    await flush();
+    const { container } = mount();
+    await flush();
+    expect(container.querySelector('[data-state]')!.getAttribute('data-state')).toBe('unconfirmed');
+    expect(container.querySelector('[data-state]')!.className).toMatch(/bg-warning/);
+    expect(container.textContent).not.toMatch(/has no columns/);
+  });
+
+  it('turns red with the finding on Confirm, amber on edit, green when fixed', async () => {
+    const EMPTY = { valid: false, kind: 'pipeline', cols: [], errors: ['group `g` has no columns'],
+      issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] };
+    importCards({ nodes: [], groups: { g: [] } });
+    postRequest.mockImplementation((page: string) => Promise.resolve(page === 'probe-pipeline' ? EMPTY : []));
+    const { container, getAllByText } = mount();
+    fireEvent.click(getAllByText('Confirm')[0]);
+    await waitFor(() => expect(container.querySelector('[data-state="rejected"]')).not.toBeNull());
+    expect(container.querySelector('[data-state="rejected"]')!.className).toMatch(/bg-destructive/);
+    expect(container.textContent).toMatch(/has no columns/);
+    setGroup('g', [{ cols: 'TEMP' }]);
+    await flush();
+    await waitFor(() => expect(container.querySelector('[data-state="unconfirmed"]')).not.toBeNull());
+    expect(container.textContent).not.toMatch(/has no columns/);
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline' ? { valid: true, cols: ['TEMP'], nodes: [], errors: [], issues: [] } : []));
+    fireEvent.click(getAllByText('Confirm')[0]);
+    await waitFor(() => expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull());
+    expect(container.querySelector('[data-state="confirmed"]')!.className).toMatch(/bg-success/);
+  });
+
+  it('leaves a confirmed group confirmed when the live probe only warns', async () => {
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    confirmDefinition('group:weather', [{ cols: 'TEMP' }]);
+    reportRunIssues([{
+      pointer: '/groups/weather', reason: 'overwrites', severity: 'warning', found: null,
+      allowed: null, missing: [], related: [], message: '`TEMP_z` already exists',
+    }]);
+    const { container } = mount();
+    await flush();
+    expect(container.querySelector('[aria-label="confirmed"]')).not.toBeNull();
   });
 });
 

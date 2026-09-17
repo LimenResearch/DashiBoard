@@ -142,6 +142,72 @@ function validate_card(req::HTTP.Request)
 end
 
 """
+    empty_group_issues(groups)
+
+One `pipeline`-kind issue per group that names no columns.
+
+A group with an empty selector list is a legal document — `weather = []` constructs — and it
+resolves to zero columns, so a card reading it is built with no inputs and dies inside the card
+constructor with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
+smoke check 5). That message names the implementation, not the mistake. Checked here, before the
+pipeline is built, because the group API keeps no provenance from a resolved column list back to
+the group that produced it: by the time construction fails, which group was empty is no longer
+knowable. Reported by the probe and by the run alike, in the same shape as a schema failure, so a
+form addresses the group rather than printing a sentence above the page.
+"""
+function empty_group_issues(groups::AbstractDict)
+    return [
+        (;
+            pointer = "/groups/" * Pipelines.escape_pointer(String(name)),
+            reason = "empty",
+            severity = "error",
+            found = nothing,
+            allowed = nothing,
+            missing = String[],
+            related = String[],
+            message = "group `$(name)` has no columns",
+        )
+            for (name, items) in pairs(groups) if items isa AbstractVector && isempty(items)
+    ]
+end
+
+"""
+    overwrite_warnings(pipeline, cols)
+
+A warning per node whose outputs replace a column that already exists — in the source, or emitted
+by an earlier node.
+
+`rescale TEMP suffix = "rescaled"` against a source that already holds `TEMP_rescaled` is accepted
+at every layer and silently replaces the column (A13, measured 2026-09-13 and on 1M rows
+2026-09-16). Overwriting can be meant, so `severity = "warning"`: `valid` stays true and the run is
+allowed; the form shows it on the card. Nodes are walked in document order, so the later of two
+cards emitting the same name is the one warned, and a name is compared against everything that
+exists *before* the node runs.
+"""
+function overwrite_warnings(pipeline, cols::AbstractVector)
+    seen = Set{String}(cols)
+    warnings = []
+    for (i, node) in enumerate(pipeline.nodes)
+        outputs = Pipelines.get_node_outputs(node)
+        clashing = [name for name in outputs if name in seen]
+        if !isempty(clashing)
+            push!(warnings, (;
+                pointer = "/nodes/$(i - 1)/card",
+                reason = "overwrites",
+                severity = "warning",
+                found = nothing,
+                allowed = nothing,
+                missing = String[],
+                related = String[],
+                message = join(("`$(name)` already exists and will be replaced" for name in clashing), "; "),
+            ))
+        end
+        union!(seen, outputs)
+    end
+    return warnings
+end
+
+"""
     probe_pipeline(req)
 
 Resolve a document without running it: which columns each node consumes and emits, and any it
@@ -168,6 +234,13 @@ function probe_pipeline(req::HTTP.Request)
     cols = colnames(REPOSITORY[], "source")
     groups = get(spec, "groups", Dict{String, Any}())
 
+    # Before building: see `empty_group_issues` for why construction cannot report this itself.
+    empty = empty_group_issues(groups)
+    isempty(empty) || return json_response((;
+        valid = false, kind = "pipeline", cols,
+        errors = [issue.message for issue in empty], issues = empty,
+    ))
+
     pipeline = try
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
@@ -192,6 +265,8 @@ function probe_pipeline(req::HTTP.Request)
         (;
             pointer = "/nodes/$(i - 1)/card",
             reason = "unproduced",
+            # an error: nothing produces the column, so the document cannot run
+            severity = "error",
             found = nothing,
             allowed = nothing,
             missing = names,
@@ -221,7 +296,9 @@ function probe_pipeline(req::HTTP.Request)
         errors = String[],
         # Always present, so a client can read one shape rather than branch on which half of the
         # route answered.
-        issues = unproduced_issues,
+        # Errors first, then warnings: a client reading the list top-down sees what blocks the
+        # run before what merely deserves a look.
+        issues = vcat(unproduced_issues, overwrite_warnings(pipeline, cols)),
     ))
 end
 
@@ -268,6 +345,15 @@ function evaluate_pipeline(req::HTTP.Request)
         cols = String[summary.name for summary in available]
 
         groups = get(spec, "groups", Dict{String, Any}())
+        # Before building: see `empty_group_issues` for why construction cannot report this itself.
+        # No `cols` in this envelope, unlike the probe's: a failure on this route has never carried
+        # one — `failure_report` is `(; valid, kind, errors, issues)` — and the run's client asks
+        # the probe for the column list.
+        empty = empty_group_issues(groups)
+        isempty(empty) || return json_response((;
+            valid = false, kind = "pipeline",
+            errors = [issue.message for issue in empty], issues = empty,
+        ))
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
         exception isa Exception || rethrow()
@@ -305,6 +391,32 @@ const ASC_DICT = Dict("asc" => Asc(), "desc" => Desc())
 
 Sorter(d::AbstractDict) = Sorter(d["colId"], ASC_DICT[d["sort"]])
 
+"""
+    finite_projection(repository, table)
+
+`Select` every column of `table`, with each floating-point column replaced by
+`CASE WHEN isfinite(col) THEN col END`.
+
+DuckDB's JSON writer emits bare `NaN` and `Infinity`, which are not JSON: a page of a z-scored
+constant column was unreadable to the browser (A12, measured 2026-09-16). The cast happens in
+SQL so the page is written once and never post-processed as text. Column types come from
+`information_schema`, which is a catalogue lookup — not a pass over the table.
+
+It changes how those rows sort: a non-finite value reaches the sort as `NULL` — last under `ASC`
+in DuckDB — rather than as the `NaN` it used to be.
+"""
+function finite_projection(repository, table::AbstractString)
+    types = DBInterface.execute(
+        DataFrame, repository,
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '$(table)'",
+    )
+    floaty = Set(("DOUBLE", "FLOAT", "REAL"))
+    return Select((
+        name => (type in floaty ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name))
+            for (name, type) in zip(types.column_name, types.data_type)
+    )...)
+end
+
 function fetch_data(stream::HTTP.Stream)
     spec = json_read(stream)
     table = spec["processed"] ? "selection" : "source"
@@ -316,7 +428,8 @@ function fetch_data(stream::HTTP.Stream)
 
     mktempdir() do dir
         path = joinpath(dir, "data.json")
-        q = From(table) |> Order(by = sorter_nodes) |> Limit(; limit, offset)
+        q = From(table) |> finite_projection(REPOSITORY[], table) |>
+            Order(by = sorter_nodes) |> Limit(; limit, offset)
         export_table(
             REPOSITORY[], q, path;
             format = "json", array = true

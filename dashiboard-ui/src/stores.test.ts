@@ -243,6 +243,34 @@ describe('confirmation', () => {
     await flush();
     expect(isConfirmed('node:e', card)).toBe(false);
   });
+
+  it('confirms two keys set back to back in the same tick, not only the last', async () => {
+    // Solid 2 stages a signal write: a plain read right after a write in the same tick still
+    // returns the pre-write value. Two `confirmDefinition` calls back to back used to each build
+    // their map off the same stale read, so the second call's edit was the only one to survive a
+    // flush — the fix is a functional updater, which chains off the previous updater's return
+    // value instead of off a read.
+    const card = { type: 'rescale' };
+    confirmDefinition('node:h', card);
+    confirmDefinition('node:i', card);
+    await flush();
+    expect(isConfirmed('node:h', card)).toBe(true);
+    expect(isConfirmed('node:i', card)).toBe(true);
+  });
+
+  it('forgets two keys set in the same synchronous loop, not only the last', async () => {
+    const card = { type: 'rescale' };
+    confirmDefinition('node:j', card);
+    confirmDefinition('node:k', card);
+    await flush();
+    expect(isConfirmed('node:j', card)).toBe(true);
+    expect(isConfirmed('node:k', card)).toBe(true);
+
+    for (const key of ['node:j', 'node:k']) forgetConfirmation(key);
+    await flush();
+    expect(isConfirmed('node:j', card)).toBe(false);
+    expect(isConfirmed('node:k', card)).toBe(false);
+  });
 });
 
 describe('the stores survive a reload', () => {
@@ -268,11 +296,225 @@ describe('the stores survive a reload', () => {
     expect(back.categorical.cbwd!.has('NW')).toBe(true);
   });
 
-  it('confirmations are kept', async () => {
-    const { confirmDefinition, isConfirmed } = await import('./stores');
-    confirmDefinition('node:0', { type: 'rescale' });
+  it('verdicts are kept, with their findings', async () => {
+    const { recordVerdict, verdictOf } = await import('./stores');
+    recordVerdict('node:0', { type: 'rescale' }, 'rejected', [{ message: 'needs a value', pointer: '/nodes/0/card/inputs' }]);
     await flush();
-    expect(JSON.parse(sessionStorage.getItem('dashi.confirmations')!)['node:0']).toBeTypeOf('string');
-    expect(isConfirmed('node:0', { type: 'rescale' })).toBe(true);
+    const raw = JSON.parse(sessionStorage.getItem('dashi.verdicts')!)['node:0'];
+    expect(raw.verdict).toBe('rejected');
+    expect(raw.findings[0].message).toBe('needs a value');
+    expect(verdictOf('node:0', { type: 'rescale' })?.verdict).toBe('rejected');
+  });
+});
+
+describe('references follow the thing they name', () => {
+  // Check 6 by hand: deleting the group `empty` left `groups:empty` on the card, with no way to
+  // remove it — the picker only offers switches for values in the vocabulary.
+  const doc = () => ({
+    nodes: [
+      { id: 'r', card: { type: 'rescale', inputs: [{ groups: 'g' }, { cols: 'TEMP' }], group_by: [{ groups: 'g' }] } },
+      { id: 's', card: { type: 'rescale', inputs: [{ nodes: 'r' }, { cols: 'PRES', through: ['r'] }] } },
+    ],
+    groups: { g: [{ cols: ['TEMP'] }], h: [{ groups: 'g' }, { cols: 'PRES' }] },
+  });
+  it('removeGroup drops every item naming the group', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.removeGroup('g'); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[0].card.inputs).toEqual([{ cols: 'TEMP' }]);
+    expect(out.nodes[0].card.group_by).toEqual([]);
+    expect(out.groups.h).toEqual([{ cols: 'PRES' }]);
+  });
+  it('renameGroup rewrites them', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.renameGroup('g', 'wind'); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[0].card.inputs).toEqual([{ groups: 'wind' }, { cols: 'TEMP' }]);
+    expect(out.groups.h[0]).toEqual({ groups: 'wind' });
+  });
+  it('removeNode drops nodes: items and through entries', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.removeNode(0); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[0].card.inputs).toEqual([{ cols: 'PRES' }]);   // `through: ['r']` gone with r
+  });
+  // Not every selector is a list. `$defs/variable` fields — `partition`, `weights`,
+  // `gaussian_encoding.input`, `interp.input`, `glm.formula.target` — hold one selector object,
+  // and a walk that only looked at arrays left them naming a group that no longer exists.
+  const lone = () => ({
+    nodes: [{ id: 'p', card: { type: 'split', partition: { groups: 'g' }, method: { type: 'tiles' } } }],
+    groups: { g: [{ cols: 'TEMP' }] },
+  });
+  it('removeGroup drops a lone selector object that named it', async () => {
+    const s = await import('./stores');
+    s.importCards(lone()); s.removeGroup('g'); await flush();
+    const card = s.exportCards().nodes[0].card;
+    expect('partition' in card).toBe(false);
+    expect(card.method).toEqual({ type: 'tiles' });   // a plain object beside it is untouched
+  });
+  it('renameGroup rewrites a lone selector object', async () => {
+    const s = await import('./stores');
+    s.importCards(lone()); s.renameGroup('g', 'wind'); await flush();
+    expect(s.exportCards().nodes[0].card.partition).toEqual({ groups: 'wind' });
+  });
+  it('setNodeId rewrites nodes: items and through entries', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); s.setNodeId(0, 'rescaled'); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[1].card.inputs).toEqual([{ nodes: 'rescaled' }, { cols: 'PRES', through: ['rescaled'] }]);
+  });
+});
+
+describe('pruneFilters', () => {
+  it('drops filters on columns the loaded table lacks, keeps the rest, and says which', async () => {
+    const s = await import('./stores');
+    const [, setFilters] = s.FILTERS_STORE;
+    setFilters(() => ({
+      numerical: { TEMP: new s.Interval(0, 1), PRES: new s.Interval(0, 1) },
+      categorical: { cbwd: new Set(['NW']) },
+    }));
+    await flush();
+    const dropped = s.pruneFilters([{ name: 'TEMP' }, { name: 'No' }]);
+    await flush();
+    expect(dropped).toEqual(['PRES', 'cbwd']);
+    expect(Object.keys(s.FILTERS_STORE[0].numerical)).toEqual(['TEMP']);
+    expect(Object.keys(s.FILTERS_STORE[0].categorical)).toEqual([]);
+    expect(s.droppedFilters()).toEqual(['PRES', 'cbwd']);
+  });
+
+  it('drops nothing when every column is present, and nothing when no table is loaded', async () => {
+    const s = await import('./stores');
+    const [, setFilters] = s.FILTERS_STORE;
+    setFilters(() => ({ numerical: { TEMP: new s.Interval(0, 1) }, categorical: {} }));
+    await flush();
+    expect(s.pruneFilters([{ name: 'TEMP' }])).toEqual([]);
+    // No summaries means no table: a document's filters cannot be judged, so they stay.
+    expect(s.pruneFilters([])).toEqual([]);
+    await flush();
+    expect(Object.keys(s.FILTERS_STORE[0].numerical)).toEqual(['TEMP']);
+  });
+});
+
+describe('verdicts', () => {
+  it('bind to the exact content, and expire when it changes', async () => {
+    const s = await import('./stores');
+    s.recordVerdict('node:0', { type: 'rescale', suffix: 'z' }, 'rejected', [{ message: 'needs a value', pointer: '/nodes/0/card/inputs' }]);
+    await flush();
+    expect(s.verdictOf('node:0', { type: 'rescale', suffix: 'z' })).toEqual({
+      signature: JSON.stringify({ type: 'rescale', suffix: 'z' }),
+      verdict: 'rejected',
+      findings: [{ message: 'needs a value', pointer: '/nodes/0/card/inputs' }],
+    });
+    expect(s.verdictOf('node:0', { type: 'rescale', suffix: 'zz' })).toBeNull(); // edited: no verdict
+    expect(s.isConfirmed('node:0', { type: 'rescale', suffix: 'z' })).toBe(false);
+    s.recordVerdict('node:0', { type: 'rescale', suffix: 'z' }, 'confirmed');
+    await flush();
+    expect(s.isConfirmed('node:0', { type: 'rescale', suffix: 'z' })).toBe(true);
+    expect(s.verdictOf('node:0', { type: 'rescale', suffix: 'z' })?.findings).toEqual([]);
+  });
+
+  it('keep every write of one tick, and forget on request', async () => {
+    const s = await import('./stores');
+    s.recordVerdict('group:a', [], 'confirmed');
+    s.recordVerdict('group:b', [], 'rejected', [{ message: 'x' }]);
+    await flush();
+    expect(s.verdictOf('group:a', [])?.verdict).toBe('confirmed');
+    expect(s.verdictOf('group:b', [])?.verdict).toBe('rejected');
+    s.forgetVerdict('group:a');
+    await flush();
+    expect(s.verdictOf('group:a', [])).toBeNull();
+    expect(s.verdictOf('group:b', [])?.verdict).toBe('rejected');
+    s.forgetAllVerdicts();
+    await flush();
+    expect(s.verdictOf('group:b', [])).toBeNull();
+  });
+
+  it('a failed run rejects exactly the items its issues point at', async () => {
+    const s = await import('./stores');
+    s.importCards({
+      nodes: [
+        { id: 'a', card: { type: 'cluster' } },
+        { id: 'b', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [{ cols: 'TEMP' }], suffix: 'z' } },
+      ],
+      groups: { g: [], h: [{ cols: 'TEMP' }] },
+    });
+    await flush();
+    const issue = (over: Partial<ProbeIssue>): ProbeIssue => ({
+      pointer: '', reason: 'required', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'x', ...over,
+    });
+    s.reportRunIssues([
+      issue({ pointer: '/nodes/0/card', missing: ['method', 'inputs'], related: ['/nodes/0/card/method', '/nodes/0/card/inputs'] }),
+      issue({ pointer: '/groups/g', reason: 'empty', message: 'group `g` has no columns' }),
+      issue({ pointer: '/nodes/1/card', reason: 'overwrites', severity: 'warning', message: '`TEMP_z` already exists' }),
+    ]);
+    await flush();
+    const cards = s.exportCards();
+    // A card's verdict binds to the whole node: its id is part of what was checked.
+    expect(s.verdictOf('node:0', cards.nodes[0])?.verdict).toBe('rejected');
+    expect(s.verdictOf('node:0', cards.nodes[0])?.findings.map((f) => f.pointer))
+      .toEqual(['/nodes/0/card/method', '/nodes/0/card/inputs']);
+    expect(s.verdictOf('group:g', cards.groups.g)?.verdict).toBe('rejected');
+    expect(s.verdictOf('group:g', cards.groups.g)?.findings[0].message).toMatch(/has no columns/);
+    expect(s.verdictOf('node:1', cards.nodes[1])).toBeNull(); // a warning is not a rejection
+    expect(s.verdictOf('group:h', cards.groups.h)).toBeNull();
+    expect(s.PROBE_STORE[0].valid).toBe(false); // the pointer next to Run still reads the store
+  });
+
+  it('a failed run binds to the document that was sent, not to the store as it is later', async () => {
+    const s = await import('./stores');
+    s.forgetAllVerdicts();
+    s.importCards({ nodes: [{ id: 'a', card: { type: 'cluster' } }], groups: {} });
+    await flush();
+    const sent = s.exportCards();
+    s.setCardField(0, 'output', 'edited');
+    await flush(); // the store now differs from what was sent
+    s.reportRunIssues([{
+      pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null, allowed: null,
+      missing: ['method'], related: ['/nodes/0/card/method'], message: 'x',
+    }], sent);
+    await flush();
+    expect(s.verdictOf('node:0', sent.nodes[0])?.verdict).toBe('rejected');
+    expect(s.verdictOf('node:0', s.exportCards().nodes[0])).toBeNull();
+  });
+
+  it('a removed group takes its verdict with it; a renamed one keeps it under the new name', async () => {
+    const s = await import('./stores');
+    s.forgetAllVerdicts();
+    s.importCards({ nodes: [], groups: { g: [], h: [{ cols: 'TEMP' }] } });
+    await flush();
+    s.recordVerdict('group:g', [], 'rejected', [{ message: 'group `g` has no columns' }]);
+    s.recordVerdict('group:h', [{ cols: 'TEMP' }], 'confirmed');
+    await flush();
+    s.removeGroup('g');
+    s.addGroup('g'); // same name, same (empty) content as the one that was rejected
+    await flush();
+    expect(s.verdictOf('group:g', [])).toBeNull(); // amber until asked, not red by inheritance
+    expect(s.renameGroup('h', 'weather')).toBe(true);
+    await flush();
+    expect(s.verdictOf('group:weather', [{ cols: 'TEMP' }])?.verdict).toBe('confirmed');
+    expect(s.verdictOf('group:h', [{ cols: 'TEMP' }])).toBeNull();
+  });
+
+  it('follow their card when an earlier one is removed', async () => {
+    const s = await import('./stores');
+    s.forgetAllVerdicts();
+    s.importCards({
+      nodes: [{ id: 'a', card: { type: 'rescale' } }, { id: 'b', card: { type: 'cluster' } }],
+      groups: { g: [] },
+    });
+    await flush();
+    const [a, b] = s.exportCards().nodes;
+    s.recordVerdict('node:0', a, 'confirmed');
+    s.recordVerdict('node:1', b, 'rejected', [{ message: 'needs a value', pointer: '/nodes/1/card/method' }]);
+    s.recordVerdict('group:g', [], 'rejected', [{ message: 'x' }]);
+    await flush();
+    s.removeNode(0);
+    await flush();
+    expect(s.verdictOf('node:0', b)?.verdict).toBe('rejected');   // b is at 0 now, still red
+    expect(s.verdictOf('node:0', b)?.findings[0].message).toBe('needs a value');
+    // and the finding's pointer moved with it, so a control lookup lands on the right card
+    expect(s.verdictOf('node:0', b)?.findings[0].pointer).toBe('/nodes/0/card/method');
+    expect(s.verdictOf('node:1', b)).toBeNull();
+    expect(s.verdictOf('group:g', [])?.verdict).toBe('rejected'); // groups are untouched
   });
 });

@@ -1,4 +1,4 @@
-import type { PipelineNode, Selector } from "./stores";
+import type { PipelineNode } from "./stores";
 
 // What the UI can answer about a definition on its own, without asking the server.
 //
@@ -40,8 +40,8 @@ import type { PipelineNode, Selector } from "./stores";
 // `required` and `minItems` in TypeScript; measured against `validate_pipeline_schema` it found
 // exactly the same set, nested cases included, and it is gone.
 //
-// `checkGroup` and `checkNode` are what is left, and they are not duplication at all: the server
-// *accepts* both documents (measured), so if this file did not say it nobody would.
+// `checkNode` is what is left. `checkGroup` went on 2026-09-16 when the probe learned to report
+// an empty group itself (`empty_group_issues`).
 
 export type Incompleteness = {
   /** What the author would do about it, phrased as the thing to do rather than as a complaint. */
@@ -51,22 +51,9 @@ export type Incompleteness = {
    * from the server render through one code path and read the same way.
    */
   pointer?: string;
+  /** A probe finding carries this through; a UI-only check has none and reads as an error. */
+  severity?: "error" | "warning";
 };
-
-/**
- * A group with no selectors resolves to no columns.
- *
- * Measured rather than assumed: `weather = []` constructs fine, so the server will never mention
- * it. It is also never what anyone meant — a group exists to name a set of columns once. This one
- * is still about a document the server *accepts*, which is why it reads as a warning rather than
- * as an error.
- */
-export function checkGroup(items: readonly Selector[]): Incompleteness[] {
-  if (items.length === 0) {
-    return [{ message: "Add at least one column, group or node — an empty group selects nothing." }];
-  }
-  return [];
-}
 
 /**
  * A node with no id cannot be referred to.

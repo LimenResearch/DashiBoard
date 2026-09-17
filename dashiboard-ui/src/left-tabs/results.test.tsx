@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { flush, reconcile } from 'solid-js';
 
 const postRequest = vi.fn();
 vi.mock('../requests', () => ({
@@ -10,7 +10,9 @@ vi.mock('../requests', () => ({
 }));
 
 import { Results } from './results';
-import { importCards, emptyCards, type CardsStore } from '../stores';
+import {
+  importCards, forgetAllVerdicts, verdictOf, exportCards, PROBE_STORE, emptyProbe, type CardsStore,
+} from '../stores';
 
 /** Two nodes, so a per-node report has something to be paired with. */
 const DOCUMENT: CardsStore = {
@@ -51,6 +53,10 @@ async function runPipeline(getByText: (m: RegExp) => HTMLElement) {
 beforeEach(() => {
   sessionStorage.clear();
   importCards(structuredClone(DOCUMENT));
+  // Module-level state a test here seeds (a failed run's issues, a verdict) must not leak into
+  // the next render — the same resets `processing.test.tsx` and `GroupsEditor.test.tsx` make.
+  PROBE_STORE[1](reconcile(emptyProbe()));
+  forgetAllVerdicts();
   postRequest.mockReset();
   serve();
 });
@@ -233,5 +239,97 @@ describe('Results', () => {
     await runPipeline(getByText);
     const body = postRequest.mock.calls.find((c: unknown[]) => c[0] === 'evaluate-pipeline')![1];
     expect(Object.keys(body as object).sort()).toEqual(['filters', 'groups', 'nodes']);
+  });
+});
+
+describe('a run that failed to build', () => {
+  it('puts the server\'s issues on the cards and names the count', async () => {
+    // Check 12 by hand: two incomplete cards, Run → the pane showed JSONSchema.jl's raw text
+    // while Confirm on the same card showed two field pointers. Same fault, one rendering.
+    importCards({ nodes: [{ id: 'a', card: { type: 'cluster' } }, { id: 'b', card: { type: 'split' } }], groups: {} });
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'evaluate-pipeline'
+        ? { valid: false, kind: 'pipeline', errors: ['2 schema validation errors: …'],
+            issues: [
+              { pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null, allowed: null, missing: ['method', 'inputs'], related: ['/nodes/0/card/method', '/nodes/0/card/inputs'], message: 'x' },
+              { pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null, allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'y' },
+            ] }
+        : []));
+    const { container, getByText } = render(() => <Results />);
+    fireEvent.click(getByText(/run pipeline/i));
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.querySelector('[data-run-error]')!.textContent).toMatch(/2 cards need attention/);
+    expect(PROBE_STORE[0].issues.map((i) => i.pointer)).toEqual(['/nodes/0/card', '/nodes/1/card']);
+    // A Run is the author asking: each pointed card is now rejected, with the run's findings.
+    await flush();
+    const nodes = exportCards().nodes;
+    expect(verdictOf('node:0', nodes[0])?.verdict).toBe('rejected');
+    expect(verdictOf('node:0', nodes[0])?.findings.map((f) => f.pointer)).toEqual(['/nodes/0/card/method', '/nodes/0/card/inputs']);
+    expect(verdictOf('node:1', nodes[1])?.verdict).toBe('rejected');
+    // And the pointer next to Run names both.
+    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/a, b/);
+  });
+
+  it('counts a group issue as a group, not a card', async () => {
+    // `/groups/g` is not `/nodes/<i>/card`: counting pointer segment 2 whatever segment 1 said
+    // put an empty-group failure on the card count, with nothing on screen to show for it.
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'evaluate-pipeline'
+        ? { valid: false, kind: 'pipeline', errors: ['group `g` has no columns'],
+            issues: [
+              { pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' },
+            ] }
+        : []));
+    const { container, getByText } = render(() => <Results />);
+    fireEvent.click(getByText(/run pipeline/i));
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.querySelector('[data-run-error]')!.textContent).toMatch(/1 group needs attention/);
+    expect(container.querySelector('[data-run-error]')!.textContent).not.toMatch(/card/);
+  });
+});
+
+describe('the pointer next to Run pipeline', () => {
+  const issue = (pointer: string, severity: 'error' | 'warning' = 'error') => ({
+    pointer, reason: 'required', severity, found: null, allowed: null, missing: [], related: [], message: 'x',
+  });
+
+  it('names the items the probe objects to, and nothing when it is valid', async () => {
+    importCards({
+      nodes: [{ id: 'cluster', card: { type: 'cluster' } }, { card: { type: 'split' } }],
+      groups: { group_2: [] },
+    });
+    PROBE_STORE[1]((d) => {
+      d.valid = false;
+      d.issues = [
+        issue('/nodes/0/card'),
+        issue('/nodes/0/card/method'),          // a second issue on the same card: named once
+        issue('/nodes/1/card'),
+        issue('/groups/group_2'),
+        issue('/nodes/1/card', 'warning'),      // a warning is not an objection
+      ];
+    });
+    await flush();
+    const { container } = render(() => <Results />);
+    const pointer = container.querySelector('[data-needs-attention]');
+    expect(pointer).not.toBeNull();
+    expect(pointer!.textContent).toMatch(/Needs attention: cluster, card 2, group_2/);
+    expect(pointer!.className).toMatch(/destructive/);
+    PROBE_STORE[1]((d) => { d.valid = true; d.issues = []; });
+    await flush();
+    expect(container.querySelector('[data-needs-attention]')).toBeNull();
+  });
+
+  it('names only the items the errors point at, when a warning is the only issue', async () => {
+    PROBE_STORE[1]((d) => { d.valid = true; d.issues = [issue('/nodes/0/card', 'warning')]; });
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(container.querySelector('[data-needs-attention]')).toBeNull();
+  });
+
+  it('says "the document" for a fault with no item pointer', async () => {
+    PROBE_STORE[1]((d) => { d.valid = false; d.issues = []; d.errors = ['Encountered nodes with equal `id`']; });
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/Needs attention: the document/);
   });
 });

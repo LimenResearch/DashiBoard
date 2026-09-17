@@ -1,5 +1,9 @@
 # Post-smoke fixes — design
 
+> **Superseded in part (2026-09-17):** §4 (session gate, Start over, the TableView overlay) and
+> §3.3 (filters reset on a table change) are withdrawn by
+> `2026-09-17-storage-boundaries-design.md`. Everything else stands.
+
 What the 2026-09-16 smoke run of the UI (`.claude/ui-refactor/09-smoke-ledger.md`, entries 13–15,
 on `stress.parquet`, 1M rows) turned up, and what to do about it. Folds in the five notes that
 were kept in `.superpowers/sdd/todos/` and two older server findings (A12, A13 in

@@ -1,8 +1,10 @@
 import {
-  createStore, reconcile, snapshot,
+  createSignal, createStore, reconcile, snapshot,
   type Store, type StoreSetter,
 } from "solid-js";
 import { persisted, persistedSignal } from "./persist";
+import type { Incompleteness } from "./completeness";
+import { issueFindings } from "./findings";
 
 export class Interval {
   min: number;
@@ -77,6 +79,44 @@ export const filtersCodec = {
 const filters = persisted<FiltersStore>("dashi.filters", { numerical: {}, categorical: {} }, filtersCodec);
 export const FILTERS_STORE: [Store<FiltersStore>, StoreSetter<FiltersStore>] = [filters[0], filters[1]];
 
+/**
+ * Which filters the last load dropped, by column — for the Filter tab to say so. Transient: a
+ * notice, not part of the document.
+ */
+export const [droppedFilters, setDroppedFilters] = createSignal<string[]>([]);
+
+/**
+ * Drop every filter whose column the loaded table lacks, and say which.
+ *
+ * A filter is authored against a table; load a table without that column and the filter cannot
+ * apply — the run fails on it (measured 2026-09-16: a list filter on `cbwd` over
+ * `pollution_test.parquet`). Keeping it and asking the author to remove it is friction; clearing
+ * every filter whenever the column set changes (the earlier heuristic) threw away the ones that
+ * still applied, silently. So: remove exactly the ones that cannot apply, keep the rest, and
+ * return the names so the Filter tab can announce them.
+ *
+ * No summaries means no table is loaded, and a document's filters cannot be judged against
+ * nothing — they stay.
+ */
+export function pruneFilters(summaries: readonly { name: string }[]): string[] {
+  if (summaries.length === 0) return [];
+  const present = new Set(summaries.map((s) => s.name));
+  const dropped: string[] = [];
+  const [, setFilters] = FILTERS_STORE;
+  setFilters((draft) => {
+    for (const kind of ["numerical", "categorical"] as const) {
+      for (const name of Object.keys(draft[kind])) {
+        if (!present.has(name)) {
+          delete draft[kind][name];
+          dropped.push(name);
+        }
+      }
+    }
+  });
+  if (dropped.length > 0) setDroppedFilters(dropped);
+  return dropped;
+}
+
 // The authored half of the ExperimentTracking `Config` — `{nodes, groups}`. Filters live in
 // FILTERS_STORE and are converted at the wire boundary by `getFilters`, following the same
 // store-plus-getter split as the rest of this file.
@@ -134,6 +174,9 @@ export type ProbeNode = {
 export type ProbeIssue = {
   pointer: string;
   reason: string;
+  /** How bad: an error blocks the run; a warning (a column about to be overwritten) does not.
+   *  Absent from an older server means error. */
+  severity?: "error" | "warning";
   found: unknown;
   allowed: unknown[] | null;
   missing: string[];
@@ -171,6 +214,15 @@ export function issuesForNode(issues: ProbeIssue[], nodeIndex: number): ProbeIss
   });
 }
 
+/** The issues addressing one group — `/groups/<name>` and anything below it. */
+export function issuesForGroup(issues: ProbeIssue[], name: string): ProbeIssue[] {
+  const want = ["", "groups", name.replace(/~/g, "~0").replace(/\//g, "~1")];
+  return issues.filter((issue) => {
+    const parts = issue.pointer.split("/");
+    return want.every((segment, i) => parts[i] === segment);
+  });
+}
+
 const unescapeToken = (token: string) => token.replace(/~1/g, "/").replace(/~0/g, "~");
 
 /**
@@ -191,6 +243,60 @@ export function fieldPath(pointer: string): string {
 // Not persisted: it is derived from the document and recomputes within 200 ms of load (Task 6).
 // Persisting it would cost a write per probe for a value that is about to be replaced.
 export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
+
+/**
+ * A run that failed to build says where, in the probe's shape.
+ *
+ * Written into `PROBE_STORE` — the pointer next to Run pipeline reads it — and recorded as a
+ * *rejected* verdict on every item an error points at: a Run is the author asking, exactly as
+ * Confirm is, so red is right here where it would not be for the continuous probe. Warnings are
+ * not rejections. The findings are derived as Confirm derives them, so the item reads the same
+ * whoever asked.
+ *
+ * `document` is what the run was *sent*, not the store as it is when the reply lands: the author
+ * may have edited in between, and a verdict on content the server never saw is the one thing a
+ * verdict must never be. Defaults to the current document for callers with no request in flight.
+ */
+export function reportRunIssues(
+  issues: ProbeIssue[],
+  document: Pick<CardsStore, "nodes" | "groups"> = exportCards(),
+) {
+  const [, setProbe] = PROBE_STORE;
+  setProbe((draft) => {
+    draft.valid = false;
+    draft.issues = issues;
+  });
+  const byItem = new Map<string, ProbeIssue[]>();
+  for (const issue of issues) {
+    if (issue.severity === "warning") continue;
+    const key = itemKey(issue.pointer);
+    if (key === null) continue;
+    byItem.set(key, [...(byItem.get(key) ?? []), issue]);
+  }
+  for (const [key, own] of byItem) {
+    const value = itemValue(key, document);
+    if (value === undefined) continue;
+    recordVerdict(key, value, "rejected", issueFindings(own));
+  }
+}
+
+/** `/nodes/<i>/…` → `node:<i>`; `/groups/<name>/…` → `group:<name>`; anything else → null. */
+export function itemKey(pointer: string): string | null {
+  const parts = pointer.split("/");
+  if (parts[1] === "nodes" && parts[2] !== undefined) return `node:${parts[2]}`;
+  if (parts[1] === "groups" && parts[2] !== undefined) return `group:${unescapeToken(parts[2])}`;
+  return null;
+}
+
+/**
+ * The content a verdict on `key` binds to: the whole node (its id is part of what was checked —
+ * `checkNode` judges it, and the server reports duplicates), or the group's selector list.
+ */
+function itemValue(key: string, document: Pick<CardsStore, "nodes" | "groups">): unknown {
+  if (key.startsWith("node:")) return document.nodes[Number(key.slice(5))];
+  if (key.startsWith("group:")) return document.groups[key.slice(6)];
+  return undefined;
+}
 
 const cardsPersisted = persisted<CardsStore>("dashi.cards", emptyCards());
 export const CARDS_STORE: [Store<CardsStore>, StoreSetter<CardsStore>] = [cardsPersisted[0], cardsPersisted[1]];
@@ -273,10 +379,73 @@ export function setGroup(name: string, items: Selector[]) {
   });
 }
 
+/**
+ * Every selector item in the document, with a callback that returns the item to keep — or
+ * `null` to drop it.
+ *
+ * A selector is *structural*: any array whose objects carry `cols` / `groups` / `nodes` /
+ * `through`. Walked that way rather than by asking the IR which fields are selectors, so a field
+ * this UI has never heard of is covered too. Items left with no value are dropped, and a group's
+ * own selector list is walked like a card's — groups may name groups.
+ *
+ * A lone selector object counts too: the IR's `$defs/variable` fields — `partition`, `weights`,
+ * `gaussian_encoding.input`, `interp.input`, `glm.formula.target` — hold one, not a list, and an
+ * array-only walk left `partition: {groups: "g"}` naming a group that had just been removed.
+ */
+function forEachSelector(draft: CardsStore, edit: (item: Selector) => Selector | null) {
+  const isItem = (x: unknown): x is Selector =>
+    !!x && typeof x === "object" && ["cols", "groups", "nodes", "through"].some((k) => k in (x as object));
+  const isSelector = (v: unknown): v is Selector[] => Array.isArray(v) && v.every(isItem);
+  const walk = (holder: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(holder)) {
+      if (isSelector(value)) {
+        holder[key] = value.map(edit).filter((item): item is Selector => item !== null);
+      } else if (!Array.isArray(value) && isItem(value)) {
+        // Tested before the recursion below, which would otherwise descend past it into `cols`.
+        const next = edit(value);
+        if (next === null) delete holder[key]; else holder[key] = next;
+      } else if (value && typeof value === "object" && !Array.isArray(value)) {
+        walk(value as Record<string, unknown>);
+      }
+    }
+  };
+  for (const node of draft.nodes) walk(node.card as Record<string, unknown>);
+  for (const name of Object.keys(draft.groups)) {
+    draft.groups[name] = draft.groups[name].map(edit).filter((item): item is Selector => item !== null);
+  }
+}
+
+/** `{kind: value}` with `name` taken out of the kind's one-or-many value; `null` when nothing is left. */
+function dropName(item: Selector, kind: "groups" | "nodes", name: string): Selector | null {
+  const out: Selector = { ...item };
+  const value = out[kind];
+  const rest = (Array.isArray(value) ? value : value === undefined ? [] : [value]).filter((v) => v !== name);
+  if (Array.isArray(value) || value === undefined) { if (rest.length === 0) delete out[kind]; else out[kind] = rest; }
+  else if (value === name) delete out[kind];
+  if (Array.isArray(out.through)) {
+    out.through = out.through.filter((v) => v !== name);
+    if (out.through.length === 0) delete out.through;
+  }
+  return "cols" in out || "groups" in out || "nodes" in out ? out : null;
+}
+
+function renameIn(item: Selector, kind: "groups" | "nodes", from: string, to: string): Selector {
+  const out: Selector = { ...item };
+  const value = out[kind];
+  if (Array.isArray(value)) out[kind] = value.map((v) => (v === from ? to : v));
+  else if (value === from) out[kind] = to;
+  if (Array.isArray(out.through)) out.through = out.through.map((v) => (v === from ? to : v));
+  return out;
+}
+
 export function removeGroup(name: string) {
   setCards((draft) => {
     delete draft.groups[name];
+    forEachSelector(draft, (item) => dropName(item, "groups", name));
   });
+  // Or a later group under the same name and the same content would inherit an answer nobody
+  // asked for it — red before its first Confirm, and across a reload.
+  forgetVerdict(`group:${name}`);
 }
 
 /**
@@ -299,53 +468,139 @@ export function renameGroup(from: string, to: string): boolean {
     draft.groups = Object.fromEntries(
       Object.entries(draft.groups).map(([key, value]) => [key === from ? to : key, value]),
     );
+    forEachSelector(draft, (item) => renameIn(item, "groups", from, to));
   });
+  // The content is unchanged, so what the server said about it still stands — under the new name.
+  if (renamed) moveVerdict(`group:${from}`, `group:${to}`);
   return renamed;
 }
 
 /** Rename a node. The card is untouched: the id belongs to the wrapper, not the card. */
 export function setNodeId(nodeIndex: number, id: string) {
   setCards((draft) => {
+    const from = draft.nodes[nodeIndex].id;
     draft.nodes[nodeIndex].id = id;
+    if (from && from !== id) forEachSelector(draft, (item) => renameIn(item, "nodes", from, id));
   });
 }
 
 export function removeNode(nodeIndex: number) {
   setCards((draft) => {
+    const id = draft.nodes[nodeIndex]?.id;
     draft.nodes.splice(nodeIndex, 1);
+    if (id) forEachSelector(draft, (item) => dropName(item, "nodes", id));
   });
+  shiftVerdictsPast(nodeIndex);
 }
 
-// --- confirmation --------------------------------------------------------------------------
+// --- verdicts -------------------------------------------------------------------------------
 //
-// Which definitions the author has deliberately marked finished.
+// What the author has asked about each definition, and what the server answered.
 //
-// Not in the document and not sent anywhere: this is an ergonomic mark. It is kept in
-// `sessionStorage` beside the document it describes, so a reload brings both back and the marks
-// still stand against the cards they were made on; closing the tab ends them, as it ends the
-// document.
+// Not in the document and not sent anywhere: an ergonomic mark, kept in `sessionStorage` beside
+// the document so a reload brings both back, with the findings the answer came with; closing
+// the tab ends them, as it ends the document.
 //
-// Stored as a *signature of the content* rather than a flag. Editing a confirmed card changes its
-// signature and so un-confirms it automatically, which is the behaviour that matters: a card
-// confirmed and then changed is no longer something anyone declared finished, and a flag would go
-// quietly stale instead. It is also what makes the keys safe: they are node *indices*, so removing
-// an earlier card slides every later mark onto its neighbour — where it no longer matches, and so
-// reads as unconfirmed rather than as somebody else's approval.
+// A verdict is bound to a *signature of the content*, never a flag. Editing an item changes its
+// signature, so green and red alike expire on edit — the item is back to "not asked" until the
+// next Confirm — and nothing stays wrong or right by memory about content the server never saw.
+//
+// Cards are keyed by *position* (there is nothing in the document to make a stable key from),
+// so `removeNode` slides every later card's verdict down with it (`shiftVerdictsPast`): a
+// precise field pointer attached to the wrong card would be worse than no pointer at all. The
+// signature check is the safety net beneath that — a key that lands on the wrong content reads
+// as unasked, never as somebody else's answer.
+//
+// Decided 2026-09-17: red is reserved for "you asked, and it was wrong". The continuous probe
+// never writes here; only Confirm and a Run do.
 
-const [confirmations, setConfirmations] = persistedSignal<Record<string, string>>("dashi.confirmations", {});
+export type Verdict = {
+  signature: string;
+  verdict: "confirmed" | "rejected";
+  findings: Incompleteness[];
+};
+
+const [verdicts, setVerdicts] = persistedSignal<Record<string, Verdict>>("dashi.verdicts", {});
 
 const signatureOf = (value: unknown) => JSON.stringify(value);
 
+/** The verdict on `key`, only if it was given on exactly `value`; `null` otherwise. */
+export function verdictOf(key: string, value: unknown): Verdict | null {
+  const v = verdicts()[key];
+  return v !== undefined && v.signature === signatureOf(value) ? v : null;
+}
+
 export function isConfirmed(key: string, value: unknown): boolean {
-  return confirmations()[key] === signatureOf(value);
+  return verdictOf(key, value)?.verdict === "confirmed";
 }
 
+export function recordVerdict(
+  key: string,
+  value: unknown,
+  verdict: Verdict["verdict"],
+  findings: Incompleteness[] = [],
+) {
+  // A functional updater, not `{...verdicts(), ...}`: Solid 2 stages a signal write, so a plain
+  // read right after a write in the same tick still returns the pre-write value — two calls back
+  // to back would each build their map off the same stale read, and the second would be the only
+  // edit to survive a flush. An updater chains off the previous updater's return instead.
+  setVerdicts((prev) => ({ ...prev, [key]: { signature: signatureOf(value), verdict, findings } }));
+}
+
+/** A plain "confirmed" verdict, for callers that only ever say yes. */
 export function confirmDefinition(key: string, value: unknown) {
-  setConfirmations({ ...confirmations(), [key]: signatureOf(value) });
+  recordVerdict(key, value, "confirmed");
 }
 
-export function forgetConfirmation(key: string) {
-  const next = { ...confirmations() };
-  delete next[key];
-  setConfirmations(next);
+export function forgetVerdict(key: string) {
+  setVerdicts((prev) => {
+    const next = { ...prev };
+    delete next[key];
+    return next;
+  });
+}
+
+export const forgetConfirmation = forgetVerdict;
+
+/**
+ * After `nodes[removed]` is spliced out, the verdicts of the cards behind it move down one —
+ * and so do the `/nodes/<i>/…` pointers in their findings, so a control lookup through a finding
+ * lands on the card it was made about.
+ */
+function shiftVerdictsPast(removed: number) {
+  setVerdicts((prev) => {
+    const next: Record<string, Verdict> = {};
+    for (const [key, value] of Object.entries(prev)) {
+      if (!key.startsWith("node:")) {
+        next[key] = value;
+        continue;
+      }
+      const at = Number(key.slice(5));
+      if (at < removed) next[key] = value;
+      else if (at > removed) {
+        next[`node:${at - 1}`] = {
+          ...value,
+          findings: value.findings.map((finding) =>
+            finding.pointer?.startsWith(`/nodes/${at}/`)
+              ? { ...finding, pointer: finding.pointer.replace(`/nodes/${at}/`, `/nodes/${at - 1}/`) }
+              : finding,
+          ),
+        };
+      }
+    }
+    return next;
+  });
+}
+
+function moveVerdict(from: string, to: string) {
+  setVerdicts((prev) => {
+    if (prev[from] === undefined) return prev;
+    const next = { ...prev, [to]: prev[from] };
+    delete next[from];
+    return next;
+  });
+}
+
+export function forgetAllVerdicts() {
+  setVerdicts(() => ({}));
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { flush, snapshot } from 'solid-js';
 
 const postRequest = vi.fn();
 vi.mock('../requests', () => ({
@@ -18,7 +18,8 @@ vi.mock('../components/FilePicker', () => ({
 }));
 
 import { Loader } from './loading';
-import { LOADER_STORE, type LoaderStore } from '../stores';
+import { LOADER_STORE, FILTERS_STORE, Interval, droppedFilters, setDroppedFilters, type LoaderStore } from '../stores';
+import { reconcile } from 'solid-js';
 
 const SUMMARIES: LoaderStore = [
   { name: 'No', type: 'numerical', eltype: 'int', summary: { min: 1, max: 60 } },
@@ -26,10 +27,14 @@ const SUMMARIES: LoaderStore = [
   { name: 'cbwd', type: 'categorical', eltype: 'string', summary: ['NW', 'SE'] },
 ];
 
+const num = (name: string): LoaderStore[number] => ({ name, type: 'numerical', eltype: 'float', summary: { min: 0, max: 1 } });
+
 beforeEach(() => {
   const [, setState] = LOADER_STORE;
   setState(() => []);
   postRequest.mockReset();
+  const [, setFilters] = FILTERS_STORE;
+  setFilters(reconcile({ numerical: {}, categorical: {} }));
 });
 afterEach(cleanup);
 
@@ -64,5 +69,40 @@ describe('Loader', () => {
     const { container } = render(() => <Loader />);
     await waitFor(() => expect(container.querySelector('.ag-theme-quartz')).not.toBeNull());
     expect(container.textContent).toContain('3 columns');
+  });
+
+  it('drops the filters the new table cannot apply, keeps the others, and reports the dropped', async () => {
+    // Check 11 by hand: a list filter on `cbwd` survived loading a table with no `cbwd`, and the
+    // run failed on it. A filter that cannot apply is dropped — and said, not silently.
+    const [, setLoaderState] = LOADER_STORE;
+    const [, setFilters] = FILTERS_STORE;
+    setLoaderState(reconcile([num('TEMP'), num('cbwd')]));
+    setFilters(reconcile({ numerical: { TEMP: new Interval(0, 1), cbwd: new Interval(0, 1) }, categorical: {} }));
+    setDroppedFilters([]);
+    await flush();
+
+    // same columns → everything kept, nothing reported
+    const served = [{ ...num('TEMP'), summary: { min: 0, max: 42 } }, num('cbwd')];
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'load-files' ? served : ['a.parquet']),
+    );
+    const { getByText } = render(() => <Loader />);
+    fireEvent.click(getByText('choose'));
+    await flush();
+    fireEvent.click(getByText(/^Load$/));
+    await waitFor(() => {
+      expect((snapshot(LOADER_STORE[0])[0].summary as { max: number }).max).toBe(42);
+    }, { timeout: 1000 });
+    expect(Object.keys(snapshot(FILTERS_STORE[0]).numerical)).toEqual(['TEMP', 'cbwd']);
+    expect(droppedFilters()).toEqual([]);
+
+    // a table without cbwd → the cbwd filter is dropped and named; TEMP's stays
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'load-files' ? [num('TEMP'), num('No')] : ['a.parquet']),
+    );
+    await flush();
+    fireEvent.click(getByText(/^Load$/));
+    await waitFor(() => expect(droppedFilters()).toEqual(['cbwd']), { timeout: 1000 });
+    expect(Object.keys(snapshot(FILTERS_STORE[0]).numerical)).toEqual(['TEMP']);
   });
 });

@@ -113,9 +113,22 @@ function json_read(req::HTTP.Request)
     return JSON.parse(String(req.body))
 end
 
+"""
+    json_response(d; omit_null = false)
+
+A 200 with `d` as JSON and the CORS headers.
+
+Non-finite floats are written as `null`. `JSON.json` refuses `NaN` and `Inf` outright, so a run
+whose z-score of a zero-variance column was `NaN` on every row was reported to the client as an
+execution failure (A12, measured on `constant = 42`, 2026-09-13 and 2026-09-16) — the pipeline
+had succeeded; only the response could not be written. `allownan = true` alone is not the fix:
+the tokens it writes are not JSON and the browser's parser rejects them. `null` is what every
+JSON client already reads as "no value", and it is what the rows path (`fetch_data`) produces too.
+"""
 function json_response(d; omit_null::Bool = false)
     headers = vcat(CORS_RES_HEADERS, ["Content-Type" => "application/json"])
-    return HTTP.Response(200, headers = headers, body = JSON.json(d; omit_null))
+    body = JSON.json(d; omit_null, allownan = true, nan = "null", inf = "null", ninf = "null")
+    return HTTP.Response(200, headers = headers, body = body)
 end
 
 function stream_data(

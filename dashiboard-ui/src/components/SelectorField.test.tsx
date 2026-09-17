@@ -246,4 +246,20 @@ describe('SelectorField', () => {
       spy.mockRestore();
     }
   });
+
+  it('marks a value the vocabulary cannot name, and lets it be removed', async () => {
+    // Check 11 by hand: after loading a table without TEMP, a card's `{cols: "TEMP"}` had no
+    // switch to turn it off — the picker lists the vocabulary, and the value was not in it.
+    const onChange = vi.fn();
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs"
+        value={[{ cols: 'GONE' }, { cols: 'TEMP' }]} onChange={onChange} />
+    ));
+    const chip = container.querySelector('[data-chip="cols:GONE"]')!;
+    expect(chip.getAttribute('data-missing')).toBe('true');
+    expect(container.querySelector('[data-chip="cols:TEMP"]')!.getAttribute('data-missing')).toBeNull();
+    fireEvent.click(chip.querySelector('[data-remove]')!);
+    await flush();
+    expect(onChange).toHaveBeenCalledWith([{ cols: 'TEMP' }]);
+  });
 });

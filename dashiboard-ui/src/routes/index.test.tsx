@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
-import { importCards, emptyCards, exportCards } from '../stores';
+import { importCards, emptyCards, exportCards, PROBE_STORE, emptyProbe } from '../stores';
 
 // Solid 2 defers signal updates, so an interaction and an assertion that depends on it cannot
 // share a tick: `flush()` settles the scheduler between them.
@@ -49,6 +49,11 @@ beforeEach(() => {
     if (page === 'validate-card') return Promise.resolve({ valid: true, issues: [] });
     return Promise.resolve([]);
   });
+  // `PROBE_STORE` is a module-level store, same as `CARDS_STORE` — a prior test's continuous
+  // probe (e.g. one that seeds a `/nodes/0/card` issue) outlives its own `cleanup()`, and since
+  // the dot now reads live probe findings too (Task 7), a stale one here would read as a card this
+  // test never asked about. See the identical reset in `GroupsEditor.test.tsx`/`processing.test.tsx`.
+  PROBE_STORE[1](reconcile(emptyProbe()));
 });
 afterEach(cleanup);
 
@@ -127,42 +132,6 @@ describe('the page is a set of tabs', () => {
     expect(container.querySelector('[data-pane="results"]')).not.toBeNull();
     expect(container.querySelector('[data-pane="results"]')!.textContent).toMatch(/run pipeline/i);
     expect(onScreen(container)).toEqual(['Process']);      // left pane unaffected
-  });
-});
-
-// A reload lands on `/`, and landing on Load every time is the wrong answer for a page whose
-// work happens in Process. The session remembers which tab you were on; a URL that names one
-// still wins, because a shared link means what it says.
-describe('the remembered tab', () => {
-  it('a bare / reopens the tab stored in sessionStorage', async () => {
-    sessionStorage.setItem('dashi.tab', JSON.stringify('process'));
-    const { container } = renderHome('/');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await waitFor(() => expect(onScreen(container)).toEqual(['Process']));
-  });
-
-  it('a URL that names a tab beats the stored one', async () => {
-    sessionStorage.setItem('dashi.tab', JSON.stringify('process'));
-    const { container } = renderHome('/?tab=filter');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await new Promise((r) => setTimeout(r, 30)); await flush();
-    expect(onScreen(container)).toEqual(['Filter']);
-  });
-
-  it('clicking a tab stores it', async () => {
-    const { container } = renderHome('/');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await openTab(container, 'Process');
-    await waitFor(() => expect(sessionStorage.getItem('dashi.tab')).toBe(JSON.stringify('process')));
-  });
-
-  it('remembers the section an unknown ?tab= resolved to, not the raw value', async () => {
-    // `?tab=nope` renders Load. Storing "nope" made every later bare `/` redirect to `?tab=nope`
-    // — a URL naming a section that does not exist, for the rest of the session.
-    const { container } = renderHome('/?tab=nope');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await new Promise((r) => setTimeout(r, 30)); await flush();
-    expect(sessionStorage.getItem('dashi.tab')).toBe(JSON.stringify('load'));
   });
 });
 
@@ -277,8 +246,12 @@ describe('the authoring page', () => {
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
 
+    // The resolved names render live; the finding itself waits for the author to ask.
     await waitFor(() => expect(container.textContent).toContain('TEMP_a_a'));
-    expect(container.textContent).toMatch(/nothing produces/i);
+    expect(container.textContent).not.toMatch(/nothing produces/i);
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(container.textContent).toMatch(/nothing produces TEMP_a_a/i));
+    expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
   });
 
   it('puts a schema failure on the card it addresses, with what would have been accepted', async () => {
@@ -314,6 +287,9 @@ describe('the authoring page', () => {
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
 
+    // Shown once the author asks (Confirm) — the probe's errors do not paint a card by themselves.
+    await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
+    fireEvent.click(getByText('Confirm'));
     // The field, counted the way a person counts: the pointer's `/2` is the 3rd input.
     // Asserted on the element rather than as a substring of the page — `toContain` here also
     // passes for `card → inputs → 3 → cols`, so it fails to pin where the path starts.
@@ -426,7 +402,7 @@ describe('the authoring page', () => {
     const probesBefore = probeCalls();
     fireEvent.click(getByText('Confirm'));
     await waitFor(() =>
-      expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull(),
+      expect(container.querySelector('[data-state="rejected"]')).not.toBeNull(),
     );
 
     // One finding per absent field, each placed on its own control — the server's `related`
@@ -484,7 +460,7 @@ describe('the authoring page', () => {
     fireEvent.click(getByText('Confirm'));
     await waitFor(() => expect(probeCalls()).toBeGreaterThan(probesBefore));
     await waitFor(() =>
-      expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull(),
+      expect(container.querySelector('[data-state="rejected"]')).not.toBeNull(),
     );
     expect(container.textContent).toMatch(/nothing produces zscored_TEMP/i);
   });

@@ -4,7 +4,7 @@ import { Button } from "../components/Button";
 import { FilePicker } from "../components/FilePicker";
 import { TableView } from "../components/TableView";
 import { postRequest } from "../requests";
-import { LOADER_JSON, LOADER_STORE, type LoaderStore } from "../stores";
+import { LOADER_JSON, LOADER_STORE, pruneFilters, type LoaderStore } from "../stores";
 
 export function Loader() {
   const [state, setState] = LOADER_STORE;
@@ -31,7 +31,13 @@ export function Loader() {
     // and nothing was stored — every column vocabulary downstream stayed empty with no error.
     // `reconcile` is the idiomatic wholesale replace.
     postRequest("load-files", { files: files() }, [])
-      .then((summaries: LoaderStore) => setState(reconcile(summaries ?? [])))
+      .then((summaries: LoaderStore) => {
+        const next = summaries ?? [];
+        setState(reconcile(next));
+        // Filters are part of the document, but one on a column this table lacks cannot apply:
+        // dropped, and announced in the Filter tab. See `pruneFilters`.
+        pruneFilters(next);
+      })
       .finally(() => setLoading(false));
   }
 

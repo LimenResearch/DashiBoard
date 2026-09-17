@@ -50,7 +50,9 @@ type DisclosureProps = {
 export function Disclosure(props: DisclosureProps) {
   return (
     <details open={props.open ?? false} class={props.class ?? ""}>
-      <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-sm py-0.5 hover:bg-muted [&::-webkit-details-marker]:hidden">
+      {/* Wraps: a long title (a card named after a long type) used to push the actions past the
+          column's edge; folded to a second line, they stay in the pane. */}
+      <summary class="flex flex-wrap cursor-pointer list-none items-center gap-1.5 rounded-sm py-0.5 hover:bg-muted [&::-webkit-details-marker]:hidden">
         <Chevron />
         {props.summary}
       </summary>

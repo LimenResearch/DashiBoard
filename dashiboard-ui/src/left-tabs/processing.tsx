@@ -202,14 +202,14 @@ export function Cards() {
    * walk here that re-implemented `required` and `minItems` in TypeScript; measured against
    * `validate_pipeline_schema` it found exactly the same set, so it is gone.
    */
-  async function askCard(index: number): Promise<ProbeIssue[]> {
+  async function askCard(document: CardsStore, index: number): Promise<ProbeIssue[]> {
     const answer = (await postRequest(
       "validate-card",
       {
-        card: JSON.parse(JSON.stringify(state.nodes[index].card)),
+        card: document.nodes[index].card,
         cols: metadata.map((entry) => entry.name),
-        nodes: state.nodes.map((node) => node.id).filter((id): id is string => !!id),
-        groups: Object.keys(state.groups),
+        nodes: document.nodes.map((node) => node.id).filter((id): id is string => !!id),
+        groups: Object.keys(document.groups),
         base: `/nodes/${index}/card`,
       },
       null,
@@ -239,14 +239,17 @@ export function Cards() {
   /**
    * Confirm: ask, and record the answer as a verdict on exactly this content.
    *
-   * The card is captured before any `await` and the verdict binds to its signature, so an edit
-   * made while a request is in flight can never be stamped as the thing that was checked — it
-   * simply reads as unasked. Findings travel with the verdict (`stores.ts`, verdicts): there is
-   * no per-component list to keep in step with removals any more, since a removed card's later
-   * neighbours stop matching by signature on their own.
+   * One plain snapshot of the document is taken before any `await`, and every question — ours,
+   * `validate-card`, the probe — and the verdict itself use that snapshot. Not the store: a
+   * store proxy captured here would read the *current* card by the time a reply lands, so an
+   * edit made while a request is in flight would be stamped green on content the server never
+   * saw (measured against solid-js rc.6 in review, 2026-09-17). With the snapshot, the verdict
+   * binds to what was checked and the edited card simply reads as unasked. Findings travel with
+   * the verdict (`stores.ts`, verdicts), which also follows its card across a removal.
    */
   async function confirmNode(index: number) {
-    const node = state.nodes[index];
+    const document = exportCards();
+    const node = document.nodes[index];
     const key = `node:${index}`;
     const verdict = (findings: Incompleteness[]) =>
       recordVerdict(key, node, findings.length > 0 ? "rejected" : "confirmed", findings);
@@ -257,10 +260,12 @@ export function Cards() {
     const named = checkNode(node);
     if (named.length > 0) return verdict(named);
 
-    const issues = await askCard(index);
+    // A warning is not a finding (it renders live, amber, and never stops Confirm). The server's
+    // card issues are all errors today; filtered anyway, so this path and `graphFindings` agree.
+    const issues = (await askCard(document, index)).filter((issue) => issue.severity !== "warning");
     if (issues.length > 0) return verdict(issueFindings(issues));
 
-    const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
+    const answer = await askProbe(document);
     // `null` means the probe could not be asked at all (item 1: a missing dev-server proxy route,
     // or the server being down) — not that it came back clean. Reading it as "no issues" is what
     // let an empty group through Confirm with a green dot (final review, 2026-09-16); the same

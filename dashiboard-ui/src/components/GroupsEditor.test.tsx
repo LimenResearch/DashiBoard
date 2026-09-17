@@ -254,9 +254,12 @@ describe('GroupsEditor', () => {
       pointer: '/groups/g', reason: 'empty', severity: 'error' as const, found: null,
       allowed: null, missing: [], related: [], message: 'group `g` has no columns',
     };
+    // Confirm's reply is worded differently from the run's, so the assertion below can tell
+    // "replaced" from "the reply has not landed yet".
+    const reworded = { ...issue, message: 'group `g` selects nothing' };
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: [issue.message], issues: [issue] }
+        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: [reworded.message], issues: [reworded] }
         : []));
     importCards({ nodes: [], groups: { g: [] } });
     await flush(); // a verdict binds to the document as it is *after* the staged write lands
@@ -264,10 +267,10 @@ describe('GroupsEditor', () => {
     const { container, getAllByText } = render(() => <GroupsEditor defs={defs} />);
     expect(container.textContent.split('has no columns').length - 1).toBe(1);
     fireEvent.click(getAllByText('Confirm')[0]);
-    await waitFor(() => expect(postRequest.mock.calls.some((c) => c[0] === 'probe-pipeline')).toBe(true));
-    await flush();
+    await waitFor(() => expect(container.textContent).toMatch(/selects nothing/));
     expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
-    expect(container.textContent.split('has no columns').length - 1).toBe(1);
+    expect(container.textContent).not.toMatch(/has no columns/);
+    expect(container.querySelectorAll('[data-finding]')).toHaveLength(1);
   });
   it('a failed run rejects the group, even over an existing confirmation', async () => {
     // A Run is the author asking, exactly like Confirm: its answer replaces the older mark.

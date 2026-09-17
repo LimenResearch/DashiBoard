@@ -7,7 +7,8 @@ import { TableView } from "../components/TableView";
 import { Tabs } from "../components/Tabs";
 import { getURL, postRequest } from "../requests";
 import {
-  CARDS_STORE, PROBE_STORE, itemKey, reportRunIssues, type ProbeIssue, type VariableSummary,
+  CARDS_STORE, PROBE_STORE, exportCards, itemKey, reportRunIssues,
+  type ProbeIssue, type VariableSummary,
 } from "../stores";
 import { wireDocument } from "../wire";
 
@@ -27,9 +28,9 @@ type RunResult = {
   /** Where it broke: `"pipeline"` before anything ran, `"execution"` while running. */
   kind?: string;
   errors?: string[];
-  /** Where a build failure landed, in the probe's shape — pointed issues go on the cards, the
-   *  same way a live probe finding does. Absent from an older server, or from a run that failed
-   *  with no pointer at all — a cycle, a filter's SQL error. */
+  /** Where a build failure landed, in the probe's shape — pointed issues become rejected
+   *  verdicts on the cards and groups they name (`reportRunIssues`). Absent from an older
+   *  server, or from a run that failed with no pointer at all — a cycle, a filter's SQL error. */
   issues?: ProbeIssue[];
   graph?: string;
   report?: unknown[];
@@ -82,6 +83,10 @@ export function Results() {
   async function run() {
     setRunning(true);
     try {
+      // A plain copy of what is being sent, taken in the same tick as the request: the verdicts a
+      // failed run leaves behind must bind to this, not to the document as it is once the reply
+      // lands — the Run button is disabled meanwhile, editing is not.
+      const sent = exportCards();
       const answer = (await postRequest("evaluate-pipeline", wireDocument(), null)) as
         | RunResult
         | null;
@@ -96,12 +101,12 @@ export function Results() {
       if (answer.valid === false) {
         setResult(null);
         const issues = Array.isArray(answer.issues) ? answer.issues : [];
-        if (issues.length > 0) reportRunIssues(issues);
+        if (issues.length > 0) reportRunIssues(issues, sent);
         // `parts[1]` distinguishes a node pointer (`/nodes/<i>/card/…`) from a group pointer
         // (`/groups/<name>/…`) — counting `parts[2]` on its own, whatever `parts[1]` said, put an
         // empty-group issue (`/groups/empty`) on the "cards" count with nothing on screen to show
-        // for it. The headline and the marks now agree: `reportRunIssues` above writes the same
-        // issues into `PROBE_STORE`, and the groups editor draws a group's own from there.
+        // for it. The headline and the marks agree: `reportRunIssues` above records a rejected
+        // verdict on exactly the cards and groups counted here.
         const namesAt = (kind: "nodes" | "groups") =>
           new Set(
             issues

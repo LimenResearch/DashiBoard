@@ -252,8 +252,15 @@ export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
  * Confirm is, so red is right here where it would not be for the continuous probe. Warnings are
  * not rejections. The findings are derived as Confirm derives them, so the item reads the same
  * whoever asked.
+ *
+ * `document` is what the run was *sent*, not the store as it is when the reply lands: the author
+ * may have edited in between, and a verdict on content the server never saw is the one thing a
+ * verdict must never be. Defaults to the current document for callers with no request in flight.
  */
-export function reportRunIssues(issues: ProbeIssue[]) {
+export function reportRunIssues(
+  issues: ProbeIssue[],
+  document: Pick<CardsStore, "nodes" | "groups"> = exportCards(),
+) {
   const [, setProbe] = PROBE_STORE;
   setProbe((draft) => {
     draft.valid = false;
@@ -267,7 +274,7 @@ export function reportRunIssues(issues: ProbeIssue[]) {
     byItem.set(key, [...(byItem.get(key) ?? []), issue]);
   }
   for (const [key, own] of byItem) {
-    const value = itemValue(key);
+    const value = itemValue(key, document);
     if (value === undefined) continue;
     recordVerdict(key, value, "rejected", issueFindings(own));
   }
@@ -285,9 +292,9 @@ export function itemKey(pointer: string): string | null {
  * The content a verdict on `key` binds to: the whole node (its id is part of what was checked —
  * `checkNode` judges it, and the server reports duplicates), or the group's selector list.
  */
-function itemValue(key: string): unknown {
-  if (key.startsWith("node:")) return cards.nodes[Number(key.slice(5))];
-  if (key.startsWith("group:")) return cards.groups[key.slice(6)];
+function itemValue(key: string, document: Pick<CardsStore, "nodes" | "groups">): unknown {
+  if (key.startsWith("node:")) return document.nodes[Number(key.slice(5))];
+  if (key.startsWith("group:")) return document.groups[key.slice(6)];
   return undefined;
 }
 
@@ -436,6 +443,9 @@ export function removeGroup(name: string) {
     delete draft.groups[name];
     forEachSelector(draft, (item) => dropName(item, "groups", name));
   });
+  // Or a later group under the same name and the same content would inherit an answer nobody
+  // asked for it — red before its first Confirm, and across a reload.
+  forgetVerdict(`group:${name}`);
 }
 
 /**
@@ -460,6 +470,8 @@ export function renameGroup(from: string, to: string): boolean {
     );
     forEachSelector(draft, (item) => renameIn(item, "groups", from, to));
   });
+  // The content is unchanged, so what the server said about it still stands — under the new name.
+  if (renamed) moveVerdict(`group:${from}`, `group:${to}`);
   return renamed;
 }
 
@@ -550,7 +562,11 @@ export function forgetVerdict(key: string) {
 
 export const forgetConfirmation = forgetVerdict;
 
-/** After `nodes[removed]` is spliced out, the verdicts of the cards behind it move down one. */
+/**
+ * After `nodes[removed]` is spliced out, the verdicts of the cards behind it move down one —
+ * and so do the `/nodes/<i>/…` pointers in their findings, so a control lookup through a finding
+ * lands on the card it was made about.
+ */
 function shiftVerdictsPast(removed: number) {
   setVerdicts((prev) => {
     const next: Record<string, Verdict> = {};
@@ -561,8 +577,26 @@ function shiftVerdictsPast(removed: number) {
       }
       const at = Number(key.slice(5));
       if (at < removed) next[key] = value;
-      else if (at > removed) next[`node:${at - 1}`] = value;
+      else if (at > removed) {
+        next[`node:${at - 1}`] = {
+          ...value,
+          findings: value.findings.map((finding) =>
+            finding.pointer?.startsWith(`/nodes/${at}/`)
+              ? { ...finding, pointer: finding.pointer.replace(`/nodes/${at}/`, `/nodes/${at - 1}/`) }
+              : finding,
+          ),
+        };
+      }
     }
+    return next;
+  });
+}
+
+function moveVerdict(from: string, to: string) {
+  setVerdicts((prev) => {
+    if (prev[from] === undefined) return prev;
+    const next = { ...prev, [to]: prev[from] };
+    delete next[from];
     return next;
   });
 }

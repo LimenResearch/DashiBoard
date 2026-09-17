@@ -274,12 +274,37 @@ describe('a card is amber until asked', () => {
     const warning = { ...BROKEN, reason: 'overwrites', severity: 'warning' as const, missing: [], related: [], message: '`TEMP_z` already exists' };
     mock({ ...CLEAN_PROBE, issues: [warning] }, { valid: true, issues: [] });
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    // The warning renders live, amber, before anyone asks — and the dot stays amber too.
+    await waitFor(() => expect(container.querySelector('[data-issue-severity="warning"]')).not.toBeNull());
+    expect(cardDot(container).getAttribute('data-state')).toBe('unconfirmed');
     fireEvent.click(cardConfirm(container));
     await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('confirmed'));
     await waitFor(() => expect(container.querySelector('[data-issue-severity="warning"]')).not.toBeNull());
     expect(cardDot(container).getAttribute('data-state')).toBe('confirmed');
     expect(cardDot(container).className).toMatch(/bg-success/);
+  });
+
+  it('binds the verdict to the card as it was checked, not as it is when the reply lands', async () => {
+    // Press Confirm, edit while `validate-card` is in flight, then let it answer clean: the verdict
+    // is green on the content the server saw, and the edited card reads as unasked.
+    let answerCard: (v: unknown) => void = () => {};
+    postRequest.mockImplementation((page: string) =>
+      page === 'get-card-ir' ? Promise.resolve(structuredClone(payload))
+      : page === 'probe-pipeline' ? Promise.resolve(CLEAN_PROBE)
+      : page === 'validate-card' ? new Promise((resolve) => { answerCard = resolve; })
+      : Promise.resolve([]));
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    const checked = exportCards().nodes[0];
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(postRequest.mock.calls.some((c) => c[0] === 'validate-card')).toBe(true));
+    setCardField(0, 'suffix', 'edited-in-flight');
+    await flush();
+    answerCard({ valid: true, issues: [] });
+    const { verdictOf } = await import('../stores');
+    await waitFor(() => expect(verdictOf('node:0', checked)?.verdict).toBe('confirmed'));
+    expect(verdictOf('node:0', exportCards().nodes[0])).toBeNull();
+    expect(cardDot(container).getAttribute('data-state')).toBe('unconfirmed');
   });
 
   it('a failed run before any Confirm turns the card red with the run\'s findings', async () => {

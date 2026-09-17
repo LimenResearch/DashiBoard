@@ -460,6 +460,41 @@ describe('verdicts', () => {
     expect(s.PROBE_STORE[0].valid).toBe(false); // the pointer next to Run still reads the store
   });
 
+  it('a failed run binds to the document that was sent, not to the store as it is later', async () => {
+    const s = await import('./stores');
+    s.forgetAllVerdicts();
+    s.importCards({ nodes: [{ id: 'a', card: { type: 'cluster' } }], groups: {} });
+    await flush();
+    const sent = s.exportCards();
+    s.setCardField(0, 'output', 'edited');
+    await flush(); // the store now differs from what was sent
+    s.reportRunIssues([{
+      pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null, allowed: null,
+      missing: ['method'], related: ['/nodes/0/card/method'], message: 'x',
+    }], sent);
+    await flush();
+    expect(s.verdictOf('node:0', sent.nodes[0])?.verdict).toBe('rejected');
+    expect(s.verdictOf('node:0', s.exportCards().nodes[0])).toBeNull();
+  });
+
+  it('a removed group takes its verdict with it; a renamed one keeps it under the new name', async () => {
+    const s = await import('./stores');
+    s.forgetAllVerdicts();
+    s.importCards({ nodes: [], groups: { g: [], h: [{ cols: 'TEMP' }] } });
+    await flush();
+    s.recordVerdict('group:g', [], 'rejected', [{ message: 'group `g` has no columns' }]);
+    s.recordVerdict('group:h', [{ cols: 'TEMP' }], 'confirmed');
+    await flush();
+    s.removeGroup('g');
+    s.addGroup('g'); // same name, same (empty) content as the one that was rejected
+    await flush();
+    expect(s.verdictOf('group:g', [])).toBeNull(); // amber until asked, not red by inheritance
+    expect(s.renameGroup('h', 'weather')).toBe(true);
+    await flush();
+    expect(s.verdictOf('group:weather', [{ cols: 'TEMP' }])?.verdict).toBe('confirmed');
+    expect(s.verdictOf('group:h', [{ cols: 'TEMP' }])).toBeNull();
+  });
+
   it('follow their card when an earlier one is removed', async () => {
     const s = await import('./stores');
     s.forgetAllVerdicts();
@@ -477,6 +512,8 @@ describe('verdicts', () => {
     await flush();
     expect(s.verdictOf('node:0', b)?.verdict).toBe('rejected');   // b is at 0 now, still red
     expect(s.verdictOf('node:0', b)?.findings[0].message).toBe('needs a value');
+    // and the finding's pointer moved with it, so a control lookup lands on the right card
+    expect(s.verdictOf('node:0', b)?.findings[0].pointer).toBe('/nodes/0/card/method');
     expect(s.verdictOf('node:1', b)).toBeNull();
     expect(s.verdictOf('group:g', [])?.verdict).toBe('rejected'); // groups are untouched
   });

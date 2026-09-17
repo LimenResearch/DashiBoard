@@ -72,11 +72,7 @@ export function TableView(props: TableViewProps) {
           null,
         ).then((data: FetchedRows | null) => {
           if (!data) {
-            // A restored session shows a table the server may no longer hold (recovery restores
-            // the UI only, by decision 2026-09-16). The first page failing is how that surfaces;
-            // an empty grid would say nothing.
             params.failCallback();
-            gridApi?.showNoRowsOverlay();
             return;
           }
           // `data.length` is the table's total row count, not `values.length` — the route
@@ -119,7 +115,6 @@ export function TableView(props: TableViewProps) {
       flex: 1,
       minWidth: 100,
     },
-    overlayNoRowsTemplate: '<span class="p-2 text-control-xs">DashiBoard has no table loaded — load a file.</span>',
     rowBuffer: 0,
     // tell grid we want virtual row model type
     rowModelType: "infinite" as RowModelType,

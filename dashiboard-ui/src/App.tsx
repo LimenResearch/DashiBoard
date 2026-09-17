@@ -2,8 +2,6 @@ import { Title } from '@solidjs/meta';
 import { createEffect, Loading, onSettled } from 'solid-js';
 import { paths, Router } from './router';
 import { ThemeToggle } from './components/ThemeToggle';
-import { SessionGate } from './components/SessionGate';
-import { StartOver } from './components/StartOver';
 import { applyTheme, initialMode, setThemeMode, themeMode } from './theme';
 import './App.css';
 
@@ -27,7 +25,6 @@ export default function App() {
       {(props) => (
         <>
           <Title>Solid App</Title>
-          <SessionGate />
           <nav class="flex items-center justify-between bg-primary p-3">
             <a
               class="mx-0.5 inline-block rounded-lg px-3 py-1.5 font-semibold text-primary-foreground/80 no-underline transition-colors hover:bg-primary-foreground/10 hover:text-primary-foreground focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
@@ -35,10 +32,7 @@ export default function App() {
             >
               Home
             </a>
-            <span class="flex items-center gap-2">
-              <StartOver />
-              <ThemeToggle />
-            </span>
+            <ThemeToggle />
           </nav>
           <Loading fallback={<main class="px-4 py-6">Loading…</main>}>
             {props.children}

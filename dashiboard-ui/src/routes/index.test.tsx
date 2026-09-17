@@ -246,8 +246,12 @@ describe('the authoring page', () => {
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
 
+    // The resolved names render live; the finding itself waits for the author to ask.
     await waitFor(() => expect(container.textContent).toContain('TEMP_a_a'));
-    expect(container.textContent).toMatch(/nothing produces/i);
+    expect(container.textContent).not.toMatch(/nothing produces/i);
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(container.textContent).toMatch(/nothing produces TEMP_a_a/i));
+    expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
   });
 
   it('puts a schema failure on the card it addresses, with what would have been accepted', async () => {
@@ -283,6 +287,9 @@ describe('the authoring page', () => {
     await selectOption(picker, 'rescale');
     fireEvent.click(getByText(/add card/i));
 
+    // Shown once the author asks (Confirm) — the probe's errors do not paint a card by themselves.
+    await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
+    fireEvent.click(getByText('Confirm'));
     // The field, counted the way a person counts: the pointer's `/2` is the 3rd input.
     // Asserted on the element rather than as a substring of the page — `toContain` here also
     // passes for `card → inputs → 3 → cols`, so it fails to pin where the path starts.
@@ -395,7 +402,7 @@ describe('the authoring page', () => {
     const probesBefore = probeCalls();
     fireEvent.click(getByText('Confirm'));
     await waitFor(() =>
-      expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull(),
+      expect(container.querySelector('[data-state="rejected"]')).not.toBeNull(),
     );
 
     // One finding per absent field, each placed on its own control — the server's `related`
@@ -453,7 +460,7 @@ describe('the authoring page', () => {
     fireEvent.click(getByText('Confirm'));
     await waitFor(() => expect(probeCalls()).toBeGreaterThan(probesBefore));
     await waitFor(() =>
-      expect(container.querySelector('[data-state="incomplete"]')).not.toBeNull(),
+      expect(container.querySelector('[data-state="rejected"]')).not.toBeNull(),
     );
     expect(container.textContent).toMatch(/nothing produces zscored_TEMP/i);
   });

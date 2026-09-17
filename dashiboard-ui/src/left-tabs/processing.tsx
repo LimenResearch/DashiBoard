@@ -19,8 +19,8 @@ import {
   removeNode,
   setCard,
   setNodeId,
-  isConfirmed,
-  confirmDefinition,
+  verdictOf,
+  recordVerdict,
   issuesForNode,
   fieldPath,
   exportCards,
@@ -186,13 +186,6 @@ export function Cards() {
     probeSeq = Number.MAX_SAFE_INTEGER;
   });
 
-  // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
-  // What Confirm found the last time it was pressed, per card. Not run continuously: the point
-  // of the step is that the author says when they are done, and a panel that argues while you
-  // type is the thing it exists to replace.
-  const [unfinished, setUnfinished] = createSignal<Record<number, Incompleteness[]>>({});
-  const confirmedNode = (index: number) => isConfirmed(`node:${index}`, state.nodes[index]);
-
   /**
    * What the server says about this card, as something a person can act on.
    *
@@ -243,23 +236,29 @@ export function Cards() {
       : schema;
   };
 
+  /**
+   * Confirm: ask, and record the answer as a verdict on exactly this content.
+   *
+   * The card is captured before any `await` and the verdict binds to its signature, so an edit
+   * made while a request is in flight can never be stamped as the thing that was checked — it
+   * simply reads as unasked. Findings travel with the verdict (`stores.ts`, verdicts): there is
+   * no per-component list to keep in step with removals any more, since a removed card's later
+   * neighbours stop matching by signature on their own.
+   */
   async function confirmNode(index: number) {
     const node = state.nodes[index];
+    const key = `node:${index}`;
+    const verdict = (findings: Incompleteness[]) =>
+      recordVerdict(key, node, findings.length > 0 ? "rejected" : "confirmed", findings);
 
     // Ours alone: an unnamed node is a document the server accepts, so if this does not say it
     // nobody will. It is also the cheapest question, and answering it first keeps a card with no
     // name from spending two round trips to be told so.
     const named = checkNode(node);
-    if (named.length > 0) {
-      setUnfinished({ ...unfinished(), [index]: named });
-      return;
-    }
+    if (named.length > 0) return verdict(named);
 
     const issues = await askCard(index);
-    if (issues.length > 0) {
-      setUnfinished({ ...unfinished(), [index]: issueFindings(issues) });
-      return;
-    }
+    if (issues.length > 0) return verdict(issueFindings(issues));
 
     const answer = await askProbe(JSON.parse(JSON.stringify(state)) as CardsStore);
     // `null` means the probe could not be asked at all (item 1: a missing dev-server proxy route,
@@ -267,74 +266,25 @@ export function Cards() {
     // let an empty group through Confirm with a green dot (final review, 2026-09-16); the same
     // failure reaches a card's Confirm through this same `askProbe` call.
     if (answer === null) {
-      setUnfinished({
-        ...unfinished(),
-        [index]: [{
-          message: "Could not reach DashiBoard to check this card — is the server running?",
-        }],
-      });
-      return;
+      return verdict([{
+        message: "Could not reach DashiBoard to check this card — is the server running?",
+      }]);
     }
-    const found = graphFindings(answer, index);
-    setUnfinished({ ...unfinished(), [index]: found });
-    if (found.length === 0) confirmDefinition(`node:${index}`, node);
+    return verdict(graphFindings(answer, index));
   }
 
-  /**
-   * Findings follow their card when an earlier one is removed.
-   *
-   * Both this map and the confirmations are keyed by *position*, so a splice slides every later
-   * card's answer onto its neighbour. Confirmations survive that on their own — they store a
-   * signature of the content, so a shifted one simply stops matching — but findings carry no
-   * such check, and a precise field pointer attached to the wrong card is worse than no pointer
-   * at all. A stable per-node key would retire both workarounds; there is nothing in the document
-   * to make one from yet.
-   */
-  function shiftPast<T>(record: Record<number, T>, removed: number): Record<number, T> {
-    const out: Record<number, T> = {};
-    for (const [key, value] of Object.entries(record)) {
-      const at = Number(key);
-      if (at < removed) out[at] = value;
-      else if (at > removed) out[at - 1] = value;
-    }
-    return out;
-  }
-
+  // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
   const probeNodes = createMemo(() => probe.nodes);
-  const probeErrors = createMemo(() => probe.errors);
   const probeIssues = createMemo(() => probe.issues);
-  // Anything the probe reported that no other view claims. `/nodes/...` renders on its card, and
-  // since Task 6 `/groups/...` renders on its group (the groups editor's live `<For>` over
-  // `issuesForGroup`) — so both are excluded here, or an empty-group finding would show twice.
-  const looseIssues = createMemo(() =>
-    probeIssues().filter(
-      (issue) => !issue.pointer.startsWith("/nodes/") && !issue.pointer.startsWith("/groups/"),
-    ),
-  );
-  // Schema failures only. The probe also reports unproduced references here, for clients that
-  // want one uniform list, but this one renders those from `nodes[].unproduced` just below —
-  // with guidance about the pass-through chain that the server's terse message cannot carry.
-  const schemaIssuesForNode = (index: number) =>
-    issuesForNode(probeIssues(), index).filter((issue) => issue.reason !== "unproduced");
+  // What the continuous probe says live about a card is only its *warnings* (a column about to be
+  // overwritten). Its errors are not shown here: red is reserved for what Confirm or a Run found,
+  // and until then the card is amber (decided 2026-09-17). The document-level banner that used
+  // to sit above the cards went with it — the pointer next to Run pipeline names the items now.
+  const warningsForNode = (index: number) =>
+    issuesForNode(probeIssues(), index).filter((issue) => issue.severity === "warning");
 
   return (
     <div>
-      <Show when={probeErrors().length > 0 || looseIssues().length > 0}>
-        <div class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive">
-          <For each={looseIssues()}>
-            {(issue) => (
-              <p>
-                <span class="font-mono text-control-xs">{issue.pointer}</span> — {issue.message}
-              </p>
-            )}
-          </For>
-          {/* A failure with no pointer — a cyclic graph, a duplicate id — has only its message. */}
-          <Show when={looseIssues().length === 0 && probeErrors().length > 0}>
-            <p>{probeErrors().join("; ")}</p>
-          </Show>
-        </div>
-      </Show>
-
       <Show when={error()}>
         <p class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error()}</p>
       </Show>
@@ -381,22 +331,14 @@ export function Cards() {
 
       <For each={state.nodes}>
         {(node, index) => {
-          /** unconfirmed · incomplete · confirmed — three states, because folded, the dot is all there is. */
-          // The continuous probe's own opinion of this card, right now — not only what the last
-          // Confirm captured. A stored confirmation was made against the document as it was then;
-          // the server is the authority on what is true of it now, so a live error must not be
-          // outranked by an older mark. A warning does not count: it renders live just below
-          // already and was never something Confirm refused over.
-          const liveError = () =>
-            issuesForNode(probeIssues(), index()).some((issue) => issue.severity !== "warning");
-
-          const nodeState = createMemo(() =>
-            (unfinished()[index()]?.length ?? 0) > 0 || liveError()
-              ? "incomplete"
-              : confirmedNode(index())
-                ? "confirmed"
-                : "unconfirmed",
-          );
+          // The last verdict on exactly this content — null once the card is edited.
+          const verdict = createMemo(() => verdictOf(`node:${index()}`, node));
+          /** unconfirmed · confirmed · rejected — amber until asked; folded, the dot is all there is. */
+          const nodeState = createMemo(() => verdict()?.verdict ?? "unconfirmed");
+          const findings = createMemo(() => {
+            const v = verdict();
+            return v?.verdict === "rejected" ? v.findings : [];
+          });
 
           return (
           <div class="my-2 rounded-sm border border-border p-2">
@@ -427,24 +369,26 @@ export function Cards() {
                       </span>
                     </span>
                     {/*
-                      Orange when the last Confirm found something. Folded, this dot is the only
-                      thing on screen, so a warning that renders inside the body announces itself
-                      nowhere — which is the state this third colour exists for.
+                      Amber until asked, then green or red on what the server answered. Folded,
+                      this dot is the only thing on screen, so the answer has to live here as
+                      well as in the findings below. A live warning never changes it.
                     */}
                     <span
                       data-state={nodeState()}
-                      aria-label={nodeState().replace("-", " ")}
+                      aria-label={nodeState()}
                       title={
-                        nodeState() === "incomplete"
-                          ? "unfinished — open to see why"
-                          : nodeState()
+                        nodeState() === "rejected"
+                          ? "the server found something wrong — open to see what"
+                          : nodeState() === "confirmed"
+                            ? "confirmed"
+                            : "not confirmed yet"
                       }
                       class={[
                         "ml-1 h-2 w-2 shrink-0 rounded-full",
                         {
                           "bg-success": nodeState() === "confirmed",
-                          "bg-warning": nodeState() === "incomplete",
-                          "border border-muted-foreground": nodeState() === "unconfirmed",
+                          "bg-destructive": nodeState() === "rejected",
+                          "bg-warning": nodeState() === "unconfirmed",
                         },
                       ]}
                     />
@@ -467,11 +411,7 @@ export function Cards() {
                     </Button>
                     <Button
                       variant="danger"
-                      onClick={summaryAction(() => {
-                        const removed = index();
-                        removeNode(removed);
-                        setUnfinished(shiftPast(unfinished(), removed));
-                      })}
+                      onClick={summaryAction(() => removeNode(index()))}
                     >
                       Remove
                     </Button>
@@ -505,17 +445,16 @@ export function Cards() {
               Attaching to the whole page was the behaviour this replaces.
             */}
             {/*
-              Warning rather than destructive: the document is legal and would run. What it would
-              not do is anything useful, which the schema has no way to say.
+              What Confirm (or a Run) found on this exact content: red, one per control, and
+              only while the verdict is a rejection — an edit drops them with the verdict.
+              A UI finding (no name) and a server finding render through this one path.
             */}
-            <For each={unfinished()[index()] ?? []}>
+            <For each={findings()}>
               {(finding: Incompleteness) => (
                 <p
                   data-finding
-                  class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+                  class="mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive"
                 >
-                  {/* Same shape as a server finding just below: the field in mono, then what to
-                      do. Where they came from is not the reader's problem. */}
                   <Show when={finding.pointer && fieldPath(finding.pointer) !== ""}>
                     <span class="font-mono">{fieldPath(finding.pointer!)}</span>{" — "}
                   </Show>
@@ -523,43 +462,23 @@ export function Cards() {
                 </p>
               )}
             </For>
-            <For each={schemaIssuesForNode(index())}>
+            {/* Live, amber, and not a verdict: the document is legal and would run. */}
+            <For each={warningsForNode(index())}>
               {(issue: ProbeIssue) => (
                 <p
-                  data-issue-severity={issue.severity ?? "error"}
-                  class={[
-                    "mb-2 rounded-sm border p-2 text-control-xs",
-                    issue.severity === "warning"
-                      ? "border-warning/40 bg-warning/10 text-foreground"
-                      : "border-destructive/30 bg-destructive/10 text-destructive",
-                  ]}
+                  data-issue-severity="warning"
+                  class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
                 >
                   <Show when={fieldPath(issue.pointer) !== ""}>
                     <span class="font-mono">{fieldPath(issue.pointer)}</span>{" — "}
                   </Show>
-                  <Show when={issue.reason === "enum" && issue.allowed} fallback={issue.message}>
-                    <>
-                      {JSON.stringify(issue.found)} is not one of{" "}
-                      {(issue.allowed ?? []).map(String).join(", ")}
-                    </>
-                  </Show>
-                  <Show when={issue.missing.length > 0}>
-                    {" ("}
-                    {issue.missing.join(", ")}
-                    {")"}
-                  </Show>
+                  {issue.message}
                 </p>
               )}
             </For>
             <Show when={probeNodes()[index()]} keyed>
               {(reported: ProbeNode) => (
                 <div class="mb-2 text-control-xs">
-                  <Show when={reported.unproduced.length > 0}>
-                    <p class="rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-destructive">
-                      nothing produces {reported.unproduced.join(", ")} — check the pass-through
-                      chain, which names a column rather than routing through one
-                    </p>
-                  </Show>
                   <p class="text-muted-foreground">
                     resolves to: {reported.inputs.join(", ") || "—"}
                     <Show when={reported.outputs.length > 0}>

@@ -449,13 +449,35 @@ describe('verdicts', () => {
     ]);
     await flush();
     const cards = s.exportCards();
-    expect(s.verdictOf('node:0', cards.nodes[0].card)?.verdict).toBe('rejected');
-    expect(s.verdictOf('node:0', cards.nodes[0].card)?.findings.map((f) => f.pointer))
+    // A card's verdict binds to the whole node: its id is part of what was checked.
+    expect(s.verdictOf('node:0', cards.nodes[0])?.verdict).toBe('rejected');
+    expect(s.verdictOf('node:0', cards.nodes[0])?.findings.map((f) => f.pointer))
       .toEqual(['/nodes/0/card/method', '/nodes/0/card/inputs']);
     expect(s.verdictOf('group:g', cards.groups.g)?.verdict).toBe('rejected');
     expect(s.verdictOf('group:g', cards.groups.g)?.findings[0].message).toMatch(/has no columns/);
-    expect(s.verdictOf('node:1', cards.nodes[1].card)).toBeNull(); // a warning is not a rejection
+    expect(s.verdictOf('node:1', cards.nodes[1])).toBeNull(); // a warning is not a rejection
     expect(s.verdictOf('group:h', cards.groups.h)).toBeNull();
     expect(s.PROBE_STORE[0].valid).toBe(false); // the pointer next to Run still reads the store
+  });
+
+  it('follow their card when an earlier one is removed', async () => {
+    const s = await import('./stores');
+    s.forgetAllVerdicts();
+    s.importCards({
+      nodes: [{ id: 'a', card: { type: 'rescale' } }, { id: 'b', card: { type: 'cluster' } }],
+      groups: { g: [] },
+    });
+    await flush();
+    const [a, b] = s.exportCards().nodes;
+    s.recordVerdict('node:0', a, 'confirmed');
+    s.recordVerdict('node:1', b, 'rejected', [{ message: 'needs a value', pointer: '/nodes/1/card/method' }]);
+    s.recordVerdict('group:g', [], 'rejected', [{ message: 'x' }]);
+    await flush();
+    s.removeNode(0);
+    await flush();
+    expect(s.verdictOf('node:0', b)?.verdict).toBe('rejected');   // b is at 0 now, still red
+    expect(s.verdictOf('node:0', b)?.findings[0].message).toBe('needs a value');
+    expect(s.verdictOf('node:1', b)).toBeNull();
+    expect(s.verdictOf('group:g', [])?.verdict).toBe('rejected'); // groups are untouched
   });
 });

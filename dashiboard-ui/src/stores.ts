@@ -281,9 +281,12 @@ export function itemKey(pointer: string): string | null {
   return null;
 }
 
-/** The content a verdict on `key` binds to: the card, or the group's selector list. */
+/**
+ * The content a verdict on `key` binds to: the whole node (its id is part of what was checked —
+ * `checkNode` judges it, and the server reports duplicates), or the group's selector list.
+ */
 function itemValue(key: string): unknown {
-  if (key.startsWith("node:")) return cards.nodes[Number(key.slice(5))]?.card;
+  if (key.startsWith("node:")) return cards.nodes[Number(key.slice(5))];
   if (key.startsWith("group:")) return cards.groups[key.slice(6)];
   return undefined;
 }
@@ -475,6 +478,7 @@ export function removeNode(nodeIndex: number) {
     draft.nodes.splice(nodeIndex, 1);
     if (id) forEachSelector(draft, (item) => dropName(item, "nodes", id));
   });
+  shiftVerdictsPast(nodeIndex);
 }
 
 // --- verdicts -------------------------------------------------------------------------------
@@ -488,8 +492,12 @@ export function removeNode(nodeIndex: number) {
 // A verdict is bound to a *signature of the content*, never a flag. Editing an item changes its
 // signature, so green and red alike expire on edit — the item is back to "not asked" until the
 // next Confirm — and nothing stays wrong or right by memory about content the server never saw.
-// It is also what makes the index-based keys safe: removing an earlier card slides every later
-// key onto its neighbour, where the signature no longer matches and so reads as unasked.
+//
+// Cards are keyed by *position* (there is nothing in the document to make a stable key from),
+// so `removeNode` slides every later card's verdict down with it (`shiftVerdictsPast`): a
+// precise field pointer attached to the wrong card would be worse than no pointer at all. The
+// signature check is the safety net beneath that — a key that lands on the wrong content reads
+// as unasked, never as somebody else's answer.
 //
 // Decided 2026-09-17: red is reserved for "you asked, and it was wrong". The continuous probe
 // never writes here; only Confirm and a Run do.
@@ -541,6 +549,23 @@ export function forgetVerdict(key: string) {
 }
 
 export const forgetConfirmation = forgetVerdict;
+
+/** After `nodes[removed]` is spliced out, the verdicts of the cards behind it move down one. */
+function shiftVerdictsPast(removed: number) {
+  setVerdicts((prev) => {
+    const next: Record<string, Verdict> = {};
+    for (const [key, value] of Object.entries(prev)) {
+      if (!key.startsWith("node:")) {
+        next[key] = value;
+        continue;
+      }
+      const at = Number(key.slice(5));
+      if (at < removed) next[key] = value;
+      else if (at > removed) next[`node:${at - 1}`] = value;
+    }
+    return next;
+  });
+}
 
 export function forgetAllVerdicts() {
   setVerdicts(() => ({}));

@@ -30,7 +30,7 @@ export const issueFindings = (issues: readonly ProbeIssue[]): Incompleteness[] =
     }
     if (issue.reason === "enum" && issue.allowed) {
       return [{
-        message: `must be one of: ${issue.allowed.map(String).join(", ")}`,
+        message: `${JSON.stringify(issue.found)} is not one of ${issue.allowed.map(String).join(", ")}`,
         pointer: issue.pointer,
       }];
     }

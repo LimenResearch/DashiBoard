@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
+import { flush } from 'solid-js';
 
 const loadJSON = vi.fn();
 vi.mock('../requests', () => ({
@@ -37,5 +38,29 @@ describe('uploading filters', () => {
     await waitFor(() => expect(filters.numerical.TEMP).toBeDefined());
     expect(filters.numerical.TEMP?.min).toBe(0);
     expect(filters.numerical.TEMP?.max).toBe(10);
+  });
+});
+
+describe('filters dropped by a load', () => {
+  it('are announced, and the notice closes', async () => {
+    const { setDroppedFilters } = await import('../stores');
+    setDroppedFilters(['cbwd', 'TEMP']);
+    await flush();
+    const { container } = render(() => <Filters />);
+    const notice = container.querySelector('[data-dropped-filters]')!;
+    expect(notice).not.toBeNull();
+    expect(notice.textContent).toMatch(/not in the loaded table/);
+    expect(notice.textContent).toMatch(/cbwd, TEMP/);
+    fireEvent.click(notice.querySelector('button[aria-label="dismiss"]')!);
+    await flush();
+    expect(container.querySelector('[data-dropped-filters]')).toBeNull();
+  });
+
+  it('shows nothing when nothing was dropped', async () => {
+    const { setDroppedFilters } = await import('../stores');
+    setDroppedFilters([]);
+    await flush();
+    const { container } = render(() => <Filters />);
+    expect(container.querySelector('[data-dropped-filters]')).toBeNull();
   });
 });

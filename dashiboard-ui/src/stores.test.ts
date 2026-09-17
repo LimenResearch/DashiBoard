@@ -362,3 +362,33 @@ describe('references follow the thing they name', () => {
     expect(out.nodes[1].card.inputs).toEqual([{ nodes: 'rescaled' }, { cols: 'PRES', through: ['rescaled'] }]);
   });
 });
+
+describe('pruneFilters', () => {
+  it('drops filters on columns the loaded table lacks, keeps the rest, and says which', async () => {
+    const s = await import('./stores');
+    const [, setFilters] = s.FILTERS_STORE;
+    setFilters(() => ({
+      numerical: { TEMP: new s.Interval(0, 1), PRES: new s.Interval(0, 1) },
+      categorical: { cbwd: new Set(['NW']) },
+    }));
+    await flush();
+    const dropped = s.pruneFilters([{ name: 'TEMP' }, { name: 'No' }]);
+    await flush();
+    expect(dropped).toEqual(['PRES', 'cbwd']);
+    expect(Object.keys(s.FILTERS_STORE[0].numerical)).toEqual(['TEMP']);
+    expect(Object.keys(s.FILTERS_STORE[0].categorical)).toEqual([]);
+    expect(s.droppedFilters()).toEqual(['PRES', 'cbwd']);
+  });
+
+  it('drops nothing when every column is present, and nothing when no table is loaded', async () => {
+    const s = await import('./stores');
+    const [, setFilters] = s.FILTERS_STORE;
+    setFilters(() => ({ numerical: { TEMP: new s.Interval(0, 1) }, categorical: {} }));
+    await flush();
+    expect(s.pruneFilters([{ name: 'TEMP' }])).toEqual([]);
+    // No summaries means no table: a document's filters cannot be judged, so they stay.
+    expect(s.pruneFilters([])).toEqual([]);
+    await flush();
+    expect(Object.keys(s.FILTERS_STORE[0].numerical)).toEqual(['TEMP']);
+  });
+});

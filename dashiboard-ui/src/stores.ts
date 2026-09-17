@@ -1,5 +1,5 @@
 import {
-  createStore, reconcile, snapshot,
+  createSignal, createStore, reconcile, snapshot,
   type Store, type StoreSetter,
 } from "solid-js";
 import { persisted, persistedSignal } from "./persist";
@@ -76,6 +76,44 @@ export const filtersCodec = {
 };
 const filters = persisted<FiltersStore>("dashi.filters", { numerical: {}, categorical: {} }, filtersCodec);
 export const FILTERS_STORE: [Store<FiltersStore>, StoreSetter<FiltersStore>] = [filters[0], filters[1]];
+
+/**
+ * Which filters the last load dropped, by column — for the Filter tab to say so. Transient: a
+ * notice, not part of the document.
+ */
+export const [droppedFilters, setDroppedFilters] = createSignal<string[]>([]);
+
+/**
+ * Drop every filter whose column the loaded table lacks, and say which.
+ *
+ * A filter is authored against a table; load a table without that column and the filter cannot
+ * apply — the run fails on it (measured 2026-09-16: a list filter on `cbwd` over
+ * `pollution_test.parquet`). Keeping it and asking the author to remove it is friction; clearing
+ * every filter whenever the column set changes (the earlier heuristic) threw away the ones that
+ * still applied, silently. So: remove exactly the ones that cannot apply, keep the rest, and
+ * return the names so the Filter tab can announce them.
+ *
+ * No summaries means no table is loaded, and a document's filters cannot be judged against
+ * nothing — they stay.
+ */
+export function pruneFilters(summaries: readonly { name: string }[]): string[] {
+  if (summaries.length === 0) return [];
+  const present = new Set(summaries.map((s) => s.name));
+  const dropped: string[] = [];
+  const [, setFilters] = FILTERS_STORE;
+  setFilters((draft) => {
+    for (const kind of ["numerical", "categorical"] as const) {
+      for (const name of Object.keys(draft[kind])) {
+        if (!present.has(name)) {
+          delete draft[kind][name];
+          dropped.push(name);
+        }
+      }
+    }
+  });
+  if (dropped.length > 0) setDroppedFilters(dropped);
+  return dropped;
+}
 
 // The authored half of the ExperimentTracking `Config` — `{nodes, groups}`. Filters live in
 // FILTERS_STORE and are converted at the wire boundary by `getFilters`, following the same

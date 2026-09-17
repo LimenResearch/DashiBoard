@@ -18,7 +18,7 @@ vi.mock('../components/FilePicker', () => ({
 }));
 
 import { Loader } from './loading';
-import { LOADER_STORE, FILTERS_STORE, Interval, type LoaderStore } from '../stores';
+import { LOADER_STORE, FILTERS_STORE, Interval, droppedFilters, setDroppedFilters, type LoaderStore } from '../stores';
 import { reconcile } from 'solid-js';
 
 const SUMMARIES: LoaderStore = [
@@ -71,50 +71,38 @@ describe('Loader', () => {
     expect(container.textContent).toContain('3 columns');
   });
 
-  it('clears the filters when the new table has different columns, and keeps them otherwise', async () => {
+  it('drops the filters the new table cannot apply, keeps the others, and reports the dropped', async () => {
     // Check 11 by hand: a list filter on `cbwd` survived loading a table with no `cbwd`, and the
-    // run failed on it. Same names (stress.csv → stress.parquet) must keep the filters.
+    // run failed on it. A filter that cannot apply is dropped — and said, not silently.
     const [, setLoaderState] = LOADER_STORE;
     const [, setFilters] = FILTERS_STORE;
-
-    // Set initial state: two columns and a filter on TEMP
     setLoaderState(reconcile([num('TEMP'), num('cbwd')]));
-    setFilters(reconcile({ numerical: { TEMP: new Interval(0, 1) }, categorical: {} }));
+    setFilters(reconcile({ numerical: { TEMP: new Interval(0, 1), cbwd: new Interval(0, 1) }, categorical: {} }));
+    setDroppedFilters([]);
     await flush();
 
-    // same names → kept
+    // same columns → everything kept, nothing reported
     const served = [{ ...num('TEMP'), summary: { min: 0, max: 42 } }, num('cbwd')];
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'load-files' ? served : ['a.parquet']),
     );
-
     const { getByText } = render(() => <Loader />);
     fireEvent.click(getByText('choose'));
     await flush();
     fireEvent.click(getByText(/^Load$/));
-
-    // Wait for the load to land by checking that the loaded data changed
     await waitFor(() => {
-      const loader = snapshot(LOADER_STORE[0]);
-      expect((loader[0].summary as { max: number }).max).toBe(42);
+      expect((snapshot(LOADER_STORE[0])[0].summary as { max: number }).max).toBe(42);
     }, { timeout: 1000 });
+    expect(Object.keys(snapshot(FILTERS_STORE[0]).numerical)).toEqual(['TEMP', 'cbwd']);
+    expect(droppedFilters()).toEqual([]);
 
-    // Now check that the filter survived the load
-    expect(snapshot(FILTERS_STORE[0]).numerical.TEMP).toBeInstanceOf(Interval);
-
-    await flush();
-
-    // different names → reset
+    // a table without cbwd → the cbwd filter is dropped and named; TEMP's stays
     postRequest.mockImplementation((page: string) =>
-      Promise.resolve(page === 'load-files' ? [num('No'), num('PRES')] : ['a.parquet']),
+      Promise.resolve(page === 'load-files' ? [num('TEMP'), num('No')] : ['a.parquet']),
     );
-
     await flush();
     fireEvent.click(getByText(/^Load$/));
-
-    await waitFor(() => {
-      const filters = snapshot(FILTERS_STORE[0]);
-      expect(Object.keys(filters.numerical)).toEqual([]);
-    }, { timeout: 1000 });
+    await waitFor(() => expect(droppedFilters()).toEqual(['cbwd']), { timeout: 1000 });
+    expect(Object.keys(snapshot(FILTERS_STORE[0]).numerical)).toEqual(['TEMP']);
   });
 });

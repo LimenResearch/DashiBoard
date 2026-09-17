@@ -1,5 +1,5 @@
 import * as _ from "lodash";
-import { Store, For, reconcile } from "solid-js";
+import { Store, For, Show, reconcile } from "solid-js";
 
 import { IntervalFilter } from "../filters/IntervalFilter";
 import { ListFilter } from "../filters/ListFilter";
@@ -8,6 +8,8 @@ import {
   FILTERS_STORE,
   FiltersStore,
   LOADER_STORE,
+  droppedFilters,
+  setDroppedFilters,
   type CategoricalSummary,
   type NumericalSummary,
 } from "../stores";
@@ -47,6 +49,27 @@ export function Filters() {
 
   return (
     <div>
+      {/* What the last load dropped: a filter on a column this table does not have cannot apply.
+          Said once, here, rather than kept for the author to remove by hand. */}
+      <Show when={droppedFilters().length > 0}>
+        <div
+          data-dropped-filters
+          class="mb-3 flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+        >
+          <span class="min-w-0 flex-1">
+            Filters removed — not in the loaded table:{" "}
+            <span class="font-mono">{droppedFilters().join(", ")}</span>
+          </span>
+          <button
+            type="button"
+            aria-label="dismiss"
+            onClick={() => setDroppedFilters([])}
+            class="grid h-4 w-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            ×
+          </button>
+        </div>
+      </Show>
       <div class="flex flex-row gap-2 pb-4">
         <div class="basis-1/2">
           <For each={numerical()}>{IntervalFilter}</For>

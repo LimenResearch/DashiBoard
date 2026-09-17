@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { A, Button } from "../components/Button";
 import { DownloadJSONButton } from "../components/JSON";
@@ -6,7 +6,9 @@ import { Graph } from "../components/Graph";
 import { TableView } from "../components/TableView";
 import { Tabs } from "../components/Tabs";
 import { getURL, postRequest } from "../requests";
-import { CARDS_STORE, reportRunIssues, type ProbeIssue, type VariableSummary } from "../stores";
+import {
+  CARDS_STORE, PROBE_STORE, itemKey, reportRunIssues, type ProbeIssue, type VariableSummary,
+} from "../stores";
 import { wireDocument } from "../wire";
 
 // What a run produced (C4). Four answers to four different questions, so four panes rather than
@@ -181,14 +183,57 @@ export function Results() {
     <p class="p-3 text-control-xs text-muted-foreground italic">{message}</p>
   );
 
+  const [probe] = PROBE_STORE;
+  /**
+   * Who the continuous probe objects to, by name — the one top-level signal before a run.
+   *
+   * Names only, no messages: the messages belong on the items, and only once the author asks
+   * (Confirm), which is where red lives (decided 2026-09-17). This replaced the banner that sat
+   * above the Process tab and repeated every live error in raw form. Nodes by id, or "card N"
+   * for an unnamed one; groups by name; "the document" for a fault no item pointer can carry (a
+   * cycle, a duplicate id). Warnings are not objections. Running is still allowed: the pointer
+   * says where to look, it does not gate.
+   */
+  const needsAttention = createMemo(() => {
+    // Derived from the issues and the errors alone — no `valid` guard: a clean answer carries
+    // neither, and an inconsistent one (valid, yet with errors) would be the server's bug to show.
+    const names: string[] = [];
+    const seen = new Set<string>();
+    const add = (name: string) => {
+      if (!seen.has(name)) {
+        seen.add(name);
+        names.push(name);
+      }
+    };
+    for (const issue of probe.issues) {
+      if (issue.severity === "warning") continue;
+      const key = itemKey(issue.pointer);
+      if (key === null) add("the document");
+      else if (key.startsWith("node:")) {
+        const at = Number(key.slice(5));
+        add(cards.nodes[at]?.id || `card ${at + 1}`);
+      } else add(key.slice(6));
+    }
+    if (names.length === 0 && probe.errors.length > 0) add("the document");
+    return names;
+  });
+
   return (
     <div>
-      <div class="flex items-center gap-2 p-3">
+      <div class="flex flex-wrap items-center gap-2 p-3">
         <Button disabled={running() || cards.nodes.length === 0} onClick={() => void run()}>
           {running() ? "Running…" : "Run pipeline"}
         </Button>
         <Show when={cards.nodes.length === 0}>
           <span class="text-control-xs text-muted-foreground">Add a card first.</span>
+        </Show>
+        <Show when={needsAttention().length > 0}>
+          <span
+            data-needs-attention
+            class="rounded-sm border border-destructive/30 bg-destructive/10 px-2 py-1 text-control-xs text-destructive"
+          >
+            Needs attention: <span class="font-mono">{needsAttention().join(", ")}</span>
+          </span>
         </Show>
       </div>
 

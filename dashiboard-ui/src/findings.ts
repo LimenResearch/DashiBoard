@@ -13,10 +13,9 @@ import type { ProbeIssue } from "./stores";
  * placing them, not finding them.
  */
 export const issueFindings = (issues: readonly ProbeIssue[]): Incompleteness[] =>
+  // Errors only: a warning is never a finding (it renders live, amber), and every caller strips
+  // warnings before asking here.
   issues.flatMap((issue) => {
-    if (issue.severity === "warning") {
-      return [{ message: issue.message, pointer: issue.pointer, severity: "warning" as const }];
-    }
     // The server's graph checks (`empty`, `unproduced` — handlers.jl) write a sentence about the
     // document, not a schema failure with fields to point at: their `message` is the finding.
     if (issue.reason === "empty" || issue.reason === "unproduced") {

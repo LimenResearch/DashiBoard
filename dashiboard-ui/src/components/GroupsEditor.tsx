@@ -8,6 +8,7 @@ import {
   CARDS_STORE,
   PROBE_STORE,
   addGroup,
+  exportCards,
   issuesForGroup,
   recordVerdict,
   verdictOf,
@@ -147,13 +148,14 @@ export function GroupsEditor(props: { defs: Defs }) {
                       <Button
                         title="mark this group deliberately finished"
                         onClick={summaryAction(() => {
-                          // Captured now, synchronously, before any `await` — not read back off
-                          // `state` once the probe answers. Mirrors `confirmNode` in
-                          // processing.tsx, which reads `state.nodes[index]` the same way: an edit
-                          // made while the request is in flight must confirm nothing, rather than
-                          // silently getting stamped as the thing that was probed.
-                          const items = state.groups[name];
-                          const document = JSON.parse(JSON.stringify(state)) as CardsStore;
+                          // One plain snapshot, taken before any `await`, is what gets probed
+                          // and what the verdict binds to — never a store proxy, which would
+                          // read the group as it is once the reply lands. Mirrors `confirmNode`
+                          // in processing.tsx: an edit made while the request is in flight must
+                          // leave the group unasked, not stamp it with an answer about content
+                          // the server never saw.
+                          const document = exportCards();
+                          const items = document.groups[name];
                           const key = `group:${name}`;
                           const decide = (found: Incompleteness[]) =>
                             recordVerdict(key, items, found.length > 0 ? "rejected" : "confirmed", found);

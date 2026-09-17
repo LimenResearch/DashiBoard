@@ -187,15 +187,11 @@ export function Cards() {
   });
 
   /**
-   * What the server says about this card, as something a person can act on.
-   *
-   * Confirm has to ask it. The UI's own rules only cover what DashiBoard *accepts* — by design —
-   * so on their own they let an empty card through: `checkNode` sees a name and is satisfied,
-   * while construction fails on `method` and `inputs`. The probe already knows; Confirm was
-   * simply not reading it.
-   */
-  /**
    * Ask Pipelines about this card, and only this card.
+   *
+   * Confirm has to ask: the UI's own rules only cover what DashiBoard *accepts* — by design —
+   * so on their own they let an empty card through (`checkNode` sees a name and is satisfied,
+   * while construction fails on `method` and `inputs`).
    *
    * `POST /validate-card` builds the card's own schema from the same vocabularies the IR was
    * built from and validates against it — the server's own check, not a copy of it. There was a

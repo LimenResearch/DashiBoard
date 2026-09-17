@@ -83,13 +83,16 @@ export function Results() {
   async function run() {
     setRunning(true);
     try {
-      // A plain copy of what is being sent, taken in the same tick as the request: the verdicts a
-      // failed run leaves behind must bind to this, not to the document as it is once the reply
-      // lands — the Run button is disabled meanwhile, editing is not.
+      // One plain copy is both what is sent and what a failed run's verdicts bind to — the Run
+      // button is disabled meanwhile, editing is not, and the document as it is once the reply
+      // lands is not the one the server judged. `wireDocument()` hands out live proxies, which
+      // could also differ from the copy by a staged write in this very tick; the spread pins it.
       const sent = exportCards();
-      const answer = (await postRequest("evaluate-pipeline", wireDocument(), null)) as
-        | RunResult
-        | null;
+      const answer = (await postRequest(
+        "evaluate-pipeline",
+        { ...wireDocument(), nodes: sent.nodes, groups: sent.groups },
+        null,
+      )) as RunResult | null;
       // `postRequest` collapses a dead server, a non-JSON body and a network fault alike into the
       // default it was given. Whatever the cause, the reader must not be left thinking the run
       // succeeded — which is what an unchanged screen says.
@@ -102,20 +105,17 @@ export function Results() {
         setResult(null);
         const issues = Array.isArray(answer.issues) ? answer.issues : [];
         if (issues.length > 0) reportRunIssues(issues, sent);
-        // `parts[1]` distinguishes a node pointer (`/nodes/<i>/card/…`) from a group pointer
-        // (`/groups/<name>/…`) — counting `parts[2]` on its own, whatever `parts[1]` said, put an
-        // empty-group issue (`/groups/empty`) on the "cards" count with nothing on screen to show
-        // for it. The headline and the marks agree: `reportRunIssues` above records a rejected
-        // verdict on exactly the cards and groups counted here.
-        const namesAt = (kind: "nodes" | "groups") =>
-          new Set(
-            issues
-              .filter((i) => i.pointer.split("/")[1] === kind)
-              .map((i) => i.pointer.split("/")[2])
-              .filter(Boolean),
-          ).size;
-        const cardCount = namesAt("nodes");
-        const groupCount = namesAt("groups");
+        // Counted through the same `itemKey` the marks are made with, errors only, so the
+        // headline and the marks cannot drift: an empty-group issue (`/groups/empty`) once landed
+        // on the "cards" count from a hand-rolled pointer parse, with nothing on screen for it.
+        const keys = new Set(
+          issues
+            .filter((i) => i.severity !== "warning")
+            .map((i) => itemKey(i.pointer))
+            .filter((k): k is string => k !== null),
+        );
+        const cardCount = [...keys].filter((k) => k.startsWith("node:")).length;
+        const groupCount = keys.size - cardCount;
         const phrases = [
           ...(cardCount > 0 ? [`${cardCount} card${cardCount === 1 ? "" : "s"}`] : []),
           ...(groupCount > 0 ? [`${groupCount} group${groupCount === 1 ? "" : "s"}`] : []),

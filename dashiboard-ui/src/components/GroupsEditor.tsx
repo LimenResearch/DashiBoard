@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { Button } from "./Button";
 import { Disclosure, summaryAction } from "./Disclosure";
@@ -8,9 +8,9 @@ import {
   CARDS_STORE,
   PROBE_STORE,
   addGroup,
-  confirmDefinition,
-  isConfirmed,
   issuesForGroup,
+  recordVerdict,
+  verdictOf,
   removeGroup,
   renameGroup,
   setGroup,
@@ -18,6 +18,7 @@ import {
   type Selector,
 } from "../stores";
 import { askProbe } from "../probe";
+import { issueFindings } from "../findings";
 import type { Incompleteness } from "../completeness";
 import { withoutOption, type Defs, type IRNode } from "../ir";
 
@@ -35,45 +36,22 @@ export function GroupsEditor(props: { defs: Defs }) {
   const [state] = CARDS_STORE;
   const [probe] = PROBE_STORE;
   const [error, setError] = createSignal<string | null>(null);
-  // What Confirm found last time it was pressed, per group. Not run continuously — the step exists
-  // so the author says when they are done, not so a panel argues while they type.
-  const [unfinished, setUnfinished] = createSignal<Record<string, Incompleteness[]>>({});
-  const confirmed = (name: string) => isConfirmed(`group:${name}`, state.groups[name]);
 
-  /**
-   * The continuous probe's own opinion of this group, right now — not only what the last Confirm
-   * captured. A stored confirmation was made against the document as it was then; the server is
-   * the authority on what is true of it now, so a live error must not be outranked by an older
-   * mark. A warning does not count: it renders live in the body already and was never something
-   * Confirm refused over.
-   */
-  const liveError = (name: string) =>
-    issuesForGroup(probe.issues, name).some((issue) => issue.severity !== "warning");
-
-  /** unconfirmed · incomplete · confirmed — folded, the dot is the only thing on screen. */
-  const groupState = (name: string) =>
-    (unfinished()[name]?.length ?? 0) > 0 || liveError(name)
-      ? "incomplete"
-      : confirmed(name)
-        ? "confirmed"
-        : "unconfirmed";
+  // The last verdict on exactly this group's content — null once it is edited (`stores.ts`,
+  // verdicts). Findings travel with it, so there is no per-component list to keep in step.
+  const verdict = (name: string) => verdictOf(`group:${name}`, state.groups[name]);
+  /** unconfirmed · confirmed · rejected — amber until asked; folded, the dot is all there is. */
+  const groupState = (name: string) => verdict(name)?.verdict ?? "unconfirmed";
+  const findings = (name: string): Incompleteness[] => {
+    const v = verdict(name);
+    return v?.verdict === "rejected" ? v.findings : [];
+  };
+  // What the continuous probe says live about a group is only its *warnings*. Its errors are not
+  // shown here: red is reserved for what Confirm or a Run found (decided 2026-09-17).
+  const warnings = createMemo(() => probe.issues.filter((issue) => issue.severity === "warning"));
 
   // The `$defs/variable` node: one item of a selector list, which is exactly what a group holds.
   const itemNode = () => (props.defs.variable ?? {}) as IRNode;
-
-  /**
-   * What the last Confirm found, minus whatever the continuous probe already shows live.
-   *
-   * Both lists can carry the same finding — Confirm's own `askProbe` answer and `PROBE_STORE`
-   * (fed by the continuous probe, and by a failed run's issues via `reportRunIssues`) are two
-   * independent askings of the same question, and the server's empty-group message doesn't stop
-   * existing just because it was asked for twice. Filtering by message rather than merging the
-   * lists keeps this the *fallback* — an item the live list cannot see yet renders here still.
-   */
-  const staleFindings = (name: string) => {
-    const live = issuesForGroup(probe.issues, name).map((issue) => issue.message);
-    return (unfinished()[name] ?? []).filter((finding) => !live.includes(finding.message));
-  };
 
   function rename(from: string, field: HTMLInputElement) {
     const to = field.value.trim();
@@ -133,22 +111,25 @@ export function GroupsEditor(props: { defs: Defs }) {
                         <span class="text-muted-foreground">:</span>
                         <span class="font-mono text-control-xs">{name}</span>
                       </span>
-                      {/* Orange when the last Confirm found something: the warning renders inside
-                          the body, which announces nothing while the group is folded. */}
+                      {/* Amber until asked, then green or red on what the server answered: the
+                          findings render inside the body, which announces nothing while the
+                          group is folded. */}
                       <span
                         data-state={groupState(name)}
                         aria-label={groupState(name)}
                         title={
-                          groupState(name) === "incomplete"
-                            ? "unfinished — open to see why"
-                            : groupState(name)
+                          groupState(name) === "rejected"
+                            ? "the server found something wrong — open to see what"
+                            : groupState(name) === "confirmed"
+                              ? "confirmed"
+                              : "not confirmed yet"
                         }
                         class={[
                           "ml-1 h-2 w-2 shrink-0 rounded-full",
                           {
                             "bg-success": groupState(name) === "confirmed",
-                            "bg-warning": groupState(name) === "incomplete",
-                            "border border-muted-foreground": groupState(name) === "unconfirmed",
+                            "bg-destructive": groupState(name) === "rejected",
+                            "bg-warning": groupState(name) === "unconfirmed",
                           },
                         ]}
                       />
@@ -173,6 +154,9 @@ export function GroupsEditor(props: { defs: Defs }) {
                           // silently getting stamped as the thing that was probed.
                           const items = state.groups[name];
                           const document = JSON.parse(JSON.stringify(state)) as CardsStore;
+                          const key = `group:${name}`;
+                          const decide = (found: Incompleteness[]) =>
+                            recordVerdict(key, items, found.length > 0 ? "rejected" : "confirmed", found);
                           void (async () => {
                             // The server's answer, not ours: an empty group is reported by the
                             // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
@@ -183,19 +167,16 @@ export function GroupsEditor(props: { defs: Defs }) {
                             // back clean. Reading it as "no issues" is what let an empty group
                             // through Confirm with a green dot (final review, 2026-09-16).
                             if (answer === null) {
-                              setUnfinished({
-                                ...unfinished(),
-                                [name]: [{
-                                  message: "Could not reach DashiBoard to check this group — is the server running?",
-                                }],
-                              });
+                              decide([{
+                                message: "Could not reach DashiBoard to check this group — is the server running?",
+                              }]);
                               return;
                             }
-                            const found = issuesForGroup(answer.issues, name).map((issue) => ({
-                              message: issue.message, pointer: issue.pointer,
-                            }));
-                            setUnfinished({ ...unfinished(), [name]: found });
-                            if (found.length === 0) confirmDefinition(`group:${name}`, items);
+                            // A warning is not a finding: it renders live, amber, and never
+                            // stops Confirm.
+                            decide(issueFindings(
+                              issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
+                            ));
                           })();
                         })}
                       >
@@ -208,22 +189,26 @@ export function GroupsEditor(props: { defs: Defs }) {
                   </>
                 }
               >
-                {/* Warning rather than destructive: an empty group is legal and would run. It
-                    would simply select nothing, which the schema has no way to say. Filtered
-                    against the live list just below — the same finding does not render twice. */}
-                <For each={staleFindings(name)}>
+                {/* What Confirm (or a failed run, through `reportRunIssues`) found on this exact
+                    content: red, and only while the verdict is a rejection — an edit drops it
+                    with the verdict. */}
+                <For each={findings(name)}>
                   {(finding: Incompleteness) => (
-                    <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
+                    <p
+                      data-finding
+                      class="rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive"
+                    >
                       {finding.message}
                     </p>
                   )}
                 </For>
-                {/* The continuous probe's own finding for this group, live — not only what the
-                    last Confirm captured. A run that failed on this group (Task 5's
-                    `reportRunIssues`) lands here too, without a second Confirm. */}
-                <For each={issuesForGroup(probe.issues, name)}>
+                {/* Live, amber, and not a verdict: the document is legal and would run. */}
+                <For each={issuesForGroup(warnings(), name)}>
                   {(issue) => (
-                    <p class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground">
+                    <p
+                      data-issue-severity="warning"
+                      class="rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+                    >
                       {issue.message}
                     </p>
                   )}

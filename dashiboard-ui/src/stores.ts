@@ -3,6 +3,8 @@ import {
   type Store, type StoreSetter,
 } from "solid-js";
 import { persisted, persistedSignal } from "./persist";
+import type { Incompleteness } from "./completeness";
+import { issueFindings } from "./findings";
 
 export class Interval {
   min: number;
@@ -243,9 +245,13 @@ export function fieldPath(pointer: string): string {
 export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
 
 /**
- * A run that failed to build says where, in the probe's shape — so the cards show it as they
- * show a probe finding. Written into `PROBE_STORE` rather than kept by the results pane: the
- * cards already read one place, and the next edit's probe replaces this as it replaces any result.
+ * A run that failed to build says where, in the probe's shape.
+ *
+ * Written into `PROBE_STORE` — the pointer next to Run pipeline reads it — and recorded as a
+ * *rejected* verdict on every item an error points at: a Run is the author asking, exactly as
+ * Confirm is, so red is right here where it would not be for the continuous probe. Warnings are
+ * not rejections. The findings are derived as Confirm derives them, so the item reads the same
+ * whoever asked.
  */
 export function reportRunIssues(issues: ProbeIssue[]) {
   const [, setProbe] = PROBE_STORE;
@@ -253,6 +259,33 @@ export function reportRunIssues(issues: ProbeIssue[]) {
     draft.valid = false;
     draft.issues = issues;
   });
+  const byItem = new Map<string, ProbeIssue[]>();
+  for (const issue of issues) {
+    if (issue.severity === "warning") continue;
+    const key = itemKey(issue.pointer);
+    if (key === null) continue;
+    byItem.set(key, [...(byItem.get(key) ?? []), issue]);
+  }
+  for (const [key, own] of byItem) {
+    const value = itemValue(key);
+    if (value === undefined) continue;
+    recordVerdict(key, value, "rejected", issueFindings(own));
+  }
+}
+
+/** `/nodes/<i>/…` → `node:<i>`; `/groups/<name>/…` → `group:<name>`; anything else → null. */
+export function itemKey(pointer: string): string | null {
+  const parts = pointer.split("/");
+  if (parts[1] === "nodes" && parts[2] !== undefined) return `node:${parts[2]}`;
+  if (parts[1] === "groups" && parts[2] !== undefined) return `group:${unescapeToken(parts[2])}`;
+  return null;
+}
+
+/** The content a verdict on `key` binds to: the card, or the group's selector list. */
+function itemValue(key: string): unknown {
+  if (key.startsWith("node:")) return cards.nodes[Number(key.slice(5))]?.card;
+  if (key.startsWith("group:")) return cards.groups[key.slice(6)];
+  return undefined;
 }
 
 const cardsPersisted = persisted<CardsStore>("dashi.cards", emptyCards());
@@ -444,42 +477,71 @@ export function removeNode(nodeIndex: number) {
   });
 }
 
-// --- confirmation --------------------------------------------------------------------------
+// --- verdicts -------------------------------------------------------------------------------
 //
-// Which definitions the author has deliberately marked finished.
+// What the author has asked about each definition, and what the server answered.
 //
-// Not in the document and not sent anywhere: this is an ergonomic mark. It is kept in
-// `sessionStorage` beside the document it describes, so a reload brings both back and the marks
-// still stand against the cards they were made on; closing the tab ends them, as it ends the
-// document.
+// Not in the document and not sent anywhere: an ergonomic mark, kept in `sessionStorage` beside
+// the document so a reload brings both back, with the findings the answer came with; closing
+// the tab ends them, as it ends the document.
 //
-// Stored as a *signature of the content* rather than a flag. Editing a confirmed card changes its
-// signature and so un-confirms it automatically, which is the behaviour that matters: a card
-// confirmed and then changed is no longer something anyone declared finished, and a flag would go
-// quietly stale instead. It is also what makes the keys safe: they are node *indices*, so removing
-// an earlier card slides every later mark onto its neighbour — where it no longer matches, and so
-// reads as unconfirmed rather than as somebody else's approval.
+// A verdict is bound to a *signature of the content*, never a flag. Editing an item changes its
+// signature, so green and red alike expire on edit — the item is back to "not asked" until the
+// next Confirm — and nothing stays wrong or right by memory about content the server never saw.
+// It is also what makes the index-based keys safe: removing an earlier card slides every later
+// key onto its neighbour, where the signature no longer matches and so reads as unasked.
+//
+// Decided 2026-09-17: red is reserved for "you asked, and it was wrong". The continuous probe
+// never writes here; only Confirm and a Run do.
 
-const [confirmations, setConfirmations] = persistedSignal<Record<string, string>>("dashi.confirmations", {});
+export type Verdict = {
+  signature: string;
+  verdict: "confirmed" | "rejected";
+  findings: Incompleteness[];
+};
+
+const [verdicts, setVerdicts] = persistedSignal<Record<string, Verdict>>("dashi.verdicts", {});
 
 const signatureOf = (value: unknown) => JSON.stringify(value);
 
+/** The verdict on `key`, only if it was given on exactly `value`; `null` otherwise. */
+export function verdictOf(key: string, value: unknown): Verdict | null {
+  const v = verdicts()[key];
+  return v !== undefined && v.signature === signatureOf(value) ? v : null;
+}
+
 export function isConfirmed(key: string, value: unknown): boolean {
-  return confirmations()[key] === signatureOf(value);
+  return verdictOf(key, value)?.verdict === "confirmed";
 }
 
+export function recordVerdict(
+  key: string,
+  value: unknown,
+  verdict: Verdict["verdict"],
+  findings: Incompleteness[] = [],
+) {
+  // A functional updater, not `{...verdicts(), ...}`: Solid 2 stages a signal write, so a plain
+  // read right after a write in the same tick still returns the pre-write value — two calls back
+  // to back would each build their map off the same stale read, and the second would be the only
+  // edit to survive a flush. An updater chains off the previous updater's return instead.
+  setVerdicts((prev) => ({ ...prev, [key]: { signature: signatureOf(value), verdict, findings } }));
+}
+
+/** A plain "confirmed" verdict, for callers that only ever say yes. */
 export function confirmDefinition(key: string, value: unknown) {
-  // A functional updater, not `{...confirmations(), ...}`: Solid 2 stages a signal write, so a
-  // plain read right after a write in the same tick still returns the pre-write value — two calls
-  // back to back would each build their map off the same stale read, and the second would be the
-  // only edit to survive a flush. An updater chains off the previous updater's return instead.
-  setConfirmations((prev) => ({ ...prev, [key]: signatureOf(value) }));
+  recordVerdict(key, value, "confirmed");
 }
 
-export function forgetConfirmation(key: string) {
-  setConfirmations((prev) => {
+export function forgetVerdict(key: string) {
+  setVerdicts((prev) => {
     const next = { ...prev };
     delete next[key];
     return next;
   });
+}
+
+export const forgetConfirmation = forgetVerdict;
+
+export function forgetAllVerdicts() {
+  setVerdicts(() => ({}));
 }

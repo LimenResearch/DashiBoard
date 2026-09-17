@@ -8,6 +8,7 @@ import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
 import { Disclosure, summaryAction } from "../components/Disclosure";
 import { postRequest } from "../requests";
+import { issueFindings } from "../findings";
 import {
   CARDS_STORE,
   CARDS_JSON,
@@ -200,33 +201,6 @@ export function Cards() {
    * while construction fails on `method` and `inputs`. The probe already knows; Confirm was
    * simply not reading it.
    */
-  /**
-   * Schema issues as findings, one per control rather than one per issue.
-   *
-   * A `required` failure names every absent field at once and carries a `related` pointer per
-   * name (A7), so the server already knows which control each belongs to — the work here is
-   * placing them, not finding them.
-   */
-  const issueFindings = (issues: readonly ProbeIssue[]): Incompleteness[] =>
-    issues.flatMap((issue) => {
-      if (issue.severity === "warning") {
-        return [{ message: issue.message, pointer: issue.pointer, severity: "warning" as const }];
-      }
-      if (issue.missing.length > 0) {
-        return issue.missing.map((name, at) => ({
-          message: "needs a value",
-          pointer: issue.related[at] ?? `${issue.pointer}/${name}`,
-        }));
-      }
-      if (issue.reason === "enum" && issue.allowed) {
-        return [{
-          message: `must be one of: ${issue.allowed.map(String).join(", ")}`,
-          pointer: issue.pointer,
-        }];
-      }
-      return [{ message: `not accepted (${issue.reason})`, pointer: issue.pointer }];
-    });
-
   /**
    * Ask Pipelines about this card, and only this card.
    *

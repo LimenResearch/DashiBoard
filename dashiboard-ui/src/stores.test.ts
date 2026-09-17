@@ -296,12 +296,14 @@ describe('the stores survive a reload', () => {
     expect(back.categorical.cbwd!.has('NW')).toBe(true);
   });
 
-  it('confirmations are kept', async () => {
-    const { confirmDefinition, isConfirmed } = await import('./stores');
-    confirmDefinition('node:0', { type: 'rescale' });
+  it('verdicts are kept, with their findings', async () => {
+    const { recordVerdict, verdictOf } = await import('./stores');
+    recordVerdict('node:0', { type: 'rescale' }, 'rejected', [{ message: 'needs a value', pointer: '/nodes/0/card/inputs' }]);
     await flush();
-    expect(JSON.parse(sessionStorage.getItem('dashi.confirmations')!)['node:0']).toBeTypeOf('string');
-    expect(isConfirmed('node:0', { type: 'rescale' })).toBe(true);
+    const raw = JSON.parse(sessionStorage.getItem('dashi.verdicts')!)['node:0'];
+    expect(raw.verdict).toBe('rejected');
+    expect(raw.findings[0].message).toBe('needs a value');
+    expect(verdictOf('node:0', { type: 'rescale' })?.verdict).toBe('rejected');
   });
 });
 
@@ -390,5 +392,70 @@ describe('pruneFilters', () => {
     expect(s.pruneFilters([])).toEqual([]);
     await flush();
     expect(Object.keys(s.FILTERS_STORE[0].numerical)).toEqual(['TEMP']);
+  });
+});
+
+describe('verdicts', () => {
+  it('bind to the exact content, and expire when it changes', async () => {
+    const s = await import('./stores');
+    s.recordVerdict('node:0', { type: 'rescale', suffix: 'z' }, 'rejected', [{ message: 'needs a value', pointer: '/nodes/0/card/inputs' }]);
+    await flush();
+    expect(s.verdictOf('node:0', { type: 'rescale', suffix: 'z' })).toEqual({
+      signature: JSON.stringify({ type: 'rescale', suffix: 'z' }),
+      verdict: 'rejected',
+      findings: [{ message: 'needs a value', pointer: '/nodes/0/card/inputs' }],
+    });
+    expect(s.verdictOf('node:0', { type: 'rescale', suffix: 'zz' })).toBeNull(); // edited: no verdict
+    expect(s.isConfirmed('node:0', { type: 'rescale', suffix: 'z' })).toBe(false);
+    s.recordVerdict('node:0', { type: 'rescale', suffix: 'z' }, 'confirmed');
+    await flush();
+    expect(s.isConfirmed('node:0', { type: 'rescale', suffix: 'z' })).toBe(true);
+    expect(s.verdictOf('node:0', { type: 'rescale', suffix: 'z' })?.findings).toEqual([]);
+  });
+
+  it('keep every write of one tick, and forget on request', async () => {
+    const s = await import('./stores');
+    s.recordVerdict('group:a', [], 'confirmed');
+    s.recordVerdict('group:b', [], 'rejected', [{ message: 'x' }]);
+    await flush();
+    expect(s.verdictOf('group:a', [])?.verdict).toBe('confirmed');
+    expect(s.verdictOf('group:b', [])?.verdict).toBe('rejected');
+    s.forgetVerdict('group:a');
+    await flush();
+    expect(s.verdictOf('group:a', [])).toBeNull();
+    expect(s.verdictOf('group:b', [])?.verdict).toBe('rejected');
+    s.forgetAllVerdicts();
+    await flush();
+    expect(s.verdictOf('group:b', [])).toBeNull();
+  });
+
+  it('a failed run rejects exactly the items its issues point at', async () => {
+    const s = await import('./stores');
+    s.importCards({
+      nodes: [
+        { id: 'a', card: { type: 'cluster' } },
+        { id: 'b', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [{ cols: 'TEMP' }], suffix: 'z' } },
+      ],
+      groups: { g: [], h: [{ cols: 'TEMP' }] },
+    });
+    await flush();
+    const issue = (over: Partial<ProbeIssue>): ProbeIssue => ({
+      pointer: '', reason: 'required', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'x', ...over,
+    });
+    s.reportRunIssues([
+      issue({ pointer: '/nodes/0/card', missing: ['method', 'inputs'], related: ['/nodes/0/card/method', '/nodes/0/card/inputs'] }),
+      issue({ pointer: '/groups/g', reason: 'empty', message: 'group `g` has no columns' }),
+      issue({ pointer: '/nodes/1/card', reason: 'overwrites', severity: 'warning', message: '`TEMP_z` already exists' }),
+    ]);
+    await flush();
+    const cards = s.exportCards();
+    expect(s.verdictOf('node:0', cards.nodes[0].card)?.verdict).toBe('rejected');
+    expect(s.verdictOf('node:0', cards.nodes[0].card)?.findings.map((f) => f.pointer))
+      .toEqual(['/nodes/0/card/method', '/nodes/0/card/inputs']);
+    expect(s.verdictOf('group:g', cards.groups.g)?.verdict).toBe('rejected');
+    expect(s.verdictOf('group:g', cards.groups.g)?.findings[0].message).toMatch(/has no columns/);
+    expect(s.verdictOf('node:1', cards.nodes[1].card)).toBeNull(); // a warning is not a rejection
+    expect(s.verdictOf('group:h', cards.groups.h)).toBeNull();
+    expect(s.PROBE_STORE[0].valid).toBe(false); // the pointer next to Run still reads the store
   });
 });

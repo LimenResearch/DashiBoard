@@ -153,6 +153,18 @@ Timings on 1M rows: load 0.5 s (cache warm), rescale runs 0.6–0.8 s, pca 3.1 s
 0.7 s, page at offset 999,900 instant. First-use compilation is gone from these numbers because the
 server had already answered once.
 
+**Addendum, the same evening.** The owner's browser check found a brand-new empty group confirming
+green with no warning — while both servers answered the issue to `curl`. Cause: `/probe-pipeline`
+was missing from `vite.config.ts`'s dev-proxy list (every other route was there), so from a browser
+the probe's POST got Vite's 404 HTML, `postRequest` swallowed it into `null`, and the UI read `null`
+as "valid, no issues". The probe had **never** reached the server from the dev UI — none of the
+day's server logs show a `probe-pipeline` line — and the direct-to-server runs above could not see
+it. Fixed on the branch (proxy route; a probe that cannot be asked is now a finding, never a
+confirmation; the dot turns orange on a live server error whatever Confirm stored), and the same
+20 cases re-run **through a dev proxy** (Vite on 3210 → server 3100): all as above, the probe cases
+now answering JSON through the proxy. Lesson for the ledger: the smoke must go through the same
+path the browser uses.
+
 **Still open, by decision:** `_id` in the summaries (kept). **UI-side checks for the owner in a
 browser against this branch's UI** (`DASHI_API=http://127.0.0.1:3100 pnpm run dev` from the
 worktree's `dashiboard-ui/`): run failures landing on the cards; the empty-group finding on the group

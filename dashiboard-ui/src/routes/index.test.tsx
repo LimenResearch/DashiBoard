@@ -135,42 +135,6 @@ describe('the page is a set of tabs', () => {
   });
 });
 
-// A reload lands on `/`, and landing on Load every time is the wrong answer for a page whose
-// work happens in Process. The session remembers which tab you were on; a URL that names one
-// still wins, because a shared link means what it says.
-describe('the remembered tab', () => {
-  it('a bare / reopens the tab stored in sessionStorage', async () => {
-    sessionStorage.setItem('dashi.tab', JSON.stringify('process'));
-    const { container } = renderHome('/');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await waitFor(() => expect(onScreen(container)).toEqual(['Process']));
-  });
-
-  it('a URL that names a tab beats the stored one', async () => {
-    sessionStorage.setItem('dashi.tab', JSON.stringify('process'));
-    const { container } = renderHome('/?tab=filter');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await new Promise((r) => setTimeout(r, 30)); await flush();
-    expect(onScreen(container)).toEqual(['Filter']);
-  });
-
-  it('clicking a tab stores it', async () => {
-    const { container } = renderHome('/');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await openTab(container, 'Process');
-    await waitFor(() => expect(sessionStorage.getItem('dashi.tab')).toBe(JSON.stringify('process')));
-  });
-
-  it('remembers the section an unknown ?tab= resolved to, not the raw value', async () => {
-    // `?tab=nope` renders Load. Storing "nope" made every later bare `/` redirect to `?tab=nope`
-    // — a URL naming a section that does not exist, for the rest of the session.
-    const { container } = renderHome('/?tab=nope');
-    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
-    await new Promise((r) => setTimeout(r, 30)); await flush();
-    expect(sessionStorage.getItem('dashi.tab')).toBe(JSON.stringify('load'));
-  });
-});
-
 describe('the authoring page', () => {
   it('offers every card type the server describes', async () => {
     const { container, getByLabelText } = renderHome();

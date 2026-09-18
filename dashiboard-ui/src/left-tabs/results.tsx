@@ -7,7 +7,7 @@ import { TableView } from "../components/TableView";
 import { Tabs } from "../components/Tabs";
 import { getURL, postRequest } from "../requests";
 import {
-  CARDS_STORE, PROBE_STORE, exportCards, itemKey, reportRunIssues,
+  CARDS_STORE, exportCards, itemKey, rejectFromIssues, verdictOf,
   type ProbeIssue, type VariableSummary,
 } from "../stores";
 import { wireDocument } from "../wire";
@@ -29,7 +29,7 @@ type RunResult = {
   kind?: string;
   errors?: string[];
   /** Where a build failure landed, in the probe's shape — pointed issues become rejected
-   *  verdicts on the cards and groups they name (`reportRunIssues`). Absent from an older
+   *  verdicts on the cards and groups they name (`rejectFromIssues`). Absent from an older
    *  server, or from a run that failed with no pointer at all — a cycle, a filter's SQL error. */
   issues?: ProbeIssue[];
   graph?: string;
@@ -104,7 +104,7 @@ export function Results() {
       if (answer.valid === false) {
         setResult(null);
         const issues = Array.isArray(answer.issues) ? answer.issues : [];
-        if (issues.length > 0) reportRunIssues(issues, sent);
+        if (issues.length > 0) rejectFromIssues(issues, sent);
         // Counted through the same `itemKey` the marks are made with, errors only, so the
         // headline and the marks cannot drift: an empty-group issue (`/groups/empty`) once landed
         // on the "cards" count from a hand-rolled pointer parse, with nothing on screen for it.
@@ -188,58 +188,28 @@ export function Results() {
     <p class="p-3 text-control-xs text-muted-foreground italic">{message}</p>
   );
 
-  const [probe] = PROBE_STORE;
   /**
-   * Who the continuous probe objects to, by name — the one top-level signal before a run.
+   * Who was asked and found wanting, by name — the one top-level signal, visible from every tab
+   * and with the cards folded.
    *
-   * For an item, its name only: its messages belong on the item, and only once the author asks
-   * (Confirm), which is where red lives (decided 2026-09-17). This replaced the banner that sat
-   * above the Process tab and repeated every live error in raw form. Nodes by id, or "card N"
-   * for an unnamed one; groups by name; "the document" for a fault no item pointer can carry (a
-   * loop; two cards of one name, which only an imported document can still hold — `setNodeId`
-   * refuses it). Warnings are not objections. Running is still allowed: the pointer says where
-   * to look, it does not gate.
-   *
-   * `document` is the exception to "names only": a fault of the document has no item to be read
-   * on, so withholding its text left "the document" with nothing behind it (owner, 2026-09-17).
-   * It is the server's own sentence — the message of each issue that points at no item, or the
-   * `errors` when no issue points anywhere. Not the `errors` otherwise: for a schema failure
-   * they are the items' own messages run together, and those are read on the items.
+   * Read from the verdicts, the same source as the dots, so the two cannot disagree: an item is
+   * named once a Confirm, a failed run or an upload rejected its current content, and an edit
+   * expires the verdict and drops it (decided 2026-09-18). This line used to read the continuous
+   * probe and named items before anyone asked — the very "red before asked" the items gave up
+   * on 2026-09-17. Names only: the findings are read on the items. Nodes by id, or "card N" for
+   * an unnamed one, in document order; then groups by name. Running is still allowed: the line
+   * says where to look, it does not gate.
    */
-  const attention = createMemo(() => {
-    // Derived from the issues and the errors alone — no `valid` guard: a clean answer carries
-    // neither, and an inconsistent one (valid, yet with errors) would be the server's bug to show.
+  const needsAttention = createMemo(() => {
     const names: string[] = [];
-    const document: string[] = [];
-    const seen = new Set<string>();
-    const add = (name: string) => {
-      if (!seen.has(name)) {
-        seen.add(name);
-        names.push(name);
-      }
-    };
-    for (const issue of probe.issues) {
-      if (issue.severity === "warning") continue;
-      const key = itemKey(issue.pointer);
-      if (key === null) {
-        add("the document");
-        document.push(issue.message);
-      } else if (key.startsWith("node:")) {
-        const at = Number(key.slice(5));
-        add(cards.nodes[at]?.id || `card ${at + 1}`);
-      } else add(key.slice(6));
+    cards.nodes.forEach((node, at) => {
+      if (verdictOf(`node:${at}`, node)?.verdict === "rejected") names.push(node.id || `card ${at + 1}`);
+    });
+    for (const [name, items] of Object.entries(cards.groups)) {
+      if (verdictOf(`group:${name}`, items)?.verdict === "rejected") names.push(name);
     }
-    if (names.length === 0 && probe.errors.length > 0) {
-      add("the document");
-      document.push(...probe.errors);
-    }
-    return { names, document };
+    return names;
   });
-  const needsAttention = () => attention().names;
-  // A failed run prints the server's text under the button already; the probe then holds the very
-  // same sentence about the very same document, and saying it twice reads as two faults.
-  const documentFaults = () =>
-    attention().document.filter((line) => !(failure()?.errors ?? []).includes(line));
 
   return (
     <div>
@@ -260,18 +230,6 @@ export function Results() {
         </Show>
       </div>
 
-      {/* What "the document" stands for — see `attention`. Same dress as a failed run's text
-          below, because it is the same kind of thing: the server's sentence about the document. */}
-      <Show when={documentFaults().length > 0}>
-        <div
-          data-document-faults
-          class="mx-3 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
-        >
-          <For each={documentFaults()}>
-            {(line: string) => <p class="font-mono break-words whitespace-pre-wrap">{line}</p>}
-          </For>
-        </div>
-      </Show>
 
       {/*
         Destructive styling, not the warning used for an unfinished card: this one already ran and

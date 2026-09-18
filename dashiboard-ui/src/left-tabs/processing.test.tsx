@@ -3,7 +3,7 @@ import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
 import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import {
-  importCards, addGroup, setNodeId, setCardField, confirmDefinition, reportRunIssues, exportCards,
+  importCards, addGroup, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
   forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict,
 } from '../stores';
 
@@ -15,6 +15,7 @@ vi.mock('../requests', () => ({
 }));
 
 import { Cards } from './processing';
+import { loadJSON } from '../requests';   // the mock from `vi.mock` above
 
 const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [], issues: [] };
 
@@ -37,7 +38,7 @@ beforeEach(() => {
     groups: { g: [] },
   });
   // `PROBE_STORE` is a module-level store, same as `CARDS_STORE` — `test.isolate: false` shares it
-  // across every file in this run, and a test that seeds it (`reportRunIssues`, or a mocked
+  // across every file in this run, and a test that seeds it (`rejectFromIssues`, or a mocked
   // `probe-pipeline` reply carrying issues) must not leak that into the next test's render. See the
   // identical reset in `GroupsEditor.test.tsx` and `routes/index.test.tsx`.
   PROBE_STORE[1](reconcile(emptyProbe()));
@@ -311,7 +312,7 @@ describe('a card is amber until asked', () => {
     mock(CLEAN_PROBE, { valid: true, issues: [] });
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelector('[data-card-title]')).not.toBeNull());
-    reportRunIssues([BROKEN]);
+    rejectFromIssues([BROKEN]);
     await flush();
     await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
     expect(container.querySelector('[data-finding]')!.textContent).toMatch(/needs a value/);
@@ -321,7 +322,7 @@ describe('a card is amber until asked', () => {
     const issueFor = (severity: 'error' | 'warning') => ({ ...BROKEN, reason: 'overwrites', severity, missing: [], related: [], message: '`TEMP_z` already exists' });
     confirmDefinition('node:0', exportCards().nodes[0]);
     const issue = issueFor('warning');
-    reportRunIssues([issue]);
+    rejectFromIssues([issue]);
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(
         page === 'get-card-ir' ? structuredClone(payload)
@@ -432,5 +433,155 @@ describe("a card's name", () => {
     await type(container, 1, 'c');
     expect(exportCards().nodes.map((node) => node.id)).toEqual(['a', 'c']);
     expect(container.querySelector('[data-name-error]')).toBeNull();
+  });
+});
+
+describe('Confirm on a document that cannot build', () => {
+  // Measured 2026-09-17 with the server's own replies: two cards named `a`, or a loop, come
+  // back `valid:false` with the sentence in `errors` and `issues: []` — no item to point at —
+  // and Confirm went green. The fault is the document's, so whichever item is asked carries it.
+  const cardConfirm = (c: HTMLElement) =>
+    c.querySelector('button[title="mark this card deliberately finished"]')!;
+  const cardDot = (c: HTMLElement) =>
+    [...c.querySelectorAll('details')].find((d) => d.querySelector('[data-card-title]'))!
+      .querySelector('[data-state]')!;
+  const serveProbe = (reply: unknown) =>
+    postRequest.mockImplementation((page: string, body: unknown) =>
+      Promise.resolve(
+        page === 'get-card-ir'
+          ? (() => { const inc = (body as { include?: string[] })?.include ?? ['defs', 'cards'];
+                     const full = structuredClone(payload) as Record<string, unknown>;
+                     return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
+        : page === 'probe-pipeline' ? reply
+        : page === 'validate-card' ? { valid: true, issues: [] }
+        : [],
+      ),
+    );
+
+  it('rejects the card with the server\'s sentence for two cards of one name', async () => {
+    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['ArgumentError: Encountered nodes with equal `id`'] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
+    expect(container.querySelector('[data-finding]')!.textContent).toContain('Encountered nodes with equal `id`');
+  });
+
+  it('rejects the card for a loop the same way', async () => {
+    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['The input graph contains at least one loop.'] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
+    expect(container.querySelector('[data-finding]')!.textContent).toContain('at least one loop');
+  });
+
+  it('confirms green when the only fault is another card\'s, pointed at that card', async () => {
+    // A schema failure's `errors` repeats the pointed issue's message; that is card 2's
+    // business, and card 1 is fine.
+    importCards({
+      nodes: [
+        { id: 'r', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [] } },
+        { id: 's', card: { type: 'rescale' } },
+      ],
+      groups: {},
+    });
+    serveProbe({ valid: false, kind: 'pipeline', cols: [],
+      errors: ['1 schema validation error:\nSchema Validation Error for card in node 2'],
+      issues: [{ pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null,
+        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelectorAll('button[title="mark this card deliberately finished"]').length).toBe(2));
+    fireEvent.click(container.querySelectorAll('button[title="mark this card deliberately finished"]')[0]);
+    await waitFor(() => expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull());
+    expect(container.querySelector('[data-state="rejected"]')).toBeNull();
+  });
+});
+
+describe('an upload asks', () => {
+  // Decided 2026-09-18: a broken document is never refused — the form exists to fix it — and
+  // uploading is an act of asking: what the server rejects is red on the items, what the UI can
+  // place itself (a taken name) is red on the later card, and what nobody can place is said
+  // under the Upload button. Nothing is confirmed green: nobody looked at it.
+  const upload = async (container: HTMLElement, doc: unknown) => {
+    vi.mocked(loadJSON).mockResolvedValue(doc);
+    fireEvent.change(container.querySelector('input[type="file"]')!);
+    await flush();
+    await new Promise((r) => setTimeout(r, 0));    // the handler's probe resolves on a microtask
+    await flush();
+  };
+  const dots = (c: HTMLElement) =>
+    [...c.querySelectorAll('details')]
+      .filter((d) => d.querySelector('[data-card-title]'))
+      .map((d) => d.querySelector('[data-state]')!.getAttribute('data-state'));
+  const withProbe = (reply: unknown) =>
+    postRequest.mockImplementation((page: string, body: unknown) =>
+      Promise.resolve(
+        page === 'get-card-ir'
+          ? (() => { const inc = (body as { include?: string[] })?.include ?? ['defs', 'cards'];
+                     const full = structuredClone(payload) as Record<string, unknown>;
+                     return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
+        : page === 'probe-pipeline' ? reply
+        : page === 'validate-card' ? { valid: true, issues: [] }
+        : [],
+      ),
+    );
+  const two = {
+    nodes: [
+      { id: 'a', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [] } },
+      { id: 'b', card: { type: 'rescale' } },
+    ],
+    groups: {},
+  };
+
+  it('rejects the items the server points at, and leaves the rest amber', async () => {
+    withProbe({ valid: false, kind: 'pipeline', cols: [],
+      errors: ['1 schema validation error:\nSchema Validation Error for card in node 2'],
+      issues: [{ pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null,
+        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
+    await upload(container, two);
+    await waitFor(() => expect(dots(container)).toEqual(['unconfirmed', 'rejected']));
+    expect(container.querySelector('[data-upload-error]')).toBeNull();
+    expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
+  });
+
+  it('marks the later of two cards with one name, with the UI\'s own sentence', async () => {
+    withProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['ArgumentError: Encountered nodes with equal `id`'] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
+    await upload(container, { ...two, nodes: [two.nodes[0], { ...two.nodes[1], id: 'a' }] });
+    await waitFor(() => expect(dots(container)).toEqual(['unconfirmed', 'rejected']));
+    expect(container.querySelector('[data-finding]')!.textContent).toContain('There is already a card called "a".');
+    // The server's duplicate-id sentence is placed, so it is not repeated under the button.
+    expect(container.querySelector('[data-upload-error]')).toBeNull();
+  });
+
+  it('says under the button what nobody can place, and an edit clears it', async () => {
+    withProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['The input graph contains at least one loop.'] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
+    await upload(container, two);
+    await waitFor(() => expect(container.querySelector('[data-upload-error]')).not.toBeNull());
+    expect(container.querySelector('[data-upload-error]')!.textContent).toContain('The uploaded document does not build:');
+    expect(container.querySelector('[data-upload-error]')!.textContent).toContain('at least one loop');
+    expect(dots(container)).toEqual(['unconfirmed', 'unconfirmed']);
+    setCardField(0, 'suffix', 'edited');
+    await flush();
+    expect(container.querySelector('[data-upload-error]')).toBeNull();
+  });
+
+  it('says so when the server cannot be reached', async () => {
+    withProbe(null);
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
+    await upload(container, two);
+    await waitFor(() => expect(container.querySelector('[data-upload-error]')).not.toBeNull());
+    expect(container.querySelector('[data-upload-error]')!.textContent).toMatch(/could not reach/i);
   });
 });

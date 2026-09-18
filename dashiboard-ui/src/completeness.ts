@@ -8,8 +8,9 @@ import type { PipelineNode } from "./stores";
 //   the probe answers everything that depends on the graph.
 //
 // So a field nobody filled in is ours — it is visible in the card in front of you — while an
-// unproduced reference, a duplicate id or a cycle is the server's, because none of them can be
-// seen without the other cards. Whatever the server can answer, the server answers: duplicating
+// unproduced reference or a cycle is the server's, because neither can be seen without the
+// other cards — and a duplicate id, once the server's, is ours since `setNodeId` refuses one
+// (`checkNames`). Whatever the server can answer, the server answers: duplicating
 // that here would be the second source of truth A10 exists to delete, and C2's second constraint
 // was withdrawn over.
 //
@@ -68,4 +69,37 @@ export function checkNode(node: PipelineNode): Incompleteness[] {
     return [{ message: "Give this card a name — nothing can refer to it until it has one." }];
   }
   return [];
+}
+
+/**
+ * Cards that share a name with an earlier card — the later ones, each with its finding.
+ *
+ * The server refuses the document (`Encountered nodes with equal \`id\``) with no pointer, so it
+ * cannot say which card; the UI can. This is the rule `setNodeId` enforces at the name field,
+ * so the only way two cards still arrive with one name is an uploaded document, and an upload
+ * places the finding here rather than refusing the file (owner, 2026-09-18: the form exists to
+ * fix documents). A missing id counts as "" — `Pipelines.get_id`'s default — so two unnamed
+ * cards collide the same way. The first holder keeps its name unmarked: it is the later card
+ * that has to change.
+ */
+export function checkNames(
+  nodes: readonly PipelineNode[],
+): { index: number; finding: Incompleteness }[] {
+  const seen = new Set<string>();
+  const out: { index: number; finding: Incompleteness }[] = [];
+  nodes.forEach((node, index) => {
+    const id = node.id ?? "";
+    if (seen.has(id)) {
+      out.push({
+        index,
+        finding: {
+          message: id === ""
+            ? "There is already a card without a name."
+            : `There is already a card called "${id}".`,
+        },
+      });
+    }
+    seen.add(id);
+  });
+  return out;
 }

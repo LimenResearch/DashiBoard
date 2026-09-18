@@ -12,6 +12,7 @@ import {
   issuesForGroup,
   recordVerdict,
   verdictOf,
+  documentFindings,
   removeGroup,
   renameGroup,
   setGroup,
@@ -176,10 +177,15 @@ export function GroupsEditor(props: { defs: Defs }) {
                               return;
                             }
                             // A warning is not a finding: it renders live, amber, and never
-                            // stops Confirm.
-                            decide(issueFindings(
-                              issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
-                            ));
+                            // stops Confirm. The document's own faults come first — a loop or a
+                            // duplicate id has no item to point at, so the group that was asked
+                            // carries them (same rule as `graphFindings` in processing.tsx).
+                            decide([
+                              ...documentFindings(answer),
+                              ...issueFindings(
+                                issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
+                              ),
+                            ]);
                           })();
                         })}
                       >
@@ -192,7 +198,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                   </>
                 }
               >
-                {/* What Confirm (or a failed run, through `reportRunIssues`) found on this exact
+                {/* What Confirm (or a failed run, through `rejectFromIssues`) found on this exact
                     content: red, and only while the verdict is a rejection — an edit drops it
                     with the verdict. */}
                 <For each={findings(name)}>

@@ -12,6 +12,7 @@ vi.mock('../requests', () => ({
 import { Results } from './results';
 import {
   importCards, forgetAllVerdicts, verdictOf, exportCards, PROBE_STORE, emptyProbe, type CardsStore,
+  recordVerdict, forgetVerdict, setCardField,
 } from '../stores';
 
 /** Two nodes, so a per-node report has something to be paired with. */
@@ -259,7 +260,8 @@ describe('a run that failed to build', () => {
     fireEvent.click(getByText(/run pipeline/i));
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
     expect(container.querySelector('[data-run-error]')!.textContent).toMatch(/2 cards need attention/);
-    expect(PROBE_STORE[0].issues.map((i) => i.pointer)).toEqual(['/nodes/0/card', '/nodes/1/card']);
+    // The probe store is the continuous probe's alone; the run's issues live as verdicts.
+    expect(PROBE_STORE[0].issues).toEqual([]);
     // A Run is the author asking: each pointed card is now rejected, with the run's findings.
     await flush();
     const nodes = exportCards().nodes;
@@ -289,98 +291,71 @@ describe('a run that failed to build', () => {
 });
 
 describe('the pointer next to Run pipeline', () => {
+  // Decided 2026-09-18: the line reads the verdicts and nothing else — the same source as the
+  // dots — so it names an item only once a Confirm, a failed run or an upload rejected it. It
+  // used to read the continuous probe and went red before anyone asked, which is exactly what
+  // the cards and groups stopped doing on 2026-09-17.
   const issue = (pointer: string, severity: 'error' | 'warning' = 'error') => ({
     pointer, reason: 'required', severity, found: null, allowed: null, missing: [], related: [], message: 'x',
   });
+  const line = (c: HTMLElement) => c.querySelector('[data-needs-attention]');
 
-  it('names the items the probe objects to, and nothing when it is valid', async () => {
+  it('is absent while the probe objects and nobody asked', async () => {
+    PROBE_STORE[1]((d) => { d.valid = false; d.issues = [issue('/nodes/0/card')]; d.errors = ['x']; });
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(line(container)).toBeNull();
+  });
+
+  it('names what was rejected — a card by id, an unnamed card by position, a group by name', async () => {
     importCards({
       nodes: [{ id: 'cluster', card: { type: 'cluster' } }, { card: { type: 'split' } }],
       groups: { group_2: [] },
     });
-    PROBE_STORE[1]((d) => {
-      d.valid = false;
-      d.issues = [
-        issue('/nodes/0/card'),
-        issue('/nodes/0/card/method'),          // a second issue on the same card: named once
-        issue('/nodes/1/card'),
-        issue('/groups/group_2'),
-        issue('/nodes/1/card', 'warning'),      // a warning is not an objection
-      ];
-    });
+    const doc = exportCards();
+    recordVerdict('node:0', doc.nodes[0], 'rejected', [{ message: 'x' }]);
+    recordVerdict('node:1', doc.nodes[1], 'rejected', [{ message: 'x' }]);
+    recordVerdict('group:group_2', doc.groups.group_2, 'rejected', [{ message: 'x' }]);
     await flush();
     const { container } = render(() => <Results />);
-    const pointer = container.querySelector('[data-needs-attention]');
-    expect(pointer).not.toBeNull();
-    expect(pointer!.textContent).toMatch(/Needs attention: cluster, card 2, group_2/);
-    expect(pointer!.className).toMatch(/destructive/);
-    PROBE_STORE[1]((d) => { d.valid = true; d.issues = []; });
-    await flush();
-    expect(container.querySelector('[data-needs-attention]')).toBeNull();
+    expect(line(container)!.textContent).toMatch(/Needs attention: cluster, card 2, group_2/);
+    expect(line(container)!.className).toMatch(/destructive/);
   });
 
-  it('names only the items the errors point at, when a warning is the only issue', async () => {
-    PROBE_STORE[1]((d) => { d.valid = true; d.issues = [issue('/nodes/0/card', 'warning')]; });
+  it('drops an item once it is edited, and when its verdict is forgotten', async () => {
+    const doc = exportCards();
+    recordVerdict('node:0', doc.nodes[0], 'rejected', [{ message: 'x' }]);
+    recordVerdict('node:1', doc.nodes[1], 'rejected', [{ message: 'x' }]);
     await flush();
     const { container } = render(() => <Results />);
-    expect(container.querySelector('[data-needs-attention]')).toBeNull();
+    expect(line(container)!.textContent).toMatch(/rescaled, grouped/);
+    setCardField(0, 'suffix', 'edited');            // the verdict no longer matches the content
+    await flush();
+    expect(line(container)!.textContent).toMatch(/Needs attention: grouped$/);
+    forgetVerdict('node:1');
+    await flush();
+    expect(line(container)).toBeNull();
   });
 
-  it('says "the document" for a fault with no item pointer', async () => {
-    PROBE_STORE[1]((d) => { d.valid = false; d.issues = []; d.errors = ['Encountered nodes with equal `id`']; });
+  it('keeps a failed run\'s names when a stale probe reply lands afterwards', async () => {
+    // Measured 2026-09-17: the run wrote its issues into the probe store, an older probe reply
+    // overwrote them, and the line went blank while the card stayed red. One source now.
+    serve({ valid: false, kind: 'pipeline', errors: ['x'], issues: [issue('/nodes/0/card')] });
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(line(container)).not.toBeNull());
+    PROBE_STORE[1](reconcile(emptyProbe()));      // the older question answers clean, last
     await flush();
-    const { container } = render(() => <Results />);
-    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/Needs attention: the document/);
+    expect(line(container)!.textContent).toMatch(/rescaled/);
   });
 
-  // An item's message is read on the item, so the line only names it. A fault of the document
-  // has no item to be read on — a loop, or an imported document with two cards of one name — so
-  // its text is shown here or nowhere (owner, 2026-09-17).
-  const LOOP = 'The input graph contains at least one loop.';
-  const faults = (container: HTMLElement) =>
-    [...container.querySelectorAll('[data-document-faults] p')].map((p) => p.textContent);
-
-  it('shows what the server said about the document, since no item can', async () => {
-    PROBE_STORE[1]((d) => { d.valid = false; d.issues = []; d.errors = [LOOP]; });
-    await flush();
-    const { container } = render(() => <Results />);
-    expect(faults(container)).toEqual([LOOP]);
-  });
-
-  it('keeps an item\'s message off it: the item is named, its text is on the item', async () => {
-    // A schema failure's `errors` is the issues' own messages run together; every one of them is
-    // already on a card, so none of it is the document's.
-    PROBE_STORE[1]((d) => {
-      d.valid = false;
-      d.issues = [issue('/nodes/0/card/method')];
-      d.errors = ['1 schema validation error:\nx'];
-    });
-    await flush();
-    const { container } = render(() => <Results />);
-    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/Needs attention: rescaled$/);
-    expect(container.querySelector('[data-document-faults]')).toBeNull();
-  });
-
-  it('shows the message of an issue that points at no item, beside the items it names', async () => {
-    PROBE_STORE[1]((d) => {
-      d.valid = false;
-      d.issues = [issue('/nodes/0/card'), { ...issue(''), message: 'nothing to run' }];
-      d.errors = ['x\nnothing to run'];
-    });
-    await flush();
-    const { container } = render(() => <Results />);
-    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/rescaled/);
-    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/the document/);
-    expect(faults(container)).toEqual(['nothing to run']);
-  });
-
-  it('does not say it twice once a failed run has printed the same sentence', async () => {
-    PROBE_STORE[1]((d) => { d.valid = false; d.issues = []; d.errors = [LOOP]; });
-    await flush();
-    serve({ valid: false, kind: 'pipeline', errors: [LOOP], issues: [] });
+  it('names nothing for a failed run with no item to point at; the text is under Run', async () => {
+    serve({ valid: false, kind: 'pipeline', errors: ['The input graph contains at least one loop.'], issues: [] });
     const { container, getByText } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
-    expect(container.textContent!.split(LOOP).length - 1).toBe(1);
+    expect(line(container)).toBeNull();
+    expect(container.querySelector('[data-run-error]')!.textContent).toContain('at least one loop');
+    expect(container.querySelector('[data-document-faults]')).toBeNull();
   });
 });

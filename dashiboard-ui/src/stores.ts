@@ -245,27 +245,28 @@ export function fieldPath(pointer: string): string {
 export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
 
 /**
- * A run that failed to build says where, in the probe's shape.
+ * A server's pointed issues, as rejected verdicts on the items they point at.
  *
- * Written into `PROBE_STORE` — the pointer next to Run pipeline reads it — and recorded as a
- * *rejected* verdict on every item an error points at: a Run is the author asking, exactly as
- * Confirm is, so red is right here where it would not be for the continuous probe. Warnings are
- * not rejections. The findings are derived as Confirm derives them, so the item reads the same
- * whoever asked.
+ * The one bridge from issues to red. A failed run and an upload both come through here, so an
+ * issue is placed the same way whoever asked; Confirm places its own through `issueFindings`
+ * with the same shape. A Run or an upload is the author asking, exactly as Confirm is, so red is
+ * right here where it would not be for the continuous probe. Warnings are not findings and are
+ * skipped. An issue whose pointer names no item is not this function's to place —
+ * `documentFindings` reads those.
  *
- * `document` is what the run was *sent*, not the store as it is when the reply lands: the author
- * may have edited in between, and a verdict on content the server never saw is the one thing a
- * verdict must never be. Defaults to the current document for callers with no request in flight.
+ * `document` is what the server was *sent*, not the store as it is when the reply lands: the
+ * author may have edited in between, and a verdict on content the server never saw is the one
+ * thing a verdict must never be. Defaults to the current document for callers with no request
+ * in flight.
+ *
+ * Writes verdicts and nothing else. It used to write `PROBE_STORE` too, outside the continuous
+ * probe's `probeSeq` guard, so an older probe reply landing afterwards erased a failed run's
+ * issues from the store (measured 2026-09-17). The store has one writer now.
  */
-export function reportRunIssues(
+export function rejectFromIssues(
   issues: ProbeIssue[],
   document: Pick<CardsStore, "nodes" | "groups"> = exportCards(),
 ) {
-  const [, setProbe] = PROBE_STORE;
-  setProbe((draft) => {
-    draft.valid = false;
-    draft.issues = issues;
-  });
   const byItem = new Map<string, ProbeIssue[]>();
   for (const issue of issues) {
     if (issue.severity === "warning") continue;
@@ -286,6 +287,30 @@ export function itemKey(pointer: string): string | null {
   if (parts[1] === "nodes" && parts[2] !== undefined) return `node:${parts[2]}`;
   if (parts[1] === "groups" && parts[2] !== undefined) return `group:${unescapeToken(parts[2])}`;
   return null;
+}
+
+/**
+ * What a probe reply says about the *document* rather than about any item.
+ *
+ * The server reports in layers: schema failures and empty groups come back pointed at an item,
+ * before building; build faults — a loop, two cards with one id, a `through` chain nothing can
+ * resolve — come back as `errors` with `issues: []`. So `errors` belong to the document exactly
+ * when the document does not build and no error issue names an item. Otherwise they are the
+ * items' own messages run together (a schema failure's `errors` is that concatenation), already
+ * read on the items, and confirming an unrelated card must still go green. An issue whose
+ * pointer names no item counts as the document's too; none is emitted today.
+ */
+export function documentFindings(
+  answer: Pick<ProbeStore, "valid" | "issues" | "errors">,
+): Incompleteness[] {
+  const errors = answer.issues.filter((issue) => issue.severity !== "warning");
+  const loose = errors.filter((issue) => itemKey(issue.pointer) === null);
+  const anyPointed = errors.length > loose.length;
+  const findings: Incompleteness[] = loose.map((issue) => ({ message: issue.message }));
+  if (answer.valid === false && !anyPointed) {
+    findings.push(...answer.errors.map((message) => ({ message })));
+  }
+  return findings;
 }
 
 /**

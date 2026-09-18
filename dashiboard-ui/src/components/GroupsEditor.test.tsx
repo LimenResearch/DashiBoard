@@ -4,7 +4,7 @@ import { flush, reconcile } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
 import {
   importCards, exportCards, emptyCards, addGroup, setGroup, forgetAllVerdicts,
-  isConfirmed, PROBE_STORE, emptyProbe, reportRunIssues, confirmDefinition, recordVerdict,
+  isConfirmed, PROBE_STORE, emptyProbe, rejectFromIssues, confirmDefinition, recordVerdict,
 } from '../stores';
 import type { Defs } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -325,7 +325,7 @@ describe('GroupsEditor', () => {
   });
 
   it('shows one finding, not the failed run\'s copy and Confirm\'s copy both', async () => {
-    // A run can fail on this group before Confirm is ever clicked (`reportRunIssues`), which
+    // A run can fail on this group before Confirm is ever clicked (`rejectFromIssues`), which
     // records a rejected verdict here. Confirm then asks the same question itself and gets the
     // identical answer back — one verdict replaces the other, it does not stack.
     const issue = {
@@ -341,7 +341,7 @@ describe('GroupsEditor', () => {
         : []));
     importCards({ nodes: [], groups: { g: [] } });
     await flush(); // a verdict binds to the document as it is *after* the staged write lands
-    reportRunIssues([issue]);
+    rejectFromIssues([issue]);
     const { container, getAllByText } = render(() => <GroupsEditor defs={defs} />);
     expect(container.textContent.split('has no columns').length - 1).toBe(1);
     fireEvent.click(getAllByText('Confirm')[0]);
@@ -356,7 +356,7 @@ describe('GroupsEditor', () => {
     setGroup('weather', [{ cols: 'TEMP' }]);
     confirmDefinition('group:weather', [{ cols: 'TEMP' }]);
     await flush(); // the run's verdict binds to the group as it is once the staged writes land
-    reportRunIssues([{
+    rejectFromIssues([{
       pointer: '/groups/weather', reason: 'empty', severity: 'error', found: null,
       allowed: null, missing: [], related: [], message: 'group `weather` has no columns',
     }]);
@@ -407,7 +407,7 @@ describe('GroupsEditor', () => {
     addGroup('weather');
     setGroup('weather', [{ cols: 'TEMP' }]);
     confirmDefinition('group:weather', [{ cols: 'TEMP' }]);
-    reportRunIssues([{
+    rejectFromIssues([{
       pointer: '/groups/weather', reason: 'overwrites', severity: 'warning', found: null,
       allowed: null, missing: [], related: [], message: '`TEMP_z` already exists',
     }]);
@@ -432,5 +432,40 @@ describe('a group cannot name itself', () => {
     // Its own name is not in the vocabulary it is offered, so the tab has nothing to list.
     expect(container.querySelectorAll('[data-value]')).toHaveLength(0);
     expect(container.textContent).toContain('none defined');
+  });
+});
+
+describe('Confirm on a document that cannot build', () => {
+  // The same rule as a card's Confirm: a fault with no item pointer is the document's, and the
+  // group that was asked carries it.
+  it('rejects the group with the server\'s sentence', async () => {
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [], issues: [],
+            errors: ['ArgumentError: Encountered nodes with equal `id`'] }
+        : []));
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(container.querySelector('[data-state="rejected"]')).not.toBeNull());
+    expect(container.querySelector('[data-finding]')!.textContent).toContain('equal `id`');
+  });
+
+  it('confirms green when the only fault is pointed at a card', async () => {
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'probe-pipeline'
+        ? { valid: false, kind: 'pipeline', cols: [],
+            errors: ['1 schema validation error:\nSchema Validation Error for card in node 1'],
+            issues: [{ pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null,
+              allowed: null, missing: ['method'], related: ['/nodes/0/card/method'], message: 'Schema Validation Error for card in node 1' }] }
+        : []));
+    addGroup('weather');
+    setGroup('weather', [{ cols: 'TEMP' }]);
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull());
   });
 });

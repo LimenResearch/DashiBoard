@@ -98,7 +98,7 @@ end
     ]
 
     nodes = d["nodes"]
-    groups = Dict("weather" => ["colname"])
+    groups = Dict("weather" => [Dict("col" => "colname")])
     @test_throws(
         r"Schema Validation Error for group weather(.)*oneOf"s,
         Pipelines.Pipeline(nodes, groups, validate_schema = true)
@@ -283,7 +283,7 @@ end
         resolve([Dict("cols" => "PRES")])
 end
 
-@testset "unproduced references (A10)" begin
+@testset "unproduced references" begin
     base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     available = ["No", "PRES", "TEMP", "cbwd"]
 
@@ -310,7 +310,7 @@ end
     @test isempty(Pipelines.unproduced_references(p, available))
 end
 
-# A7 — a schema failure comes back as data a form can act on, not prose it can only print.
+# A schema failure comes back as data a form can act on, not prose it can only print.
 #
 # Every expectation below was measured against JSONSchema.jl rather than read off its source, and
 # two of them contradict what `06-design.md` recorded before the fixtures were run:
@@ -319,7 +319,7 @@ end
 #     so a JSON Pointer must subtract one — otherwise the form highlights the wrong row.
 #   * a `required` failure carries *every* required name in `val`, not the missing one, and
 #     reports at the parent path. The missing name is `val` minus the keys actually present.
-@testset "A11: every failing card is reported, not only the first" begin
+@testset "every failing card is reported, not only the first" begin
     cols = ["No", "TEMP", "PRES"]
     bare(type) = Dict{String, Any}("type" => type)
     nodes = [
@@ -422,7 +422,7 @@ end
     )
 end
 
-@testset "A7: a validation failure as data" begin
+@testset "a validation failure as data" begin
     cols = ["No", "TEMP", "PRES"]
     groups = Dict{String, Any}("weather" => [Dict("cols" => ["PRES", "TEMP"])])
     node(card) = [Dict{String, Any}("id" => "r", "card" => card)]

@@ -434,3 +434,67 @@ describe("a card's name", () => {
     expect(container.querySelector('[data-name-error]')).toBeNull();
   });
 });
+
+describe('Confirm on a document that cannot build', () => {
+  // Measured 2026-09-17 with the server's own replies: two cards named `a`, or a loop, come
+  // back `valid:false` with the sentence in `errors` and `issues: []` — no item to point at —
+  // and Confirm went green. The fault is the document's, so whichever item is asked carries it.
+  const cardConfirm = (c: HTMLElement) =>
+    c.querySelector('button[title="mark this card deliberately finished"]')!;
+  const cardDot = (c: HTMLElement) =>
+    [...c.querySelectorAll('details')].find((d) => d.querySelector('[data-card-title]'))!
+      .querySelector('[data-state]')!;
+  const serveProbe = (reply: unknown) =>
+    postRequest.mockImplementation((page: string, body: unknown) =>
+      Promise.resolve(
+        page === 'get-card-ir'
+          ? (() => { const inc = (body as { include?: string[] })?.include ?? ['defs', 'cards'];
+                     const full = structuredClone(payload) as Record<string, unknown>;
+                     return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
+        : page === 'probe-pipeline' ? reply
+        : page === 'validate-card' ? { valid: true, issues: [] }
+        : [],
+      ),
+    );
+
+  it('rejects the card with the server\'s sentence for two cards of one name', async () => {
+    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['ArgumentError: Encountered nodes with equal `id`'] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
+    expect(container.querySelector('[data-finding]')!.textContent).toContain('Encountered nodes with equal `id`');
+  });
+
+  it('rejects the card for a loop the same way', async () => {
+    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['The input graph contains at least one loop.'] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
+    expect(container.querySelector('[data-finding]')!.textContent).toContain('at least one loop');
+  });
+
+  it('confirms green when the only fault is another card\'s, pointed at that card', async () => {
+    // A schema failure's `errors` repeats the pointed issue's message; that is card 2's
+    // business, and card 1 is fine.
+    importCards({
+      nodes: [
+        { id: 'r', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [] } },
+        { id: 's', card: { type: 'rescale' } },
+      ],
+      groups: {},
+    });
+    serveProbe({ valid: false, kind: 'pipeline', cols: [],
+      errors: ['1 schema validation error:\nSchema Validation Error for card in node 2'],
+      issues: [{ pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null,
+        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelectorAll('button[title="mark this card deliberately finished"]').length).toBe(2));
+    fireEvent.click(container.querySelectorAll('button[title="mark this card deliberately finished"]')[0]);
+    await waitFor(() => expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull());
+    expect(container.querySelector('[data-state="rejected"]')).toBeNull();
+  });
+});

@@ -27,6 +27,7 @@ import {
   importCards,
   emptyCards,
   emptyProbe,
+  documentFindings,
   PROBE_STORE,
   type ProbeNode,
   type ProbeStore,
@@ -215,8 +216,11 @@ export function Cards() {
   }
 
   /**
-   * What only the whole document can answer: a reference nothing produces, and — as a backstop —
-   * any schema failure `validate-card` could not see because it needs the other cards.
+   * What only the whole document can answer: a reference nothing produces, a schema failure
+   * `validate-card` could not see because it needs the other cards — and, first, whether the
+   * document builds at all. A fault with no item pointer (a loop, two cards with one id) is
+   * the document's, and the card that was asked carries it: measured 2026-09-17, Confirm read
+   * only the issues pointed at this card and went green on a document the server refused.
    */
   const graphFindings = (answer: ProbeStore, index: number): Incompleteness[] => {
     // A warning never counts as unfinished — it still renders live through the probe path, in
@@ -227,9 +231,13 @@ export function Cards() {
       ),
     );
     const absent = answer.nodes[index]?.unproduced ?? [];
-    return absent.length > 0
-      ? [...schema, { message: `Nothing produces ${absent.join(", ")} — check the pass-through chain.` }]
-      : schema;
+    return [
+      ...documentFindings(answer),
+      ...schema,
+      ...(absent.length > 0
+        ? [{ message: `Nothing produces ${absent.join(", ")} — check the pass-through chain.` }]
+        : []),
+    ];
   };
 
   /**

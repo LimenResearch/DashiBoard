@@ -13,9 +13,14 @@ vi.mock('../requests', () => ({
   getURL: (page: string) => `/${page}`,
   loadJSON: vi.fn(), downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
 }));
+// Choosing in a Choices.js widget is the picker's own tests' business (`loading.test.tsx` mocks
+// it the same way). `Documents` stays real: the last block here is its integration with the tab.
+vi.mock('../components/FilePicker', () => ({
+  FilePicker: (props: { onChange?: (v: string) => void }) =>
+    <button data-pick onClick={() => props.onChange?.('doc.json')}>pick</button>,
+}));
 
 import { Cards } from './processing';
-import { loadJSON } from '../requests';   // the mock from `vi.mock` above
 
 const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [], issues: [] };
 
@@ -500,34 +505,38 @@ describe('Confirm on a document that cannot build', () => {
   });
 });
 
-describe('an upload asks', () => {
+describe('loading a cards document asks', () => {
   // Decided 2026-09-18: a broken document is never refused — the form exists to fix it — and
-  // uploading is an act of asking: what the server rejects is red on the items, what the UI can
-  // place itself (a taken name) is red on the later card, and what nobody can place is said
-  // under the Upload button. Nothing is confirmed green: nobody looked at it.
-  const upload = async (container: HTMLElement, doc: unknown) => {
-    vi.mocked(loadJSON).mockResolvedValue(doc);
-    fireEvent.change(container.querySelector('input[type="file"]')!);
-    await flush();
-    await new Promise((r) => setTimeout(r, 0));    // the handler's probe resolves on a microtask
-    await flush();
-  };
+  // loading one is an act of asking: what the server rejects is red on the items, what the UI
+  // can place itself (a taken name) is red on the later card, and what nobody can place is said
+  // under the document row. Nothing is confirmed green: nobody looked at it. The document comes
+  // from the server's data directory (`read-document`), not from a file dialog.
   const dots = (c: HTMLElement) =>
     [...c.querySelectorAll('details')]
       .filter((d) => d.querySelector('[data-card-title]'))
       .map((d) => d.querySelector('[data-state]')!.getAttribute('data-state'));
-  const withProbe = (reply: unknown) =>
+  const serveDocument = (probe: unknown, doc: unknown) =>
     postRequest.mockImplementation((page: string, body: unknown) =>
       Promise.resolve(
         page === 'get-card-ir'
           ? (() => { const inc = (body as { include?: string[] })?.include ?? ['defs', 'cards'];
                      const full = structuredClone(payload) as Record<string, unknown>;
                      return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
-        : page === 'probe-pipeline' ? reply
+        : page === 'probe-pipeline' ? probe
         : page === 'validate-card' ? { valid: true, issues: [] }
+        : page === 'read-document' ? { valid: true, document: doc }
         : [],
       ),
     );
+  const load = async (container: HTMLElement) => {
+    await waitFor(() => expect(container.querySelector('[data-documents="cards"] [data-pick]')).not.toBeNull());
+    fireEvent.click(container.querySelector('[data-documents="cards"] [data-pick]')!);
+    await flush();
+    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Load cards')!);
+    await flush();
+    await new Promise((r) => setTimeout(r, 0));
+    await flush();
+  };
   const two = {
     nodes: [
       { id: 'a', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [] } },
@@ -537,51 +546,47 @@ describe('an upload asks', () => {
   };
 
   it('rejects the items the server points at, and leaves the rest amber', async () => {
-    withProbe({ valid: false, kind: 'pipeline', cols: [],
+    serveDocument({ valid: false, kind: 'pipeline', cols: [],
       errors: ['1 schema validation error:\nSchema Validation Error for card in node 2'],
       issues: [{ pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null,
-        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] });
+        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] }, two);
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
-    await upload(container, two);
+    await load(container);
     await waitFor(() => expect(dots(container)).toEqual(['unconfirmed', 'rejected']));
-    expect(container.querySelector('[data-upload-error]')).toBeNull();
+    expect(container.querySelector('[data-document-error]')).toBeNull();
     expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
   });
 
   it('marks the later of two cards with one name, with the UI\'s own sentence', async () => {
-    withProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
-      errors: ['ArgumentError: Encountered nodes with equal `id`'] });
+    serveDocument({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['ArgumentError: Encountered nodes with equal `id`'] },
+      { ...two, nodes: [two.nodes[0], { ...two.nodes[1], id: 'a' }] });
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
-    await upload(container, { ...two, nodes: [two.nodes[0], { ...two.nodes[1], id: 'a' }] });
+    await load(container);
     await waitFor(() => expect(dots(container)).toEqual(['unconfirmed', 'rejected']));
     expect(container.querySelector('[data-finding]')!.textContent).toContain('There is already a card called "a".');
-    // The server's duplicate-id sentence is placed, so it is not repeated under the button.
-    expect(container.querySelector('[data-upload-error]')).toBeNull();
+    // The server's duplicate-id sentence is placed, so it is not repeated under the row.
+    expect(container.querySelector('[data-document-error]')).toBeNull();
   });
 
-  it('says under the button what nobody can place, and an edit clears it', async () => {
-    withProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
-      errors: ['The input graph contains at least one loop.'] });
+  it('says under the row what nobody can place, and an edit clears it', async () => {
+    serveDocument({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['The input graph contains at least one loop.'] }, two);
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
-    await upload(container, two);
-    await waitFor(() => expect(container.querySelector('[data-upload-error]')).not.toBeNull());
-    expect(container.querySelector('[data-upload-error]')!.textContent).toContain('The uploaded document does not build:');
-    expect(container.querySelector('[data-upload-error]')!.textContent).toContain('at least one loop');
+    await load(container);
+    await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
+    expect(container.querySelector('[data-document-error]')!.textContent).toContain('at least one loop');
     expect(dots(container)).toEqual(['unconfirmed', 'unconfirmed']);
     setCardField(0, 'suffix', 'edited');
     await flush();
-    expect(container.querySelector('[data-upload-error]')).toBeNull();
+    await waitFor(() => expect(container.querySelector('[data-document-error]')).toBeNull());
   });
 
-  it('says so when the server cannot be reached', async () => {
-    withProbe(null);
+  it('says so when the server cannot be reached for the probe', async () => {
+    serveDocument(null, two);
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelector('input[type="file"]')).not.toBeNull());
-    await upload(container, two);
-    await waitFor(() => expect(container.querySelector('[data-upload-error]')).not.toBeNull());
-    expect(container.querySelector('[data-upload-error]')!.textContent).toMatch(/could not reach/i);
+    await load(container);
+    await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
+    expect(container.querySelector('[data-document-error]')!.textContent).toMatch(/could not reach/i);
   });
 });

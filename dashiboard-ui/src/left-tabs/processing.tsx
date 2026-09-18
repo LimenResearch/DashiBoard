@@ -3,7 +3,7 @@ import {
 } from "solid-js";
 
 import { Button } from "../components/Button";
-import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
+import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
 import { Disclosure, summaryAction } from "../components/Disclosure";
@@ -25,7 +25,6 @@ import {
   fieldPath,
   exportCards,
   importCards,
-  emptyCards,
   emptyProbe,
   documentFindings,
   rejectFromIssues,
@@ -189,54 +188,39 @@ export function Cards() {
   });
 
   /**
-   * An upload is an act of asking.
+   * Loading a cards document is an act of asking.
    *
-   * The document is loaded exactly as it came — a broken one included, because fixing it here
-   * is what the form is for (owner, 2026-09-18) — and then asked about once, on the author's
-   * behalf, from the imported snapshot. What the server points at is rejected on its item, the
-   * way a failed run's issues are; a taken name is ours to place (`checkNames`), since the
-   * server reports it with no pointer; whatever is left has no item and is said here, under the
-   * button that asked, until the next upload or the next edit. Nothing is confirmed: an item the
-   * probe has nothing against stays amber, because nobody looked at it.
+   * The document is put in place exactly as it came — a broken one included, because fixing it
+   * here is what the form is for (owner, 2026-09-18) — and then asked about once, on the
+   * author's behalf, from that same copy. What the server points at is rejected on its item,
+   * the way a failed run's issues are; a taken name is ours to place (`checkNames`), since the
+   * server reports it with no pointer; whatever is left has no item, and is handed back to
+   * `Documents`, which says it under its buttons until the next edit. Nothing is confirmed: an
+   * item the probe has nothing against stays amber, because nobody looked at it.
    *
    * Its own `askProbe`, not the continuous probe's reply: that one writes the store and nothing
    * else, and by the time it answers the document may already be a later one.
    */
-  const [uploadReport, setUploadReport] = createSignal<string[] | null>(null);
-  // The uploaded document, serialised as `persisted` serialises the store (`JSON.stringify` of
-  // the plain object; the identity codec), so "the document changed since the upload" is one
-  // string comparison against `CARDS_JSON`. Cleared with the report.
-  let uploadedJson: string | null = null;
-  createEffect(CARDS_JSON, (json) => {
-    if (uploadedJson !== null && json !== uploadedJson) {
-      uploadedJson = null;
-      setUploadReport(null);
-    }
-  });
-  async function uploadCards(value: CardsStore) {
+  async function loadCards(value: unknown): Promise<string[]> {
     // One plain copy is what is stored, what is asked about and what the verdicts bind to —
-    // not `exportCards()` read back right after `importCards`, which on Solid 2 may still be the
-    // previous document in this tick.
-    const document = structuredClone(value);
+    // not `exportCards()` read back right after `importCards`, which on Solid 2 may still be
+    // the previous document in this tick.
+    const document = structuredClone(value) as CardsStore;
     importCards(document);
-    uploadedJson = JSON.stringify(document);
-    setUploadReport(null);
     const taken = checkNames(document.nodes);
     for (const { index, finding } of taken) {
       recordVerdict(`node:${index}`, document.nodes[index], "rejected", [finding]);
     }
     const answer = await askProbe(document);
     if (answer === null) {
-      setUploadReport(["Could not reach DashiBoard to check this document — is the server running?"]);
-      return;
+      return ["Could not reach DashiBoard to check this document — is the server running?"];
     }
     rejectFromIssues(answer.issues, document);
     // With a taken name placed above, the server's one build error for this document is that
     // same duplicate id (construction stops there — measured), already on the later card; what
-    // else there is surfaces once the names are fixed. Otherwise the loose sentences are said.
-    if (taken.length > 0) return;
-    const loose = documentFindings(answer).map((finding) => finding.message);
-    if (loose.length > 0) setUploadReport(loose);
+    // else there is surfaces once the names are fixed.
+    if (taken.length > 0) return [];
+    return documentFindings(answer).map((finding) => finding.message);
   }
 
   /**
@@ -598,33 +582,15 @@ export function Cards() {
         }}
       </For>
 
-      <div class="flex gap-2">
-        <DownloadJSONButton data={exportCards()} name="cards.json">
-          Download cards
-        </DownloadJSONButton>
-        <UploadJSONButton
-          def={emptyCards()}
-          onChange={(value: CardsStore) => void uploadCards(value)}
-        >
-          Upload cards
-        </UploadJSONButton>
-      </div>
-      {/* The server's sentence about an uploaded document nobody could place on an item — a
-          loop, an unreachable server. Same dress as a failed run's text under Run, because it is
-          the same kind of thing. Gone on the next upload or the next edit. */}
-      <Show when={uploadReport()} keyed>
-        {(lines: string[]) => (
-          <div
-            data-upload-error
-            class="mx-3 my-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
-          >
-            <p class="mb-1.5 font-semibold">The uploaded document does not build:</p>
-            <For each={lines}>
-              {(line: string) => <p class="font-mono break-words whitespace-pre-wrap">{line}</p>}
-            </For>
-          </div>
-        )}
-      </Show>
+      {/* `CARDS_JSON`, not `exportCards`: `Documents` clears what it said when the document
+          changes, and it learns that by reading `document()` in an effect. `exportCards` reads a
+          `snapshot`, which tracks nothing; `CARDS_JSON` is the memo persistence already builds
+          over the whole store, so parsing it back is a tracked read of the same document. */}
+      <Documents
+        kind="cards"
+        document={() => JSON.parse(CARDS_JSON()) as CardsStore}
+        onLoad={loadCards}
+      />
     </div>
   );
 }

@@ -26,3 +26,6 @@ gitignore
 # System Files
 .DS_Store
 Thumbs.db
+
+# Hand-made documents for smoke checks in a browser (upload via "Upload cards"); not part of the build.
+smoke-test-assets/

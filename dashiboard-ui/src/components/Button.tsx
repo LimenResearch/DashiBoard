@@ -47,6 +47,9 @@ type ButtonProps = {
   size?: ButtonSize;
   /** Hover text. Useful where the label is short and the consequence is not obvious. */
   title?: string;
+  /** The accessible name, for a button whose visible label is a glyph ("↻") and says nothing
+   *  to a screen reader. Left off when the children already read as words. */
+  label?: string;
   children: JSXElement;
 };
 
@@ -56,6 +59,7 @@ export function Button(props: ButtonProps) {
       onClick={(event) => props.onClick?.(event)}
       disabled={props.disabled ?? false}
       title={props.title}
+      aria-label={props.label}
       class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
     >
       {props.children}

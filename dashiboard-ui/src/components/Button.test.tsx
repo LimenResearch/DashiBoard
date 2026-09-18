@@ -41,6 +41,14 @@ describe('Button', () => {
     expect(btn(danger).className).toContain('destructive');
   });
 
+  it('takes an accessible name, for a button whose visible label is a glyph', () => {
+    // "↻" says nothing to a screen reader, and nothing a test can select on.
+    const { container } = render(() => <Button label="refresh the file list">↻</Button>);
+    expect(btn(container).getAttribute('aria-label')).toBe('refresh the file list');
+    const { container: plain } = render(() => <Button>a</Button>);
+    expect(btn(plain).hasAttribute('aria-label')).toBe(false);
+  });
+
   it('carries no layout of its own', () => {
     // A component that positions itself cannot be reused: the margin it brings is right in the one
     // place it was written for and wrong everywhere else. Spacing belongs to the parent.

@@ -17,15 +17,12 @@ function Pipeline(
     )
 
     validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
-    G, nodes, groups, cols, group_names = dependency_graph(node_configs, group_configs)
+    G, nodes, (group_names, groups), cols = dependency_graph(node_configs, group_configs)
     n_nodes = length(nodes)
     c = Context(G, nodes, groups)
-    # `init` admits a document with no cards. A filter-only document — filter the source, run,
-    # look — and the probe of a document whose last card was just removed both arrive here with
-    # `n_nodes == 0`, and `reduce` over zero outputs threw "reducing over an empty collection"
-    # (measured 2026-09-16 on the Run button of a filter-only document). `c.outputs` holds one
-    # `Vector{String}` per vertex, so the empty concatenation is `String[]`.
-    output_vars = reduce(vcat, view(c.outputs, 1:n_nodes); init = String[])
+    # `reduce` over zero outputs throws a "reducing over an empty collection" error
+    V = eltype(c.outputs)
+    output_vars = n_nodes == 0 ? similar(V, 0) : reduce(vcat, view(c.outputs, 1:n_nodes))
     group_outputs = c.outputs[(n_nodes + 1):end]
     eg = GroupDiGraph(G, cols, output_vars, group_outputs, group_names)
     return Pipeline(c.nodes, eg)

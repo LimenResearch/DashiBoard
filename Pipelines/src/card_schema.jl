@@ -21,8 +21,8 @@ function ir_definitions(variables::AbstractVector)
     )
 end
 
-function schema_definitions(variables::AbstractVector)
-    return StringDict(k => json_schema(v) for (k, v) in pairs(ir_definitions(variables)))
+function schema_definitions(variable_config::Any)
+    return map_into(json_schema, StringDict, ir_definitions(variable_config))
 end
 
 function card_schema(

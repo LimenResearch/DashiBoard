@@ -639,6 +639,44 @@ mktempdir() do data_dir
         @test failed["valid"] == false
         @test failed["kind"] == "pipeline"
         @test occursin("id", only(failed["errors"]))
+
+        # A loop is a fault of the document, not of any one card, and Graphs.jl's sentence for it
+        # names nothing. The handlers name the members: an issue that points at no item
+        # (`pointer = ""`), with the members under `related` and in the message. Seen in a
+        # browser on 2026-09-18 with the bare sentence written on every card that was asked.
+        @testset "loops" begin
+            rescale(id, input) = (; id, card = Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [input], "suffix" => id,
+            ))
+            looped = JSON.json((;
+                filters = [],
+                nodes = [rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a")), rescale("c", Dict("cols" => "TEMP"))],
+                groups = Dict{String, Any}(),
+            ))
+            for route in ("probe-pipeline", "evaluate-pipeline")
+                answer = JSON.parse(HTTP.post(url * route, body = looped).body)
+                @test answer["valid"] == false
+                @test answer["kind"] == "pipeline"
+                issue = only(answer["issues"])
+                @test issue["reason"] == "loop"
+                @test issue["pointer"] == ""
+                @test issue["severity"] == "error"
+                @test issue["related"] == ["/nodes/0", "/nodes/1"]
+                @test issue["message"] == "The input graph contains at least one loop: a, b"
+                @test answer["errors"] == [issue["message"]]
+            end
+
+            # Through a group: the group is a member, named and pointed at like one.
+            via_group = JSON.json((;
+                filters = [],
+                nodes = [rescale("a", Dict("groups" => "g")), rescale("b", Dict("nodes" => "a"))],
+                groups = Dict("g" => [Dict("nodes" => "b")]),
+            ))
+            issue = only(JSON.parse(HTTP.post(url * "probe-pipeline", body = via_group).body)["issues"])
+            @test issue["related"] == ["/nodes/0", "/nodes/1", "/groups/g"]
+            @test endswith(issue["message"], ": a, b, g")
+        end
     end
 
     close(server)

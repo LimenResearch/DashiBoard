@@ -288,6 +288,74 @@ function failure_report(kind::AbstractString, exception::Exception)
 end
 
 """
+    loop_issues(nodes, groups) -> Vector
+
+One issue per loop in the document's dependency graph, naming its members.
+
+A loop is a fault of the document, not of any one card, and the sentence Graphs.jl has for it —
+"The input graph contains at least one loop." — names nothing, so a client could only repeat it
+on whichever card happened to be asked (seen in a browser, 2026-09-18, on every card). The members
+are recoverable without sorting: `Pipelines.dependency_graph` builds the graph and only the
+later topological sort throws, so the strongly connected components with more than one vertex
+(or a self-edge) are exactly the loops. Vertices are the nodes in document order, then the groups
+in `pairs(groups)` order — the numbering `dependency_graph` itself uses.
+
+The issue points at no item (`pointer = ""`): that is what tells a client it belongs to the
+document. The members are under `related`, as pointers, and in the message, by name.
+"""
+function loop_issues(nodes::AbstractVector, groups::AbstractDict)
+    graph, = Pipelines.dependency_graph(nodes, groups)
+    n_nodes = length(nodes)
+    group_names = collect(String, keys(groups))
+    pointer(i) = i <= n_nodes ? "/nodes/$(i - 1)" :
+        "/groups/" * Pipelines.escape_pointer(group_names[i - n_nodes])
+    function label(i)
+        i <= n_nodes || return group_names[i - n_nodes]
+        id = Pipelines.get_id(nodes[i])
+        return isempty(id) ? "card $(i)" : id
+    end
+    loops = [
+        sort(component) for component in strongly_connected_components(graph)
+            if length(component) > 1 || has_edge(graph, only(component), only(component))
+    ]
+    sort!(loops, by = first)
+    return [
+        (;
+            pointer = "",
+            reason = "loop",
+            severity = "error",
+            found = nothing,
+            allowed = nothing,
+            missing = String[],
+            related = pointer.(members),
+            message = "The input graph contains at least one loop: " * join(label.(members), ", "),
+        )
+            for members in loops
+    ]
+end
+
+"""
+    build_failure(nodes, groups, exception)
+
+The failure envelope for a document that could not be built — `failure_report`, with a loop
+named when that is what stopped it. Asked of the graph rather than read off the exception's
+text: a loop is there or it is not, whatever Graphs.jl chooses to call it. Anything that goes
+wrong while looking (two nodes with one id make `dependency_graph` itself throw) leaves the
+plain report, which already carries that sentence.
+"""
+function build_failure(nodes::AbstractVector, groups::AbstractDict, exception::Exception)
+    report = failure_report("pipeline", exception)
+    isempty(report.issues) || return report
+    loops = try
+        loop_issues(nodes, groups)
+    catch
+        return report
+    end
+    isempty(loops) && return report
+    return (; report..., errors = [issue.message for issue in loops], issues = loops)
+end
+
+"""
     validate_card(req)
 
 Check one card against its own schema, without resolving a document.
@@ -433,7 +501,7 @@ function probe_pipeline(req::HTTP.Request)
         # Always `pipeline`: this route resolves and never runs, so a fault it can see is by
         # construction a fault of the document. Deliberately not logged — the probe fires on every
         # edit, and most edits are documents the author has not finished writing yet.
-        return json_response((; failure_report("pipeline", exception)..., cols))
+        return json_response((; build_failure(spec["nodes"], groups, exception)..., cols))
     end
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
@@ -544,7 +612,7 @@ function evaluate_pipeline(req::HTTP.Request)
         exception isa Exception || rethrow()
         @error "evaluate-pipeline: could not build the pipeline" exception =
             (exception, catch_backtrace())
-        return json_response(failure_report("pipeline", exception))
+        return json_response(build_failure(spec["nodes"], get(spec, "groups", Dict{String, Any}()), exception))
     end
 
     return try

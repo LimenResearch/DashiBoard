@@ -4,7 +4,7 @@ import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import {
   importCards, addGroup, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
-  forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict,
+  forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict,
 } from '../stores';
 
 const postRequest = vi.fn();
@@ -463,24 +463,63 @@ describe('Confirm on a document that cannot build', () => {
       ),
     );
 
-  it('rejects the card with the server\'s sentence for two cards of one name', async () => {
+  // Revised 2026-09-18, after seeing it in a browser: a loop is nobody's card, and writing it on
+  // whichever card was asked put one sentence on every card. The fault is recorded on the
+  // *document* (shown once, next to Run); the card is not vouched for and stays amber.
+  const LOOP = 'The input graph contains at least one loop: a, b';
+  const loopReply = { valid: false, kind: 'pipeline', cols: [], errors: [LOOP],
+    issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
+      missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] };
+
+  it('leaves the card amber and records the fault on the document', async () => {
+    serveProbe(loopReply);
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(documentVerdict()).not.toBeNull());
+    expect(documentVerdict()!.findings).toEqual([{ message: LOOP }]);
+    expect(cardDot(container).getAttribute('data-state')).toBe('unconfirmed');
+    expect(container.querySelector('[data-finding]')).toBeNull();
+  });
+
+  it('does the same for a fault the server only has a sentence for', async () => {
+    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
+      errors: ['FieldError: type Pipelines.SplitCard has no field `suffix`'] });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(documentVerdict()).not.toBeNull());
+    expect(documentVerdict()!.findings[0].message).toContain('SplitCard');
+    expect(cardDot(container).getAttribute('data-state')).toBe('unconfirmed');
+  });
+
+  it('turns a confirmed card amber again: Confirm cannot vouch for it while the document does not build', async () => {
+    confirmDefinition('node:0', exportCards().nodes[0]);
+    await flush();
+    serveProbe(loopReply);
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('confirmed'));
+    fireEvent.click(cardConfirm(container));
+    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('unconfirmed'));
+  });
+
+  it('rejects the later of two cards with one name itself — that one is a card\'s to fix', async () => {
+    // Only a loaded document can hold two cards of one name (`setNodeId` refuses it), and the
+    // load marks the later card; Confirm must say the same rather than wipe that mark.
+    importCards({
+      nodes: [
+        { id: 'a', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [] } },
+        { id: 'a', card: { type: 'rescale', method: { type: 'minmax' }, inputs: [] } },
+      ],
+      groups: {},
+    });
     serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
       errors: ['ArgumentError: Encountered nodes with equal `id`'] });
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
-    fireEvent.click(cardConfirm(container));
-    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
-    expect(container.querySelector('[data-finding]')!.textContent).toContain('Encountered nodes with equal `id`');
-  });
-
-  it('rejects the card for a loop the same way', async () => {
-    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
-      errors: ['The input graph contains at least one loop.'] });
-    const { container } = render(() => <Cards />);
-    await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
-    fireEvent.click(cardConfirm(container));
-    await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
-    expect(container.querySelector('[data-finding]')!.textContent).toContain('at least one loop');
+    await waitFor(() => expect(container.querySelectorAll('button[title="mark this card deliberately finished"]').length).toBe(2));
+    fireEvent.click(container.querySelectorAll('button[title="mark this card deliberately finished"]')[1]);
+    await waitFor(() => expect(container.querySelector('[data-finding]')).not.toBeNull());
+    expect(container.querySelector('[data-finding]')!.textContent).toContain('There is already a card called "a".');
   });
 
   it('confirms green when the only fault is another card\'s, pointed at that card', async () => {
@@ -569,17 +608,21 @@ describe('loading a cards document asks', () => {
     expect(container.querySelector('[data-document-error]')).toBeNull();
   });
 
-  it('says under the row what nobody can place, and an edit clears it', async () => {
-    serveDocument({ valid: false, kind: 'pipeline', cols: [], issues: [],
-      errors: ['The input graph contains at least one loop.'] }, two);
+  it('records what nobody can place on the document, not under the row, and an edit expires it', async () => {
+    const LOOP = 'The input graph contains at least one loop: a, b';
+    serveDocument({ valid: false, kind: 'pipeline', cols: [], errors: [LOOP],
+      issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
+        missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] }, two);
     const { container } = render(() => <Cards />);
     await load(container);
-    await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
-    expect(container.querySelector('[data-document-error]')!.textContent).toContain('at least one loop');
+    await waitFor(() => expect(documentVerdict()).not.toBeNull());
+    expect(documentVerdict()!.findings).toEqual([{ message: LOOP }]);
+    // Next to Run is where it is said; the document row is for the file, not the pipeline.
+    expect(container.querySelector('[data-document-error]')).toBeNull();
     expect(dots(container)).toEqual(['unconfirmed', 'unconfirmed']);
     setCardField(0, 'suffix', 'edited');
     await flush();
-    await waitFor(() => expect(container.querySelector('[data-document-error]')).toBeNull());
+    expect(documentVerdict()).toBeNull();
   });
 
   it('says so when the server cannot be reached for the probe', async () => {

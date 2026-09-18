@@ -28,6 +28,8 @@ import {
   emptyProbe,
   documentFindings,
   rejectFromIssues,
+  rejectDocument,
+  forgetVerdict,
   PROBE_STORE,
   type ProbeNode,
   type ProbeStore,
@@ -194,8 +196,9 @@ export function Cards() {
    * here is what the form is for (owner, 2026-09-18) — and then asked about once, on the
    * author's behalf, from that same copy. What the server points at is rejected on its item,
    * the way a failed run's issues are; a taken name is ours to place (`checkNames`), since the
-   * server reports it with no pointer; whatever is left has no item, and is handed back to
-   * `Documents`, which says it under its buttons until the next edit. Nothing is confirmed: an
+   * server reports it with no pointer; whatever is left has no item and goes on the document's
+   * own verdict, said next to Run until the next edit. What is handed back to `Documents` is
+   * only what is about the server (it could not be reached). Nothing is confirmed: an
    * item the probe has nothing against stays amber, because nobody looked at it.
    *
    * Its own `askProbe`, not the continuous probe's reply: that one writes the store and nothing
@@ -220,7 +223,11 @@ export function Cards() {
     // same duplicate id (construction stops there — measured), already on the later card; what
     // else there is surfaces once the names are fixed.
     if (taken.length > 0) return [];
-    return documentFindings(answer).map((finding) => finding.message);
+    // What is left belongs to the pipeline, not to the file: it goes on the document's verdict
+    // and is said next to Run. The row below keeps to what is about the file and the server.
+    const loose = documentFindings(answer);
+    if (loose.length > 0) rejectDocument(document, loose);
+    return [];
   }
 
   /**
@@ -252,11 +259,9 @@ export function Cards() {
   }
 
   /**
-   * What only the whole document can answer: a reference nothing produces, a schema failure
-   * `validate-card` could not see because it needs the other cards — and, first, whether the
-   * document builds at all. A fault with no item pointer (a loop, two cards with one id) is
-   * the document's, and the card that was asked carries it: measured 2026-09-17, Confirm read
-   * only the issues pointed at this card and went green on a document the server refused.
+   * What only the whole document can answer *about this card*: a reference nothing produces, and
+   * a schema failure `validate-card` could not see because it needs the other cards. Whether
+   * the document builds at all is not this card's to carry — `confirmNode` asks that first.
    */
   const graphFindings = (answer: ProbeStore, index: number): Incompleteness[] => {
     // A warning never counts as unfinished — it still renders live through the probe path, in
@@ -268,7 +273,6 @@ export function Cards() {
     );
     const absent = answer.nodes[index]?.unproduced ?? [];
     return [
-      ...documentFindings(answer),
       ...schema,
       ...(absent.length > 0
         ? [{ message: `Nothing produces ${absent.join(", ")} — check the pass-through chain.` }]
@@ -299,6 +303,11 @@ export function Cards() {
     // name from spending two round trips to be told so.
     const named = checkNode(node);
     if (named.length > 0) return verdict(named);
+    // Ours too: a name an earlier card already has. Only a loaded document can hold one
+    // (`setNodeId` refuses it), the load marks this card for it, and the server's own word for
+    // it points at no card — so without this, Confirm would wipe the one useful mark.
+    const taken = checkNames(document.nodes).filter((entry) => entry.index === index);
+    if (taken.length > 0) return verdict(taken.map((entry) => entry.finding));
 
     // A warning is not a finding (it renders live, amber, and never stops Confirm). The server's
     // card issues are all errors today; filtered anyway, so this path and `graphFindings` agree.
@@ -314,6 +323,17 @@ export function Cards() {
       return verdict([{
         message: "Could not reach DashiBoard to check this card — is the server running?",
       }]);
+    }
+    // A document that does not build — a loop, a chain nothing can resolve — is nobody's card:
+    // written on whichever card was asked, one loop read as a fault of every card (seen in a
+    // browser, 2026-09-18). It goes on the document, which says it once next to Run, and this
+    // card is not vouched for: whether something produces its inputs is a question of the very
+    // graph that does not build. So it is left unasked — amber — rather than green or red.
+    const loose = documentFindings(answer);
+    if (loose.length > 0) {
+      forgetVerdict(key);
+      rejectDocument(document, loose);
+      return;
     }
     return verdict(graphFindings(answer, index));
   }

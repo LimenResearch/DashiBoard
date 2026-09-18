@@ -13,6 +13,8 @@ import {
   recordVerdict,
   verdictOf,
   documentFindings,
+  rejectDocument,
+  forgetVerdict,
   removeGroup,
   renameGroup,
   setGroup,
@@ -176,16 +178,20 @@ export function GroupsEditor(props: { defs: Defs }) {
                               }]);
                               return;
                             }
+                            // A document that does not build is nobody's item (a loop): it
+                            // goes on the document's own verdict, said once next to Run, and the
+                            // group is left unasked — same rule as `confirmNode`.
+                            const loose = documentFindings(answer);
+                            if (loose.length > 0) {
+                              forgetVerdict(key);
+                              rejectDocument(document, loose);
+                              return;
+                            }
                             // A warning is not a finding: it renders live, amber, and never
-                            // stops Confirm. The document's own faults come first — a loop or a
-                            // duplicate id has no item to point at, so the group that was asked
-                            // carries them (same rule as `graphFindings` in processing.tsx).
-                            decide([
-                              ...documentFindings(answer),
-                              ...issueFindings(
-                                issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
-                              ),
-                            ]);
+                            // stops Confirm.
+                            decide(issueFindings(
+                              issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
+                            ));
                           })();
                         })}
                       >

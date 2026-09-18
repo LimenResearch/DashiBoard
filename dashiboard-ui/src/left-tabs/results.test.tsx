@@ -12,7 +12,7 @@ vi.mock('../requests', () => ({
 import { Results } from './results';
 import {
   importCards, forgetAllVerdicts, verdictOf, exportCards, PROBE_STORE, emptyProbe, type CardsStore,
-  recordVerdict, forgetVerdict, setCardField,
+  recordVerdict, forgetVerdict, setCardField, rejectDocument, documentVerdict,
 } from '../stores';
 
 /** Two nodes, so a per-node report has something to be paired with. */
@@ -357,5 +357,48 @@ describe('the pointer next to Run pipeline', () => {
     expect(line(container)).toBeNull();
     expect(container.querySelector('[data-run-error]')!.textContent).toContain('at least one loop');
     expect(container.querySelector('[data-document-faults]')).toBeNull();
+  });
+});
+
+describe('the document\'s own line next to Run pipeline', () => {
+  // A relational fault — a loop — is nobody's card. It is said once, here, in the server's words
+  // with the members named, and only once somebody asked (a Confirm, a load, a failed run): it
+  // reads the document's verdict, so an edit expires it like any other (owner, 2026-09-18).
+  const LOOP = 'The input graph contains at least one loop: rescaled, grouped';
+  const said = (c: HTMLElement) =>
+    [...c.querySelectorAll('[data-document-verdict] p')].map((p) => p.textContent);
+
+  it('is absent until the document was asked about and refused', async () => {
+    const { container } = render(() => <Results />);
+    expect(container.querySelector('[data-document-verdict]')).toBeNull();
+    rejectDocument(exportCards(), [{ message: LOOP }]);
+    await flush();
+    expect(said(container)).toEqual([LOOP]);
+    expect(container.querySelector('[data-document-verdict]')!.className).toMatch(/destructive/);
+    // The items are not named for it: nobody's card is at fault.
+    expect(container.querySelector('[data-needs-attention]')).toBeNull();
+  });
+
+  it('goes with the next edit', async () => {
+    rejectDocument(exportCards(), [{ message: LOOP }]);
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(said(container)).toEqual([LOOP]);
+    setCardField(0, 'suffix', 'edited');
+    await flush();
+    expect(container.querySelector('[data-document-verdict]')).toBeNull();
+  });
+
+  it('a failed run records it, and the sentence is on screen once', async () => {
+    serve({ valid: false, kind: 'pipeline', errors: [LOOP],
+      issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
+        missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] });
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    await flush();
+    expect(documentVerdict()?.findings).toEqual([{ message: LOOP }]);
+    // The run's own block says it already; the document line does not say it again.
+    expect(container.textContent!.split(LOOP).length - 1).toBe(1);
   });
 });

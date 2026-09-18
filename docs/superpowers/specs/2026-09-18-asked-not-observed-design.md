@@ -145,3 +145,43 @@ file; suite, `tsc`, lint and build clean before hand-over; nothing committed by 
 `a`) and see the second card red with the name sentence; upload a looped document and read the
 text under Upload; Confirm a card in it and see the loop on the card; make a card's schema fail,
 Confirm its neighbour, see green.
+
+## Amendment, 2026-09-18 — the document has a verdict of its own
+
+Written after the owner's browser check of §2 and §4.3, which this replaces; the sections above
+are left as they were decided, so the reasoning stays readable against what it became.
+
+**What was seen.** `2-loop.json` loaded, Confirm pressed on both cards: "The input graph contains
+at least one loop." on card `a`, on card `b`, under the document row, and "Needs attention: a, b"
+next to Run. One fault, written four times, on items that are not at fault. The owner's reading:
+a loop is relational — it belongs to the class of *document* errors, and should be said next to
+Run, with the cards involved if possible.
+
+**What changed.**
+
+1. *A document verdict.* One verdict keyed on the whole cards document, bound to its content
+   like any other (`rejectDocument`, `documentVerdict` in `stores.ts`), so any edit expires it.
+   Recorded by the same asking acts — Confirm on any item, a load, a failed run — whenever the
+   server's fault points at no item. "Asked, not observed" holds: nothing is said before
+   somebody asks.
+2. *Said once, next to Run* (`[data-document-verdict]` in `results.tsx`), in the server's words.
+   Not repeated while a failed run's own block already says the same sentence. The "Needs
+   attention" chip still names *items* only.
+3. *Confirm no longer puts it on the item* (replaces §2). A card or group confirmed while the
+   document does not build gets **no verdict** — amber — and a verdict it already had is
+   forgotten: whether something produces its inputs is a question of the very graph that does
+   not build, so Confirm cannot vouch for it (owner's choice over green, and over a note on the
+   card). What §2 set out to prevent still holds: no item goes green on an unbuildable document.
+4. *A load no longer says it under the document row* (replaces §4.3). That block keeps to what
+   is about the file and the server: unreadable, wrong kind, already exists, unreachable.
+5. *The server names the members.* `loop_issues` in `DashiBoard/src/handlers.jl`:
+   `Pipelines.dependency_graph` builds the graph without sorting, so the strongly connected
+   components are the loops; each becomes an issue with `pointer: ""`, `reason: "loop"`, the
+   members under `related` as pointers (groups as `/groups/<name>`) and named in the message —
+   "The input graph contains at least one loop: a, b". `Graphs` joins DashiBoard's
+   dependencies; Pipelines is not touched. `documentFindings` stops repeating `errors` that a
+   loose issue's message already says.
+
+**Unchanged.** Two cards with one name stay on the later card — renaming it *is* the fix — and
+Confirm now checks that itself (`checkNames`) before asking the server, so it no longer wipes
+the mark a load put there.

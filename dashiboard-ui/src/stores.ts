@@ -308,7 +308,10 @@ export function documentFindings(
   const anyPointed = errors.length > loose.length;
   const findings: Incompleteness[] = loose.map((issue) => ({ message: issue.message }));
   if (answer.valid === false && !anyPointed) {
-    findings.push(...answer.errors.map((message) => ({ message })));
+    // `errors` repeats the issues' messages (a loop arrives as one issue pointing at no item,
+    // and `errors` holding that same sentence), so only what was not already said is added.
+    const said = new Set(findings.map((finding) => finding.message));
+    findings.push(...answer.errors.filter((message) => !said.has(message)).map((message) => ({ message })));
   }
   return findings;
 }
@@ -589,6 +592,32 @@ export function recordVerdict(
 /** A plain "confirmed" verdict, for callers that only ever say yes. */
 export function confirmDefinition(key: string, value: unknown) {
   recordVerdict(key, value, "confirmed");
+}
+
+// --- the document's own verdict ---------------------------------------------------------------
+// A relational fault — a loop, a `through` chain nothing can resolve — belongs to no card: seen in
+// a browser (2026-09-18) written on every card that happened to be asked, and again under the
+// document row. It gets a verdict of its own, keyed on the whole cards document and bound to its
+// content like any other, so it is said once (next to Run pipeline), only after somebody asked
+// (a Confirm, a load, a failed run), and any edit expires it.
+const DOCUMENT_KEY = "document";
+
+/** Record that the server refused this document, with its sentences. */
+export function rejectDocument(
+  document: Pick<CardsStore, "nodes" | "groups">,
+  findings: Incompleteness[],
+) {
+  // `nodes` then `groups`, whatever order the document arrived in (a loaded file may say
+  // `groups` first): the signature is compared with the store's own serialisation.
+  recordVerdict(DOCUMENT_KEY, { nodes: document.nodes, groups: document.groups }, "rejected", findings);
+}
+
+/** The verdict on the cards document as it is now — null once anything in it is edited. */
+export function documentVerdict(): Verdict | null {
+  // `CARDS_JSON` is the store's serialisation, the very string a snapshot's signature is; a
+  // tracked read, so a caller in a memo re-runs on every edit.
+  const v = verdicts()[DOCUMENT_KEY];
+  return v !== undefined && v.signature === CARDS_JSON() ? v : null;
 }
 
 export function forgetVerdict(key: string) {

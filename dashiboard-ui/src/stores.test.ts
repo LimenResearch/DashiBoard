@@ -525,6 +525,48 @@ describe('verdicts', () => {
     expect(s.PROBE_STORE[0].issues).toEqual([]);
   });
 
+  describe('the document verdict', () => {
+    // A relational fault — a loop — is nobody's card: seen in a browser on 2026-09-18 written on
+    // every card that was asked. It gets a verdict of its own, bound to the whole cards
+    // document, so it is said once (next to Run) and any edit expires it.
+    const doc = () => ({
+      nodes: [{ id: 'a', card: { type: 'rescale' } }, { id: 'b', card: { type: 'rescale' } }],
+      groups: {},
+    });
+    it('is recorded on the document that was asked about, and read back while it is unchanged', async () => {
+      const s = await import('./stores');
+      s.forgetAllVerdicts();
+      s.importCards(doc());
+      await flush();
+      expect(s.documentVerdict()).toBeNull();
+      s.rejectDocument(s.exportCards(), [{ message: 'a loop: a, b' }]);
+      await flush();
+      expect(s.documentVerdict()?.verdict).toBe('rejected');
+      expect(s.documentVerdict()?.findings).toEqual([{ message: 'a loop: a, b' }]);
+    });
+    it('expires on any edit of the document', async () => {
+      const s = await import('./stores');
+      s.forgetAllVerdicts();
+      s.importCards(doc());
+      await flush();
+      s.rejectDocument(s.exportCards(), [{ message: 'x' }]);
+      s.setCardField(1, 'suffix', 'edited');
+      await flush();
+      expect(s.documentVerdict()).toBeNull();
+    });
+    it('binds whatever key order the document arrived in', async () => {
+      // A loaded file may say `groups` before `nodes`; the store holds `nodes` first.
+      const s = await import('./stores');
+      s.forgetAllVerdicts();
+      s.importCards(doc());
+      await flush();
+      const { nodes, groups } = s.exportCards();
+      s.rejectDocument({ groups, nodes }, [{ message: 'x' }]);
+      await flush();
+      expect(s.documentVerdict()?.verdict).toBe('rejected');
+    });
+  });
+
   describe('documentFindings', () => {
     const pointed = {
       pointer: '/nodes/0/card/method', reason: 'type', severity: 'error' as const, found: 'zscore',
@@ -556,6 +598,14 @@ describe('verdicts', () => {
         issues: [pointed, { ...pointed, pointer: '', message: 'nothing to run' }],
         errors: ['x'],
       })).toEqual([{ message: 'nothing to run' }]);
+    });
+    it('does not say a sentence twice when the errors repeat a loose issue\'s message', async () => {
+      // The server's loop reply: one issue that points at no item, and `errors` holding that
+      // same message (`errors` is always the issues' messages, for a client that reads only it).
+      const s = await import('./stores');
+      const loop = { ...pointed, pointer: '', reason: 'loop', message: 'The input graph contains at least one loop: a, b' };
+      expect(s.documentFindings({ valid: false, issues: [loop], errors: [loop.message] }))
+        .toEqual([{ message: loop.message }]);
     });
     it('ignores warnings', async () => {
       const s = await import('./stores');

@@ -7,7 +7,8 @@ import { TableView } from "../components/TableView";
 import { Tabs } from "../components/Tabs";
 import { getURL, postRequest } from "../requests";
 import {
-  CARDS_STORE, exportCards, itemKey, rejectFromIssues, verdictOf,
+  CARDS_STORE, documentFindings, documentVerdict, exportCards, itemKey, rejectDocument,
+  rejectFromIssues, verdictOf,
   type ProbeIssue, type VariableSummary,
 } from "../stores";
 import { wireDocument } from "../wire";
@@ -105,6 +106,10 @@ export function Results() {
         setResult(null);
         const issues = Array.isArray(answer.issues) ? answer.issues : [];
         if (issues.length > 0) rejectFromIssues(issues, sent);
+        // What points at no item is the document's: recorded on its verdict, so it is still
+        // said next to Run after a reload, when this run's own block is gone.
+        const loose = documentFindings({ valid: false, issues, errors: answer.errors ?? [] });
+        if (loose.length > 0) rejectDocument(sent, loose);
         // Counted through the same `itemKey` the marks are made with, errors only, so the
         // headline and the marks cannot drift: an empty-group issue (`/groups/empty`) once landed
         // on the "cards" count from a hand-rolled pointer parse, with nothing on screen for it.
@@ -184,6 +189,19 @@ export function Results() {
       report,
     }));
 
+  /**
+   * What the server refused about the *document* — a loop, a chain nothing can resolve — in its
+   * own words, members named. Nobody's card is at fault for it, so it is not written on one
+   * (seen in a browser, 2026-09-18, on every card that was asked); it is read off the document's
+   * verdict, recorded by whoever asked — a Confirm, a load, a failed run — and expired by the next
+   * edit. Not repeated while this run's own block already says the same sentence.
+   */
+  const documentLines = createMemo(() =>
+    (documentVerdict()?.findings ?? [])
+      .map((finding) => finding.message)
+      .filter((line) => !(failure()?.errors ?? []).includes(line)),
+  );
+
   const empty = (message: string) => (
     <p class="p-3 text-control-xs text-muted-foreground italic">{message}</p>
   );
@@ -230,6 +248,17 @@ export function Results() {
         </Show>
       </div>
 
+
+      <Show when={documentLines().length > 0}>
+        <div
+          data-document-verdict
+          class="mx-3 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
+        >
+          <For each={documentLines()}>
+            {(line: string) => <p class="font-mono break-words whitespace-pre-wrap">{line}</p>}
+          </For>
+        </div>
+      </Show>
 
       {/*
         Destructive styling, not the warning used for an unfinished card: this one already ran and

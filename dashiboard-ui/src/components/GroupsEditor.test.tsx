@@ -4,7 +4,7 @@ import { flush, reconcile } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
 import {
   importCards, exportCards, emptyCards, addGroup, setGroup, forgetAllVerdicts,
-  isConfirmed, PROBE_STORE, emptyProbe, rejectFromIssues, confirmDefinition, recordVerdict,
+  isConfirmed, PROBE_STORE, emptyProbe, rejectFromIssues, confirmDefinition, recordVerdict, documentVerdict,
 } from '../stores';
 import type { Defs } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -438,19 +438,25 @@ describe('a group cannot name itself', () => {
 describe('Confirm on a document that cannot build', () => {
   // The same rule as a card's Confirm: a fault with no item pointer is the document's, and the
   // group that was asked carries it.
-  it('rejects the group with the server\'s sentence', async () => {
+  it('leaves the group amber and records the fault on the document', async () => {
+    // Revised 2026-09-18: a loop is nobody's item. It is said once, next to Run.
+    const LOOP = 'The input graph contains at least one loop: a, b';
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [], issues: [],
-            errors: ['ArgumentError: Encountered nodes with equal `id`'] }
+        ? { valid: false, kind: 'pipeline', cols: [], errors: [LOOP],
+            issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
+              missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] }
         : []));
     addGroup('weather');
     setGroup('weather', [{ cols: 'TEMP' }]);
     const { container, getByText } = mount();
     await flush();
     fireEvent.click(getByText('Confirm'));
-    await waitFor(() => expect(container.querySelector('[data-state="rejected"]')).not.toBeNull());
-    expect(container.querySelector('[data-finding]')!.textContent).toContain('equal `id`');
+    await waitFor(() => expect(documentVerdict()).not.toBeNull());
+    expect(documentVerdict()!.findings).toEqual([{ message: LOOP }]);
+    expect(container.querySelector('[data-state="rejected"]')).toBeNull();
+    expect(container.querySelector('[data-state="confirmed"]')).toBeNull();
+    expect(container.querySelector('[data-finding]')).toBeNull();
   });
 
   it('confirms green when the only fault is pointed at a card', async () => {

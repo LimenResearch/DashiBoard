@@ -17,7 +17,7 @@ function Pipeline(
     )
 
     validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
-    G, nodes, groups, cols, group_names = dependency_graph(node_configs, group_configs)
+    G, nodes, (group_names, groups), cols = dependency_graph(node_configs, group_configs)
     n_nodes = length(nodes)
     c = Context(G, nodes, groups)
     # `reduce` over zero outputs throws a "reducing over an empty collection" error

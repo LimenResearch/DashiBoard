@@ -70,11 +70,12 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     node_idxs = Dict{String, Int}(zip(ids, eachindex(ids)))
 
     group_configs′ = Vector{Vector{Any}}(undef, n_groups)
-    group_idxs = Dict{String, Int}()
+    group_names = Vector{String}(undef, n_groups)
     for (i, (k, grp)) in enumerate(pairs(group_configs))
         group_configs′[i] = grp isa AbstractVector ? grp : Any[grp]
-        group_idxs[k] = i + n_nodes
+        group_names[i] = k
     end
+    group_idxs = Dict{String, Int}(zip(group_names, eachindex(group_names) .+ n_nodes))
 
     dp = DepsParser(node_idxs, group_idxs)
 
@@ -85,11 +86,8 @@ function dependency_graph(node_configs::AbstractVector, group_configs::AbstractD
     p = sortperm(dp.srcs)
     G = digraph(view(dp.srcs, p), view(dp.tgts, p), n_nodes + n_groups)
 
-    # `group_names` is returned rather than recovered from `keys(group_configs)` at the call
-    # site: the vertex order is fixed by the `enumerate(pairs(...))` above, and depending on a
-    # second iteration to match it is the kind of coupling that breaks quietly.
-    group_names = collect(String, keys(group_configs))
-    return G, nodes, groups, collect(String, dp.cols), group_names
+    # `group_names` is returned to clarify the iteration order used to generate `groups`.
+    return G, nodes, group_names => groups, collect(String, dp.cols)
 end
 
 # Machinery to replace `Deps`

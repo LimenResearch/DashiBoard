@@ -1,6 +1,6 @@
 @testset "groups" begin
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
-    g, nds, grps, cols = Pipelines.dependency_graph(d["nodes"], d["groups"])
+    g, nds, (grp_names, grps), cols = Pipelines.dependency_graph(d["nodes"], d["groups"])
     es = sort(collect(edges(g)))
 
     node_idxs = Dict(
@@ -230,9 +230,11 @@ end
     @test resolve([Dict("cols" => "PRES"), Dict("cols" => "TEMP")]) == ["PRES", "TEMP"]
 
     # C: same kind, different `through`. This is why `through` cannot be a field-level property.
-    @test resolve([
-        Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "TEMP"),
-    ]) == ["PRES_rescaled", "TEMP"]
+    @test resolve(
+        [
+            Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "TEMP"),
+        ]
+    ) == ["PRES_rescaled", "TEMP"]
 
     # D: one item, several values, a shared `through`.
     @test resolve([Dict("cols" => ["PRES", "TEMP"], "through" => ["rescale"])]) ==
@@ -241,9 +243,11 @@ end
     # E: the same column twice, once passed through and once raw — both survive. Any UI modelling
     # a field as "a set of columns with attributes" cannot express this: there is nowhere to put
     # the second PRES.
-    @test resolve([
-        Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "PRES"),
-    ]) == ["PRES_rescaled", "PRES"]
+    @test resolve(
+        [
+            Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "PRES"),
+        ]
+    ) == ["PRES_rescaled", "PRES"]
 
     # F/G: the `oneOf` gate. Two kinds in one item, or none, are refused — so A7's
     # "unrepresentably wrong" is already enforced server-side; the UI doing it is defence in depth.
@@ -394,22 +398,28 @@ end
     @test r.related == ["/nodes/2/card/method", "/nodes/2/card/inputs"]
 
     # The vocabulary is the caller's, so a column that does not exist is caught here too.
-    r = only(Pipelines.card_issues(
-        Dict{String, Any}(
-            "type" => "rescale", "method" => Dict("type" => "zscore"),
-            "inputs" => [Dict("cols" => "NOSUCH")],
-        ), vc))
+    r = only(
+        Pipelines.card_issues(
+            Dict{String, Any}(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("cols" => "NOSUCH")],
+            ), vc
+        )
+    )
     @test r.reason == "enum"
     @test "TEMP" in r.allowed
 
     # It validates one card and nothing else: a reference to a node that is not in the vocabulary
     # is a schema failure, but whether that node *produces* what is asked of it is a question about
     # the graph, and this call cannot see one.
-    @test isempty(Pipelines.card_issues(
-        Dict{String, Any}(
-            "type" => "rescale", "method" => Dict("type" => "zscore"),
-            "inputs" => [Dict("nodes" => "r", "through" => ["r", "r"])],
-        ), vc))
+    @test isempty(
+        Pipelines.card_issues(
+            Dict{String, Any}(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("nodes" => "r", "through" => ["r", "r"])],
+            ), vc
+        )
+    )
 end
 
 @testset "A7: a validation failure as data" begin
@@ -446,28 +456,36 @@ end
 
     # The pointer addresses the *document*, not the card: the UI holds the whole document, and a
     # card-local pointer would be ambiguous the moment there are two cards.
-    deep = report(Dict{String, Any}(
-        "type" => "cluster", "inputs" => [Dict("cols" => "TEMP")],
-        "method" => Dict(
-            "type" => "dbscan", "radius" => 0.5,
-            "dissimilarity" => Dict("type" => "minkowski", "p" => -5),
-        ),
-    ))
+    deep = report(
+        Dict{String, Any}(
+            "type" => "cluster", "inputs" => [Dict("cols" => "TEMP")],
+            "method" => Dict(
+                "type" => "dbscan", "radius" => 0.5,
+                "dissimilarity" => Dict("type" => "minkowski", "p" => -5),
+            ),
+        )
+    )
     @test deep.pointer == "/nodes/0/card/method/dissimilarity/p"
     @test deep.reason == "minimum"
 
     # The index conversion, on the case that tells 0-based from 1-based. Julia says [inputs][3].
-    third = report(rescale(inputs = [
-        Dict("cols" => "No"), Dict("cols" => "TEMP"), Dict("cols" => "NOPE"),
-    ]))
+    third = report(
+        rescale(
+            inputs = [
+                Dict("cols" => "No"), Dict("cols" => "TEMP"), Dict("cols" => "NOPE"),
+            ]
+        )
+    )
     @test third.pointer == "/nodes/0/card/inputs/2/cols"
     @test third.allowed == cols
 
     # `required` reports at the parent, so the pointer alone does not identify the control. The
     # missing name has to be recovered, and `related` addresses the control that is absent.
-    missing_method = report(Dict{String, Any}(
-        "type" => "rescale", "inputs" => [Dict("cols" => "TEMP")],
-    ))
+    missing_method = report(
+        Dict{String, Any}(
+            "type" => "rescale", "inputs" => [Dict("cols" => "TEMP")],
+        )
+    )
     @test missing_method.pointer == "/nodes/0/card"
     @test missing_method.reason == "required"
     @test missing_method.missing == ["method"]

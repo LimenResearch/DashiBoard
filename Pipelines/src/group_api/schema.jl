@@ -62,18 +62,27 @@ end
 # Validation
 
 """
-    SchemaValidationError(culprit, pointer_base, object, issue)
+    SchemaValidationError(culprit, pointer_base, issue)
 
-`culprit` is prose for `showerror`. `pointer_base` is the JSON Pointer of `object` within the
-*document*, and `object` is the fragment that was validated — together they let `issue_report`
-address a failure from the document root rather than from whichever fragment the validator
-happened to be handed, which is ambiguous the moment a document holds two cards.
+`culprit` is prose for `showerror`. `pointer_base` is the JSON Pointer of the analyzed object
+within the *document* — it lets `issue_report` address a failure from the document root
+rather than from whichever fragment the validator happened to be handed.
 """
-struct SchemaValidationError{I, O} <: Exception
+struct SchemaValidationError <: Exception
     culprit::String
     pointer_base::String
-    object::O
-    issue::I
+    pointer_tail::String
+    issue::JSONSchema.SingleIssue
+end
+
+function schema_validation_error(
+        culprit::AbstractString,
+        pointer_base::AbstractString,
+        object::Any,
+        issue::JSONSchema.SingleIssue
+    )
+    pointer_tail = json_pointer(issue.path, object)
+    return SchemaValidationError(culprit, pointer_base, pointer_tail, issue)
 end
 
 function Base.showerror(io::IO, err::SchemaValidationError)
@@ -111,10 +120,9 @@ end
 escape_pointer(token::AbstractString) = replace(token, "~" => "~0", "/" => "~1")
 
 """
-    json_pointer(base, path, object)
+    json_pointer(path, object)
 
-Convert a `JSONSchema.SingleIssue` path — `"[method][dissimilarity][p]"` — to a JSON Pointer
-rooted at `base`.
+Convert a `JSONSchema.SingleIssue` path — `"[method][dissimilarity][p]"` — to a JSON Pointer.
 
 Two things make this less mechanical than it looks, both measured rather than read:
 
@@ -123,10 +131,11 @@ Two things make this less mechanical than it looks, both measured rather than re
     highlights the wrong row — which is worse than not highlighting one.
   * Whether a step *is* an array step cannot be recovered from the path, since `"1"` is a legal
     object key. So this walks `object` alongside the path and asks what it actually found.
+
+Relevant issue: https://github.com/JuliaIO/JSONSchema.jl/issues/84
 """
-function json_pointer(base::AbstractString, path::AbstractString, object)
+function json_pointer(path::AbstractString, object)
     io = IOBuffer()
-    print(io, base)
     current = object
     for m in eachmatch(r"\[([^\]]*)\]", path)
         token = m.captures[1]
@@ -161,7 +170,7 @@ issue_report(errs::SchemaValidationErrors) = map(issue_report, errs.errors)
 
 function issue_report(err::SchemaValidationError)
     issue = err.issue
-    pointer = json_pointer(err.pointer_base, issue.path, err.object)
+    pointer = err.pointer_base * err.pointer_tail
 
     # `val` on a variant-name enum is a lazy `KeySet` over the live registry, not a `Vector`;
     # it has to be collected before it can cross a serialisation boundary.
@@ -215,7 +224,7 @@ function card_issues(
     schema = JSONSchema.Schema(card_schema(card["type"], variable_config))
     issue = JSONSchema.validate(card, schema)
     errors = isnothing(issue) ? SchemaValidationError[] :
-        [SchemaValidationError("card", base, card, issue)]
+        [schema_validation_error("card", base, card, issue)]
     return map(issue_report, errors)
 end
 
@@ -245,7 +254,7 @@ function validate_pipeline_schema(
         issue = JSONSchema.validate(grp_val, grp_schema)
         isnothing(issue) || push!(
             errors,
-            SchemaValidationError(
+            schema_validation_error(
                 "group $(grp_key)", "/groups/" * escape_pointer(string(grp_key)), grp_val, issue
             )
         )
@@ -257,7 +266,7 @@ function validate_pipeline_schema(
         issue = JSONSchema.validate(card, card_schema)
         isnothing(issue) || push!(
             errors,
-            SchemaValidationError("card in node $(i)", "/nodes/$(i - 1)/card", card, issue)
+            schema_validation_error("card in node $(i)", "/nodes/$(i - 1)/card", card, issue)
         )
     end
 

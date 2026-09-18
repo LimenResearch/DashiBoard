@@ -255,6 +255,49 @@ mktempdir() do data_dir
             escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
             @test escaped["valid"] == false
             @test occursin("outside the data directory", only(escaped["errors"]))
+
+            # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
+            # found; nothing outside the directory, nothing that is not there.
+            from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
+            from_toml = post("read-document", Dict("path" => "cards.toml", "kind" => "cards"))
+            @test from_json["valid"] == true
+            @test from_json["document"]["nodes"][1]["id"] == "r"
+            @test from_toml["document"]["nodes"][1]["card"]["type"] == "rescale"
+            @test isempty(from_toml["document"]["groups"])
+
+            wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
+            @test wrong_kind["valid"] == false
+            @test wrong_kind["kind"] == "document"
+            @test occursin("not a cards document", only(wrong_kind["errors"]))
+
+            for path in ("../cards.json", joinpath(data_dir, "cards.json"))
+                outside = post("read-document", Dict("path" => path, "kind" => "cards"))
+                @test outside["valid"] == false
+                @test occursin("outside the data directory", only(outside["errors"]))
+            end
+            missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
+            @test occursin("does not exist", only(missing_file["errors"]))
+            unparsable = post("read-document", Dict("path" => "broken.json", "kind" => "cards"))
+            @test unparsable["valid"] == false
+
+            # Writing: a document round-trips inside the directory; an existing file is kept
+            # unless the author says replace; the shape must match the kind; JSON only.
+            doc = from_json["document"]
+            save(path, kind, overwrite) = post("write-document", Dict("path" => path, "kind" => kind, "document" => doc, "overwrite" => overwrite))
+            saved = save("sub/mine.json", "cards", false)
+            @test saved["valid"] == true
+            @test saved["path"] == "sub/mine.json"
+            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())]
+            @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["document"] == doc
+
+            @test occursin("already exists", only(save("sub/mine.json", "cards", false)["errors"]))
+            @test save("sub/mine.json", "cards", true)["valid"] == true
+
+            @test occursin("not a filters document", only(save("f.json", "filters", false)["errors"]))
+            @test occursin("outside the data directory", only(save("../x.json", "cards", false)["errors"]))
+            @test occursin(".json", only(save("x.toml", "cards", false)["errors"]))
+            @test occursin("folder", only(save("nowhere/x.json", "cards", false)["errors"]))
+            @test !isfile(joinpath(data_dir, "f.json"))
         end
 
         body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)

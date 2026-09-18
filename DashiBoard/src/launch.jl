@@ -15,6 +15,8 @@ function launch(
 
     HTTP.register!(router, "POST", "/get-acceptable-paths", HTTP.streamhandler(get_acceptable_paths))
     HTTP.register!(router, "POST", "/list-files", HTTP.streamhandler(list_files))
+    HTTP.register!(router, "POST", "/read-document", HTTP.streamhandler(read_document))
+    HTTP.register!(router, "POST", "/write-document", HTTP.streamhandler(write_document))
     HTTP.register!(router, "POST", "/load-files", HTTP.streamhandler(load_files))
     HTTP.register!(router, "POST", "/get-card-ir", HTTP.streamhandler(get_card_ir))
     HTTP.register!(router, "POST", "/validate-card", HTTP.streamhandler(validate_card))

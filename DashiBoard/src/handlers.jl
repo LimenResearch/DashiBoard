@@ -131,6 +131,62 @@ function list_files(req::HTTP.Request)
     return json_response(files)
 end
 
+"""
+    read_document(req)
+
+A cards or filters document from the data directory: `{valid: true, document}`, or the failure
+envelope every other route uses, with the server's sentence. Wrapped rather than returned bare,
+so a client tells a reply from a failure by `valid` alone, never by guessing at a document's keys.
+
+The counterpart of the browser's file dialog, which read a local file the server never saw and
+showed the whole disk. `kind` is what the client expects: a filters file picked where cards
+were asked for is refused here, with a sentence, rather than loaded into the wrong store.
+"""
+function read_document(req::HTTP.Request)
+    spec = json_read(req)
+    answer = try
+        path, kind = spec["path"], spec["kind"]
+        full = resolve_in_data_dir(path)
+        isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
+        document = parse_document(full)
+        document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
+        (; valid = true, document)
+    catch exception
+        failure_report("document", exception)
+    end
+    return json_response(answer)
+end
+
+"""
+    write_document(req)
+
+Save a cards or filters document into the data directory, as indented JSON: `{valid: true, path}`
+or the failure envelope. What makes a document round-trip where it can be loaded again — the
+browser's Download puts the file in a folder `list-files` never sees.
+
+Refuses: a path outside the directory; a name that does not end in `.json` (TOML is read, not
+written); a document whose shape is not `kind`'s; a folder that does not exist (no folders are
+created on a client's word); an existing file, unless `overwrite` is `true`.
+"""
+function write_document(req::HTTP.Request)
+    spec = json_read(req)
+    answer = try
+        path, kind, document = spec["path"], spec["kind"], spec["document"]
+        full = resolve_in_data_dir(path)
+        lowercase(last(splitext(full))) == ".json" ||
+            throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
+        document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
+        isdir(dirname(full)) || throw(ArgumentError("the folder of `$(path)` does not exist"))
+        (isfile(full) && get(spec, "overwrite", false) !== true) &&
+            throw(ArgumentError("`$(path)` already exists"))
+        write(full, JSON.json(document; pretty = true))
+        (; valid = true, path)
+    catch exception
+        failure_report("document", exception)
+    end
+    return json_response(answer)
+end
+
 function load_files(req::HTTP.Request)
     spec = json_read(req)
     # Checked here, not in `DataIngestion.parse_paths`, which joins `..` without looking and is

@@ -1,9 +1,3 @@
-function get_acceptable_paths(req::HTTP.Request)
-    _ = json_read(req)
-    files = collect(String, acceptable_paths())
-    return json_response(files)
-end
-
 """
     data_directory() -> String
 

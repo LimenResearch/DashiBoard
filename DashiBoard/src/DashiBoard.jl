@@ -46,7 +46,7 @@ using DuckDBUtils: Repository, export_table, to_nrow, colnames
 # than adding a new one.
 using DataFrames: DataFrame
 
-using DataIngestion: acceptable_paths, Filter, DataIngestion
+using DataIngestion: Filter, DataIngestion
 
 using Pipelines: Card, get_state, Pipelines
 

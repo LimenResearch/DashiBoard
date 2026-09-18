@@ -13,7 +13,6 @@ function launch(
         HTTP.streamhandler(cors405)
     )
 
-    HTTP.register!(router, "POST", "/get-acceptable-paths", HTTP.streamhandler(get_acceptable_paths))
     HTTP.register!(router, "POST", "/list-files", HTTP.streamhandler(list_files))
     HTTP.register!(router, "POST", "/read-document", HTTP.streamhandler(read_document))
     HTTP.register!(router, "POST", "/write-document", HTTP.streamhandler(write_document))

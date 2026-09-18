@@ -28,13 +28,14 @@ import {
   emptyCards,
   emptyProbe,
   documentFindings,
+  rejectFromIssues,
   PROBE_STORE,
   type ProbeNode,
   type ProbeStore,
   type ProbeIssue,
 } from "../stores";
 import { defaultsFor, withoutOption, type Defs, type IRNode } from "../ir";
-import { checkNode, type Incompleteness } from "../completeness";
+import { checkNames, checkNode, type Incompleteness } from "../completeness";
 import { askProbe } from "../probe";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
@@ -186,6 +187,57 @@ export function Cards() {
     clearTimeout(probeTimer);
     probeSeq = Number.MAX_SAFE_INTEGER;
   });
+
+  /**
+   * An upload is an act of asking.
+   *
+   * The document is loaded exactly as it came — a broken one included, because fixing it here
+   * is what the form is for (owner, 2026-09-18) — and then asked about once, on the author's
+   * behalf, from the imported snapshot. What the server points at is rejected on its item, the
+   * way a failed run's issues are; a taken name is ours to place (`checkNames`), since the
+   * server reports it with no pointer; whatever is left has no item and is said here, under the
+   * button that asked, until the next upload or the next edit. Nothing is confirmed: an item the
+   * probe has nothing against stays amber, because nobody looked at it.
+   *
+   * Its own `askProbe`, not the continuous probe's reply: that one writes the store and nothing
+   * else, and by the time it answers the document may already be a later one.
+   */
+  const [uploadReport, setUploadReport] = createSignal<string[] | null>(null);
+  // The uploaded document, serialised as `persisted` serialises the store (`JSON.stringify` of
+  // the plain object; the identity codec), so "the document changed since the upload" is one
+  // string comparison against `CARDS_JSON`. Cleared with the report.
+  let uploadedJson: string | null = null;
+  createEffect(CARDS_JSON, (json) => {
+    if (uploadedJson !== null && json !== uploadedJson) {
+      uploadedJson = null;
+      setUploadReport(null);
+    }
+  });
+  async function uploadCards(value: CardsStore) {
+    // One plain copy is what is stored, what is asked about and what the verdicts bind to —
+    // not `exportCards()` read back right after `importCards`, which on Solid 2 may still be the
+    // previous document in this tick.
+    const document = structuredClone(value);
+    importCards(document);
+    uploadedJson = JSON.stringify(document);
+    setUploadReport(null);
+    const taken = checkNames(document.nodes);
+    for (const { index, finding } of taken) {
+      recordVerdict(`node:${index}`, document.nodes[index], "rejected", [finding]);
+    }
+    const answer = await askProbe(document);
+    if (answer === null) {
+      setUploadReport(["Could not reach DashiBoard to check this document — is the server running?"]);
+      return;
+    }
+    rejectFromIssues(answer.issues, document);
+    // With a taken name placed above, the server's one build error for this document is that
+    // same duplicate id (construction stops there — measured), already on the later card; what
+    // else there is surfaces once the names are fixed. Otherwise the loose sentences are said.
+    if (taken.length > 0) return;
+    const loose = documentFindings(answer).map((finding) => finding.message);
+    if (loose.length > 0) setUploadReport(loose);
+  }
 
   /**
    * Ask Pipelines about this card, and only this card.
@@ -552,11 +604,27 @@ export function Cards() {
         </DownloadJSONButton>
         <UploadJSONButton
           def={emptyCards()}
-          onChange={(value: CardsStore) => importCards(value)}
+          onChange={(value: CardsStore) => void uploadCards(value)}
         >
           Upload cards
         </UploadJSONButton>
       </div>
+      {/* The server's sentence about an uploaded document nobody could place on an item — a
+          loop, an unreachable server. Same dress as a failed run's text under Run, because it is
+          the same kind of thing. Gone on the next upload or the next edit. */}
+      <Show when={uploadReport()} keyed>
+        {(lines: string[]) => (
+          <div
+            data-upload-error
+            class="mx-3 my-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
+          >
+            <p class="mb-1.5 font-semibold">The uploaded document does not build:</p>
+            <For each={lines}>
+              {(line: string) => <p class="font-mono break-words whitespace-pre-wrap">{line}</p>}
+            </For>
+          </div>
+        )}
+      </Show>
     </div>
   );
 }

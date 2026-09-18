@@ -4,8 +4,143 @@ function get_acceptable_paths(req::HTTP.Request)
     return json_response(files)
 end
 
+"""
+    data_directory() -> String
+
+The directory every file route is confined to, absolute and normalised. `pwd()` when the server
+was launched without one, which is `DataIngestion.acceptable_paths`'s own rule — so the listing
+here and the loader there agree on where "here" is.
+"""
+function data_directory()
+    dir = DataIngestion.DATA_DIR[]
+    return normpath(abspath(isempty(dir) ? pwd() : dir))
+end
+
+"""
+    resolve_in_data_dir(path) -> String
+
+`path`, read relative to the data directory, as an absolute path — or an `ArgumentError` if it
+leaves that directory.
+
+The one path function of the file routes. A client names files by the relative paths
+`list-files` gave it, but nothing stops a request from saying `../../etc/passwd`, and
+`load-files` used to join such a path without looking. Compared through `relpath` rather than
+`startswith`, which would let `/data-evil` pass for `/data`.
+"""
+function resolve_in_data_dir(path::AbstractString)
+    outside() = throw(ArgumentError("`$(path)` is outside the data directory"))
+    isabspath(path) && outside()
+    base = data_directory()
+    full = normpath(joinpath(base, path))
+    rel = relpath(full, base)
+    (rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)) && outside()
+    return full
+end
+
+# What makes a parsed file a document of the UI rather than a table: the keys `Download cards`
+# and `Download filters` write. Told by content, not by name, so the kind survives a rename and
+# a `.json` that is a real table (DataIngestion's `json_reader`) stays a table.
+const DOCUMENT_SHAPES = (
+    "cards" => ("nodes", "groups"),
+    "filters" => ("numerical", "categorical"),
+)
+
+"""
+    document_kind(parsed) -> Union{String, Nothing}
+
+`"cards"`, `"filters"`, or `nothing` when `parsed` is neither.
+"""
+function document_kind(parsed)
+    parsed isa AbstractDict || return nothing
+    for (kind, required) in DOCUMENT_SHAPES
+        all(key -> haskey(parsed, key), required) && return kind
+    end
+    return nothing
+end
+
+"""
+    parse_document(full) -> parsed
+
+Read a JSON or a TOML file, by extension. TOML because it is Pipelines' configuration format
+and a cards document written by hand is as likely to be one; JSON because it is what the UI
+writes.
+"""
+function parse_document(full::AbstractString)
+    ext = lowercase(last(splitext(full)))
+    ext == ".json" && return JSON.parsefile(full)
+    ext == ".toml" && return TOML.parsefile(full)
+    throw(ArgumentError("`$(basename(full))` is neither JSON nor TOML"))
+end
+
+"""
+    file_kind(full) -> Union{String, Nothing}
+
+`"table"`, `"cards"`, `"filters"`, or `nothing` for a file the UI has no use for.
+
+A JSON or TOML file is parsed to find out: a document is small, a JSON table is rare, and a peek
+at the whole file is what lets a renamed document keep its kind. One that does not parse is
+`nothing` — a half-written file must not break the listing, and the listing is not where a parse
+error is reported (`read_document` is).
+"""
+function file_kind(full::AbstractString)
+    ext = lowercase(last(splitext(full)))
+    if ext in (".json", ".toml")
+        parsed = try
+            parse_document(full)
+        catch
+            return nothing
+        end
+        kind = document_kind(parsed)
+        isnothing(kind) || return kind
+        return ext == ".json" ? "table" : nothing
+    end
+    return DataIngestion.is_supported(full) ? "table" : nothing
+end
+
+"""
+    list_files(req)
+
+Every file under the data directory the UI may pick, as `[{path, kind}]` — relative paths,
+subfolders included, sorted. Supersedes `get-acceptable-paths`, which listed tables only: cards
+and filters documents used to come in through the browser's own file dialog, which shows the
+whole disk, while tables were confined to this directory. One listing, one visibility.
+
+Hidden files and folders are skipped. A data directory that does not exist answers `[]` and
+warns: `walkdir` throws on it, which reached the client as a 500 with an empty body and the log
+as a 200 (`LoggingMiddleware` records the status set *before* a throw).
+"""
+function list_files(req::HTTP.Request)
+    _ = json_read(req)
+    base = data_directory()
+    if !isdir(base)
+        @warn "the data directory does not exist" base
+        return json_response([])
+    end
+    files = @NamedTuple{path::String, kind::String}[]
+    for (root, dirs, names) in walkdir(base)
+        # `walkdir` is top-down, so pruning `dirs` in place keeps it out of hidden folders.
+        filter!(dir -> !startswith(dir, "."), dirs)
+        for name in names
+            startswith(name, ".") && continue
+            kind = file_kind(joinpath(root, name))
+            isnothing(kind) && continue
+            push!(files, (; path = normpath(relpath(root, base), name), kind))
+        end
+    end
+    sort!(files, by = file -> file.path)
+    return json_response(files)
+end
+
 function load_files(req::HTTP.Request)
     spec = json_read(req)
+    # Checked here, not in `DataIngestion.parse_paths`, which joins `..` without looking and is
+    # not ours to change: a client names files by the relative paths `list-files` gave it, and a
+    # path that leaves the data directory is refused before anything is read.
+    try
+        foreach(resolve_in_data_dir, spec["files"])
+    catch exception
+        return json_response(failure_report("load", exception))
+    end
     DataIngestion.load_files(REPOSITORY[], spec)
     summaries = DataIngestion.summarize(REPOSITORY[], "source")
     return json_response(summaries)

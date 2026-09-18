@@ -168,6 +168,20 @@ mktempdir() do data_dir
         joinpath(data_dir, "pollution.csv")
     )
 
+    # Fixtures for the file routes: one of each kind, a JSON that is a real table, a JSON that
+    # does not parse, and hidden entries — all in the directory the server is launched on.
+    cards_doc = Dict("nodes" => [Dict("id" => "r", "card" => Dict("type" => "rescale"))], "groups" => Dict{String, Any}())
+    write(joinpath(data_dir, "cards.json"), JSON.json(cards_doc))
+    write(joinpath(data_dir, "cards.toml"), "groups = {}\n[[nodes]]\nid = \"r\"\n[nodes.card]\ntype = \"rescale\"\n")
+    write(joinpath(data_dir, "filters.json"), JSON.json(Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())))
+    mkdir(joinpath(data_dir, "sub"))
+    write(joinpath(data_dir, "sub", "table.json"), JSON.json([Dict("a" => 1), Dict("a" => 2)]))
+    write(joinpath(data_dir, "broken.json"), "{ not json")
+    write(joinpath(data_dir, ".hidden.json"), JSON.json(cards_doc))
+    mkdir(joinpath(data_dir, ".cache"))
+    write(joinpath(data_dir, ".cache", "cards.json"), JSON.json(cards_doc))
+    write(joinpath(data_dir, "notes.md"), "not a table, not a document")
+
     load_config = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
     pipeline_config = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline.json"))
 
@@ -220,6 +234,28 @@ mktempdir() do data_dir
 
     @testset "request" begin
         url = "http://127.0.0.1:$(port)/"
+
+        @testset "files" begin
+            post(route, body) = JSON.parse(HTTP.post(url * route, body = JSON.json(body), status_exception = false).body)
+
+            # The listing names every file the UI may pick, with what it is. A JSON is told from
+            # a table by content, so the kind survives a rename; what does not parse, what is
+            # hidden and what is neither table nor document are not listed.
+            listed = post("list-files", Dict())
+            @test [(f["path"], f["kind"]) for f in listed] == [
+                ("cards.json", "cards"),
+                ("cards.toml", "cards"),
+                ("filters.json", "filters"),
+                ("pollution.csv", "table"),
+                (joinpath("sub", "table.json"), "table"),
+            ]
+
+            # `load-files` joined `..` without looking; a path outside the data directory is now
+            # a failure envelope, not a read.
+            escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
+            @test escaped["valid"] == false
+            @test occursin("outside the data directory", only(escaped["errors"]))
+        end
 
         body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)
         resp = HTTP.post(url * "get-card-ir", body = body)
@@ -563,4 +599,18 @@ mktempdir() do data_dir
     end
 
     close(server)
+
+    # A data directory that does not exist used to make every listing throw: a 500 with an
+    # empty body, logged as 200 (see `LoggingMiddleware`), and an empty picker with no reason.
+    @testset "a missing data directory" begin
+        nowhere_port = first_free_port(8281:8380)
+        nowhere = DashiBoard.launch(
+            joinpath(data_dir, "does-not-exist");
+            port = nowhere_port, async = true, model_directory, training_directory
+        )
+        resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
+        @test resp.status == 200
+        @test JSON.parse(resp.body) == []
+        close(nowhere)
+    end
 end

@@ -14,6 +14,10 @@ using Scratch: @get_scratch!
 
 using JSON: JSON
 
+# TOML is Pipelines' native configuration format, so a cards document written by hand is as
+# likely to be TOML as JSON; the file routes read both (handlers.jl, `parse_document`).
+using TOML: TOML
+
 using DBInterface: DBInterface
 
 using Tables: Tables

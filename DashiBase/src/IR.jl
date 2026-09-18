@@ -33,6 +33,12 @@ end
 
 struct TrivialIR <: AbstractIR end
 
+# `TrivialIR` has no fields, so JSON's struct path does not apply to it and serialisation falls back
+# to `show` — which is defined above as `JSON.json` itself, giving unbounded recursion. Reachable in
+# practice: `ArrayIR{Any}()` resolves its `items` to a `TrivialIR`, so `glm` and `mixed_model` cards
+# both carry one. An unconstrained entry is `{}`, which is what `json_schema` already emits for it.
+StructUtils.lower(::TrivialIR) = StringDict()
+
 @kwarg struct BooleanIR <: AbstractIR
     type::String = "boolean"
     title::Maybe{String} = nothing
@@ -145,11 +151,15 @@ function json_schema(to::TaggedObjectIR)
 end
 
 struct OneOrManyIR{T, IR <: AbstractIR} <: AbstractIR
+    # `type` is not decoration: a renderer dispatches on it and `choose_IR` deserialises on it.
+    # Without it this node arrived as a bare `{array, eltype}` that nothing could identify, while
+    # every other node in the vocabulary announced itself.
+    type::String
     array::ArrayIR{T, IR}
     eltype::String
     function OneOrManyIR{T, IR}(array::ArrayIR{T, IR}, eltype::AbstractString) where {T, IR <: AbstractIR}
         eltype == "array" && throw(ArgumentError("`eltype == \"array\"` is not supported"))
-        return new{T, IR}(array, eltype)
+        return new{T, IR}("one_or_many", array, eltype)
     end
 end
 

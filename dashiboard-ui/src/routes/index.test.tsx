@@ -1,0 +1,586 @@
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
+import { flush, reconcile } from 'solid-js';
+import payload from '../fixtures/card-ir.json';
+import { importCards, emptyCards, exportCards, PROBE_STORE, emptyProbe } from '../stores';
+
+// Solid 2 defers signal updates, so an interaction and an assertion that depends on it cannot
+// share a tick: `flush()` settles the scheduler between them.
+async function selectOption(select: HTMLSelectElement, value: string) {
+  fireEvent.change(select, { target: { value } });
+  await flush();
+}
+
+const postRequest = vi.fn();
+vi.mock('../requests', () => ({
+  postRequest: (...args: unknown[]) => postRequest(...args),
+  getURL: (page: string) => `/${page}`,
+  loadJSON: vi.fn(),
+  downloadJSON: vi.fn(),
+  setApiBase: vi.fn(),
+  apiBase: () => '',
+}));
+
+import Home from './index';
+import { createRouter, memoryHistory } from '@solidjs/router';
+
+/** The page inside a router, at `url`. The real app mounts it the same way through `App`. */
+function renderHome(url = '/') {
+  const TestRouter = createRouter({
+    routes: [{ path: '/', component: Home }],
+    history: memoryHistory(url),
+  });
+  return render(() => <TestRouter />);
+}
+
+const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [] };
+
+/** How many times the probe has been asked. Confirm's first stage must not add to this. */
+const probeCalls = () =>
+  postRequest.mock.calls.filter((call: unknown[]) => call[0] === 'probe-pipeline').length;
+
+beforeEach(() => {
+  sessionStorage.clear();
+  importCards(emptyCards());
+  postRequest.mockReset();
+  postRequest.mockImplementation((page: string) => {
+    if (page === 'get-card-ir') return Promise.resolve(payload);
+    if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+    if (page === 'validate-card') return Promise.resolve({ valid: true, issues: [] });
+    return Promise.resolve([]);
+  });
+  // `PROBE_STORE` is a module-level store, same as `CARDS_STORE` — a prior test's continuous
+  // probe (e.g. one that seeds a `/nodes/0/card` issue) outlives its own `cleanup()`, and since
+  // the dot now reads live probe findings too (Task 7), a stale one here would read as a card this
+  // test never asked about. See the identical reset in `GroupsEditor.test.tsx`/`processing.test.tsx`.
+  PROBE_STORE[1](reconcile(emptyProbe()));
+});
+afterEach(cleanup);
+
+const sectionTabs = (c: HTMLElement) =>
+  [...c.querySelectorAll('[data-tabs="sections"] [role=tab]')] as HTMLButtonElement[];
+const onScreen = (c: HTMLElement) =>
+  [...c.querySelectorAll('section[data-section]')]
+    .filter((s) => !s.hasAttribute('hidden'))
+    .map((s) => s.getAttribute('data-section'));
+/** Bring a page section on screen, the way a reader would. */
+async function openTab(c: HTMLElement, name: string) {
+  fireEvent.click(sectionTabs(c).find((t) => t.textContent === name)!);
+  await flush();
+}
+
+describe('the page is a set of tabs', () => {
+  it('shows one section at a time, and switches on click', async () => {
+    const { container } = renderHome();
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(sectionTabs(container).map((t) => t.textContent)).toEqual([
+      'Load', 'Filter', 'Process', 'The document',
+    ]);
+    expect(onScreen(container)).toEqual(['Load']);
+
+    await openTab(container, 'Process');
+    expect(onScreen(container)).toEqual(['Process']);
+  });
+
+  it('keeps the sections mounted, so switching away does not discard their state', async () => {
+    // Load sets up choices.js and Process fetches the card IR; remounting on every switch would
+    // refetch and drop each picker's open tab. The stores survive either way — the local state
+    // is what does not.
+    const { container } = renderHome();
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    const before = postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir').length;
+    await openTab(container, 'Filter');
+    await openTab(container, 'Process');
+    expect(postRequest.mock.calls.filter((c) => c[0] === 'get-card-ir')).toHaveLength(before);
+  });
+
+  it('takes the open section from the URL, and writes it back', async () => {
+    // The tab was a local signal: a reload, a shared link or the browser's back button all lost
+    // it. It is now `?tab=`, so all three work, and the URL says what is on screen.
+    const { container } = renderHome('/?tab=process');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Process']);
+
+    await openTab(container, 'Filter');
+    expect(onScreen(container)).toEqual(['Filter']);
+    expect(window.location.search).toBe('');            // memory history: the DOM URL is untouched
+    // the router's own location is what moved
+    const active = sectionTabs(container).find((t) => t.getAttribute('aria-selected') === 'true');
+    expect(active?.textContent).toBe('Filter');
+  });
+
+  it('opens on Load when the URL says nothing', async () => {
+    const { container } = renderHome('/');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Load']);
+  });
+
+  it('falls back to Load when the URL names a section that does not exist', async () => {
+    const { container } = renderHome('/?tab=nope');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(onScreen(container)).toEqual(['Load']);
+    const active = sectionTabs(container).find((t) => t.getAttribute('aria-selected') === 'true');
+    expect(active?.textContent).toBe('Load');
+  });
+
+  it('shows results beside the authoring tabs, not behind one', async () => {
+    // The old frontend had two panes: what you are building on the left, what it produced on
+    // the right. Folding results into a fourth tab meant the thing you ran was hidden by the
+    // thing you were editing.
+    const { container } = renderHome('/?tab=process');
+    await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
+    expect(container.querySelector('[data-pane="results"]')).not.toBeNull();
+    expect(container.querySelector('[data-pane="results"]')!.textContent).toMatch(/run pipeline/i);
+    expect(onScreen(container)).toEqual(['Process']);      // left pane unaffected
+  });
+});
+
+describe('the authoring page', () => {
+  it('offers every card type the server describes', async () => {
+    const { container, getByLabelText } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    expect(picker.options).toHaveLength(10);
+    expect([...picker.options].map((o) => o.value)).toContain('split');
+  });
+
+  it('adds a card and shows it in the authored document', async () => {
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+    expect(exportCards().nodes[0].card.type).toBe('rescale');
+
+    await openTab(container, 'The document');
+    const pane = await findByTestId('document');
+    await waitFor(() => expect(pane.textContent).toContain('rescale'));
+    // the pane shows the wire document: filters from one store, nodes/groups from the other
+    expect(Object.keys(JSON.parse(pane.textContent ?? '{}')).sort())
+      .toEqual(['filters', 'groups', 'nodes']);
+  });
+
+  it('runs the pipeline with the group dialect the server now takes', async () => {
+    const posted: Record<string, unknown>[] = [];
+    postRequest.mockImplementation((page: string, body: Record<string, unknown>) => {
+      posted.push({ page, body });
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'evaluate-pipeline') {
+        return Promise.resolve({ graph: 'digraph {a}', report: [{ node: 'split' }] });
+      }
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+      return Promise.resolve([]);
+    });
+
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'split');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    fireEvent.click(getByText(/run pipeline/i));
+    const report = await findByTestId('report');
+    await waitFor(() => expect(report.textContent).toContain('split'));
+
+    const run = posted.find((p) => p.page === 'evaluate-pipeline');
+    expect(run).toBeDefined();
+    // {filters, nodes, groups} -- not the retired {filters, cards}
+    expect(Object.keys(run!.body as object).sort()).toEqual(['filters', 'groups', 'nodes']);
+  });
+
+  it('shows the reader exactly what the run will post, not a second assembly of it', async () => {
+    // "The document" pane exists to answer "what am I about to send". Built separately from what
+    // is sent, it could be wrong in precisely that situation — so both go through `wireDocument`
+    // and this is the assertion that keeps them there.
+    const posted: Record<string, unknown>[] = [];
+    postRequest.mockImplementation((page: string, body: Record<string, unknown>) => {
+      posted.push({ page, body });
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'evaluate-pipeline') return Promise.resolve({ graph: 'digraph {a}', report: [] });
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+      return Promise.resolve([]);
+    });
+
+    const { container, getByLabelText, getByText, findByTestId } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    fireEvent.click(getByText(/run pipeline/i));
+    await waitFor(() => expect(posted.some((p) => p.page === 'evaluate-pipeline')).toBe(true));
+    const sent = posted.find((p) => p.page === 'evaluate-pipeline')!.body;
+
+    await openTab(container, 'The document');
+    const pane = await findByTestId('document');
+    // Through JSON both ways: the posted body holds store proxies, and the wire only ever carries
+    // what survives serialisation anyway.
+    expect(JSON.parse(pane.textContent ?? '{}')).toEqual(JSON.parse(JSON.stringify(sent)));
+  });
+
+  it('surfaces references nothing produces, from the probe route', async () => {
+    // A10: `through` names a column by concatenating suffixes and validation only checks the
+    // base column, so an unproduced chain is accepted and fails late inside a task. The probe is
+    // what turns that into something a form can show.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: false,
+          cols: ['TEMP'],
+          errors: [],
+          // one entry per card in the document: the component indexes them by card position
+          nodes: [{ id: 'bad', inputs: ['TEMP_a_a'], outputs: [], unproduced: ['TEMP_a_a'] }],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { getByLabelText, getByText, container } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+
+    // The resolved names render live; the finding itself waits for the author to ask.
+    await waitFor(() => expect(container.textContent).toContain('TEMP_a_a'));
+    expect(container.textContent).not.toMatch(/nothing produces/i);
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(container.textContent).toMatch(/nothing produces TEMP_a_a/i));
+    expect(container.querySelector('[data-state="rejected"]')).not.toBeNull();
+  });
+
+  it('puts a schema failure on the card it addresses, with what would have been accepted', async () => {
+    // A7. The pointer is what makes this possible: without it the only honest place for a
+    // validation failure is a banner above the whole page, which says nothing about where to fix.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: false,
+          cols: ['TEMP'],
+          errors: ['Schema Validation Error for card in node 1'],
+          nodes: [],
+          issues: [
+            {
+              pointer: '/nodes/0/card/inputs/2/cols',
+              reason: 'enum',
+              found: 'NOSUCHCOLUMN',
+              allowed: ['No', 'TEMP', 'PRES'],
+              missing: [],
+              related: [],
+              message: 'Schema Validation Error',
+            },
+          ],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { getByLabelText, getByText, container } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+
+    // Shown once the author asks (Confirm) — the probe's errors do not paint a card by themselves.
+    await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
+    fireEvent.click(getByText('Confirm'));
+    // The field, counted the way a person counts: the pointer's `/2` is the 3rd input.
+    // Asserted on the element rather than as a substring of the page — `toContain` here also
+    // passes for `card → inputs → 3 → cols`, so it fails to pin where the path starts.
+    await waitFor(() =>
+      expect([...container.querySelectorAll("span.font-mono")].map((e) => e.textContent))
+        .toContain('inputs → 3 → cols'),
+    );
+    expect(container.textContent).toContain('"NOSUCHCOLUMN" is not one of');
+    expect(container.textContent).toContain('No, TEMP, PRES');
+  });
+
+  it('does not offer a card its own name, as an input or as a pass-through step', async () => {
+    // A card naming itself is a cycle, and the server rejects the whole document for it. The
+    // fixture's node vocabulary is ["rescale", "split"], and a rescale card is auto-named
+    // "rescale" — so this is exactly the case the screen was getting wrong.
+    const { getByLabelText, getByText, container } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    const nodeTabs = [...container.querySelectorAll('[role=tab][data-tab="nodes"]')];
+    expect(nodeTabs.length).toBeGreaterThan(0);
+    for (const tab of nodeTabs) {
+      fireEvent.click(tab);
+    }
+    await flush();
+
+    const offered = [...container.querySelectorAll('[data-value]')]
+      .map((e) => e.getAttribute('data-value'));
+    expect(offered).toContain('split');
+    expect(offered).not.toContain('rescale');
+
+    // The same vocabulary feeds the pass-through composer, so it must be narrowed there too.
+    // The composer opens per value, so one has to be opened to see what it offers.
+    const row = container.querySelector('[data-value="split"]')!;
+    fireEvent.click(row.querySelector('[role=switch]')!);
+    await flush();
+    fireEvent.click(container.querySelector('[data-value="split"] [data-specify="through"]')!);
+    await flush();
+    const builder = container.querySelector('[data-value="split"] [data-chain-builder]')!;
+    const names = [...builder.querySelectorAll('button')].map((b) => b.textContent);
+    expect(names).toContain('split');
+    expect(names).not.toContain('rescale');
+  });
+
+  it('folds a card to one line naming its type and the id others refer to it by', async () => {
+    const { container, getByLabelText, getByText } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    const card = [...container.querySelectorAll('details')].find((d) =>
+      d.querySelector('summary')?.textContent?.includes('rescale'),
+    ) as HTMLDetailsElement;
+    expect(card).toBeDefined();
+    expect(card.open).toBe(false);
+    // type, then the name the rest of the document refers to it by
+    expect(card.querySelector('summary')!.textContent).toContain('rescale');
+  });
+
+  it('gives a new card the defaults its IR declares, not just a type', async () => {
+    // The form displayed `suffix: rescaled` either way; the document did not carry it, so what
+    // was on screen and what a download produced disagreed. `method` stays absent: it is required
+    // and the IR names no default option, so it is the author's to answer.
+    const { container, getByLabelText, getByText } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+    const card = exportCards().nodes[0].card;
+    expect(card.type).toBe('rescale');
+    expect(card.suffix).toBe('rescaled');
+    expect(card.method).toBeUndefined();
+  });
+
+  it('asks the card\'s own validator, not the whole document', async () => {
+    // The consolidation of 2026-09-14. There was a walk in the UI that re-implemented `required`
+    // and `minItems`; measured, it found exactly what the card's schema already reports. So the
+    // question goes to Pipelines — for this card alone, which is why it is not the probe.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+      if (page === 'validate-card') {
+        return Promise.resolve({
+          valid: false,
+          issues: [{
+            pointer: '/nodes/0/card', reason: 'required', found: null, allowed: null,
+            missing: ['method', 'inputs'],
+            related: ['/nodes/0/card/method', '/nodes/0/card/inputs'],
+            message: 'Schema Validation Error',
+          }],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { container, getByLabelText, getByText } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'cluster');
+    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+
+    const probesBefore = probeCalls();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="rejected"]')).not.toBeNull(),
+    );
+
+    // One finding per absent field, each placed on its own control — the server's `related`
+    // pointers, not a sentence listing them.
+    const findings = [...container.querySelectorAll('[data-finding]')].map((e) => e.textContent);
+    expect(findings).toHaveLength(2);
+    expect(findings[0]).toContain('method');
+    expect(findings[1]).toContain('inputs');
+
+    // And the document was never resolved: a card that does not build has nothing to say about
+    // the graph, so there is nothing to ask it.
+    expect(probeCalls()).toBe(probesBefore);
+    const asked = postRequest.mock.calls.find((c: unknown[]) => c[0] === 'validate-card');
+    expect(asked).toBeDefined();
+    expect(Object.keys(asked![1] as object).sort())
+      .toEqual(['base', 'card', 'cols', 'groups', 'nodes']);
+  });
+
+  it('asks the server once the card itself is answered, and reports what only it can see', async () => {
+    // The other half. Nothing about this card is unfilled, so the UI has no more to say — and an
+    // unproduced reference is invisible without the rest of the graph, which is the probe's.
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: true,
+          cols: ['TEMP'],
+          errors: [],
+          nodes: [{ id: 'c', inputs: [], outputs: [], unproduced: ['zscored_TEMP'] }],
+          issues: [],
+        });
+      }
+      return Promise.resolve([]);
+    });
+    importCards({
+      nodes: [
+        {
+          id: 'c',
+          card: {
+            type: 'cluster',
+            method: { type: 'dbscan', radius: 0.5, dissimilarity: { type: 'euclidean' } },
+            inputs: [{ cols: 'zscored_TEMP' }],
+            output: 'cluster',
+          },
+        },
+      ],
+      groups: {},
+    });
+
+    const { container, getByText } = renderHome();
+    await openTab(container, 'Process');
+    await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
+
+    const probesBefore = probeCalls();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(probeCalls()).toBeGreaterThan(probesBefore));
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="rejected"]')).not.toBeNull(),
+    );
+    expect(container.textContent).toMatch(/nothing produces zscored_TEMP/i);
+  });
+
+  it('confirms a card both halves accept', async () => {
+    importCards({
+      nodes: [
+        {
+          id: 'c',
+          card: {
+            type: 'cluster',
+            method: { type: 'dbscan', radius: 0.5, dissimilarity: { type: 'euclidean' } },
+            inputs: [{ cols: 'TEMP' }],
+            output: 'cluster',
+          },
+        },
+      ],
+      groups: {},
+    });
+    const { container, getByText } = renderHome();
+    await openTab(container, 'Process');
+    await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
+
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() =>
+      expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull(),
+    );
+    expect(container.querySelector('[data-finding]')).toBeNull();
+  });
+
+  it('keeps findings with their card when an earlier one is removed', async () => {
+    postRequest.mockImplementation((page: string, body: Record<string, unknown>) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') return Promise.resolve(CLEAN_PROBE);
+      if (page === 'validate-card') {
+        // Only the cluster card is unfinished, so the two cards are distinguishable by findings.
+        const type = (body.card as { type?: string })?.type;
+        return Promise.resolve(type === 'cluster'
+          ? { valid: false, issues: [{
+              pointer: String(body.base), reason: 'required', found: null, allowed: null,
+              missing: ['method'], related: [`${body.base}/method`], message: 'x',
+            }] }
+          : { valid: true, issues: [] });
+      }
+      return Promise.resolve([]);
+    });
+    // Findings are keyed by position, so a splice would slide the second card's answer onto the
+    // first. A precise field pointer on the wrong card is worse than no pointer at all.
+    const { container, getByLabelText, getByText } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await selectOption(picker, 'cluster');
+    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(2));
+
+    // Confirm the *second* card only, so the two cards are distinguishable by their findings.
+    const cardOf = (type: string) =>
+      [...container.querySelectorAll('details')].find((d) =>
+        d.querySelector('summary')?.textContent?.includes(type),
+      )!;
+    fireEvent.click([...cardOf('cluster').querySelectorAll('summary button')][0]);
+    await waitFor(() =>
+      expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0),
+    );
+    expect(cardOf('rescale').querySelectorAll('[data-finding]')).toHaveLength(0);
+
+    // Remove the first card. The cluster card slides from index 1 to index 0.
+    fireEvent.click([...cardOf('rescale').querySelectorAll('summary button')][1]);
+    await flush();
+    await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
+    expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0);
+  });
+
+  it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
+    // Order matters: the destructive control should not be the first one reached.
+    const { container, getByLabelText, getByText } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    await flush();
+
+    const card = [...container.querySelectorAll('details')].find((d) =>
+      d.querySelector('summary')?.textContent?.includes('rescale'),
+    )!;
+    const actions = [...card.querySelectorAll('summary button')].map((b) => b.textContent);
+    expect(actions).toEqual(['Confirm', 'Remove']);
+  });
+
+  it('shows what a chain resolved to, rather than making the UI compute it', async () => {
+    postRequest.mockImplementation((page: string) => {
+      if (page === 'get-card-ir') return Promise.resolve(payload);
+      if (page === 'probe-pipeline') {
+        return Promise.resolve({
+          valid: true, cols: ['TEMP'], errors: [],
+          nodes: [{ id: 'r', inputs: ['TEMP_rescaled'], outputs: ['TEMP_a'], unproduced: [] }],
+        });
+      }
+      return Promise.resolve([]);
+    });
+    const { getByLabelText, getByText, container } = renderHome();
+    await openTab(container, 'Process');
+    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
+    await selectOption(picker, 'rescale');
+    fireEvent.click(getByText(/add card/i));
+    // the resolved name comes from Julia; nothing here reimplements suffix concatenation
+    await waitFor(() => expect(container.textContent).toContain('TEMP_rescaled'));
+  });
+
+  it('asks for the IR with the vocabularies the document defines', async () => {
+    const { container, getByLabelText } = renderHome();
+    await openTab(container, 'Process');
+    await waitFor(() => getByLabelText(/card type/i));
+    const ask = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir');
+    expect(ask).toBeDefined();
+    // the group dialect needs all three, since which nodes and groups are referenceable
+    // depends on the document being edited, not only on the source; `include` says which
+    // halves of the IR this call wants (both, on the first request of a session)
+    expect(Object.keys(ask![1] as object).sort()).toEqual(['cols', 'groups', 'include', 'nodes']);
+  });
+});

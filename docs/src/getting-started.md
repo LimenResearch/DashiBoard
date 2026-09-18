@@ -28,7 +28,7 @@ to DashiBoard.
 
 ## Launching the frontend
 
-Open a terminal in the `frontend` folder.
+Open a terminal in the `dashiboard-ui` folder.
 
 Install all required dependencies with the following command:
 
@@ -43,3 +43,6 @@ pnpm run start
 ```
 
 To interact with the UI, open your browser and navigate to the page [http://localhost:3000](http://localhost:3000).
+
+The dev server proxies the Julia API, so the page and the API share an origin exactly as they will
+when the bundle is served alongside the server.

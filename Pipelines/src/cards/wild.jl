@@ -121,29 +121,3 @@ function WildCardIR(settings::Any)
 
     return ObjectIR(; properties)
 end
-
-## UI representation
-
-function CardWidget(
-        ::Type{WildCard{T}}, key::AbstractString;
-        global_options::AbstractDict, user_options::AbstractDict
-    ) where {T}
-
-    c = combine_options(StringDict(); global_options, user_options)
-
-    spec = get_spec(key)
-    settings = spec.settings
-    conditional_fields = Tuple{Widget, Bool}[
-        (Widget("order_by", c), settings.needs_order),
-        (Widget("inputs", c), true),
-        (Widget("targets", c), settings.needs_targets),
-        (Widget("weights", c), settings.allows_weights),
-        (Widget("partition", c), settings.allows_partition),
-        (Widget("outputs", c), !settings.needs_targets),
-        (Widget("suffix", c), settings.needs_targets),
-    ]
-
-    fields = map(first, filter(last, conditional_fields))
-    output = settings.needs_targets ? OutputSpec("targets", "suffix") : OutputSpec("outputs")
-    return CardWidget(key, get_label(spec), fields, output)
-end

@@ -1,6 +1,6 @@
 @testset "groups" begin
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
-    g, nds, grps, cols = Pipelines.dependency_graph(d["nodes"], d["groups"])
+    g, nds, (grp_names, grps), cols = Pipelines.dependency_graph(d["nodes"], d["groups"])
     es = sort(collect(edges(g)))
 
     node_idxs = Dict(
@@ -98,7 +98,7 @@ end
     ]
 
     nodes = d["nodes"]
-    groups = Dict("weather" => ["colname"])
+    groups = Dict("weather" => [Dict("col" => "colname")])
     @test_throws(
         r"Schema Validation Error for group weather(.)*oneOf"s,
         Pipelines.Pipeline(nodes, groups, validate_schema = true)
@@ -167,4 +167,370 @@ end
             "PRES_rescaled", "TEMP_rescaled", "No_rescaled", "component_1", "component_2",
         ]
     )
+end
+
+@testset "graphviz for GroupDiGraph" begin
+    # A4: `graphviz` dispatched on the concrete `EnrichedDiGraph`, so a group-API pipeline raised
+    # a MethodError. Widening the signature would have been worse than the error: a
+    # `GroupDiGraph`'s vertices are the nodes followed by the *groups*, with no variable vertices
+    # at all, so the variable labels would have been attached to group vertices silently.
+    d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    p = Pipelines.Pipeline(d["nodes"], d["groups"])
+    dot = sprint(Pipelines.graphviz, p)
+
+    @test startswith(dot, "digraph G{")
+    # one labelled vertex per node, plus one per group — and nothing else
+    @test count("[label = ", dot) == length(d["nodes"]) + length(d["groups"])
+    # the group appears by name rather than by its resolved columns
+    @test occursin("\"weather\"", dot)
+    @test !occursin("PRES_rescaled", dot)
+    # every edge references a vertex that exists
+    for m in eachmatch(r"\"(\d+)\"", dot)
+        @test parse(Int, m.captures[1]) <= length(d["nodes"]) + length(d["groups"])
+    end
+end
+
+@testset "group ir_definitions and schema_definitions agree" begin
+    vc = Pipelines.VariableConfig(nodes = ["log"], groups = ["weather"], cols = ["No", "TEMP"])
+    irs = Pipelines.ir_definitions(vc)
+    schemas = Pipelines.schema_definitions(vc)
+
+    @test sort(collect(keys(irs))) == sort(collect(keys(schemas)))
+    for (k, v) in pairs(irs)
+        @test Pipelines.json_schema(v) == schemas[k]
+    end
+
+    # the group dialect's `variable` is a selector object, not the flat dialect's string enum
+    @test irs["variable"].type == "object"
+    @test irs["col"].enum == ["No", "TEMP"]
+    @test irs["node"].enum == ["log"]
+    # and its one-or-many fields are now identifiable by a renderer
+    nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
+    @test nodes_entry.value.type == "one_or_many"
+end
+
+# The specification of what the variable picker (C2) must be able to express. Each case below was
+# established by running it, not by reading the schema, and the ones that look redundant are the
+# ones a simplification would quietly break — see `06-design.md`, "C2 in detail".
+@testset "selector cases the picker must express" begin
+    base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    cols = ["No", "PRES", "TEMP", "cbwd"]
+
+    # Resolve node `pca`'s inputs for a given selector list.
+    function resolve(inputs)
+        d = deepcopy(base)
+        d["nodes"][3]["card"]["inputs"] = inputs
+        return Pipelines.Pipeline(d["nodes"], d["groups"], cols).nodes[3].card.inputs
+    end
+    rejects(inputs) = (@test_throws Pipelines.SchemaValidationErrors resolve(inputs))
+
+    # A ≡ B: one item with two values and two items with one value each are indistinguishable.
+    # So the item boundary carries no meaning *until* a `through` differs.
+    @test resolve([Dict("cols" => ["PRES", "TEMP"])]) == ["PRES", "TEMP"]
+    @test resolve([Dict("cols" => "PRES"), Dict("cols" => "TEMP")]) == ["PRES", "TEMP"]
+
+    # C: same kind, different `through`. This is why `through` cannot be a field-level property.
+    @test resolve(
+        [
+            Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "TEMP"),
+        ]
+    ) == ["PRES_rescaled", "TEMP"]
+
+    # D: one item, several values, a shared `through`.
+    @test resolve([Dict("cols" => ["PRES", "TEMP"], "through" => ["rescale"])]) ==
+        ["PRES_rescaled", "TEMP_rescaled"]
+
+    # E: the same column twice, once passed through and once raw — both survive. Any UI modelling
+    # a field as "a set of columns with attributes" cannot express this: there is nowhere to put
+    # the second PRES.
+    @test resolve(
+        [
+            Dict("cols" => "PRES", "through" => ["rescale"]), Dict("cols" => "PRES"),
+        ]
+    ) == ["PRES_rescaled", "PRES"]
+
+    # F/G: the `oneOf` gate. Two kinds in one item, or none, are refused — so A7's
+    # "unrepresentably wrong" is already enforced server-side; the UI doing it is defence in depth.
+    rejects([Dict("cols" => "PRES", "groups" => "weather")])
+    rejects([Dict{String, Any}()])
+
+    # Order is preserved and meaningful, across kinds and within one. Until section 12 designs the
+    # positional `weights` rule out, a UI that concatenates by kind silently changes the result.
+    @test resolve([Dict("nodes" => "log"), Dict("groups" => "weather", "through" => ["rescale"])]) ==
+        ["No_log", "PRES_rescaled", "TEMP_rescaled"]
+    @test resolve([Dict("groups" => "weather", "through" => ["rescale"]), Dict("nodes" => "log")]) ==
+        ["PRES_rescaled", "TEMP_rescaled", "No_log"]
+    @test resolve([Dict("cols" => "TEMP"), Dict("cols" => "PRES")]) == ["TEMP", "PRES"]
+
+    # `through` is an ordered *list* of nodes whose suffixes concatenate, not a single node.
+    # So a Through panel keys on an ordered combination: [log, rescale] ≠ [rescale, log].
+    @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
+    @test resolve([Dict("cols" => "PRES", "through" => ["log", "rescale"])]) == ["PRES_log_rescaled"]
+
+    # THE GAP, pinned deliberately. `through` builds a column *name* by concatenating suffixes;
+    # validation checks only that the base column exists in the source. Nothing produces
+    # `PRES_rescaled_log` — `log` consumes `No` and emits `No_log` — yet this is accepted here and
+    # fails later inside a task, naming neither the column nor the node. If someone adds that
+    # check, this test should start failing and be updated rather than deleted.
+    @test resolve([Dict("cols" => "PRES", "through" => ["rescale", "log"])]) == ["PRES_rescaled_log"]
+
+    # What *is* caught: a `through` naming the consuming node makes the dependency graph cyclic.
+    @test_throws ErrorException resolve([Dict("cols" => "PRES", "through" => ["rescale", "pca"])])
+
+    # An empty `through` resolves identically to an absent one, so "Direct" is just a Through
+    # section with an empty chain — one component, not two.
+    @test resolve([Dict("cols" => "PRES", "through" => String[])]) ==
+        resolve([Dict("cols" => "PRES")])
+end
+
+@testset "unproduced references" begin
+    base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    available = ["No", "PRES", "TEMP", "cbwd"]
+
+    function issues(inputs)
+        d = deepcopy(base)
+        d["nodes"][3]["card"]["inputs"] = inputs
+        p = Pipelines.Pipeline(d["nodes"], d["groups"], available)
+        return Pipelines.unproduced_references(p, available)
+    end
+
+    # A chain that names something a node actually emits.
+    @test isempty(issues([Dict("cols" => "PRES", "through" => ["rescale"])]))
+
+    # A chain that names a column nothing emits: `log` consumes `No` and emits only `No_log`, so
+    # `PRES_rescaled_log` exists nowhere. Validation accepts it; this is what catches it.
+    found = issues([Dict("cols" => "PRES", "through" => ["rescale", "log"])])
+    @test length(found) == 1
+    node_idx, missing_cols = only(found)
+    @test node_idx == 3                       # the `pca` node
+    @test missing_cols == ["PRES_rescaled_log"]
+
+    # The untouched fixture is clean, so this does not fire on well-formed documents.
+    p = Pipelines.Pipeline(base["nodes"], base["groups"], available)
+    @test isempty(Pipelines.unproduced_references(p, available))
+end
+
+# A schema failure comes back as data a form can act on, not prose it can only print.
+#
+# Every expectation below was measured against JSONSchema.jl rather than read off its source, and
+# two of them contradict what `06-design.md` recorded before the fixtures were run:
+#
+#   * `SingleIssue.path` indexes arrays the Julia way. The third element reports `[inputs][3]`,
+#     so a JSON Pointer must subtract one — otherwise the form highlights the wrong row.
+#   * a `required` failure carries *every* required name in `val`, not the missing one, and
+#     reports at the parent path. The missing name is `val` minus the keys actually present.
+@testset "every failing card is reported, not only the first" begin
+    cols = ["No", "TEMP", "PRES"]
+    bare(type) = Dict{String, Any}("type" => type)
+    nodes = [
+        Dict{String, Any}("id" => "a", "card" => bare("cluster")),
+        Dict{String, Any}("id" => "b", "card" => bare("rescale")),
+    ]
+
+    err = try
+        Pipelines.Pipeline(nodes, Dict{String, Any}(), cols)
+        nothing
+    catch exception
+        exception
+    end
+    @test err isa Pipelines.SchemaValidationErrors
+
+    reports = Pipelines.issue_report(err)
+    @test length(reports) == 2
+    @test [r.pointer for r in reports] == ["/nodes/0/card", "/nodes/1/card"]
+    # Each still carries everything a single failure did: which names are absent, and a pointer
+    # per name so a form can address the control rather than the card.
+    @test reports[1].missing == ["method", "inputs"]
+    @test reports[1].related == ["/nodes/0/card/method", "/nodes/0/card/inputs"]
+    @test reports[2].missing == ["method", "inputs"]
+
+    # Groups are collected alongside cards rather than short-circuiting them: a bad group used to
+    # throw before any card was looked at, so one mistake hid every other.
+    bad_groups = Dict{String, Any}("g" => "not a list of selectors")
+    err = try
+        Pipelines.Pipeline(nodes, bad_groups, cols)
+        nothing
+    catch exception
+        exception
+    end
+    reports = Pipelines.issue_report(err)
+    @test length(reports) == 3
+    @test first(reports).pointer == "/groups/g"
+
+    # One failure is still one report — the plural type is the only shape, so a caller reads one.
+    err = try
+        Pipelines.Pipeline(nodes[1:1], Dict{String, Any}(), cols)
+        nothing
+    catch exception
+        exception
+    end
+    @test err isa Pipelines.SchemaValidationErrors
+    @test length(Pipelines.issue_report(err)) == 1
+
+    # `showerror` says how many, then each of them, so a client with no structured path still
+    # learns there was more than one thing wrong.
+    text = sprint(showerror, err)
+    @test occursin("Schema Validation Error", text)
+end
+
+@testset "card_issues: one card, checked on its own" begin
+    vc = Pipelines.VariableConfig(cols = ["No", "TEMP"], groups = ["weather"], nodes = ["r"])
+
+    # A card that is fine says nothing.
+    good = Dict{String, Any}(
+        "type" => "rescale", "method" => Dict("type" => "zscore"),
+        "inputs" => [Dict("cols" => "TEMP")],
+    )
+    @test isempty(Pipelines.card_issues(good, vc))
+
+    # A bare card reports what is absent, and — this is the point of using it instead of a whole
+    # document probe — a pointer per absent name, so a form can address each control.
+    reports = Pipelines.card_issues(Dict{String, Any}("type" => "cluster"), vc)
+    r = only(reports)
+    @test r.reason == "required"
+    @test r.missing == ["method", "inputs"]
+    @test r.related == ["/method", "/inputs"]
+
+    # Rooted wherever the caller says, so the pointers come back document-relative and a client
+    # reads them exactly as it reads the probe's.
+    r = only(Pipelines.card_issues(Dict{String, Any}("type" => "cluster"), vc; base = "/nodes/2/card"))
+    @test r.pointer == "/nodes/2/card"
+    @test r.related == ["/nodes/2/card/method", "/nodes/2/card/inputs"]
+
+    # The vocabulary is the caller's, so a column that does not exist is caught here too.
+    r = only(
+        Pipelines.card_issues(
+            Dict{String, Any}(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("cols" => "NOSUCH")],
+            ), vc
+        )
+    )
+    @test r.reason == "enum"
+    @test "TEMP" in r.allowed
+
+    # It validates one card and nothing else: a reference to a node that is not in the vocabulary
+    # is a schema failure, but whether that node *produces* what is asked of it is a question about
+    # the graph, and this call cannot see one.
+    @test isempty(
+        Pipelines.card_issues(
+            Dict{String, Any}(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("nodes" => "r", "through" => ["r", "r"])],
+            ), vc
+        )
+    )
+end
+
+@testset "a validation failure as data" begin
+    cols = ["No", "TEMP", "PRES"]
+    groups = Dict{String, Any}("weather" => [Dict("cols" => ["PRES", "TEMP"])])
+    node(card) = [Dict{String, Any}("id" => "r", "card" => card)]
+
+    function report(card; grps = groups)
+        err = try
+            Pipelines.Pipeline(node(card), grps, cols)
+            nothing
+        catch exception
+            exception
+        end
+        @test err isa Pipelines.SchemaValidationErrors
+        return only(Pipelines.issue_report(err))
+    end
+
+    rescale(; kw...) = merge(
+        Dict{String, Any}(
+            "type" => "rescale", "method" => Dict("type" => "zscore"),
+            "inputs" => [Dict("cols" => "TEMP")],
+        ),
+        Dict{String, Any}(string(k) => v for (k, v) in pairs(kw)),
+    )
+
+    # An unknown variant names the variants that exist — the difference between a form that can
+    # offer a correction and one that can only say no.
+    bad_variant = report(rescale(method = Dict("type" => "nonesuch")))
+    @test bad_variant.pointer == "/nodes/0/card/method/type"
+    @test bad_variant.reason == "enum"
+    @test bad_variant.found == "nonesuch"
+    @test "zscore" in bad_variant.allowed
+
+    # The pointer addresses the *document*, not the card: the UI holds the whole document, and a
+    # card-local pointer would be ambiguous the moment there are two cards.
+    deep = report(
+        Dict{String, Any}(
+            "type" => "cluster", "inputs" => [Dict("cols" => "TEMP")],
+            "method" => Dict(
+                "type" => "dbscan", "radius" => 0.5,
+                "dissimilarity" => Dict("type" => "minkowski", "p" => -5),
+            ),
+        )
+    )
+    @test deep.pointer == "/nodes/0/card/method/dissimilarity/p"
+    @test deep.reason == "minimum"
+
+    # The index conversion, on the case that tells 0-based from 1-based. Julia says [inputs][3].
+    third = report(
+        rescale(
+            inputs = [
+                Dict("cols" => "No"), Dict("cols" => "TEMP"), Dict("cols" => "NOPE"),
+            ]
+        )
+    )
+    @test third.pointer == "/nodes/0/card/inputs/2/cols"
+    @test third.allowed == cols
+
+    # `required` reports at the parent, so the pointer alone does not identify the control. The
+    # missing name has to be recovered, and `related` addresses the control that is absent.
+    missing_method = report(
+        Dict{String, Any}(
+            "type" => "rescale", "inputs" => [Dict("cols" => "TEMP")],
+        )
+    )
+    @test missing_method.pointer == "/nodes/0/card"
+    @test missing_method.reason == "required"
+    @test missing_method.missing == ["method"]
+    @test missing_method.related == ["/nodes/0/card/method"]
+
+    # A group is addressed by name, not position: `groups` is an object in the document.
+    bad_group = report(rescale(); grps = Dict{String, Any}("weather" => [Dict("cols" => "NOPE")]))
+    @test bad_group.pointer == "/groups/weather/0/cols"
+    @test bad_group.reason == "enum"
+
+    # The prose survives alongside the data, for anything that only knows how to print.
+    @test occursin("enum", bad_variant.message) || !isempty(bad_variant.message)
+end
+
+# A defaulted *variant* field must carry its default into the IR.
+#
+# `DBSCANMethod` declares `dissimilarity::D = EuclideanMethod()`, so a form rendering that card has
+# everything it needs to fill the field in — but only if the IR says which option the default is.
+# It did not: `@options`' `IR_from_type` compared the default *instance* against a Dict whose
+# values are *types*, so `findfirst(==(_default), methods)` never matched and `default_option` came
+# out `nothing`. Nothing downstream could tell "no default" from "a default we failed to name".
+@testset "a defaulted variant names its default option" begin
+    ir = Pipelines.card_ir("cluster")
+    method = only(p for p in ir.properties if p.key == "method").value
+    dbscan = method.objects["dbscan"]
+    dissimilarity = only(p for p in dbscan.properties if p.key == "dissimilarity").value
+
+    @test dissimilarity.default_option == "euclidean"
+    # and the option it names is one the field actually offers
+    @test dissimilarity.default_option in dissimilarity.options
+
+    # kmeans defaults to squared euclidean, which is a different branch of the same vocabulary —
+    # so this is the default of the *field*, not of the type.
+    kmeans = method.objects["kmeans"]
+    kdiss = only(p for p in kmeans.properties if p.key == "dissimilarity").value
+    @test kdiss.default_option == "sqeuclidean"
+
+    # A field with no declared default still says so, rather than inventing one.
+    @test method.default_option === nothing
+end
+
+@testset "a document with no cards" begin
+    # A filter-only run — filter the source, run, look — and the probe of a document whose last
+    # card was just removed both build a `Pipeline` with zero nodes. Measured 2026-09-16: the
+    # `reduce(vcat, ...)` over zero node outputs threw "reducing over an empty collection".
+    p = Pipelines.Pipeline(Any[], Dict{String, Any}(), ["TEMP", "PRES"])
+    @test Pipelines.get_output_vars(p) == String[]
 end

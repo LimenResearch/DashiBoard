@@ -146,31 +146,3 @@ function evaluate(
     end
     return map(first, converted)
 end
-
-## UI representation
-
-function CardWidget(
-        ::Type{GaussianEncodingCard}, key::AbstractString;
-        global_options::AbstractDict, user_options::AbstractDict
-    )
-
-    config = CardWidgetConfigs(parse_toml_config("config", key))
-    c = combine_options(config.widget_configs; global_options, user_options)
-
-    methods = collect(keys(TEMPORAL_PREPROCESSING_METHODS))
-
-    fields = vcat(
-        [
-            Widget("input", c),
-            Widget("method", c; options = methods),
-            Widget("n_components", c),
-        ],
-        method_dependent_widgets(c, "method", config.methods),
-        [
-            Widget("lambda", c),
-            Widget("suffix", c, value = "gaussian"),
-        ]
-    )
-
-    return CardWidget(key, fields, OutputSpec("input", "suffix", "n_components"))
-end

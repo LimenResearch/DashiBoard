@@ -39,7 +39,12 @@ macro options(T, methods, default = nothing)
             local default_option = if isnothing(_default)
                 $(esc(default))
             elseif isnothing($(esc(default)))
-                findfirst(==(_default), $(esc(methods)))
+                # `methods` maps a name to a *type*; `_default` is an *instance*. `==` between the
+                # two is never true, so this silently produced `nothing` and nothing downstream
+                # could tell "no default" from "a default we failed to name" — a form rendering a
+                # defaulted variant left the field blank and a confirmation step then called it
+                # unfinished.
+                findfirst(T -> _default isa T, $(esc(methods)))
             elseif _default isa $(esc(methods))[$(esc(default))]
                 $(esc(default))
             else

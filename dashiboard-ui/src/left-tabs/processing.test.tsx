@@ -3,7 +3,7 @@ import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
 import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import {
-  importCards, addGroup, setNodeId, setCardField, confirmDefinition, reportRunIssues, exportCards,
+  importCards, addGroup, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
   forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict,
 } from '../stores';
 
@@ -37,7 +37,7 @@ beforeEach(() => {
     groups: { g: [] },
   });
   // `PROBE_STORE` is a module-level store, same as `CARDS_STORE` — `test.isolate: false` shares it
-  // across every file in this run, and a test that seeds it (`reportRunIssues`, or a mocked
+  // across every file in this run, and a test that seeds it (`rejectFromIssues`, or a mocked
   // `probe-pipeline` reply carrying issues) must not leak that into the next test's render. See the
   // identical reset in `GroupsEditor.test.tsx` and `routes/index.test.tsx`.
   PROBE_STORE[1](reconcile(emptyProbe()));
@@ -311,7 +311,7 @@ describe('a card is amber until asked', () => {
     mock(CLEAN_PROBE, { valid: true, issues: [] });
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelector('[data-card-title]')).not.toBeNull());
-    reportRunIssues([BROKEN]);
+    rejectFromIssues([BROKEN]);
     await flush();
     await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('rejected'));
     expect(container.querySelector('[data-finding]')!.textContent).toMatch(/needs a value/);
@@ -321,7 +321,7 @@ describe('a card is amber until asked', () => {
     const issueFor = (severity: 'error' | 'warning') => ({ ...BROKEN, reason: 'overwrites', severity, missing: [], related: [], message: '`TEMP_z` already exists' });
     confirmDefinition('node:0', exportCards().nodes[0]);
     const issue = issueFor('warning');
-    reportRunIssues([issue]);
+    rejectFromIssues([issue]);
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(
         page === 'get-card-ir' ? structuredClone(payload)

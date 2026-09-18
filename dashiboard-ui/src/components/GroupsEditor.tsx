@@ -192,7 +192,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                   </>
                 }
               >
-                {/* What Confirm (or a failed run, through `reportRunIssues`) found on this exact
+                {/* What Confirm (or a failed run, through `rejectFromIssues`) found on this exact
                     content: red, and only while the verdict is a rejection — an edit drops it
                     with the verdict. */}
                 <For each={findings(name)}>

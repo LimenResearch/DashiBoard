@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { flush } from 'solid-js';
+import { flush, reconcile } from 'solid-js';
 import {
   emptyCards, importCards, exportCards, setCard, setCardField, addNode, removeNode, setNodeId,
   issuesForNode, fieldPath, type ProbeIssue,
@@ -472,7 +472,7 @@ describe('verdicts', () => {
     const issue = (over: Partial<ProbeIssue>): ProbeIssue => ({
       pointer: '', reason: 'required', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'x', ...over,
     });
-    s.reportRunIssues([
+    s.rejectFromIssues([
       issue({ pointer: '/nodes/0/card', missing: ['method', 'inputs'], related: ['/nodes/0/card/method', '/nodes/0/card/inputs'] }),
       issue({ pointer: '/groups/g', reason: 'empty', message: 'group `g` has no columns' }),
       issue({ pointer: '/nodes/1/card', reason: 'overwrites', severity: 'warning', message: '`TEMP_z` already exists' }),
@@ -487,7 +487,7 @@ describe('verdicts', () => {
     expect(s.verdictOf('group:g', cards.groups.g)?.findings[0].message).toMatch(/has no columns/);
     expect(s.verdictOf('node:1', cards.nodes[1])).toBeNull(); // a warning is not a rejection
     expect(s.verdictOf('group:h', cards.groups.h)).toBeNull();
-    expect(s.PROBE_STORE[0].valid).toBe(false); // the pointer next to Run still reads the store
+    expect(s.PROBE_STORE[0].valid).toBe(true); // verdicts only: the probe store is not written here
   });
 
   it('a failed run binds to the document that was sent, not to the store as it is later', async () => {
@@ -498,13 +498,71 @@ describe('verdicts', () => {
     const sent = s.exportCards();
     s.setCardField(0, 'output', 'edited');
     await flush(); // the store now differs from what was sent
-    s.reportRunIssues([{
+    s.rejectFromIssues([{
       pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null, allowed: null,
       missing: ['method'], related: ['/nodes/0/card/method'], message: 'x',
     }], sent);
     await flush();
     expect(s.verdictOf('node:0', sent.nodes[0])?.verdict).toBe('rejected');
     expect(s.verdictOf('node:0', s.exportCards().nodes[0])).toBeNull();
+  });
+
+  it('rejectFromIssues records the rejection and leaves the probe store alone', async () => {
+    // The probe store has one writer, the continuous probe, sequenced by `probeSeq`
+    // (`processing.tsx`). A second, unsequenced writer let an older probe reply erase a failed
+    // run's issues — measured 2026-09-17 — and the line next to Run lost the run's names.
+    const s = await import('./stores');
+    s.forgetAllVerdicts();
+    s.importCards({ nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: {} });
+    s.PROBE_STORE[1](reconcile(s.emptyProbe()));
+    s.rejectFromIssues([{
+      pointer: '/nodes/0/card/inputs', reason: 'required', severity: 'error', found: null,
+      allowed: null, missing: ['inputs'], related: ['/nodes/0/card/inputs'], message: 'x',
+    }]);
+    await flush();
+    expect(s.verdictOf('node:0', s.exportCards().nodes[0])?.verdict).toBe('rejected');
+    expect(s.PROBE_STORE[0].valid).toBe(true);
+    expect(s.PROBE_STORE[0].issues).toEqual([]);
+  });
+
+  describe('documentFindings', () => {
+    const pointed = {
+      pointer: '/nodes/0/card/method', reason: 'type', severity: 'error' as const, found: 'zscore',
+      allowed: null, missing: [], related: [], message: 'Schema Validation Error',
+    };
+    it('is the errors when the document does not build and no issue names an item', async () => {
+      // The server's literal reply for two cards named `a` (measured 2026-09-17).
+      const s = await import('./stores');
+      expect(s.documentFindings({
+        valid: false, issues: [], errors: ['ArgumentError: Encountered nodes with equal `id`'],
+      })).toEqual([{ message: 'ArgumentError: Encountered nodes with equal `id`' }]);
+    });
+    it('is empty when every error is pointed at an item', async () => {
+      // A schema failure's `errors` is the issues' own messages run together; those are read on
+      // the items, and confirming an unrelated card must still go green.
+      const s = await import('./stores');
+      expect(s.documentFindings({
+        valid: false, issues: [pointed], errors: ['1 schema validation error:\nSchema Validation Error'],
+      })).toEqual([]);
+    });
+    it('is empty when the document builds', async () => {
+      const s = await import('./stores');
+      expect(s.documentFindings({ valid: true, issues: [], errors: [] })).toEqual([]);
+    });
+    it('carries the message of an issue that points at no item, beside pointed ones', async () => {
+      const s = await import('./stores');
+      expect(s.documentFindings({
+        valid: false,
+        issues: [pointed, { ...pointed, pointer: '', message: 'nothing to run' }],
+        errors: ['x'],
+      })).toEqual([{ message: 'nothing to run' }]);
+    });
+    it('ignores warnings', async () => {
+      const s = await import('./stores');
+      expect(s.documentFindings({
+        valid: true, issues: [{ ...pointed, pointer: '', severity: 'warning' }], errors: [],
+      })).toEqual([]);
+    });
   });
 
   it('a removed group takes its verdict with it; a renamed one keeps it under the new name', async () => {

@@ -6,7 +6,7 @@ const postRequest = vi.fn();
 vi.mock('../requests', () => ({
   postRequest: (...args: unknown[]) => postRequest(...args),
   getURL: (page: string) => `/${page}`,
-  loadJSON: vi.fn(), downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
+  downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
 }));
 
 // FilePicker wraps choices.js, which does not drive in jsdom. The unit under test is Loader's

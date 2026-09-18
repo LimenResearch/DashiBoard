@@ -46,17 +46,6 @@ export function apiBase(): string {
 }
 
 
-export function loadJSON(input: HTMLInputElement, def: any) {
-  const files = input.files ?? new FileList();
-  return files[0]
-    .text()
-    .then(JSON.parse)
-    .catch((_) => {
-      console.log("Could not load file.");
-      return def;
-    });
-}
-
 export function downloadJSON(obj: any, ref: HTMLAnchorElement) {
   const data = JSON.stringify(obj);
   const blob = new Blob([data], { type: "application/json" });

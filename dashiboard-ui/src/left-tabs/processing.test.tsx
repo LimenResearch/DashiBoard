@@ -11,7 +11,7 @@ const postRequest = vi.fn();
 vi.mock('../requests', () => ({
   postRequest: (...args: unknown[]) => postRequest(...args),
   getURL: (page: string) => `/${page}`,
-  loadJSON: vi.fn(), downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
+  downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
 }));
 // Choosing in a Choices.js widget is the picker's own tests' business (`loading.test.tsx` mocks
 // it the same way). `Documents` stays real: the last block here is its integration with the tab.

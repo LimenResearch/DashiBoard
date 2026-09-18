@@ -1,31 +1,12 @@
 import type { Element as JSXElement } from "solid-js";
 
-import { downloadJSON, loadJSON } from "../requests";
+import { downloadJSON } from "../requests";
 import { Button } from "./Button";
 
-// The file input and the anchor are deliberately hidden rather than absent: both need to exist in
-// the document for `.click()` and for a download to work at all.
-
-type UploadProps<T> = {
-  /** Returned when the file cannot be read or parsed, so a bad file is a no-op, not a crash. */
-  def: T;
-  onChange: (value: T) => void;
-  children: JSXElement;
-};
-
-export function UploadJSONButton<T>(props: UploadProps<T>) {
-  let fileInput!: HTMLInputElement;
-  const onChange = () => {
-    void loadJSON(fileInput, props.def).then((value: T) => props.onChange(value));
-  };
-
-  return (
-    <>
-      <Button onClick={() => fileInput.click()}>{props.children}</Button>
-      <input onChange={onChange} type="file" ref={fileInput} class="hidden" />
-    </>
-  );
-}
+// The anchor is deliberately hidden rather than absent: it has to exist in the document for a
+// download to work at all. There is no upload counterpart any more: documents are read by the
+// server from its data directory (`components/Documents.tsx`), not from a local file the browser
+// picks off the whole disk.
 
 type DownloadProps = {
   data: unknown;

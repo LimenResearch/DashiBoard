@@ -3,11 +3,12 @@ import { Store, For, Show, reconcile } from "solid-js";
 
 import { IntervalFilter } from "../filters/IntervalFilter";
 import { ListFilter } from "../filters/ListFilter";
-import { DownloadJSONButton, UploadJSONButton } from "../components/JSON";
+import { Documents } from "../components/Documents";
 import {
   FILTERS_STORE,
   FiltersStore,
   LOADER_STORE,
+  filtersCodec,
   droppedFilters,
   setDroppedFilters,
   type CategoricalSummary,
@@ -78,23 +79,21 @@ export function Filters() {
           <For each={categorical()}>{ListFilter}</For>
         </div>
       </div>
-      <div class="flex gap-2">
-        <DownloadJSONButton data={state} name="filters.json">
-          Download filters
-        </DownloadJSONButton>
-        {/*
-          A Solid 2 store setter takes a *function*, so handing it the parsed object made the
-          upload a silent no-op. `reconcile` replaces the store wholesale rather than merging,
-          which is what "upload these filters" means — a merge would leave filters the file does
-          not mention still applied.
-        */}
-        <UploadJSONButton
-          def={state as FiltersStore}
-          onChange={(value: FiltersStore) => setState(reconcile(value))}
-        >
-          Upload filters
-        </UploadJSONButton>
-      </div>
+      {/*
+        Through the codec both ways. The store holds `Interval`s and `Set`s, which are not JSON:
+        a `Set` stringifies to `{}`, so the file `Download filters` used to write could not be
+        loaded back, and an uploaded file reached the store as plain objects and arrays. Loading
+        replaces the store wholesale (`reconcile`) rather than merging — a merge would leave
+        filters the file does not mention still applied.
+      */}
+      <Documents
+        kind="filters"
+        document={() => filtersCodec.encode(state)}
+        onLoad={(document) => {
+          setState(reconcile(filtersCodec.decode(document)));
+          return [];
+        }}
+      />
     </div>
   );
 }

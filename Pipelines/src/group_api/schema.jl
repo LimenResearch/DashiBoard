@@ -51,10 +51,6 @@ function ir_definitions(variable_config::VariableConfig)
     )
 end
 
-function schema_definitions(variable_config::VariableConfig)
-    return StringDict(k => json_schema(v) for (k, v) in pairs(ir_definitions(variable_config)))
-end
-
 group_schema() = json_schema(VARIABLES_DEF)
 
 function group_schema(variable_config::VariableConfig)

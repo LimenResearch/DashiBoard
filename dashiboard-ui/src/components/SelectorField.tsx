@@ -39,8 +39,18 @@ type SelectorFieldProps = {
   defs: Defs;
   label: string;
   value: unknown;
-  onChange: (items: SelectorItem[]) => void;
-};
+} & (
+  | { single?: false; onChange: (items: SelectorItem[]) => void }
+  /**
+   * One item, not a list: a lone `$defs/variable` field — `partition`, `weights`, `interp.input`.
+   * The server resolves such a field with `only(...)` (`Pipelines/src/group_api/deps.jl`), so it
+   * must come out as exactly one column, and the same picker enforces that by holding one row: a
+   * second pick replaces the first, switching the value off empties the field (`undefined`, which
+   * the export drops — `partition = nothing`). The order strip and the `+` for a second
+   * qualification are list affordances and are not drawn.
+   */
+  | { single: true; onChange: (item: SelectorItem | undefined) => void }
+);
 
 /** Display order. The *set* comes from the schema's `oneOf`; only left-to-right is ours. */
 const KIND_ORDER = ["cols", "groups", "nodes"];
@@ -71,11 +81,24 @@ export function SelectorField(props: SelectorFieldProps) {
     return through.kind === "multiselect" ? through.options.map(String) : [];
   };
 
-  const rows = createMemo(() => expand(asItems(props.value), kinds()));
+  // One item is read as a one-item list; the boundary is `write`, which hands one back.
+  const items = () =>
+    props.single === true
+      ? props.value === undefined || props.value === null ? [] : [props.value as SelectorItem]
+      : asItems(props.value);
+  const rows = createMemo(() => expand(items(), kinds()));
   const casesFor = (kind: string, value: string) =>
     rows().filter((r) => r.kind === kind && r.value === value).map((r) => r.chain);
 
-  const write = (next: SelectorRow[]) => props.onChange(collapse(next));
+  const write = (next: SelectorRow[]) => {
+    if (props.single === true) {
+      // Cases append, so the newest row is the last one — it is what the author just chose.
+      const kept = next.slice(-1);
+      props.onChange(kept.length === 0 ? undefined : collapse(kept)[0]);
+    } else {
+      props.onChange(collapse(next));
+    }
+  };
 
   /** Cases append, so document order is the order the author built it in. */
   const addCase = (kind: string, value: string, chain: string[]) =>
@@ -163,7 +186,7 @@ export function SelectorField(props: SelectorFieldProps) {
         One chip per *value* rather than per item, which is lossless: one item holding several
         values resolves exactly as several items holding one each (case A ≡ B).
       */}
-      <Show when={rows().length > 0}>
+      <Show when={rows().length > 0 && props.single !== true}>
         {/* A value the picker cannot offer a switch for — a column the loaded table lacks, a
             reference in an imported document — still has to be removable here; otherwise the only
             way out is to rebuild the card (measured 2026-09-16). */}
@@ -239,7 +262,8 @@ export function SelectorField(props: SelectorFieldProps) {
       <div class="rounded-sm border border-primary/20 bg-primary/5 px-2 py-1.5">
         <span class="mr-2 text-detail tracking-wider text-muted-foreground uppercase">writes</span>
         <span class="font-mono text-control-xs break-words text-foreground">
-          {documentText(rows())}
+          {/* A lone field with nothing in it is absent from the document, not an empty list. */}
+          {props.single === true && rows().length === 0 ? "not set" : documentText(rows())}
         </span>
       </div>
 
@@ -334,6 +358,7 @@ export function SelectorField(props: SelectorFieldProps) {
                           qualification, and so what makes case E expressible at all. */}
                       <Show
                         when={
+                          props.single !== true &&
                           cases().length > 0 &&
                           !isPending(id()) &&
                           chainBeingBuilt(id()) === null &&

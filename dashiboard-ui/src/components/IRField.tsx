@@ -379,6 +379,25 @@ export function IRField(props: IRFieldProps) {
             );
           }
 
+          // A lone `$defs/variable` — `partition`, `weights`, `gaussian_encoding.input`,
+          // `interp.input`: one selector item, where a repeater over them is a list. There was no
+          // case for it, so the form drew nothing — two required fields could not be filled in
+          // from the UI at all (measured 2026-09-17). The server resolves such a field with
+          // `only(...)`, exactly one column; the picker in `single` mode holds exactly one row.
+          case "selector":
+            return (
+              <Collapsible label={props.label} required={props.required}>
+                <SelectorField
+                  single
+                  itemNode={props.node}
+                  defs={props.defs}
+                  label={props.label}
+                  value={props.value}
+                  onChange={(item) => props.onChange(item)}
+                />
+              </Collapsible>
+            );
+
           // The IR does not constrain this field, so there is nothing honest to draw. Saying so
           // beats a JSON textarea that invites input the schema will reject — and it makes the
           // gap visible where it belongs. Reachable today only through glm's formula, where

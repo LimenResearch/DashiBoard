@@ -263,3 +263,69 @@ describe('SelectorField', () => {
     expect(onChange).toHaveBeenCalledWith([{ cols: 'TEMP' }]);
   });
 });
+
+// A lone `$defs/variable` field — `partition`, `weights`, `interp.input` — is one selector item,
+// not a list, and the server resolves it with `only(...)`: exactly one column. Same picker, one
+// choice (owner, 2026-09-18).
+describe('SelectorField, single', () => {
+  const one = (value: unknown, onChange: (item: SelectorItem | undefined) => void = () => {}) =>
+    render(() => (
+      <SelectorField single itemNode={itemNode} defs={defs} label="partition" value={value} onChange={onChange} />
+    ));
+
+  it('reads one item back as the one value that is on', () => {
+    const { container } = one({ cols: 'PRES' });
+    expect(sw(container, 'PRES').getAttribute('aria-checked')).toBe('true');
+    expect(casesOf(container, 'PRES')).toEqual(['direct']);
+    expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
+    expect(writes(container)).toBe('{cols = "PRES"}');
+  });
+
+  it('writes one item, not a list, and a second pick replaces the first', async () => {
+    let written: SelectorItem | undefined | null = null;
+    const { container } = one({ cols: 'PRES' }, (item) => { written = item; });
+    fireEvent.click(sw(container, 'TEMP'));
+    await flush();
+    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="direct"]')!);
+    await flush();
+    expect(written).toEqual({ cols: 'TEMP' });
+  });
+
+  it('empties the field when its value is switched off', async () => {
+    let written: SelectorItem | undefined | null = null;
+    const { container } = one({ cols: 'PRES' }, (item) => { written = item; });
+    fireEvent.click(sw(container, 'PRES'));
+    await flush();
+    expect(written).toBeUndefined();
+  });
+
+  it('carries a through chain, read and written', async () => {
+    const { container } = one({ cols: 'PRES', through: ['rescale'] });
+    expect(casesOf(container, 'PRES')).toEqual(['rescale']);
+    expect(writes(container)).toBe('{cols = "PRES", through = "rescale"}');
+
+    let written: SelectorItem | undefined | null = null;
+    cleanup();
+    const second = one(undefined, (item) => { written = item; });
+    fireEvent.click(sw(second.container, 'TEMP'));
+    await flush();
+    fireEvent.click(row(second.container, 'TEMP').querySelector('[data-specify="through"]')!);
+    await flush();
+    fireEvent.click(nodeButton(second.container, 'TEMP', 'split'));
+    await flush();
+    fireEvent.click(builderIn(second.container, 'TEMP').querySelector('[data-chain="commit"]')!);
+    await flush();
+    expect(written).toEqual({ cols: 'TEMP', through: ['split'] });
+  });
+
+  it('has no order strip and offers no second qualification', () => {
+    const { container } = one({ cols: 'PRES' });
+    expect(container.querySelector('[aria-label="partition order"]')).toBeNull();
+    expect(container.querySelector('[data-add-case]')).toBeNull();
+  });
+
+  it('says the field is not set when empty, rather than showing an empty list', () => {
+    const { container } = one(undefined);
+    expect(writes(container)).toBe('not set');
+  });
+});

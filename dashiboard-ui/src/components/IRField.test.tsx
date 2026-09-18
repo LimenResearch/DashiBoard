@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, cleanup } from '@solidjs/testing-library';
+import { render, cleanup, fireEvent } from '@solidjs/testing-library';
+import { flush } from 'solid-js';
 import { IRField } from './IRField';
 import { defaultsFor, type Defs, type IRNode } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -239,5 +240,47 @@ describe('IRField', () => {
     const label = container.querySelector('label[for="node-1-rescale-suffix"]') as HTMLLabelElement;
     expect(label).not.toBeNull();
     expect(label.control?.id).toBe('node-1-rescale-suffix');
+  });
+});
+
+// A lone `$defs/variable` property — `partition`, `weights`, `gaussian_encoding.input`,
+// `interp.input` — had no case here, so the form drew nothing for it: two required fields could
+// not be filled in at all, and the rest could not be set (measured 2026-09-17, ten fields across
+// the fixture). Drawn as the same picker as `inputs`, holding one item.
+describe('IRField, a lone selector', () => {
+  const mountCard = (type: string, value: unknown, onChange: (v: unknown) => void = () => {}) =>
+    render(() => (
+      <IRField node={cards[type]} defs={defs} label={type} value={value} onChange={onChange} />
+    ));
+  const labels = (c: HTMLElement) =>
+    [...c.querySelectorAll('label, summary')].map((l) => (l.textContent ?? '').trim());
+
+  it('draws rescale\'s partition, which the form used to leave out', () => {
+    const { container } = mountCard('rescale', { type: 'rescale' });
+    expect(labels(container).some((l) => l.startsWith('partition'))).toBe(true);
+  });
+
+  it('draws interp\'s input as required', () => {
+    const { container } = mountCard('interp', { type: 'interp' });
+    expect(labels(container)).toContain('input*');
+  });
+
+  it('writes the pick as one item under the property, and reads it back', async () => {
+    let written: Record<string, unknown> | null = null;
+    const { container } = mountCard('rescale', { type: 'rescale', suffix: 'z' }, (v) => { written = v as Record<string, unknown>; });
+    // The partition picker is the one whose `writes` strip says nothing is set yet.
+    const picker = [...container.querySelectorAll('[data-tabs="kinds"]')]
+      .map((tabs) => tabs.parentElement!.parentElement!)
+      .find((p) => p.textContent?.includes('not set'))!;
+    expect(picker).toBeDefined();
+    fireEvent.click(picker.querySelector('[data-value="PRES"] [role=switch]')!);
+    await flush();
+    fireEvent.click(picker.querySelector('[data-value="PRES"] [data-specify="direct"]')!);
+    await flush();
+    expect(written).toEqual({ type: 'rescale', suffix: 'z', partition: { cols: 'PRES' } });
+
+    cleanup();
+    const back = mountCard('rescale', { type: 'rescale', partition: { cols: 'PRES', through: ['rescale'] } });
+    expect(back.container.textContent).toContain('{cols = "PRES", through = "rescale"}');
   });
 });

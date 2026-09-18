@@ -241,6 +241,8 @@ function validate_pipeline_schema(
 
     # Collected, not thrown one at a time (A11). Groups first because that is document order, but
     # a bad group no longer stops the cards from being looked at.
+    # After https://github.com/JuliaIO/JSONSchema.jl/pull/83 is merged, consider setting
+    # `fail_fast = false` to collect _all_ errors within each group.
     errors = SchemaValidationError[]
 
     for (grp_key, grp_val) in pairs(groups)

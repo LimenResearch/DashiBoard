@@ -4,7 +4,7 @@ import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import {
   importCards, addGroup, setNodeId, setCardField, confirmDefinition, reportRunIssues, exportCards,
-  forgetAllVerdicts, PROBE_STORE, emptyProbe,
+  forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict,
 } from '../stores';
 
 const postRequest = vi.fn();
@@ -372,5 +372,65 @@ describe('the card header', () => {
     expect(text.className).toMatch(/truncate/);
     expect(text.className).not.toMatch(/flex/);
     expect(container.querySelector('[data-card-actions]')!.className).toMatch(/shrink-0/);
+  });
+});
+
+describe("a card's name", () => {
+  // Owner's browser check, 2026-09-17: two cards took the same name, and the only sign was
+  // "Needs attention: the document" — the server's error for it carries no pointer, so no card
+  // could show it. Refused where it is typed, as a second group's name is.
+  const two = () => importCards({
+    nodes: [
+      { id: 'a', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [] } },
+      { id: 'b', card: { type: 'rescale', method: { type: 'minmax' }, inputs: [] } },
+    ],
+    groups: {},
+  });
+  const nameField = (container: HTMLElement, at: number) =>
+    container.querySelector(`#node-id-${at}`) as HTMLInputElement;
+  const type = async (container: HTMLElement, at: number, text: string) => {
+    const field = nameField(container, at);
+    field.value = text;
+    fireEvent.change(field);
+    await flush();
+  };
+
+  it('refuses a name another card already has: the document keeps both names, the field goes back, the card says why', async () => {
+    two();
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(nameField(container, 1)).not.toBeNull());
+    await type(container, 1, 'a');
+    expect(exportCards().nodes.map((node) => node.id)).toEqual(['a', 'b']);
+    expect(nameField(container, 1).value).toBe('b');
+    const said = container.querySelectorAll('[data-name-error]');
+    expect(said.length).toBe(1);
+    expect(said[0].textContent).toContain('"a"');
+    // On the card that was refused, not the one that owns the name.
+    expect(said[0].closest('details')).toBe(nameField(container, 1).closest('details'));
+  });
+
+  it('stacks the refusal with the card\'s other banners, all of them above the name field', async () => {
+    // As for groups: one stack of banners, then the fields. A card's findings used to sit under
+    // its name field, so the refusal had nowhere to go that was both with them and above it.
+    two();
+    recordVerdict('node:1', exportCards().nodes[1], 'rejected', [{ message: 'needs a value' }]);
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(nameField(container, 1)).not.toBeNull());
+    await type(container, 1, 'a');
+    const card = nameField(container, 1).closest('details')!;
+    const finding = card.querySelector('[data-finding]')!;
+    const said = card.querySelector('[data-name-error]')!;
+    expect(finding.nextElementSibling).toBe(said);
+    expect(said.nextElementSibling).toBe(nameField(container, 1).parentElement);
+  });
+
+  it('stops saying so once the card takes a free name', async () => {
+    two();
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(nameField(container, 1)).not.toBeNull());
+    await type(container, 1, 'a');
+    await type(container, 1, 'c');
+    expect(exportCards().nodes.map((node) => node.id)).toEqual(['a', 'c']);
+    expect(container.querySelector('[data-name-error]')).toBeNull();
   });
 });

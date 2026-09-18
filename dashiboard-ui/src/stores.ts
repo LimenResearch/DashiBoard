@@ -475,13 +475,27 @@ export function renameGroup(from: string, to: string): boolean {
   return renamed;
 }
 
-/** Rename a node. The card is untouched: the id belongs to the wrapper, not the card. */
-export function setNodeId(nodeIndex: number, id: string) {
+/**
+ * Rename a node, and refuse a name another card already has.
+ *
+ * The card is untouched: the id belongs to the wrapper, not the card. Two cards with one name is a
+ * document the server cannot build, and it says so with no pointer (measured 2026-09-17:
+ * `Encountered nodes with equal \`id\``, `issues: []`), so no card could carry the finding —
+ * refused here instead, as `renameGroup` refuses a second group's name. A missing id counts as
+ * "": that is `Pipelines.get_id`'s default, so two unnamed cards collide the same way. One
+ * unnamed card is still legal, and Confirm is what objects to it (`checkNode`).
+ */
+export function setNodeId(nodeIndex: number, id: string): boolean {
+  let renamed = false;
   setCards((draft) => {
+    // Read `draft`, not `cards`: see `addGroup`.
+    if (draft.nodes.some((node, at) => at !== nodeIndex && (node.id ?? "") === id)) return;
+    renamed = true;
     const from = draft.nodes[nodeIndex].id;
     draft.nodes[nodeIndex].id = id;
     if (from && from !== id) forEachSelector(draft, (item) => renameIn(item, "nodes", from, id));
   });
+  return renamed;
 }
 
 export function removeNode(nodeIndex: number) {

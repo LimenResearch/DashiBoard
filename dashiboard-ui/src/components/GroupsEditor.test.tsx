@@ -4,7 +4,7 @@ import { flush, reconcile } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
 import {
   importCards, exportCards, emptyCards, addGroup, setGroup, forgetAllVerdicts,
-  isConfirmed, PROBE_STORE, emptyProbe, reportRunIssues, confirmDefinition,
+  isConfirmed, PROBE_STORE, emptyProbe, reportRunIssues, confirmDefinition, recordVerdict,
 } from '../stores';
 import type { Defs } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -95,6 +95,84 @@ describe('GroupsEditor', () => {
     expect(exportCards().groups.a).toEqual([{ cols: 'TEMP' }]);
     expect(nameFields(container)[1].value).toBe('b'); // reverted on screen too
     expect(container.textContent).toMatch(/already/i);
+  });
+
+  // The refusal used to be one banner above the whole list, which scrolls away from the group
+  // being renamed and does not say which group it is about. It is read where it was caused, as a
+  // card's is (owner, 2026-09-17).
+  const refuse = async (container: HTMLElement, at: number, text: string) => {
+    const field = nameFields(container)[at];
+    field.value = text;
+    fireEvent.change(field);
+    await flush();
+  };
+
+  it('says why inside the group that was refused', async () => {
+    addGroup('a');
+    addGroup('b');
+    const { container } = mount();
+    await flush();
+    await refuse(container, 1, 'a');
+    const said = container.querySelectorAll('[data-name-error]');
+    expect(said.length).toBe(1);
+    expect(said[0].textContent).toContain('"a"');
+    expect(said[0].closest('details')).toBe(nameFields(container)[1].closest('details'));
+  });
+
+  it('stacks the refusal with the group\'s other banners, all of them above the name field', async () => {
+    // Seen in a browser, 2026-09-17: the refusal sat under the field while "group `b` has no
+    // columns" sat above it — two red banners with the field between them, reading as two
+    // different kinds of thing. One stack, above the field.
+    addGroup('a');
+    addGroup('b');
+    recordVerdict('group:b', [], 'rejected', [{ message: 'group `b` has no columns' }]);
+    const { container } = mount();
+    await flush();
+    await refuse(container, 1, 'a');
+    const group = nameFields(container)[1].closest('details')!;
+    const finding = group.querySelector('[data-finding]')!;
+    const said = group.querySelector('[data-name-error]')!;
+    expect(finding.nextElementSibling).toBe(said);
+    expect(said.nextElementSibling).toBe(nameFields(container)[1].parentElement);
+  });
+
+  it('says a group needs a name inside that group too', async () => {
+    addGroup('a');
+    addGroup('b');
+    const { container } = mount();
+    await flush();
+    await refuse(container, 0, '');
+    const said = container.querySelectorAll('[data-name-error]');
+    expect(said.length).toBe(1);
+    expect(said[0].textContent).toMatch(/needs a name/i);
+    expect(said[0].closest('details')).toBe(nameFields(container)[0].closest('details'));
+  });
+
+  it('stops saying so once the group takes a free name', async () => {
+    addGroup('a');
+    addGroup('b');
+    const { container } = mount();
+    await flush();
+    await refuse(container, 1, 'a');
+    await refuse(container, 1, 'c');
+    expect(Object.keys(exportCards().groups)).toEqual(['a', 'c']);
+    expect(container.querySelector('[data-name-error]')).toBeNull();
+    expect(container.textContent).not.toMatch(/already/i);
+  });
+
+  it('stops saying so when the group settles on the name it already has', async () => {
+    // A new name rebuilds the row (the list is keyed by name), which takes the message with it.
+    // Keeping the name does not: `renameGroup` says yes to a group's own name, the row stays, and
+    // only the handler clearing the message removes it. The spaces make it a `change` at all.
+    addGroup('a');
+    addGroup('b');
+    const { container } = mount();
+    await flush();
+    await refuse(container, 1, 'a');
+    expect(container.querySelector('[data-name-error]')).not.toBeNull();
+    await refuse(container, 1, ' b ');
+    expect(Object.keys(exportCards().groups)).toEqual(['a', 'b']);
+    expect(container.querySelector('[data-name-error]')).toBeNull();
   });
 
   it('folds to one line naming the group, so six groups read as six lines', async () => {

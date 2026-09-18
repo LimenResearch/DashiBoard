@@ -36,8 +36,6 @@ import { withoutOption, type Defs, type IRNode } from "../ir";
 export function GroupsEditor(props: { defs: Defs }) {
   const [state] = CARDS_STORE;
   const [probe] = PROBE_STORE;
-  const [error, setError] = createSignal<string | null>(null);
-
   // The last verdict on exactly this group's content — null once it is edited (`stores.ts`,
   // verdicts). Findings travel with it, so there is no per-component list to keep in step.
   const verdict = (name: string) => verdictOf(`group:${name}`, state.groups[name]);
@@ -54,29 +52,12 @@ export function GroupsEditor(props: { defs: Defs }) {
   // The `$defs/variable` node: one item of a selector list, which is exactly what a group holds.
   const itemNode = () => (props.defs.variable ?? {}) as IRNode;
 
-  function rename(from: string, field: HTMLInputElement) {
-    const to = field.value.trim();
-    if (renameGroup(from, to)) {
-      setError(null);
-      return;
-    }
-    // The document refused, so the screen must not keep showing the name that was typed.
-    field.value = from;
-    setError(to === "" ? "A group needs a name." : `There is already a group called "${to}".`);
-  }
-
   return (
     <div>
       <div class="flex items-center gap-2 p-3">
         <span class="text-control-xs font-semibold text-primary">Groups</span>
         <Button onClick={() => void addGroup()}>Add group</Button>
       </div>
-
-      <Show when={error()}>
-        <p class="mx-4 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive">
-          {error()}
-        </p>
-      </Show>
 
       <Show
         when={Object.keys(state.groups).length > 0}
@@ -88,7 +69,27 @@ export function GroupsEditor(props: { defs: Defs }) {
         }
       >
         <For each={Object.keys(state.groups)}>
-          {(name) => (
+          {(name) => {
+            // Why the last name typed into this group was refused — per group, since the `<For>`
+            // callback is a per-row owner, and read inside the group that caused it. It used to be
+            // one banner above the whole list, which scrolls away from the group being renamed
+            // and does not say which group it is about (owner, 2026-09-17). A card's refusal is
+            // the same move (`processing.tsx`, `rename`).
+            const [nameError, setNameError] = createSignal<string | null>(null);
+            function rename(field: HTMLInputElement) {
+              const to = field.value.trim();
+              if (renameGroup(name, to)) {
+                setNameError(null);
+                return;
+              }
+              // The document refused, so the screen must not keep showing the name that was typed.
+              field.value = name;
+              setNameError(
+                to === "" ? "A group needs a name." : `There is already a group called "${to}".`,
+              );
+            }
+
+            return (
             <div class="my-2 rounded-sm border border-border p-2">
               <Disclosure
                 bodyClass="mt-2 flex flex-col gap-1 border-t border-border pt-2"
@@ -204,6 +205,17 @@ export function GroupsEditor(props: { defs: Defs }) {
                     </p>
                   )}
                 </For>
+                {/* A refused name, with the other banners rather than under the field: seen in a
+                    browser with the field between two red banners, it read as two kinds of thing
+                    (owner, 2026-09-17). One stack, then the fields. */}
+                <Show when={nameError()}>
+                  <p
+                    data-name-error
+                    class="rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive"
+                  >
+                    {nameError()}
+                  </p>
+                </Show>
                 {/* Live, amber, and not a verdict: the document is legal and would run. */}
                 <For each={issuesForGroup(warnings(), name)}>
                   {(issue) => (
@@ -229,7 +241,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                     value={name}
                     // `change`, not `input`: renaming on every keystroke would rewrite the document
                     // once per character, and each rewrite is a name other cards may be referring to.
-                    onChange={(event) => rename(name, event.currentTarget)}
+                    onChange={(event) => rename(event.currentTarget)}
                   />
                 </div>
                 <SelectorField
@@ -243,7 +255,8 @@ export function GroupsEditor(props: { defs: Defs }) {
                 />
               </Disclosure>
             </div>
-          )}
+            );
+          }}
         </For>
       </Show>
     </div>

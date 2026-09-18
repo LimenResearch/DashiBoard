@@ -340,6 +340,23 @@ export function Cards() {
             const v = verdict();
             return v?.verdict === "rejected" ? v.findings : [];
           });
+          // Why the last name typed into this card was refused — per card, since the `<For>`
+          // callback is a per-row owner. `GroupsEditor`'s `rename` is the same move for groups.
+          const [nameError, setNameError] = createSignal<string | null>(null);
+          function rename(field: HTMLInputElement) {
+            const to = field.value;
+            if (setNodeId(index(), to)) {
+              setNameError(null);
+              return;
+            }
+            // The document refused, so the screen must not keep showing the name that was typed.
+            field.value = node.id ?? "";
+            setNameError(
+              to === ""
+                ? "There is already a card without a name."
+                : `There is already a card called "${to}".`,
+            );
+          }
 
           return (
           <div class="my-2 rounded-sm border border-border p-2">
@@ -420,26 +437,6 @@ export function Cards() {
                 </>
               }
             >
-              <div class="flex items-center gap-2">
-                <label
-                  for={`node-id-${index()}`}
-                  class="w-32 shrink-0 text-control-xs font-semibold text-primary"
-                >
-                  name
-                </label>
-                {/*
-                  The node's name, not the card's. It is what another card's `nodes:` selector or
-                  `through:` chain refers to, and `Pipelines.get_id` defaults a missing one to "",
-                  so two unnamed cards collide and the whole document is rejected.
-                */}
-                <input
-                  id={`node-id-${index()}`}
-                  class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
-                  aria-label="node id"
-                  value={node.id ?? ""}
-                  onChange={(event) => setNodeId(index(), event.currentTarget.value)}
-                />
-              </div>
             {/*
               A7: the probe addresses each failure by JSON Pointer, so it is shown on the card it
               belongs to, naming the field and — for an enum — what would have been accepted.
@@ -463,6 +460,17 @@ export function Cards() {
                 </p>
               )}
             </For>
+            {/* A refused name, with the other banners rather than under the field: seen in a
+                browser with the field between two red banners, it read as two kinds of thing
+                (owner, 2026-09-17). One stack, then the fields. */}
+            <Show when={nameError()}>
+              <p
+                data-name-error
+                class="mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-control-xs text-destructive"
+              >
+                {nameError()}
+              </p>
+            </Show>
             {/* Live, amber, and not a verdict: the document is legal and would run. */}
             <For each={warningsForNode(index())}>
               {(issue: ProbeIssue) => (
@@ -477,6 +485,28 @@ export function Cards() {
                 </p>
               )}
             </For>
+              <div class="flex items-center gap-2">
+                <label
+                  for={`node-id-${index()}`}
+                  class="w-32 shrink-0 text-control-xs font-semibold text-primary"
+                >
+                  name
+                </label>
+                {/*
+                  The node's name, not the card's. It is what another card's `nodes:` selector or
+                  `through:` chain refers to, and `Pipelines.get_id` defaults a missing one to "",
+                  so two unnamed cards collide and the whole document is rejected — with an error
+                  that points at no card, which is why a taken name is refused here (`rename`)
+                  rather than left for the server to object to.
+                */}
+                <input
+                  id={`node-id-${index()}`}
+                  class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
+                  aria-label="node id"
+                  value={node.id ?? ""}
+                  onChange={(event) => rename(event.currentTarget)}
+                />
+              </div>
             <Show when={probeNodes()[index()]} keyed>
               {(reported: ProbeNode) => (
                 <div class="mb-2 text-control-xs">

@@ -363,6 +363,36 @@ describe('references follow the thing they name', () => {
     const out = s.exportCards();
     expect(out.nodes[1].card.inputs).toEqual([{ nodes: 'rescaled' }, { cols: 'PRES', through: ['rescaled'] }]);
   });
+  // Two cards with one name is a document the server cannot build, and it says so with no
+  // pointer (measured 2026-09-17: `Encountered nodes with equal \`id\``, `issues: []`) — so no
+  // card could show it. Refused at the source, as `renameGroup` refuses a second group's name.
+  it('setNodeId refuses a name another card already has, and leaves the document alone', async () => {
+    const s = await import('./stores');
+    s.importCards(doc());
+    expect(s.setNodeId(1, 'r')).toBe(false);
+    await flush();
+    const out = s.exportCards();
+    expect(out.nodes.map((node) => node.id)).toEqual(['r', 's']);
+    // Nothing that named `s` was rewritten to name `r`.
+    expect(out.nodes[1].card.inputs).toEqual([{ nodes: 'r' }, { cols: 'PRES', through: ['r'] }]);
+  });
+  it('setNodeId says yes when the name is free, and when it is the card\'s own', async () => {
+    const s = await import('./stores');
+    s.importCards(doc());
+    expect(s.setNodeId(0, 'rescaled')).toBe(true);
+    expect(s.setNodeId(1, 's')).toBe(true);
+    await flush();
+    expect(s.exportCards().nodes.map((node) => node.id)).toEqual(['rescaled', 's']);
+  });
+  it('setNodeId counts a card with no id as named "", which only one card can be', async () => {
+    // `Pipelines.get_id` defaults a missing id to "", so two unnamed cards collide exactly as two
+    // cards called `a` do (measured on the same day, same error).
+    const s = await import('./stores');
+    s.importCards({ nodes: [{ card: { type: 'rescale' } }, { id: 's', card: { type: 'rescale' } }], groups: {} });
+    expect(s.setNodeId(1, '')).toBe(false);
+    await flush();
+    expect(s.exportCards().nodes[1].id).toBe('s');
+  });
 });
 
 describe('pruneFilters', () => {

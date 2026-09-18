@@ -332,4 +332,55 @@ describe('the pointer next to Run pipeline', () => {
     const { container } = render(() => <Results />);
     expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/Needs attention: the document/);
   });
+
+  // An item's message is read on the item, so the line only names it. A fault of the document
+  // has no item to be read on — a loop, or an imported document with two cards of one name — so
+  // its text is shown here or nowhere (owner, 2026-09-17).
+  const LOOP = 'The input graph contains at least one loop.';
+  const faults = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-document-faults] p')].map((p) => p.textContent);
+
+  it('shows what the server said about the document, since no item can', async () => {
+    PROBE_STORE[1]((d) => { d.valid = false; d.issues = []; d.errors = [LOOP]; });
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(faults(container)).toEqual([LOOP]);
+  });
+
+  it('keeps an item\'s message off it: the item is named, its text is on the item', async () => {
+    // A schema failure's `errors` is the issues' own messages run together; every one of them is
+    // already on a card, so none of it is the document's.
+    PROBE_STORE[1]((d) => {
+      d.valid = false;
+      d.issues = [issue('/nodes/0/card/method')];
+      d.errors = ['1 schema validation error:\nx'];
+    });
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/Needs attention: rescaled$/);
+    expect(container.querySelector('[data-document-faults]')).toBeNull();
+  });
+
+  it('shows the message of an issue that points at no item, beside the items it names', async () => {
+    PROBE_STORE[1]((d) => {
+      d.valid = false;
+      d.issues = [issue('/nodes/0/card'), { ...issue(''), message: 'nothing to run' }];
+      d.errors = ['x\nnothing to run'];
+    });
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/rescaled/);
+    expect(container.querySelector('[data-needs-attention]')!.textContent).toMatch(/the document/);
+    expect(faults(container)).toEqual(['nothing to run']);
+  });
+
+  it('does not say it twice once a failed run has printed the same sentence', async () => {
+    PROBE_STORE[1]((d) => { d.valid = false; d.issues = []; d.errors = [LOOP]; });
+    await flush();
+    serve({ valid: false, kind: 'pipeline', errors: [LOOP], issues: [] });
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(container.textContent!.split(LOOP).length - 1).toBe(1);
+  });
 });

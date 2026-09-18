@@ -32,7 +32,9 @@ export default defineConfig({
     // browser, which `usableProbe(null)` used to read as a clean bill of health (see probe.ts).
     proxy: Object.fromEntries(
       [
-        '/get-acceptable-paths',
+        '/list-files',
+        '/read-document',
+        '/write-document',
         '/load-files',
         '/get-card-ir',
         '/validate-card',

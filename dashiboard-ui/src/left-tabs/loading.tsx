@@ -44,7 +44,7 @@ export function Loader() {
   return (
     <div>
       <div class="p-3">
-        <FilePicker required multiple onChange={setFiles}></FilePicker>
+        <FilePicker kind="table" required multiple onChange={setFiles}></FilePicker>
       </div>
       <div class="p-3">
         <Button

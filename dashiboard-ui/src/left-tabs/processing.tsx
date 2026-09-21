@@ -83,7 +83,13 @@ export function Cards() {
   // The vocabulary arrives as an argument rather than being read here: this runs from an effect
   // *callback*, where a read of a store or a signal is untracked — so reading the document here
   // would be a dependency the effect does not have, and the diagnostics say so.
+  // Which card-IR request is the latest. Every vocabulary change asks again, and the answers
+  // can land out of order: an older one arriving last used to put back a vocabulary the document
+  // no longer has, so pickers offered a node name that did not exist any more (measured
+  // 2026-09-21; it takes a slow server). Same guard as the continuous probe's `probeSeq`.
+  let irSeq = 0;
   async function loadIR(vocabulary: Vocabulary) {
+    const seq = ++irSeq;
     // Captured before the request, not re-read from the signal after `setCardIRs` below: a
     // signal write stages into `_pendingValue` and an untracked read from this plain async
     // continuation is not guaranteed to observe it before the next flush (Solid 2's transition
@@ -96,6 +102,7 @@ export function Cards() {
       { ...vocabulary, include },
       null,
     )) as Partial<Payload> | null;
+    if (seq !== irSeq) return;                         // a newer question is out; this answer is stale
     if (!received || !received.defs) {
       setError("Could not reach DashiBoard. Is the server running?");
       return;
@@ -190,6 +197,7 @@ export function Cards() {
   onCleanup(() => {
     clearTimeout(probeTimer);
     probeSeq = Number.MAX_SAFE_INTEGER;
+    irSeq = Number.MAX_SAFE_INTEGER;
   });
 
   /**

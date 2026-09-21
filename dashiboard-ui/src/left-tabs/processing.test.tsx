@@ -667,3 +667,45 @@ describe('an answer that arrives after its card is gone', () => {
     expect(dots).toEqual(['unconfirmed']);
   });
 });
+
+describe('a card-IR answer that arrives after a newer one', () => {
+  it('is dropped: the pickers offer the names the document has now', async () => {
+    // Every vocabulary change refetches the defs. Two changes in quick succession are two
+    // requests, and nothing said which answer was the newer: when the first landed last, the
+    // pickers went back to offering a node name that no longer existed (measured 2026-09-21).
+    // Same guard as the continuous probe's `probeSeq`. It takes a slow server to show.
+    const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [] };
+    importCards({ nodes: [{ id: 'first', card: rescale }, { id: 'reader', card: rescale }], groups: {} });
+    const pending: { nodes: string[]; resolve: (v: unknown) => void }[] = [];
+    const reply = (nodes: string[], include: string[]) => {
+      const full = structuredClone(payload) as unknown as { defs: Record<string, { enum?: string[] }> };
+      full.defs.node = { ...full.defs.node, enum: nodes };
+      return Object.fromEntries(include.map((k) => [k, (full as unknown as Record<string, unknown>)[k]]));
+    };
+    let held = false;
+    postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) => {
+      if (page !== 'get-card-ir') return Promise.resolve(page === 'probe-pipeline' ? CLEAN_PROBE : []);
+      const include = body.include ?? ['defs', 'cards'];
+      if (!held) return Promise.resolve(reply(body.nodes ?? [], include));
+      return new Promise((resolve) => pending.push({ nodes: body.nodes ?? [], resolve }));
+    });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('#node-id-1')).not.toBeNull());
+    held = true;
+    setNodeId(0, 'second'); await flush();
+    await waitFor(() => expect(pending.length).toBe(1));
+    setNodeId(0, 'third'); await flush();
+    await waitFor(() => expect(pending.length).toBe(2));
+    pending[1].resolve(reply(pending[1].nodes, ['defs']));      // the newer question answers first
+    await new Promise((r) => setTimeout(r, 20)); await flush();
+    pending[0].resolve(reply(pending[0].nodes, ['defs']));      // the older one lands last
+    await new Promise((r) => setTimeout(r, 20)); await flush();
+
+    const reader = [...container.querySelectorAll('details')].filter((d) => d.querySelector('[data-card-title]'))[1];
+    fireEvent.click(reader.querySelector('[role=tab][data-tab="nodes"]')!);
+    await flush();
+    const offered = [...reader.querySelectorAll('[data-tabs="kinds"]')][0]
+      .parentElement!.querySelectorAll('[data-value]');
+    expect([...offered].map((e) => e.getAttribute('data-value'))).toEqual(['third']);
+  });
+});

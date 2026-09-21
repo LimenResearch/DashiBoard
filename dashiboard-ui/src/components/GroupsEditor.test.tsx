@@ -121,7 +121,7 @@ describe('GroupsEditor', () => {
     expect(said[0].closest('details')).toBe(nameFields(container)[1].closest('details'));
   });
 
-  it('stacks the refusal with the group\'s other banners, all of them above the name field', async () => {
+  it('stacks the refusal with the group\'s other banners, under the line that holds the name', async () => {
     // Seen in a browser, 2026-09-17: the refusal sat under the field while "group `b` has no
     // columns" sat above it — two red banners with the field between them, reading as two
     // different kinds of thing. One stack, above the field.
@@ -135,7 +135,7 @@ describe('GroupsEditor', () => {
     const finding = group.querySelector('[data-finding]')!;
     const said = group.querySelector('[data-name-error]')!;
     expect(finding.nextElementSibling).toBe(said);
-    expect(said.nextElementSibling).toBe(nameFields(container)[1].parentElement);
+    expect(nameFields(container)[1].closest('summary')).not.toBeNull();   // the name is in the line above them
   });
 
   it('says a group needs a name inside that group too', async () => {
@@ -184,7 +184,7 @@ describe('GroupsEditor', () => {
     const details = container.querySelector('details') as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(details.querySelector('summary')!.textContent).toContain('Group');
-    expect(details.querySelector('summary')!.textContent).toContain('weather');
+    expect((details.querySelector('summary input') as HTMLInputElement).value).toBe('weather');
   });
 
   it('removes from the folded line without expanding it on the way out', async () => {
@@ -519,5 +519,31 @@ describe('what a group is offered', () => {
     PROBE_STORE[1]((d) => { d.referable = { nodes: [], groups: { g: { nodes: ['up'], groups: [] } } }; });
     await flush();
     expect(offered(container)).toEqual(['up']);
+  });
+});
+
+describe('a group, as it is laid out', () => {
+  it('is named in its own line, with no second name field', async () => {
+    addGroup('weather');
+    const { container } = mount();
+    await flush();
+    const field = nameFields(container)[0];
+    expect(field.closest('summary')).not.toBeNull();
+    expect([...container.querySelectorAll('label')].map((l) => l.textContent)).not.toContain('name');
+  });
+
+  it('keeps the chips and the text box on screen when folded; its one fold control opens the panel', async () => {
+    addGroup('weather');
+    const { container } = mount();
+    await flush();
+    const group = container.querySelector('details')!;
+    expect(group.open).toBe(false);
+    const entry = container.querySelector('[data-entry]')!;
+    expect(entry.closest('details')).toBeNull();                 // not inside what folds
+    expect(container.querySelector('[data-selector-name]')!.textContent).toBe('selection*');
+    expect(container.querySelector('[data-fold]')).toBeNull();
+    expect((container.querySelector('[data-panel]') as HTMLElement).hidden).toBe(true);
+    group.open = true; fireEvent(group, new Event('toggle')); await flush();
+    expect((container.querySelector('[data-panel]') as HTMLElement).hidden).toBe(false);
   });
 });

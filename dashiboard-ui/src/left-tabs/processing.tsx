@@ -502,6 +502,9 @@ export function Cards() {
                     kind={cardTitle(String(node.card.type))}
                     name={node.id ?? ""}
                     state={nodeState()}
+                    // The node's name, not the card's: what another card's `nodes:` selector or
+                    // `through:` chain refers to. A taken name is refused in `rename`.
+                    edit={{ id: `node-id-${index()}`, label: "node id", onRename: rename }}
                   />
                   <span data-card-actions class="ml-auto flex shrink-0 items-center gap-2">
                     {/*
@@ -577,28 +580,6 @@ export function Cards() {
                 </p>
               )}
             </For>
-              <div class="flex items-center gap-2">
-                <label
-                  for={`node-id-${index()}`}
-                  class="w-32 shrink-0 text-control-xs font-semibold text-primary"
-                >
-                  name
-                </label>
-                {/*
-                  The node's name, not the card's. It is what another card's `nodes:` selector or
-                  `through:` chain refers to, and `Pipelines.get_id` defaults a missing one to "",
-                  so two unnamed cards collide and the whole document is rejected — with an error
-                  that points at no card, which is why a taken name is refused here (`rename`)
-                  rather than left for the server to object to.
-                */}
-                <input
-                  id={`node-id-${index()}`}
-                  class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
-                  aria-label="node id"
-                  value={node.id ?? ""}
-                  onChange={(event) => rename(event.currentTarget)}
-                />
-              </div>
             <Show when={probeNodes()[index()]} keyed>
               {(reported: ProbeNode) => (
                 <div class="mb-2 text-control-xs">

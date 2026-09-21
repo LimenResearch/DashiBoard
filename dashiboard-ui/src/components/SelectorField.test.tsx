@@ -546,3 +546,17 @@ describe('SelectorField, teaching the keys', () => {
       .toBe('nodes: name @node, then Enter');
   });
 });
+
+describe('SelectorField, folded by its host', () => {
+  it('draws no fold control of its own, and the panel follows the host', async () => {
+    const [shown, setShown] = createSignal(false);
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="selection" open={shown()} value={[]} onChange={() => {}} />
+    ));
+    expect(container.querySelector('[data-fold]')).toBeNull();
+    expect(container.querySelector('[data-entry]')).not.toBeNull();
+    expect((container.querySelector('[data-panel]') as HTMLElement).hidden).toBe(true);
+    setShown(true); await flush();
+    expect((container.querySelector('[data-panel]') as HTMLElement).hidden).toBe(false);
+  });
+});

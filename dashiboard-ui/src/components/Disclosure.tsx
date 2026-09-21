@@ -18,12 +18,15 @@ import type { Element as JSXElement } from "solid-js";
  * group — so every nested chevron turned when an outer disclosure opened and then sat stuck,
  * because its own state was never what the selector read.
  */
-export function Chevron() {
+export function Chevron(props: { /** For a fold that is not a `<details>`, which turns it itself. */ turned?: boolean }) {
   return (
     <svg
       viewBox="0 0 12 12"
       aria-hidden="true"
-      class="disclosure-chevron h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150"
+      class={[
+        "disclosure-chevron h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150",
+        { "rotate-90": props.turned === true },
+      ]}
     >
       <path
         d="M4.5 2.5 L8 6 L4.5 9.5"
@@ -42,6 +45,8 @@ type DisclosureProps = {
   summary: JSXElement;
   children: JSXElement;
   open?: boolean;
+  /** Told when it folds or unfolds, for a host that draws something of its own to match. */
+  onToggle?: (open: boolean) => void;
   class?: string;
   /** Override the default guide-rule indent — a card body sits in its own panel already. */
   bodyClass?: string;
@@ -49,7 +54,11 @@ type DisclosureProps = {
 
 export function Disclosure(props: DisclosureProps) {
   return (
-    <details open={props.open ?? false} class={props.class ?? ""}>
+    <details
+      open={props.open ?? false}
+      onToggle={(event) => props.onToggle?.(event.currentTarget.open)}
+      class={props.class ?? ""}
+    >
       {/* Wraps: a long title (a card named after a long type) used to push the actions past the
           column's edge; folded to a second line, they stay in the pane. */}
       <summary class="flex flex-wrap cursor-pointer list-none items-center gap-1.5 rounded-sm py-0.5 hover:bg-muted [&::-webkit-details-marker]:hidden">

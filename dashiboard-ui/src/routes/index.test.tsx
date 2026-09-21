@@ -345,12 +345,13 @@ describe('the authoring page', () => {
     await flush();
 
     const card = [...container.querySelectorAll('details')].find((d) =>
-      d.querySelector('summary')?.textContent?.includes('rescale'),
+      (d.querySelector('summary input') as HTMLInputElement | null)?.value.includes('rescale'),
     ) as HTMLDetailsElement;
     expect(card).toBeDefined();
     expect(card.open).toBe(false);
     // type, then the name the rest of the document refers to it by
-    expect(card.querySelector('summary')!.textContent).toContain('rescale');
+    expect(card.querySelector('summary')!.textContent).toContain('Rescale');
+    expect((card.querySelector('summary input') as HTMLInputElement).value).toBe('rescale');
   });
 
   it('gives a new card the defaults its IR declares, not just a type', async () => {
@@ -520,7 +521,7 @@ describe('the authoring page', () => {
     // Confirm the *second* card only, so the two cards are distinguishable by their findings.
     const cardOf = (type: string) =>
       [...container.querySelectorAll('details')].find((d) =>
-        d.querySelector('summary')?.textContent?.includes(type),
+        (d.querySelector('summary input') as HTMLInputElement | null)?.value.includes(type),
       )!;
     fireEvent.click([...cardOf('cluster').querySelectorAll('summary button')][0]);
     await waitFor(() =>
@@ -545,7 +546,7 @@ describe('the authoring page', () => {
     await flush();
 
     const card = [...container.querySelectorAll('details')].find((d) =>
-      d.querySelector('summary')?.textContent?.includes('rescale'),
+      (d.querySelector('summary input') as HTMLInputElement | null)?.value.includes('rescale'),
     )!;
     const actions = [...card.querySelectorAll('summary button')].map((b) => b.textContent);
     expect(actions).toEqual(['Confirm', 'Remove']);

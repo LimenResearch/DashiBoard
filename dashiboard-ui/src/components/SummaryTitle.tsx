@@ -1,3 +1,5 @@
+import { Show } from "solid-js";
+
 import { StateDot, type DotState } from "./StateDot";
 
 // The folded line of a card or a group: what kind of thing it is, its name, and where it stands.
@@ -20,6 +22,8 @@ type SummaryTitleProps = {
   /** Empty means unnamed. */
   name: string;
   state: DotState;
+  /** Given, the name is a text box in the line itself: the one place a name is read and changed. */
+  edit?: { id: string; label: string; onRename: (field: HTMLInputElement) => void };
 };
 
 export function SummaryTitle(props: SummaryTitleProps) {
@@ -34,10 +38,28 @@ export function SummaryTitle(props: SummaryTitleProps) {
       <span {...{ [`data-${props.hook}-text`]: "" }} class="min-w-0 truncate">
         <span class="text-control-xs font-semibold text-primary">{props.kind}</span>
         <span class="text-muted-foreground">:</span>
-        <span class="font-mono text-control-xs">
-          {props.name || <span class="text-destructive italic">unnamed</span>}
-        </span>
+        <Show when={props.edit === undefined}>
+          <span class="font-mono text-control-xs">
+            {props.name || <span class="text-destructive italic">unnamed</span>}
+          </span>
+        </Show>
       </span>
+      <Show when={props.edit} keyed>
+        {(edit) => (
+          <input
+            id={edit.id}
+            aria-label={edit.label}
+            placeholder="unnamed"
+            value={props.name}
+            // The line is a `<summary>`: a click, or a space typed here, would fold it.
+            onClick={(event) => event.preventDefault()}
+            onKeyUp={(event) => { if (event.key === " ") event.preventDefault(); }}
+            // `change`, not `input`: a rename rewrites every reference to the name.
+            onChange={(event) => edit.onRename(event.currentTarget)}
+            class="h-control-xs w-40 min-w-0 shrink rounded-sm border border-border bg-transparent px-1.5 font-mono text-control-xs placeholder:text-destructive placeholder:italic"
+          />
+        )}
+      </Show>
       <StateDot state={props.state} />
     </span>
   );

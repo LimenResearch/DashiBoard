@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 
+import { Chevron } from "./Disclosure";
 import { SelectorHelp } from "./SelectorHelp";
 import { Tabs } from "./Tabs";
 import {
@@ -43,6 +44,8 @@ type SelectorFieldProps = {
   label: string;
   /** Marks the name with `*`. */
   required?: boolean;
+  /** Given, the host folds the panel — a group's own line does — and no fold control is drawn. */
+  open?: boolean;
   value: unknown;
 } & (
   | { single?: false; onChange: (items: SelectorItem[]) => void }
@@ -245,7 +248,8 @@ export function SelectorField(props: SelectorFieldProps) {
   };
 
   // The name, the chips and the text box are always on screen; this folds what is below them.
-  const [open, setOpen] = createSignal(false);
+  const [unfolded, setOpen] = createSignal(false);
+  const open = () => props.open ?? unfolded();
   const panelId = _.uniqueId("selector-panel-");
 
   /** The open tab's rows, narrowed by what is being typed for that kind. */
@@ -346,27 +350,39 @@ export function SelectorField(props: SelectorFieldProps) {
     write(rows().filter((r) => !(r.kind === kind && r.value === value)));
   }
 
+  const name = () => (
+    <span data-selector-name class="text-control-xs font-semibold text-primary">
+      {props.label}
+      <Show when={props.required}>
+        <span class="ml-0.5 text-muted-foreground" title="required">*</span>
+      </Show>
+    </span>
+  );
+  /** Under its own chevron the body is indented on a guide rule, as a `Disclosure` body is. */
+  const indent = () => (props.open === undefined ? "ml-1.5 border-l border-border pl-3" : "");
+
   return (
-    <div data-selector ref={(el) => { root = el; }} class="my-1 flex flex-col gap-1">
+    <div data-selector ref={(el) => { root = el; }} class="flex flex-col gap-1">
       {/* Always on screen: the name, what is selected, and (below) the text box. One chip per
           value, in document order — the order positional rules read — so the chips are also where
           a value is moved or removed. */}
-      <div class="flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          data-fold
-          aria-expanded={open() ? "true" : "false"}
-          aria-controls={panelId}
-          aria-label={`${open() ? "fold" : "unfold"} the choices for ${props.label}`}
-          onClick={() => setOpen(!open())}
-          class="grid h-4 w-4 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
-        >
-          <span class={["transition-transform", { "rotate-90": open() }]}>›</span>
-        </button>
-        <span data-selector-name class="text-control-xs font-semibold text-primary">
-          {props.label}
-          {props.required ? "*" : ""}
-        </span>
+      {/* The line of a folding field, as `Disclosure` draws it, so this one's chevron and name
+          sit where its siblings' do. */}
+      <div class="flex flex-wrap items-center gap-1.5 py-0.5">
+        <Show when={props.open === undefined} fallback={name()}>
+          <button
+            type="button"
+            data-fold
+            aria-expanded={open() ? "true" : "false"}
+            aria-controls={panelId}
+            aria-label={`${open() ? "fold" : "unfold"} the choices for ${props.label}`}
+            onClick={() => setOpen(!open())}
+            class="flex items-center gap-1.5 rounded-sm hover:bg-muted"
+          >
+            <Chevron turned={open()} />
+            {name()}
+          </button>
+        </Show>
         <ul class="flex min-w-0 flex-wrap gap-1" aria-label={`${props.label} selection`}>
           <For each={rows()}>
             {(r, i) => {
@@ -429,7 +445,7 @@ export function SelectorField(props: SelectorFieldProps) {
         </ul>
       </div>
 
-      <div class="flex items-start gap-1.5">
+      <div class={["flex items-start gap-1.5", indent()]}>
         <SelectorHelp single={props.single} />
         <div class="relative min-w-0 grow">
           <div
@@ -467,7 +483,7 @@ export function SelectorField(props: SelectorFieldProps) {
         </div>
       </div>
 
-      <div data-panel id={panelId} hidden={!open()} class="flex flex-col gap-2">
+      <div data-panel id={panelId} hidden={!open()} class={["flex flex-col gap-2", indent()]}>
       {/*
         What the field will be written as — the selector form, never a resolved name. Rendered
         from `documentText` rather than assembled here, so the format has one definition; showing

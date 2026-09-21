@@ -88,6 +88,7 @@ export function GroupsEditor(props: { defs: Defs }) {
             // and does not say which group it is about (owner, 2026-09-17). A card's refusal is
             // the same move (`processing.tsx`, `rename`).
             const [nameError, setNameError] = createSignal<string | null>(null);
+            const [unfolded, setUnfolded] = createSignal(false);
             function rename(field: HTMLInputElement) {
               const to = field.value.trim();
               if (renameGroup(name, to)) {
@@ -104,7 +105,8 @@ export function GroupsEditor(props: { defs: Defs }) {
             return (
             <div class="my-2 rounded-sm border border-border p-2">
               <Disclosure
-                bodyClass="mt-2 flex flex-col gap-1 border-t border-border pt-2"
+                onToggle={setUnfolded}
+                bodyClass="mt-1 flex flex-col gap-1"
                 summary={
                   <>
                     {/* Folded, this is the whole group: the key it is referred to by, and its
@@ -115,7 +117,13 @@ export function GroupsEditor(props: { defs: Defs }) {
                         so `truncate` lives on the inner, non-flex `data-group-text` span around the
                         text run, not on this flex wrapper. The full text still reaches the reader
                         through `title`. */}
-                    <SummaryTitle hook="group" kind="Group" name={name} state={groupState(name)} />
+                    <SummaryTitle
+                      hook="group"
+                      kind="Group"
+                      name={name}
+                      state={groupState(name)}
+                      edit={{ id: `group-name-${name}`, label: "group name", onRename: rename }}
+                    />
                     <span data-group-actions class="ml-auto flex shrink-0 items-center gap-2">
                       {/*
                         Asks the probe rather than judging locally: an empty group passes schema
@@ -221,33 +229,20 @@ export function GroupsEditor(props: { defs: Defs }) {
                     </p>
                   )}
                 </For>
-                <div class="flex items-center gap-2">
-                  <label
-                    for={`group-name-${name}`}
-                    class="w-32 shrink-0 text-control-xs font-semibold text-primary"
-                  >
-                    name
-                  </label>
-                  <input
-                    id={`group-name-${name}`}
-                    class="h-control-xs rounded-sm border border-border px-2 font-mono text-control-xs"
-                    aria-label="group name"
-                    value={name}
-                    // `change`, not `input`: renaming on every keystroke would rewrite the document
-                    // once per character, and each rewrite is a name other cards may be referring to.
-                    onChange={(event) => rename(event.currentTarget)}
-                  />
-                </div>
-                <SelectorField
-                  itemNode={itemNode()}
-                  // A group naming itself, or what depends on it, is a loop — rejected as one — so
-                  // it is offered what the server says is safe; before that, all but its own name.
-                  defs={defsForGroup(name)}
-                  label="columns"
-                  value={state.groups[name]}
-                  onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}
-                />
               </Disclosure>
+              {/* Outside what folds: what a group holds, and the box to add to it, stay on screen.
+                  The group's own line folds the panel of switches. */}
+              <SelectorField
+                itemNode={itemNode()}
+                // A group naming itself, or what depends on it, is a loop — rejected as one — so
+                // it is offered what the server says is safe; before that, all but its own name.
+                defs={defsForGroup(name)}
+                label="selection"
+                required
+                open={unfolded()}
+                value={state.groups[name]}
+                onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}
+              />
             </div>
             );
           }}

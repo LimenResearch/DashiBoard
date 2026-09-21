@@ -417,7 +417,7 @@ describe("a card's name", () => {
     expect(said[0].closest('details')).toBe(nameField(container, 1).closest('details'));
   });
 
-  it('stacks the refusal with the card\'s other banners, all of them above the name field', async () => {
+  it('stacks the refusal with the card\'s other banners, under the line that holds the name', async () => {
     // As for groups: one stack of banners, then the fields. A card's findings used to sit under
     // its name field, so the refusal had nowhere to go that was both with them and above it.
     two();
@@ -429,7 +429,7 @@ describe("a card's name", () => {
     const finding = card.querySelector('[data-finding]')!;
     const said = card.querySelector('[data-name-error]')!;
     expect(finding.nextElementSibling).toBe(said);
-    expect(said.nextElementSibling).toBe(nameField(container, 1).parentElement);
+    expect(nameField(container, 1).closest('summary')).not.toBeNull();   // the name is in the line above them
   });
 
   it('stops saying so once the card takes a free name', async () => {
@@ -812,5 +812,14 @@ describe('what a card is offered', () => {
     const card = [...container.querySelectorAll('details')].filter((d) => d.querySelector('[data-card-title]'))[0];
     const shown = [...card.querySelector('[data-selector]')!.querySelectorAll('[data-panel] [data-value]')];
     expect(shown.map((e) => e.getAttribute('data-value'))).toEqual(['b']);
+  });
+});
+
+describe("a card's name, where it is read", () => {
+  it('is edited in the card line, with no second name field', async () => {
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('#node-id-0')).not.toBeNull());
+    expect(container.querySelector('#node-id-0')!.closest('summary')).not.toBeNull();
+    expect([...container.querySelectorAll('label')].map((l) => l.textContent)).not.toContain('name');
   });
 });

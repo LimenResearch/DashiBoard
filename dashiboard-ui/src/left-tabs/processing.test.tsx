@@ -4,7 +4,7 @@ import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import {
   importCards, addGroup, removeNode, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
-  forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict,
+  forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict, setDroppedReferences,
 } from '../stores';
 
 const postRequest = vi.fn();
@@ -633,6 +633,41 @@ describe('loading a cards document asks', () => {
     await load(container);
     await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
     expect(container.querySelector('[data-document-error]')!.textContent).toMatch(/could not reach/i);
+  });
+});
+
+describe('loading a cards document that names what it does not have', () => {
+  it('removes the reference before asking, says so in amber, and the notice closes', async () => {
+    const doc = { nodes: [{ id: 'r', card: { type: 'rescale', method: { type: 'zscore' }, inputs: [{ cols: 'TEMP' }, { nodes: 'ghost' }] } }], groups: {} };
+    postRequest.mockImplementation((page: string, body: unknown) =>
+      Promise.resolve(
+        page === 'get-card-ir'
+          ? (() => { const inc = (body as { include?: string[] })?.include ?? ['defs', 'cards'];
+                     const full = structuredClone(payload) as Record<string, unknown>;
+                     return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
+        : page === 'probe-pipeline' ? CLEAN_PROBE
+        : page === 'read-document' ? { valid: true, document: doc }
+        : [],
+      ),
+    );
+    setDroppedReferences([]);
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-documents="cards"] [data-pick]')).not.toBeNull());
+    fireEvent.click(container.querySelector('[data-documents="cards"] [data-pick]')!);
+    await flush();
+    postRequest.mockClear();
+    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Load cards')!);
+    await waitFor(() => expect(container.querySelector('[data-dropped-references]')).not.toBeNull());
+    const notice = container.querySelector('[data-dropped-references]')!;
+    expect(notice.textContent).toMatch(/^References removed — not in the table or the document:/);
+    expect(notice.textContent).toContain('nodes:ghost from r');
+    const asked = postRequest.mock.calls.filter((c) => c[0] === 'probe-pipeline').map((c) => c[1]);
+    expect(asked.length).toBeGreaterThan(0);
+    for (const sent of asked) expect(JSON.stringify(sent)).not.toContain('ghost');
+    expect(exportCards().nodes[0].card.inputs).toEqual([{ cols: 'TEMP' }]);
+    fireEvent.click(notice.querySelector('[aria-label="dismiss"]')!);
+    await flush();
+    expect(container.querySelector('[data-dropped-references]')).toBeNull();
   });
 });
 

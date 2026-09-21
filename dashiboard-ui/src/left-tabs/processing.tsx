@@ -34,6 +34,9 @@ import {
   rejectDocument,
   forgetVerdict,
   PROBE_STORE,
+  droppedReferences,
+  pruneReferences,
+  setDroppedReferences,
   type ProbeNode,
   type ProbeStore,
   type ProbeIssue,
@@ -232,6 +235,8 @@ export function Cards() {
     // not `exportCards()` read back right after `importCards`, which on Solid 2 may still be
     // the previous document in this tick.
     const document = structuredClone(value) as CardsStore;
+    // Pruned before it is stored and asked about, so the two never disagree.
+    setDroppedReferences(pruneReferences(metadata.length > 0 ? metadata.map((column) => column.name) : null, document));
     importCards(document);
     const taken = checkNames(document.nodes);
     for (const { index, finding } of taken) {
@@ -383,6 +388,30 @@ export function Cards() {
     <div>
       <Show when={error()}>
         <p class="mb-4 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-destructive">{error()}</p>
+      </Show>
+
+      {/* A reference to a column the table lacks, or to a node or group the document lacks, was
+          removed when the table or the document was loaded. Said once, here. */}
+      <Show when={droppedReferences().length > 0}>
+        <div
+          data-dropped-references
+          class="mb-3 flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+        >
+          <span class="min-w-0 flex-1">
+            References removed — not in the table or the document:{" "}
+            <span class="font-mono">
+              {droppedReferences().map((d) => `${d.what} from ${d.where}`).join(", ")}
+            </span>
+          </span>
+          <button
+            type="button"
+            aria-label="dismiss"
+            onClick={() => setDroppedReferences([])}
+            class="grid h-4 w-4 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            ×
+          </button>
+        </div>
       </Show>
 
       {/*

@@ -18,7 +18,10 @@ vi.mock('../components/FilePicker', () => ({
 }));
 
 import { Loader } from './loading';
-import { LOADER_STORE, FILTERS_STORE, Interval, droppedFilters, setDroppedFilters, type LoaderStore } from '../stores';
+import {
+  LOADER_STORE, FILTERS_STORE, Interval, droppedFilters, setDroppedFilters, importCards, exportCards,
+  droppedReferences, setDroppedReferences, type LoaderStore,
+} from '../stores';
 import { reconcile } from 'solid-js';
 
 const SUMMARIES: LoaderStore = [
@@ -104,6 +107,23 @@ describe('Loader', () => {
     fireEvent.click(getByText(/^Load$/));
     await waitFor(() => expect(droppedFilters()).toEqual(['cbwd']), { timeout: 1000 });
     expect(Object.keys(snapshot(FILTERS_STORE[0]).numerical)).toEqual(['TEMP']);
+  });
+});
+
+describe('a load that orphans a card\'s reference', () => {
+  it('removes the reference and says so', async () => {
+    importCards({ nodes: [{ id: 'r', card: { type: 'rescale', inputs: [{ cols: ['TEMP', 'GONE'] }] } }], groups: {} });
+    setDroppedReferences([]);
+    await flush();
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'load-files' ? [num('TEMP')] : ['a.parquet']),
+    );
+    const { getByText } = render(() => <Loader />);
+    fireEvent.click(getByText('choose'));
+    await flush();
+    fireEvent.click(getByText(/^Load$/));
+    await waitFor(() => expect(droppedReferences()).toEqual([{ what: 'cols:GONE', where: 'r' }]), { timeout: 1000 });
+    expect(exportCards().nodes[0].card.inputs).toEqual([{ cols: 'TEMP' }]);
   });
 });
 

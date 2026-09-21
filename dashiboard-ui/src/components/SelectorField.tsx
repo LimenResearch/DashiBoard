@@ -371,14 +371,11 @@ export function SelectorField(props: SelectorFieldProps) {
           <For each={rows()}>
             {(r, i) => {
               const label = () => chipText(r);
-              const missing = () => !optionsOf(r.kind).includes(r.value);
               return (
                 <li
                   data-chip={label()}
                   tabindex={-1}
                   onKeyDown={(event) => onChipKey(event, i(), r)}
-                  data-missing={missing() ? "true" : undefined}
-                  title={missing() ? `${r.value} is not in the loaded table — remove it, or load a table that has it` : undefined}
                   draggable={props.single === true ? undefined : "true"}
                   onDragStart={() => setDragging(i())}
                   onDragOver={(event) => event.preventDefault()}
@@ -391,9 +388,7 @@ export function SelectorField(props: SelectorFieldProps) {
                   class={[
                     "inline-flex h-5 items-center gap-1 rounded-sm pr-0.5 pl-2 font-mono text-control-xs",
                     "focus:outline focus:outline-1 focus:outline-primary",
-                    missing()
-                      ? "border border-destructive/50 bg-destructive/10 text-destructive line-through"
-                      : "border border-border bg-background"
+                    "border border-border bg-background",
                   ]}
                 >
                   <span>{label()}</span>

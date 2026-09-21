@@ -656,3 +656,54 @@ describe('verdicts', () => {
     expect(s.verdictOf('group:g', [])?.verdict).toBe('rejected'); // groups are untouched
   });
 });
+
+describe('pruneReferences', () => {
+  const doc = () => ({
+    nodes: [
+      { id: 'r', card: { type: 'rescale', inputs: [{ cols: ['TEMP', 'GONE'] }, { nodes: 'ghost' }, { cols: 'PRES', through: ['ghost', 'r2'] }], partition: { groups: 'nogroup' } } },
+      { id: 'r2', card: { type: 'rescale', inputs: [{ groups: 'g' }] } },
+    ],
+    groups: { g: [{ cols: 'GONE' }, { cols: 'TEMP' }] },
+  });
+  it('removes what is not in the table or the document, keeps the rest, and says what and where', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); await flush();
+    const dropped = s.pruneReferences(['TEMP', 'PRES']); await flush();
+    const out = s.exportCards();
+    expect(out.nodes[0].card.inputs).toEqual([{ cols: 'TEMP' }, { cols: 'PRES', through: ['r2'] }]);
+    expect('partition' in out.nodes[0].card).toBe(false);
+    expect(out.groups.g).toEqual([{ cols: 'TEMP' }]);
+    expect(dropped).toEqual([
+      { what: 'cols:GONE', where: 'r' }, { what: 'nodes:ghost', where: 'r' }, { what: '@ghost', where: 'r' },
+      { what: 'groups:nogroup', where: 'r' }, { what: 'cols:GONE', where: 'group g' },
+    ]);
+  });
+  it('judges no column while no table is loaded', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); await flush();
+    const dropped = s.pruneReferences(null); await flush();
+    expect((s.exportCards().nodes[0].card.inputs as unknown[])[0]).toEqual({ cols: ['TEMP', 'GONE'] });
+    expect(dropped.map((d) => d.what)).toEqual(['nodes:ghost', '@ghost', 'groups:nogroup']);
+  });
+  it('leaves a loop alone: both of its references exist', async () => {
+    const s = await import('./stores');
+    s.importCards({ nodes: [{ id: 'a', card: { type: 'rescale', inputs: [{ nodes: 'b' }] } }, { id: 'b', card: { type: 'rescale', inputs: [{ nodes: 'a' }] } }], groups: {} });
+    await flush();
+    expect(s.pruneReferences(['TEMP'])).toEqual([]);
+  });
+  it('prunes a plain document handed to it, and leaves the store alone', async () => {
+    const s = await import('./stores');
+    s.importCards(doc()); await flush();
+    const target = doc();
+    const dropped = s.pruneReferences(['TEMP', 'PRES'], target as never);
+    expect(target.groups.g).toEqual([{ cols: 'TEMP' }]);
+    expect(dropped.length).toBe(5);
+    expect(s.exportCards().groups.g).toEqual([{ cols: 'GONE' }, { cols: 'TEMP' }]);
+  });
+  it('does not report the chain of an item whose value is gone', async () => {
+    const s = await import('./stores');
+    const target = { nodes: [{ id: 'r', card: { type: 'rescale', inputs: [{ cols: 'GONE', through: ['ghost'] }] } }], groups: {} };
+    expect(s.pruneReferences(['TEMP'], target as never)).toEqual([{ what: 'cols:GONE', where: 'r' }]);
+    expect(target.nodes[0].card.inputs).toEqual([]);
+  });
+});

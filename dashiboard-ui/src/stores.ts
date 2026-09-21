@@ -426,27 +426,77 @@ export function setGroup(name: string, items: Selector[]) {
  * `gaussian_encoding.input`, `interp.input`, `glm.formula.target` — hold one, not a list, and an
  * array-only walk left `partition: {groups: "g"}` naming a group that had just been removed.
  */
-function forEachSelector(draft: CardsStore, edit: (item: Selector) => Selector | null) {
+function forEachSelector(draft: CardsStore, edit: (item: Selector, where: string) => Selector | null) {
   const isItem = (x: unknown): x is Selector =>
     !!x && typeof x === "object" && ["cols", "groups", "nodes", "through"].some((k) => k in (x as object));
   const isSelector = (v: unknown): v is Selector[] => Array.isArray(v) && v.every(isItem);
-  const walk = (holder: Record<string, unknown>) => {
+  const walk = (holder: Record<string, unknown>, where: string) => {
     for (const [key, value] of Object.entries(holder)) {
       if (isSelector(value)) {
-        holder[key] = value.map(edit).filter((item): item is Selector => item !== null);
+        holder[key] = value.map((item) => edit(item, where)).filter((item): item is Selector => item !== null);
       } else if (!Array.isArray(value) && isItem(value)) {
         // Tested before the recursion below, which would otherwise descend past it into `cols`.
-        const next = edit(value);
+        const next = edit(value, where);
         if (next === null) delete holder[key]; else holder[key] = next;
       } else if (value && typeof value === "object" && !Array.isArray(value)) {
-        walk(value as Record<string, unknown>);
+        walk(value as Record<string, unknown>, where);
       }
     }
   };
-  for (const node of draft.nodes) walk(node.card as Record<string, unknown>);
+  draft.nodes.forEach((node, index) =>
+    walk(node.card as Record<string, unknown>, node.id || `card ${index + 1}`));
   for (const name of Object.keys(draft.groups)) {
-    draft.groups[name] = draft.groups[name].map(edit).filter((item): item is Selector => item !== null);
+    draft.groups[name] = draft.groups[name]
+      .map((item) => edit(item, `group ${name}`))
+      .filter((item): item is Selector => item !== null);
   }
+}
+
+export type DroppedReference = { what: string; where: string };
+/** What the last table or document load removed, for the Process tab to say. Transient. */
+export const [droppedReferences, setDroppedReferences] = createSignal<DroppedReference[]>([]);
+
+/**
+ * Remove references to columns the loaded table lacks and to nodes and groups the document
+ * lacks, and return them. No table loaded means columns cannot be judged, so they stay. A
+ * reference that exists is never removed here, even when it makes a loop. Given a `target`, that
+ * plain document is pruned in place of the store — for a document not yet stored.
+ */
+export function pruneReferences(columns: readonly string[] | null, target?: CardsStore): DroppedReference[] {
+  const dropped: DroppedReference[] = [];
+  const prune = (draft: CardsStore) => {
+    const present: Record<"cols" | "nodes" | "groups", Set<string> | null> = {
+      cols: columns !== null && columns.length > 0 ? new Set(columns) : null,
+      nodes: new Set(draft.nodes.map((node) => node.id ?? "")),
+      groups: new Set(Object.keys(draft.groups)),
+    };
+    forEachSelector(draft, (item, where) => {
+      const out: Selector = { ...item };
+      for (const kind of ["cols", "nodes", "groups"] as const) {
+        const known = present[kind];
+        const value = out[kind];
+        if (known === null || value === undefined) continue;
+        const kept = (Array.isArray(value) ? value : [value]).filter((name) => {
+          if (!known.has(name)) dropped.push({ what: `${kind}:${name}`, where });
+          return known.has(name);
+        });
+        if (kept.length === 0) delete out[kind];
+        else out[kind] = kept.length === 1 ? kept[0] : kept;
+      }
+      // An item with no value left goes whole; its chain is not a loss of its own.
+      if (!("cols" in out || "groups" in out || "nodes" in out)) return null;
+      if (Array.isArray(out.through)) {
+        out.through = out.through.filter((step) => {
+          if (!present.nodes!.has(step)) dropped.push({ what: `@${step}`, where });
+          return present.nodes!.has(step);
+        });
+        if (out.through.length === 0) delete out.through;
+      }
+      return out;
+    });
+  };
+  if (target === undefined) setCards(prune); else prune(target);
+  return dropped;
 }
 
 /** `{kind: value}` with `name` taken out of the kind's one-or-many value; `null` when nothing is left. */

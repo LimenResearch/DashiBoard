@@ -199,24 +199,26 @@ end
 """
     get_card_ir(req)
 
-Serve the renderer's artefact: the IR for every registered card, plus the shared `\$defs` once
-in the envelope rather than duplicated per card. These are the two artefacts of one traversal, §13.
+The card descriptions a form is built from, in two halves: `cards`, the IR of every registered
+card type, and `defs`, the shared vocabularies (`cols`, `nodes`, `groups`) the cards refer to.
 
-Serves the **group** dialect, matching what `evaluate-pipeline` now runs: a `variable` is a
-selector object over nodes, groups and cols rather than a bare column-name enum. The request
-carries all three vocabularies, because which nodes and groups are referenceable depends on the
-document being edited, not only on the source.
+The request carries the three vocabularies, since which nodes and groups can be referred to
+depends on the document being edited. `include` names the halves wanted (default: both); `cards`
+never changes while the server runs, so a client asks for `defs` alone after the first time.
 """
 function get_card_ir(req::HTTP.Request)
     spec = json_read(req)
-    # `nothing` means *unconstrained* in a `VariableConfig` (A9), so an absent key leaves that
-    # definition without an enum rather than with an empty one — which would admit nothing.
+    # An absent vocabulary is `nothing`, which means "unconstrained"; an empty list would mean
+    # "nothing is allowed".
     maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
-    # Which halves to send. `cards` is the IR of every registered type and takes no vocabulary,
-    # so it is the same answer for the life of the server; `defs` is the three enums and changes
-    # with every column, group or node name. Measured: 18,449 of 19,152 bytes were `cards`, and
-    # they were being refetched to update 242 bytes of enum.
-    include = Set{String}(get(spec, "include", ["defs", "cards"]))
+    # `include` is a list, or one string standing for a list of one. The string has to be wrapped
+    # by hand: `Set{String}("defs")` would iterate its characters and throw.
+    wanted = get(spec, "include", ["defs", "cards"])
+    wanted isa AbstractString && (wanted = [wanted])
+    wanted isa AbstractVector || return json_response(
+        failure_report("request", ArgumentError("`include` must be a string or a list of strings"))
+    )
+    include = Set{String}(wanted)
     parts = Pair{Symbol, Any}[]
     if "defs" in include
         variable_config = Pipelines.VariableConfig(

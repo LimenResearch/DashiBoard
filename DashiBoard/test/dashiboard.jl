@@ -346,6 +346,18 @@ mktempdir() do data_dir
         body = JSON.json((; include = ["cards"]))
         resp = HTTP.post(url * "get-card-ir", body = body)
         @test collect(keys(JSON.parse(resp.body))) == ["cards"]
+        # `include` written as one string rather than a list of one — an easy slip against an
+        # API that takes "one or many" nearly everywhere — used to be a 500 with an empty body:
+        # `Set{String}("defs")` iterates the *characters*. One half asked for is one half sent.
+        resp = HTTP.post(url * "get-card-ir", body = JSON.json((; include = "defs")), status_exception = false)
+        @test resp.status == 200
+        @test collect(keys(JSON.parse(resp.body))) == ["defs"]
+        # Anything else is refused in the usual envelope, with a sentence, not with a bare 500.
+        resp = HTTP.post(url * "get-card-ir", body = JSON.json((; include = 3)), status_exception = false)
+        @test resp.status == 200
+        refused = JSON.parse(resp.body)
+        @test refused["valid"] == false
+        @test occursin("include", only(refused["errors"]))
         resp = HTTP.options(url * "get-card-ir")
         @test resp.headers == [
             DashiBoard.CORS_OPTIONS_HEADERS...,

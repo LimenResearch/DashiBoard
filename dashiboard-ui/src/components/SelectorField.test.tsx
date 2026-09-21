@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { createSignal, flush } from 'solid-js';
 import { SelectorField } from './SelectorField';
 import * as selector from '../selector';
 import type { SelectorItem } from '../selector';
@@ -494,5 +494,62 @@ describe('SelectorField, typed entry', () => {
     await type(container, 'c');
     expect(box(container).getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector(`#${box(container).getAttribute('aria-activedescendant')}`)).not.toBeNull();
+  });
+});
+
+describe('SelectorField, chips by keyboard', () => {
+  const box = (c: HTMLElement) => c.querySelector('[data-entry]') as HTMLInputElement;
+  const chips = (c: HTMLElement) => [...c.querySelectorAll('[data-chip]')] as HTMLElement[];
+
+  it('reaches the chips from the empty box, walks them, and comes back', async () => {
+    const { container } = mount([{ cols: 'PRES' }, { cols: 'TEMP' }]);
+    box(container).focus();
+    fireEvent.keyDown(box(container), { key: 'ArrowLeft' }); await flush();
+    expect(document.activeElement).toBe(chips(container)[1]);
+    fireEvent.keyDown(chips(container)[1], { key: 'ArrowLeft' }); await flush();
+    expect(document.activeElement).toBe(chips(container)[0]);
+    fireEvent.keyDown(chips(container)[0], { key: 'Escape' }); await flush();
+    expect(document.activeElement).toBe(box(container));
+  });
+
+  it('removes the focused chip with Delete, and moves it with Alt and an arrow', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([{ cols: 'PRES' }, { groups: 'weather' }, { cols: 'TEMP' }], (items) => { written = items; });
+    box(container).focus();
+    fireEvent.keyDown(box(container), { key: 'ArrowLeft' }); await flush();
+    fireEvent.keyDown(chips(container)[2], { key: 'ArrowLeft', altKey: true }); await flush();
+    expect(written).toEqual([{ cols: ['PRES', 'TEMP'] }, { groups: 'weather' }]);   // neighbours of a kind are written as one item
+    fireEvent.keyDown(document.activeElement!, { key: 'Delete' }); await flush();
+    expect(written).toEqual([{ cols: 'PRES' }, { groups: 'weather' }]);
+  });
+
+  it('keeps the focus on a chip as it moves', async () => {
+    const [value, setValue] = createSignal<SelectorItem[]>([{ cols: 'PRES' }, { groups: 'weather' }]);
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value()} onChange={setValue} />
+    ));
+    chips(container)[1].focus();
+    fireEvent.keyDown(chips(container)[1], { key: 'ArrowLeft', altKey: true }); await flush();
+    await new Promise((done) => requestAnimationFrame(() => done(null)));
+    expect(chips(container).map((c) => c.getAttribute('data-chip'))).toEqual(['groups:weather', 'cols:PRES']);
+    expect(document.activeElement).toBe(chips(container)[0]);
+  });
+
+  it('does not take the arrow while something is being typed', async () => {
+    const { container } = mount([{ cols: 'PRES' }]);
+    fireEvent.input(box(container), { target: { value: 'c' } }); await flush();
+    box(container).focus();
+    fireEvent.keyDown(box(container), { key: 'ArrowLeft' }); await flush();
+    expect(document.activeElement).toBe(box(container));
+  });
+});
+
+describe('SelectorField, teaching the keys', () => {
+  it('puts the help button just before the text box, and shows one whole example in the empty box', () => {
+    const { container } = mount([]);
+    const focusable = [...container.querySelectorAll('[data-help], [data-entry]')];
+    expect(focusable.map((e) => e.hasAttribute('data-help'))).toEqual([true, false]);
+    expect((container.querySelector('[data-entry]') as HTMLInputElement).placeholder)
+      .toBe('nodes: name @node, then Enter');
   });
 });

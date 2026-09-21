@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 
+import { SelectorHelp } from "./SelectorHelp";
 import { Tabs } from "./Tabs";
 import {
   asItems,
@@ -179,7 +180,42 @@ export function SelectorField(props: SelectorFieldProps) {
     return result;
   };
 
+  // --- chips by keyboard ------------------------------------------------------
+  const chipAt = (index: number) =>
+    root?.querySelectorAll<HTMLElement>("[data-chip]")[index];
+
+  const onChipKey = (event: KeyboardEvent, index: number, row: SelectorRow) => {
+    const last = rows().length - 1;
+    const arrow = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+    if (arrow !== 0 && event.altKey) {
+      event.preventDefault();
+      if (props.single === true) return;
+      reorder(index, index + arrow);
+      // The list redraws around the moved chip; the focus goes with it.
+      const label = chipText(row);
+      requestAnimationFrame(() => root?.querySelector<HTMLElement>(`[data-chip="${CSS.escape(label)}"]`)?.focus());
+    } else if (arrow !== 0) {
+      event.preventDefault();
+      if (index + arrow > last) box?.focus();
+      else chipAt(Math.max(0, index + arrow))?.focus();
+    } else if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      (index > 0 ? chipAt(index - 1) : box)?.focus();
+      removeCase(row.kind, row.value, row.chain);
+    } else if (event.key === "Escape" || (event.key === "Tab" && !event.shiftKey)) {
+      event.preventDefault();
+      box?.focus();
+    }
+  };
+
   const onEntryKey = (event: KeyboardEvent) => {
+    // With nothing typed, going left — or back — lands on the last chip.
+    const back = event.key === "ArrowLeft" || (event.key === "Tab" && event.shiftKey);
+    if (back && entry().text === "" && rows().length > 0) {
+      event.preventDefault();
+      chipAt(rows().length - 1)?.focus();
+      return;
+    }
     const inputs: Record<string, EntryInput> = {
       Enter: { type: "enter" }, Escape: { type: "escape" },
       ArrowDown: { type: "down" }, ArrowUp: { type: "up" },
@@ -339,6 +375,8 @@ export function SelectorField(props: SelectorFieldProps) {
               return (
                 <li
                   data-chip={label()}
+                  tabindex={-1}
+                  onKeyDown={(event) => onChipKey(event, i(), r)}
                   data-missing={missing() ? "true" : undefined}
                   title={missing() ? `${r.value} is not in the loaded table — remove it, or load a table that has it` : undefined}
                   draggable={props.single === true ? undefined : "true"}
@@ -352,6 +390,7 @@ export function SelectorField(props: SelectorFieldProps) {
                   }}
                   class={[
                     "inline-flex h-5 items-center gap-1 rounded-sm pr-0.5 pl-2 font-mono text-control-xs",
+                    "focus:outline focus:outline-1 focus:outline-primary",
                     missing()
                       ? "border border-destructive/50 bg-destructive/10 text-destructive line-through"
                       : "border border-border bg-background"
@@ -396,6 +435,7 @@ export function SelectorField(props: SelectorFieldProps) {
       </div>
 
       <div class="flex items-start gap-1.5">
+        <SelectorHelp single={props.single} />
         <div class="relative min-w-0 grow">
           <div
             onClick={() => box?.focus()}

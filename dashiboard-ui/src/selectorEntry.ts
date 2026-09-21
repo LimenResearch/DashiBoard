@@ -64,7 +64,9 @@ function finish(state: EntryState, single: boolean): EntryStep {
 export function step(state: EntryState, input: EntryInput, vocabulary: EntryVocabulary, single = false): EntryStep {
   switch (input.type) {
     case "text": {
-      const value = input.value;
+      // After a name only a chain step can follow, so the `@` may be left out.
+      const value = state.name !== null && input.value !== "" && !input.value.startsWith("@")
+        ? `@${input.value}` : input.value;
       // `cols:` typed out, and `bill@` typed through, both accept what came before the mark.
       if (stageOf(state) === "kind" && value.endsWith(":")) {
         const top = matches(value.slice(0, -1), vocabulary.kinds)[0];
@@ -108,7 +110,11 @@ export function step(state: EntryState, input: EntryInput, vocabulary: EntryVoca
       return { state: state.open ? { ...state, open: false } : emptyEntry };
     case "pick": {
       const accepted = accept({ ...state, open: true }, input.value);
-      if (input.how === "direct") return finish(accepted, single);
+      if (input.how === "direct") {
+        // The hand is on the mouse: the list stays for the next pick, where ENTER closes it.
+        const done = finish(accepted, single);
+        return single ? done : { ...done, state: { ...done.state, open: true } };
+      }
       if (input.how === "through") return { state: { ...accepted, text: "@", open: true, highlight: 0 } };
       return { state: accepted };
     }

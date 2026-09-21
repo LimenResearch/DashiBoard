@@ -11,6 +11,7 @@ import {
   type SelectorRow,
 } from "../selector";
 import { widgetFor, type Defs, type IRNode } from "../ir";
+import { emptyEntry, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
 import * as _ from "lodash";
 
 // The variable picker (C2), built to study 05.
@@ -148,7 +149,61 @@ export function SelectorField(props: SelectorFieldProps) {
   };
   const clearPending = (id: string) => setPending(pending().filter((p) => p !== id));
 
+  // --- the typed entry: the panel's steps, from the keyboard -----------------
+  const [entry, setEntry] = createSignal(emptyEntry);
+  const vocabulary = createMemo(() => ({
+    kinds: tabKinds(),
+    options: Object.fromEntries(tabKinds().map((kind) => [kind, optionsOf(kind)])),
+    chain: chainOptions(),
+  }));
+  const listId = _.uniqueId("selector-list-");
+  let root: HTMLDivElement | undefined;
+  let box: HTMLInputElement | undefined;
+
+  const tokens = () => {
+    const e = entry();
+    return [
+      ...(e.kind === null ? [] : [`${e.kind}:`]),
+      ...(e.name === null ? [] : [e.name]),
+      ...e.chain.map((node) => `@${node}`),
+    ];
+  };
+
+  /** One step of the grammar; a finished entry is written unless the field already holds it. */
+  const apply = (input: EntryInput) => {
+    const result = step(entry(), input, vocabulary(), props.single === true);
+    setEntry(result.state);
+    const row = result.emit;
+    if (row !== undefined && !casesFor(row.kind, row.value).some((c) => chainKey(c) === chainKey(row.chain)))
+      write([...rows(), row]);
+    return result;
+  };
+
+  const onEntryKey = (event: KeyboardEvent) => {
+    const inputs: Record<string, EntryInput> = {
+      Enter: { type: "enter" }, Escape: { type: "escape" },
+      ArrowDown: { type: "down" }, ArrowUp: { type: "up" },
+    };
+    if (event.key === "Tab" && !event.shiftKey) {
+      // TAB completes only while a list is open; otherwise it leaves the field, as TAB does.
+      if (apply({ type: "tab" }).leave !== true) event.preventDefault();
+    } else if (event.key === "Backspace" && entry().text === "") {
+      event.preventDefault();
+      apply({ type: "backspace" });
+    } else if (event.key in inputs) {
+      event.preventDefault();
+      apply(inputs[event.key]);
+      requestAnimationFrame(() =>
+        root?.querySelector("[data-highlighted]")?.scrollIntoView?.({ block: "nearest" }));
+    }
+  };
+
+  const highlightedId = (index: number) => (entry().open && entry().highlight === index ? true : undefined);
+
   const openKind = () => {
+    // The box and the panel are one list: a kind token selects the tab.
+    const typed = entry().kind;
+    if (typed !== null && tabKinds().includes(typed)) return typed;
     const chosen = picked();
     return chosen !== null && tabKinds().includes(chosen) ? chosen : (tabKinds()[0] ?? "");
   };
@@ -156,6 +211,73 @@ export function SelectorField(props: SelectorFieldProps) {
   // The name, the chips and the text box are always on screen; this folds what is below them.
   const [open, setOpen] = createSignal(false);
   const panelId = _.uniqueId("selector-panel-");
+
+  /** The open tab's rows, narrowed by what is being typed for that kind. */
+  const panelValues = () => {
+    const e = entry();
+    return e.kind === openKind() && stageOf(e) === "name"
+      ? suggestions(e, vocabulary())
+      : optionsOf(openKind());
+  };
+
+  /** The matches for the part being typed; each carries the panel's two words for the mouse. */
+  const SuggestionList = () => (
+    <ul
+      id={listId}
+      role="listbox"
+      aria-label={`${props.label} suggestions`}
+      // Keeps the focus in the box while the mouse picks.
+      onMouseDown={(event) => event.preventDefault()}
+      class={open()
+        ? "flex flex-col p-1"
+        : "absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm"}
+    >
+      <For each={suggestions(entry(), vocabulary())} fallback={
+        <li class="p-1 text-control-xs text-muted-foreground italic">nothing matches</li>
+      }>
+        {(value, i) => {
+          const atKind = () => stageOf(entry()) === "kind";
+          return (
+            <li
+              data-suggestion={value}
+              data-highlighted={highlightedId(i())}
+              role="option"
+              id={`${listId}-${i()}`}
+              aria-selected={entry().highlight === i() ? "true" : "false"}
+              onClick={() => { if (atKind()) apply({ type: "pick", value, how: "continue" }); }}
+              class={[
+                "flex items-center gap-2 rounded-sm px-1.5 py-0.5 font-mono text-control-xs",
+                { "bg-accent/60": entry().highlight === i(), "cursor-pointer": atKind() },
+              ]}
+            >
+              <span class="min-w-0 grow truncate">{atKind() ? `${value}:` : value}</span>
+              <Show when={!atKind()}>
+                <button
+                  type="button"
+                  tabindex={-1}
+                  data-pick="direct"
+                  onClick={() => apply({ type: "pick", value, how: "direct" })}
+                  class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary"
+                >
+                  direct
+                </button>
+                <button
+                  type="button"
+                  tabindex={-1}
+                  data-pick="through"
+                  disabled={chainOptions().length === 0}
+                  onClick={() => apply({ type: "pick", value, how: "through" })}
+                  class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary disabled:opacity-40"
+                >
+                  through…
+                </button>
+              </Show>
+            </li>
+          );
+        }}
+      </For>
+    </ul>
+  );
 
   /**
    * Whether another qualification could be specified at all.
@@ -189,7 +311,7 @@ export function SelectorField(props: SelectorFieldProps) {
   }
 
   return (
-    <div data-selector class="my-1 flex flex-col gap-1">
+    <div data-selector ref={(el) => { root = el; }} class="my-1 flex flex-col gap-1">
       {/* Always on screen: the name, what is selected, and (below) the text box. One chip per
           value, in document order — the order positional rules read — so the chips are also where
           a value is moved or removed. */}
@@ -273,6 +395,43 @@ export function SelectorField(props: SelectorFieldProps) {
         </ul>
       </div>
 
+      <div class="flex items-start gap-1.5">
+        <div class="relative min-w-0 grow">
+          <div
+            onClick={() => box?.focus()}
+            class="flex cursor-text flex-wrap items-center gap-1 rounded-sm border border-border px-1.5 py-1 focus-within:border-primary"
+          >
+            <For each={tokens()}>
+              {(token) => (
+                <span data-token class="rounded-sm bg-accent/60 px-1 font-mono text-control-xs">{token}</span>
+              )}
+            </For>
+            <input
+              ref={(el) => { box = el; }}
+              data-entry
+              role="combobox"
+              aria-expanded={entry().open ? "true" : "false"}
+              aria-controls={open() ? panelId : listId}
+              aria-activedescendant={entry().open ? `${listId}-${entry().highlight}` : undefined}
+              aria-autocomplete="list"
+              aria-label={`${props.label}, type a selection`}
+              autocomplete="off"
+              spellcheck={false}
+              placeholder={tokens().length === 0 ? "nodes: name @node, then Enter" : ""}
+              value={entry().text}
+              onInput={(event) => apply({ type: "text", value: event.currentTarget.value })}
+              onKeyDown={onEntryKey}
+              onBlur={() => { if (entry().open) setEntry({ ...entry(), open: false }); }}
+              class="min-w-24 grow bg-transparent font-mono text-control-xs outline-none"
+            />
+          </div>
+          {/* With the panel open, the panel is the list. */}
+          <Show when={entry().open && !open()}>
+            <SuggestionList />
+          </Show>
+        </div>
+      </div>
+
       <div data-panel id={panelId} hidden={!open()} class="flex flex-col gap-2">
       {/*
         What the field will be written as — the selector form, never a resolved name. Rendered
@@ -292,17 +451,30 @@ export function SelectorField(props: SelectorFieldProps) {
           group="kinds"
           items={tabKinds()}
           active={openKind()}
-          onSelect={setPicked}
+          onSelect={(kind) => {
+            setPicked(kind);
+            // A tab chosen by hand takes the box with it, or the kind token would hold the old tab.
+            if (entry().kind !== null) setEntry({ ...emptyEntry, kind });
+          }}
           count={(kind) => optionsOf(kind).filter((v) => casesFor(kind, v).length > 0).length}
         />
 
         <div class="max-h-64 overflow-y-auto p-1">
+          <Show when={stageOf(entry()) === "chain" && open()}>
+            <SuggestionList />
+          </Show>
           <Show
-            when={optionsOf(openKind()).length > 0}
-            fallback={<p class="p-2 text-control-xs text-muted-foreground italic">none defined</p>}
+            when={stageOf(entry()) !== "chain" && panelValues().length > 0}
+            fallback={
+              <Show when={stageOf(entry()) !== "chain"}>
+                <p class="p-2 text-control-xs text-muted-foreground italic">
+                  {optionsOf(openKind()).length > 0 ? "nothing matches" : "none defined"}
+                </p>
+              </Show>
+            }
           >
-            <For each={optionsOf(openKind())}>
-              {(value) => {
+            <For each={panelValues()}>
+              {(value, at) => {
                 const kind = () => openKind();
                 const id = () => idOf(kind(), value);
                 const cases = () => casesFor(kind(), value);
@@ -312,9 +484,12 @@ export function SelectorField(props: SelectorFieldProps) {
                 return (
                   <div
                     data-value={value}
+                    id={`${listId}-${at()}`}
+                    data-highlighted={entry().kind === kind() ? highlightedId(at()) : undefined}
                     class={[
                       "flex flex-col gap-1 rounded-sm px-1.5 py-1",
                       { "bg-accent/40": on(), "hover:bg-muted": !on() },
+                      "data-[highlighted]:outline data-[highlighted]:outline-1 data-[highlighted]:outline-primary",
                     ]}
                   >
                     <div class="flex flex-wrap items-center gap-2">

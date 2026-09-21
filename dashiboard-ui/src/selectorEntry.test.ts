@@ -116,6 +116,19 @@ describe('the typed entry', () => {
     expect(step(emptyEntry, { type: 'pick', value: 'groups', how: 'continue' }, V).state.kind).toBe('groups');
   });
 
+  it('a mouse pick leaves the list open for the next one; ENTER closes it', () => {
+    const named = walk([text('c'), TAB]).state;
+    expect(step(named, { type: 'pick', value: 'bill_length', how: 'direct' }, V).state.open).toBe(true);
+    expect(step(named, { type: 'pick', value: 'bill_length', how: 'direct' }, V, true).state).toEqual(emptyEntry);
+    expect(walk([text('c'), TAB, text('bill'), ENTER]).state.open).toBe(false);
+  });
+
+  it('reads text after a name as a chain step, since nothing else can follow', () => {
+    const { state } = walk([text('c'), TAB, text('bill'), TAB, text('imp')]);
+    expect(state.text).toBe('@imp');
+    expect(suggestions(state, V)).toEqual(['impute']);
+  });
+
   it('in single mode ENTER clears the kind too', () => {
     expect(walk([text('c'), TAB, text('bill'), ENTER], V, true).state).toEqual(emptyEntry);
   });

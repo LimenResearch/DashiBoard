@@ -412,3 +412,87 @@ describe('SelectorField, layout', () => {
     expect(chip.querySelector('[data-chip-remove]')).not.toBeNull();
   });
 });
+
+describe('SelectorField, typed entry', () => {
+  const box = (c: HTMLElement) => c.querySelector('[data-entry]') as HTMLInputElement;
+  const type = async (c: HTMLElement, value: string) => { fireEvent.input(box(c), { target: { value } }); await flush(); };
+  const key = async (c: HTMLElement, k: string) => { const e = fireEvent.keyDown(box(c), { key: k }); await flush(); return e; };
+  const tokens = (c: HTMLElement) => [...c.querySelectorAll('[data-token]')].map((t) => t.textContent);
+
+  it('writes the same document as the panel: kind, name, chain, Enter', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    await type(container, 'c'); await key(container, 'Tab');
+    await type(container, 'PRE'); await key(container, 'Tab');
+    await type(container, '@resc'); await key(container, 'Tab');
+    expect(tokens(container)).toEqual(['cols:', 'PRES', '@rescale']);
+    await key(container, 'Enter');
+    expect(written).toEqual([{ cols: 'PRES', through: ['rescale'] }]);
+    expect(tokens(container)).toEqual(['cols:']);            // the kind stays for the next entry
+    expect(box(container).value).toBe('');
+  });
+
+  it('lets TAB through when nothing is being typed, and keeps it while completing', async () => {
+    const { container } = mount([]);
+    expect(await key(container, 'Tab')).toBe(true);          // not prevented: focus moves on
+    await type(container, 'c');
+    expect(await key(container, 'Tab')).toBe(false);         // prevented: it completed `cols:`
+  });
+
+  it('shows a dropdown of matches while the panel is folded, and none when it is open', async () => {
+    const { container } = mount([]);
+    await type(container, 'c'); await key(container, 'Tab'); await type(container, 'TE');
+    expect(container.querySelector('[role=listbox] [data-suggestion="TEMP"]')).not.toBeNull();
+    open(container); await flush();
+    expect(container.querySelector('[role=listbox]')).toBeNull();
+  });
+
+  it('drives the open panel: the tab follows the kind, the rows narrow, the highlight moves', async () => {
+    const { container } = mount([]);
+    open(container); await flush();
+    await type(container, 'c'); await key(container, 'Tab');
+    expect(container.querySelector('[role=tab][aria-selected="true"]')!.getAttribute('data-tab')).toBe('cols');
+    await type(container, 'TE');
+    const shown = [...container.querySelectorAll('[data-panel] [data-value]')].map((r) => r.getAttribute('data-value'));
+    expect(shown.every((v) => v!.toLowerCase().includes('te'))).toBe(true);
+    expect(container.querySelector('[data-panel] [data-highlighted]')!.getAttribute('data-value')).toBe(shown[0]);
+  });
+
+  it('gives the mouse the panel\'s two words in the list: direct finishes, through… asks for a node', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    await type(container, 'c'); await key(container, 'Tab');
+    fireEvent.click(container.querySelector('[data-suggestion="TEMP"] [data-pick="direct"]')!); await flush();
+    expect(written).toEqual([{ cols: 'TEMP' }]);
+    fireEvent.click(container.querySelector('[data-suggestion="PRES"] [data-pick="through"]')!); await flush();
+    expect(tokens(container)).toEqual(['cols:', 'PRES']);
+    expect(box(container).value).toBe('@');
+    expect(container.querySelector('[data-suggestion="rescale"]')).not.toBeNull();
+  });
+
+  it('does not add the same value with the same chain twice', async () => {
+    const written: SelectorItem[][] = [];
+    const { container } = mount([{ cols: 'PRES' }], (items) => { written.push(items); });
+    await type(container, 'c'); await key(container, 'Tab'); await type(container, 'PRES'); await key(container, 'Enter');
+    expect(written).toEqual([]);
+  });
+
+  it('replaces the one item of a lone selector, and clears the box', async () => {
+    let written: SelectorItem | undefined | null = null;
+    const { container } = render(() => (
+      <SelectorField single itemNode={itemNode} defs={defs} label="partition" value={{ cols: 'PRES' }} onChange={(item) => { written = item; }} />
+    ));
+    await type(container, 'c'); await key(container, 'Tab'); await type(container, 'TEMP'); await key(container, 'Enter');
+    expect(written).toEqual({ cols: 'TEMP' });
+    expect(tokens(container)).toEqual([]);
+  });
+
+  it('is a combobox to a screen reader', async () => {
+    const { container } = mount([]);
+    expect(box(container).getAttribute('role')).toBe('combobox');
+    expect(box(container).getAttribute('aria-expanded')).toBe('false');
+    await type(container, 'c');
+    expect(box(container).getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector(`#${box(container).getAttribute('aria-activedescendant')}`)).not.toBeNull();
+  });
+});

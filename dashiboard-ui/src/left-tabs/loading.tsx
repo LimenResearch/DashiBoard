@@ -12,16 +12,22 @@ export function Loader() {
   const [files, setFiles] = createSignal([]);
   const [loading, setLoading] = createSignal(false);
 
+  /** How many loads have landed. See `revision`. */
+  const [loads, setLoads] = createSignal(0);
   /**
    * Which source the preview is showing — the table's `revision`.
    *
-   * Counted off the store's own serialisation rather than bumped inside `loadData`, because the
-   * store *is* the loaded source: whoever writes it has replaced the rows, and a second file with
-   * the very same column names is still a different table. `LOADER_JSON` is the string
-   * persistence already builds, so this costs one comparison and no second walk of the store.
+   * Two things move it. The store's own serialisation, because the store *is* the loaded source:
+   * whoever writes it has replaced the rows (`LOADER_JSON` is the string persistence already
+   * builds, so this costs one comparison). And every load that lands, because the summaries alone
+   * cannot tell two tables apart: a summary is a column's extrema or its distinct values, so the
+   * same rows in another order — or yesterday's export and today's — summarise identically, and
+   * the grid kept showing the first file's rows after the second had been loaded (measured
+   * 2026-09-21; seen in a browser with `same-summary-A/B.parquet`).
    */
   const revision = createMemo((previous: number | undefined) => {
     void LOADER_JSON();
+    void loads();
     return (previous ?? 0) + 1;
   });
 
@@ -37,6 +43,7 @@ export function Loader() {
         // Filters are part of the document, but one on a column this table lacks cannot apply:
         // dropped, and announced in the Filter tab. See `pruneFilters`.
         pruneFilters(next);
+        setLoads((n) => n + 1);
       })
       .finally(() => setLoading(false));
   }

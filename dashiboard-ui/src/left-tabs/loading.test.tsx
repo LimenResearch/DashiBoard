@@ -106,3 +106,25 @@ describe('Loader', () => {
     expect(Object.keys(snapshot(FILTERS_STORE[0]).numerical)).toEqual(['TEMP']);
   });
 });
+
+describe('a second load whose columns summarise identically', () => {
+  it('still refetches the preview: it is a different table', async () => {
+    // A summary is a column's extrema or its distinct values, so two files with the same rows in
+    // another order — or yesterday's export and today's — summarise identically. The preview's
+    // revision was counted off the summaries alone, so the second load left the grid showing the
+    // first file's rows (measured 2026-09-21, and seen in a browser with same-summary-A/B).
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'load-files' ? structuredClone(SUMMARIES)
+        : page === 'fetch-data' ? { values: [], length: 0 } : ['sample.csv']));
+    const fetches = () => postRequest.mock.calls.filter((c: unknown[]) => c[0] === 'fetch-data').length;
+    const { getByText } = render(() => <Loader />);
+    fireEvent.click(getByText('choose'));
+    await flush();
+    fireEvent.click(getByText('Load'));
+    await waitFor(() => expect(fetches()).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 50));
+    const afterFirst = fetches();
+    fireEvent.click(getByText('Load'));
+    await waitFor(() => expect(fetches()).toBeGreaterThan(afterFirst));
+  });
+});

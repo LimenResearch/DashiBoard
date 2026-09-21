@@ -3,7 +3,7 @@ import { render, cleanup, fireEvent, waitFor } from '@solidjs/testing-library';
 import { flush, reconcile } from 'solid-js';
 import { GroupsEditor } from './GroupsEditor';
 import {
-  importCards, exportCards, emptyCards, addGroup, setGroup, forgetAllVerdicts,
+  importCards, exportCards, emptyCards, addGroup, removeGroup, setGroup, forgetAllVerdicts,
   isConfirmed, PROBE_STORE, emptyProbe, rejectFromIssues, confirmDefinition, recordVerdict, documentVerdict,
 } from '../stores';
 import type { Defs } from '../ir';
@@ -473,5 +473,35 @@ describe('Confirm on a document that cannot build', () => {
     await flush();
     fireEvent.click(getByText('Confirm'));
     await waitFor(() => expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull());
+  });
+});
+
+describe('an answer that arrives after its group is gone', () => {
+  it('is dropped: a new group of the same name is not marked for a question nobody asked of it', async () => {
+    // Confirm on an empty group, the group removed while the server is still answering, a new
+    // group added — which gets the same default name and the same empty content. The late
+    // answer used to land on it: red, "has no columns", with no Confirm pressed (measured
+    // 2026-09-17 and again 2026-09-21). Content cannot tell the two apart — `[]` is `[]` — so
+    // the guard is on the removal itself. It needs a slow server to show: a remote deployment,
+    // or the first seconds after a restart.
+    let answer!: (v: unknown) => void;
+    postRequest.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
+    const name = addGroup();
+    const { container, getByText } = mount();
+    await flush();
+    fireEvent.click(getByText('Confirm'));
+    await waitFor(() => expect(answer).toBeDefined());
+    removeGroup(name);
+    await flush();
+    answer({ valid: false, kind: 'pipeline', cols: [], errors: [`group \`${name}\` has no columns`],
+      issues: [{ pointer: `/groups/${name}`, reason: 'empty', severity: 'error', found: null, allowed: null,
+        missing: [], related: [], message: `group \`${name}\` has no columns` }] });
+    await new Promise((r) => setTimeout(r, 20));
+    await flush();
+    expect(addGroup()).toBe(name);
+    await flush();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container.querySelector('[data-state]')!.getAttribute('data-state')).toBe('unconfirmed');
+    expect(container.querySelector('[data-finding]')).toBeNull();
   });
 });

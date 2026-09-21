@@ -13,6 +13,8 @@ import {
   issuesForGroup,
   recordVerdict,
   verdictOf,
+  askedOf,
+  stillAsked,
   documentFindings,
   rejectDocument,
   forgetVerdict,
@@ -143,6 +145,10 @@ export function GroupsEditor(props: { defs: Defs }) {
                           const document = exportCards();
                           const items = document.groups[name];
                           const key = `group:${name}`;
+                          // The answer is only worth recording while this group is still the
+                          // one that was asked: removed and re-added under the same name, it is
+                          // a new group that nobody asked about (`stores.ts`, `askedOf`).
+                          const asked = askedOf(key);
                           const decide = (found: Incompleteness[]) =>
                             recordVerdict(key, items, found.length > 0 ? "rejected" : "confirmed", found);
                           void (async () => {
@@ -150,6 +156,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                             // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
                             // one rule that used to live here (`checkGroup`) is gone.
                             const answer = await askProbe(document);
+                            if (!stillAsked(key, asked)) return;
                             // `null` means the probe could not be asked at all (item 1: a missing
                             // dev-server proxy route, or the server being down) — not that it came
                             // back clean. Reading it as "no issues" is what let an empty group

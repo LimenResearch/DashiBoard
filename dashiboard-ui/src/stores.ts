@@ -620,7 +620,22 @@ export function documentVerdict(): Verdict | null {
   return v !== undefined && v.signature === CARDS_JSON() ? v : null;
 }
 
+// How many times each key's verdict has been taken away — by a removal, a rename, a forget.
+// A question asked of an item is only worth recording while this has not moved: content cannot
+// tell a removed group from a new one of the same name (`[]` is `[]`), so an answer that arrived
+// late used to mark a group nobody had asked about (measured 2026-09-17, again 2026-09-21; it
+// takes a slow server to show). Plain, not reactive: it is read once before a request and once
+// after, never rendered.
+const retired = new Map<string, number>();
+const retire = (key: string) => retired.set(key, (retired.get(key) ?? 0) + 1);
+
+/** A token for "this item as it is asked about now"; see `stillAsked`. */
+export const askedOf = (key: string) => retired.get(key) ?? 0;
+/** False once the item the question was about has been removed, renamed or forgotten since. */
+export const stillAsked = (key: string, token: number) => askedOf(key) === token;
+
 export function forgetVerdict(key: string) {
+  retire(key);
   setVerdicts((prev) => {
     const next = { ...prev };
     delete next[key];
@@ -636,6 +651,9 @@ export const forgetConfirmation = forgetVerdict;
  * lands on the card it was made about.
  */
 function shiftVerdictsPast(removed: number) {
+  // Every position from the removed one on now holds a different card, so a question still in
+  // flight about any of them is about a card that is no longer there (see `retired`).
+  for (let at = removed; at <= cards.nodes.length; at++) retire(`node:${at}`);
   setVerdicts((prev) => {
     const next: Record<string, Verdict> = {};
     for (const [key, value] of Object.entries(prev)) {
@@ -661,6 +679,7 @@ function shiftVerdictsPast(removed: number) {
 }
 
 function moveVerdict(from: string, to: string) {
+  retire(from);
   setVerdicts((prev) => {
     if (prev[from] === undefined) return prev;
     const next = { ...prev, [to]: prev[from] };

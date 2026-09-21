@@ -27,6 +27,8 @@ import {
   exportCards,
   importCards,
   emptyProbe,
+  askedOf,
+  stillAsked,
   documentFindings,
   rejectFromIssues,
   rejectDocument,
@@ -296,8 +298,15 @@ export function Cards() {
     const document = exportCards();
     const node = document.nodes[index];
     const key = `node:${index}`;
-    const verdict = (findings: Incompleteness[]) =>
+    // An answer is only recorded while the card at this position is still the one that was
+    // asked: cards are keyed by position, so a removal slides another card — possibly an
+    // identical one, which the content check cannot tell apart — under the same key
+    // (`stores.ts`, `askedOf`). Checked after every `await` below, through `verdict`.
+    const asked = askedOf(key);
+    const verdict = (findings: Incompleteness[]) => {
+      if (!stillAsked(key, asked)) return;
       recordVerdict(key, node, findings.length > 0 ? "rejected" : "confirmed", findings);
+    };
 
     // Ours alone: an unnamed node is a document the server accepts, so if this does not say it
     // nobody will. It is also the cheapest question, and answering it first keeps a card with no
@@ -332,6 +341,7 @@ export function Cards() {
     // graph that does not build. So it is left unasked — amber — rather than green or red.
     const loose = documentFindings(answer);
     if (loose.length > 0) {
+      if (!stillAsked(key, asked)) return;
       forgetVerdict(key);
       rejectDocument(document, loose);
       return;

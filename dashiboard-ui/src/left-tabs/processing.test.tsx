@@ -3,7 +3,7 @@ import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
 import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import {
-  importCards, addGroup, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
+  importCards, addGroup, removeNode, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
   forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict,
 } from '../stores';
 
@@ -631,5 +631,39 @@ describe('loading a cards document asks', () => {
     await load(container);
     await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
     expect(container.querySelector('[data-document-error]')!.textContent).toMatch(/could not reach/i);
+  });
+});
+
+describe('an answer that arrives after its card is gone', () => {
+  it('is dropped: the card that slid into its place is not marked for a question nobody asked of it', async () => {
+    // Cards are keyed by position. Card 0 is asked, removed while the server is still answering,
+    // and an identical card slides into position 0: same key, same content, so the content check
+    // cannot tell them apart and the late answer used to land on it. Same guard as for groups.
+    const same = { type: 'rescale', method: { type: 'zscore' }, inputs: [] };
+    importCards({ nodes: [{ id: 'a', card: same }, { id: 'a', card: same }], groups: {} });
+    let answer!: (v: unknown) => void;
+    postRequest.mockImplementation((page: string, body: unknown) =>
+      page === 'validate-card'
+        ? new Promise((resolve) => { answer = resolve; })
+        : Promise.resolve(page === 'get-card-ir'
+            ? (() => { const inc = (body as { include?: string[] })?.include ?? ['defs', 'cards'];
+                       const full = structuredClone(payload) as Record<string, unknown>;
+                       return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
+            : page === 'probe-pipeline' ? CLEAN_PROBE : []));
+    const { container } = render(() => <Cards />);
+    const confirm = 'button[title="mark this card deliberately finished"]';
+    await waitFor(() => expect(container.querySelectorAll(confirm).length).toBe(2));
+    fireEvent.click(container.querySelectorAll(confirm)[0]);
+    await waitFor(() => expect(answer).toBeDefined());
+    removeNode(0);
+    await flush();
+    answer({ valid: false, issues: [{ pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null,
+      allowed: null, missing: ['inputs'], related: ['/nodes/0/card/inputs'], message: 'x' }] });
+    await new Promise((r) => setTimeout(r, 20));
+    await flush();
+    const dots = [...container.querySelectorAll('details')]
+      .filter((d) => d.querySelector('[data-card-title]'))
+      .map((d) => d.querySelector('[data-state]')!.getAttribute('data-state'));
+    expect(dots).toEqual(['unconfirmed']);
   });
 });

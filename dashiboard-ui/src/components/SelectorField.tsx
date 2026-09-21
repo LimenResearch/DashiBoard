@@ -11,6 +11,7 @@ import {
   type SelectorRow,
 } from "../selector";
 import { widgetFor, type Defs, type IRNode } from "../ir";
+import * as _ from "lodash";
 
 // The variable picker (C2), built to study 05.
 //
@@ -38,6 +39,8 @@ type SelectorFieldProps = {
   itemNode: IRNode;
   defs: Defs;
   label: string;
+  /** Marks the name with `*`. */
+  required?: boolean;
   value: unknown;
 } & (
   | { single?: false; onChange: (items: SelectorItem[]) => void }
@@ -52,8 +55,15 @@ type SelectorFieldProps = {
   | { single: true; onChange: (item: SelectorItem | undefined) => void }
 );
 
-/** Display order. The *set* comes from the schema's `oneOf`; only left-to-right is ours. */
-const KIND_ORDER = ["cols", "groups", "nodes"];
+/**
+ * Display order. The *set* comes from the schema's `oneOf`; only left-to-right is ours: nodes and
+ * groups first, since a document that has them is mostly written in them.
+ */
+const KIND_ORDER = ["nodes", "groups", "cols"];
+
+/** A selection as it is typed and as its chip reads: `cols:PRES@impute@zscore`. */
+export const chipText = (row: SelectorRow) =>
+  `${row.kind}:${row.value}${row.chain.map((node) => `@${node}`).join("")}`;
 
 export function SelectorField(props: SelectorFieldProps) {
   const widget = createMemo(() => widgetFor(props.itemNode, props.defs));
@@ -72,6 +82,9 @@ export function SelectorField(props: SelectorFieldProps) {
     const w = widget();
     return w.kind === "selector" ? (w.options[kind] ?? []).map(String) : [];
   };
+
+  /** The tabs drawn: a kind with nothing to offer has no tab. `kinds()` stays the model's. */
+  const tabKinds = createMemo(() => kinds().filter((kind) => optionsOf(kind).length > 0));
 
   /** The nodes a chain may be built from — the vocabulary `through` itself accepts. */
   const chainOptions = () => {
@@ -135,8 +148,14 @@ export function SelectorField(props: SelectorFieldProps) {
   };
   const clearPending = (id: string) => setPending(pending().filter((p) => p !== id));
 
-  const openKind = () =>
-    picked() ?? kinds().find((k) => optionsOf(k).length > 0) ?? kinds()[0] ?? "";
+  const openKind = () => {
+    const chosen = picked();
+    return chosen !== null && tabKinds().includes(chosen) ? chosen : (tabKinds()[0] ?? "");
+  };
+
+  // The name, the chips and the text box are always on screen; this folds what is below them.
+  const [open, setOpen] = createSignal(false);
+  const panelId = _.uniqueId("selector-panel-");
 
   /**
    * Whether another qualification could be specified at all.
@@ -170,44 +189,41 @@ export function SelectorField(props: SelectorFieldProps) {
   }
 
   return (
-    <div class="my-2 flex flex-col gap-2">
-      {/* No heading of its own: every caller already names this field — IRField in the
-          disclosure it wraps this in, GroupsEditor in the name field directly above. Two labels
-          for one control is how a form starts looking like it was assembled rather than designed. */}
-      {/*
-        The ordering surface, and the only one.
-
-        Document order matters — §12's positional `weights` rule reads it — and neither the tabbed
-        rows nor the writes strip can change it: rows are grouped by vocabulary, so cross-kind
-        order is not something either can express. Study 05 showed this row read-only and I nearly
-        shipped it that way; six tests exist for the reordering precisely because the panels alone
-        cannot do it.
-
-        One chip per *value* rather than per item, which is lossless: one item holding several
-        values resolves exactly as several items holding one each (case A ≡ B).
-      */}
-      <Show when={rows().length > 0 && props.single !== true}>
-        {/* A value the picker cannot offer a switch for — a column the loaded table lacks, a
-            reference in an imported document — still has to be removable here; otherwise the only
-            way out is to rebuild the card (measured 2026-09-16). */}
-        <ul class="flex flex-wrap gap-1" aria-label={`${props.label} order`}>
+    <div data-selector class="my-1 flex flex-col gap-1">
+      {/* Always on screen: the name, what is selected, and (below) the text box. One chip per
+          value, in document order — the order positional rules read — so the chips are also where
+          a value is moved or removed. */}
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          data-fold
+          aria-expanded={open() ? "true" : "false"}
+          aria-controls={panelId}
+          aria-label={`${open() ? "fold" : "unfold"} the choices for ${props.label}`}
+          onClick={() => setOpen(!open())}
+          class="grid h-4 w-4 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
+        >
+          <span class={["transition-transform", { "rotate-90": open() }]}>›</span>
+        </button>
+        <span data-selector-name class="text-control-xs font-semibold text-primary">
+          {props.label}
+          {props.required ? "*" : ""}
+        </span>
+        <ul class="flex min-w-0 flex-wrap gap-1" aria-label={`${props.label} selection`}>
           <For each={rows()}>
             {(r, i) => {
-              const label = () =>
-                `${r.kind}:${r.value}` + (r.chain.length ? `·${r.chain.join("→")}` : "");
+              const label = () => chipText(r);
               const missing = () => !optionsOf(r.kind).includes(r.value);
               return (
                 <li
                   data-chip={label()}
                   data-missing={missing() ? "true" : undefined}
                   title={missing() ? `${r.value} is not in the loaded table — remove it, or load a table that has it` : undefined}
-                  draggable="true"
+                  draggable={props.single === true ? undefined : "true"}
                   onDragStart={() => setDragging(i())}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => {
-                    // The dragged chip moves to *this* position — `from` is the source, `i()` the
-                    // target. Reusing the arrow-button helper here would have spliced the target
-                    // out and put it back where it already was.
+                    // The dragged chip moves to *this* position: `from` is the source, `i()` the target.
                     const from = dragging();
                     if (from !== null) reorder(from, i());
                     setDragging(null);
@@ -221,39 +237,43 @@ export function SelectorField(props: SelectorFieldProps) {
                 >
                   <span>{label()}</span>
                   <span class="flex">
-                    <Show when={missing()}>
-                      <button
-                        type="button"
-                        data-remove
-                        aria-label={`remove ${label()}`}
-                        onClick={() => switchOff(r.kind, r.value)}
-                        class="grid h-4 w-4 place-items-center rounded-sm text-destructive hover:bg-destructive/20"
-                      >
-                        ×
-                      </button>
+                    {/* One item has no order to change. */}
+                    <Show when={props.single !== true}>
+                      <For each={[["earlier", -1] as const, ["later", 1] as const]}>
+                        {([dir, delta]) => (
+                          <button
+                            type="button"
+                            data-move={dir}
+                            aria-label={`move ${label()} ${dir}`}
+                            disabled={delta < 0 ? i() === 0 : i() === rows().length - 1}
+                            onClick={() => reorder(i(), i() + delta)}
+                            class="grid h-4 w-4 place-items-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-30"
+                          >
+                            {delta < 0 ? "←" : "→"}
+                          </button>
+                        )}
+                      </For>
                     </Show>
-                    <For each={[["earlier", -1] as const, ["later", 1] as const]}>
-                      {([dir, delta]) => (
-                        <button
-                          type="button"
-                          data-move={dir}
-                          aria-label={`move ${label()} ${dir}`}
-                          disabled={delta < 0 ? i() === 0 : i() === rows().length - 1}
-                          onClick={() => reorder(i(), i() + delta)}
-                          class="grid h-4 w-4 place-items-center rounded-sm text-muted-foreground hover:bg-secondary hover:text-foreground disabled:opacity-30"
-                        >
-                          {delta < 0 ? "←" : "→"}
-                        </button>
-                      )}
-                    </For>
+                    {/* With the panel folded this is the only way to take a value out. */}
+                    <button
+                      type="button"
+                      data-chip-remove
+                      data-remove
+                      aria-label={`remove ${label()}`}
+                      onClick={() => removeCase(r.kind, r.value, r.chain)}
+                      class="grid h-4 w-4 place-items-center rounded-sm text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                    >
+                      ×
+                    </button>
                   </span>
                 </li>
               );
             }}
           </For>
         </ul>
-      </Show>
+      </div>
 
+      <div data-panel id={panelId} hidden={!open()} class="flex flex-col gap-2">
       {/*
         What the field will be written as — the selector form, never a resolved name. Rendered
         from `documentText` rather than assembled here, so the format has one definition; showing
@@ -270,7 +290,7 @@ export function SelectorField(props: SelectorFieldProps) {
       <div class="rounded-sm border border-border">
         <Tabs
           group="kinds"
-          items={kinds()}
+          items={tabKinds()}
           active={openKind()}
           onSelect={setPicked}
           count={(kind) => optionsOf(kind).filter((v) => casesFor(kind, v).length > 0).length}
@@ -340,7 +360,7 @@ export function SelectorField(props: SelectorFieldProps) {
                             class="inline-flex h-5 items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 pr-0.5 pl-2 font-mono text-control-xs"
                           >
                             <span class="text-accent-foreground">
-                              {chain.length === 0 ? "direct" : `through ${chain.join("→")}`}
+                              {chain.length === 0 ? "direct" : chain.map((node) => `@${node}`).join("")}
                             </span>
                             <button
                               type="button"
@@ -488,6 +508,7 @@ export function SelectorField(props: SelectorFieldProps) {
             </For>
           </Show>
         </div>
+      </div>
       </div>
     </div>
   );

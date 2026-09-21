@@ -28,7 +28,7 @@ describe('the chip row', () => {
     const { container } = render(() => (
       <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value} onChange={() => {}} />
     ));
-    expect(chipText(container)).toEqual(['cols:PRES·rescale→split']);
+    expect(chipText(container)).toEqual(['cols:PRES@rescale@split']);
   });
 
   it('distinguishes the same value under different qualifications', () => {
@@ -37,7 +37,7 @@ describe('the chip row', () => {
     const { container } = render(() => (
       <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value} onChange={() => {}} />
     ));
-    expect(chipText(container)).toEqual(['cols:PRES·rescale', 'cols:PRES']);
+    expect(chipText(container)).toEqual(['cols:PRES@rescale', 'cols:PRES']);
   });
 
   it('reorders across kinds, which the panels alone cannot express', () => {

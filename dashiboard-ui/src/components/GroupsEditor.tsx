@@ -236,7 +236,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                   // A group naming itself is a loop — measured, and rejected as one — so its
                   // own name is not on offer inside it.
                   defs={withoutOption(props.defs, "group", name)}
-                  label={name}
+                  label="columns"
                   value={state.groups[name]}
                   onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}
                 />

@@ -59,6 +59,8 @@ describe('GroupsEditor', () => {
     const { container } = mount();
     await flush();
     // The picker asks direct-or-through rather than assuming, so selecting is two steps.
+    fireEvent.click(container.querySelector('[role=tab][data-tab="cols"]')!);
+    await flush();
     const row = container.querySelector('[data-value="TEMP"]')!;
     fireEvent.click(row.querySelector('[role=switch]')!);
     await flush();
@@ -424,14 +426,11 @@ describe('a group cannot name itself', () => {
     addGroup('weather'); // the fixture's `group` vocabulary is exactly ["weather"]
     const { container } = render(() => <GroupsEditor defs={defs} />);
     await flush();
-    const tab = [...container.querySelectorAll('[role=tab]')].find(
-      (t) => t.getAttribute('data-tab') === 'groups',
-    )!;
-    fireEvent.click(tab);
-    await flush();
-    // Its own name is not in the vocabulary it is offered, so the tab has nothing to list.
-    expect(container.querySelectorAll('[data-value]')).toHaveLength(0);
-    expect(container.textContent).toContain('none defined');
+    // Its own name is the only group there is, and it is not on offer to itself: a kind with
+    // nothing to offer has no tab at all.
+    const tabs = [...container.querySelectorAll('[role=tab]')].map((t) => t.getAttribute('data-tab'));
+    expect(tabs).not.toContain('groups');
+    expect(tabs).toContain('cols');
   });
 });
 

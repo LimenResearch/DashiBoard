@@ -86,12 +86,12 @@ describe('IRField', () => {
     const kinds = [...container.querySelectorAll('[role=tab]')].map((e) =>
       e.getAttribute('data-tab'),
     );
-    expect(kinds).toEqual(['cols', 'groups', 'nodes']); // display order, not the oneOf's
+    expect(kinds).toEqual(['nodes', 'groups', 'cols']); // display order, not the oneOf's
     const values = [...container.querySelectorAll('[data-value]')].map((e) =>
       e.getAttribute('data-value'),
     );
-    expect(values).toContain('TEMP');
-    expect(values).toContain('cbwd');
+    // The open tab is `nodes`, the first with something to offer; it lists that vocabulary.
+    expect(values).toEqual(['rescale', 'split']);
     // each value carries a switch, because it holds a *list* of qualifications rather than a flag
     expect(container.querySelectorAll('[role=switch]').length).toBe(values.length);
   });
@@ -253,7 +253,7 @@ describe('IRField, a lone selector', () => {
       <IRField node={cards[type]} defs={defs} label={type} value={value} onChange={onChange} />
     ));
   const labels = (c: HTMLElement) =>
-    [...c.querySelectorAll('label, summary')].map((l) => (l.textContent ?? '').trim());
+    [...c.querySelectorAll('label, summary, [data-selector-name]')].map((l) => (l.textContent ?? '').trim());
 
   it('draws rescale\'s partition, which the form used to leave out', () => {
     const { container } = mountCard('rescale', { type: 'rescale' });
@@ -269,10 +269,11 @@ describe('IRField, a lone selector', () => {
     let written: Record<string, unknown> | null = null;
     const { container } = mountCard('rescale', { type: 'rescale', suffix: 'z' }, (v) => { written = v as Record<string, unknown>; });
     // The partition picker is the one whose `writes` strip says nothing is set yet.
-    const picker = [...container.querySelectorAll('[data-tabs="kinds"]')]
-      .map((tabs) => tabs.parentElement!.parentElement!)
-      .find((p) => p.textContent?.includes('not set'))!;
+    const picker = [...container.querySelectorAll('[data-selector]')]
+      .find((p) => p.querySelector('[data-selector-name]')!.textContent === 'partition')!;
     expect(picker).toBeDefined();
+    fireEvent.click(picker.querySelector('[role=tab][data-tab="cols"]')!);
+    await flush();
     fireEvent.click(picker.querySelector('[data-value="PRES"] [role=switch]')!);
     await flush();
     fireEvent.click(picker.querySelector('[data-value="PRES"] [data-specify="direct"]')!);
@@ -281,6 +282,7 @@ describe('IRField, a lone selector', () => {
 
     cleanup();
     const back = mountCard('rescale', { type: 'rescale', partition: { cols: 'PRES', through: ['rescale'] } });
-    expect(back.container.textContent).toContain('{cols = "PRES", through = "rescale"}');
+    // The chip says it, in the typed notation, with the panel folded.
+    expect(back.container.querySelector('[data-chip="cols:PRES@rescale"]')).not.toBeNull();
   });
 });

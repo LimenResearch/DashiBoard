@@ -366,15 +366,16 @@ export function IRField(props: IRFieldProps) {
                   </Collapsible>
                 }
               >
-                <Collapsible label={props.label} required={props.required}>
-                  <SelectorField
-                    itemNode={w().items}
-                    defs={props.defs}
-                    label={props.label}
-                    value={props.value}
-                    onChange={(items) => props.onChange(items)}
-                  />
-                </Collapsible>
+                {/* No disclosure around it: the picker keeps its name, its chips and its text
+                    box on screen and folds the rest itself. */}
+                <SelectorField
+                  itemNode={w().items}
+                  defs={props.defs}
+                  label={props.label}
+                  required={props.required}
+                  value={props.value}
+                  onChange={(items) => props.onChange(items)}
+                />
               </Show>
             );
           }
@@ -386,16 +387,15 @@ export function IRField(props: IRFieldProps) {
           // `only(...)`, exactly one column; the picker in `single` mode holds exactly one row.
           case "selector":
             return (
-              <Collapsible label={props.label} required={props.required}>
-                <SelectorField
-                  single
-                  itemNode={props.node}
-                  defs={props.defs}
-                  label={props.label}
-                  value={props.value}
-                  onChange={(item) => props.onChange(item)}
-                />
-              </Collapsible>
+              <SelectorField
+                single
+                itemNode={props.node}
+                defs={props.defs}
+                label={props.label}
+                required={props.required}
+                value={props.value}
+                onChange={(item) => props.onChange(item)}
+              />
             );
 
           // The IR does not constrain this field, so there is nothing honest to draw. Saying so

@@ -37,36 +37,49 @@ const writes = (c: HTMLElement) =>
 
 afterEach(cleanup);
 
+/** Unfold the panel of switches; folded is how a field starts. */
+const open = (c: HTMLElement) => fireEvent.click(c.querySelector('[data-fold]')!);
+/** The tabs open on `nodes`; most of these tests are about columns. */
+const onCols = async (c: HTMLElement) => {
+  fireEvent.click(c.querySelector('[role=tab][data-tab="cols"]')!);
+  await flush();
+};
+
 describe('SelectorField', () => {
-  it('opens on a kind that has something to offer', () => {
+  it('opens on a kind that has something to offer', async () => {
     const { container } = mount([]);
+    await onCols(container);
     expect(container.querySelector('[role=tab][aria-selected="true"]')?.getAttribute('data-tab'))
       .toBe('cols');
   });
 
-  it('shows a switch per value in the open vocabulary, all off for an empty field', () => {
+  it('shows a switch per value in the open vocabulary, all off for an empty field', async () => {
     const { container } = mount([]);
+    await onCols(container);
     expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
     expect(casesOf(container, 'TEMP')).toEqual([]);
   });
 
-  it('reads an existing document back onto the rows it came from', () => {
+  it('reads an existing document back onto the rows it came from', async () => {
     const { container } = mount([{ cols: ['PRES', 'TEMP'] }]);
+    await onCols(container);
     expect(sw(container, 'PRES').getAttribute('aria-checked')).toBe('true');
     expect(casesOf(container, 'PRES')).toEqual(['direct']);
     expect(casesOf(container, 'TEMP')).toEqual(['direct']);
     expect(sw(container, 'No').getAttribute('aria-checked')).toBe('false');
   });
 
-  it('holds the same value twice when it is qualified differently — case E', () => {
+  it('holds the same value twice when it is qualified differently — case E', async () => {
     // The case that rules out modelling a field as a set of values with attributes, and the whole
     // reason this layout needed the `+` before it could be used at all.
     const { container } = mount([{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }]);
+    await onCols(container);
     expect(casesOf(container, 'PRES')).toEqual(['rescale', 'direct']);
   });
 
-  it('keeps chain order, since [a,b] names a different column from [b,a]', () => {
+  it('keeps chain order, since [a,b] names a different column from [b,a]', async () => {
     const { container } = mount([{ cols: 'PRES', through: ['rescale', 'split'] }]);
+    await onCols(container);
     expect(casesOf(container, 'PRES')).toEqual(['rescale→split']);
   });
 
@@ -74,6 +87,7 @@ describe('SelectorField', () => {
     // Nothing is assumed: a value switched on with no qualification is unfinished, not direct.
     let written: SelectorItem[] | null = null;
     const { container } = mount([], (items) => { written = items; });
+    await onCols(container);
     fireEvent.click(sw(container, 'TEMP'));
     await flush();
     expect(row(container, 'TEMP').querySelector('[data-specify="direct"]')).not.toBeNull();
@@ -84,6 +98,7 @@ describe('SelectorField', () => {
   it('writes the item once direct is chosen', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount([], (items) => { written = items; });
+    await onCols(container);
     fireEvent.click(sw(container, 'TEMP'));
     await flush();
     fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="direct"]')!);
@@ -94,6 +109,7 @@ describe('SelectorField', () => {
   it('adds a second qualification through +, which is what case E needs', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount([{ cols: 'PRES' }], (items) => { written = items; });
+    await onCols(container);
     fireEvent.click(container.querySelector('[data-add-case="PRES"]')!);
     await flush();
     fireEvent.click(row(container, 'PRES').querySelector('[data-specify="through"]')!);
@@ -107,6 +123,7 @@ describe('SelectorField', () => {
 
   it('will not offer direct twice for one value', async () => {
     const { container } = mount([{ cols: 'PRES' }]);
+    await onCols(container);
     fireEvent.click(container.querySelector('[data-add-case="PRES"]')!);
     await flush();
     const direct = row(container, 'PRES').querySelector('[data-specify="direct"]') as HTMLButtonElement;
@@ -116,6 +133,7 @@ describe('SelectorField', () => {
   it('records the order nodes are clicked, since [a,b] names a different column from [b,a]', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount([], (items) => { written = items; });
+    await onCols(container);
     fireEvent.click(sw(container, 'TEMP'));
     await flush();
     fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="through"]')!);
@@ -135,6 +153,7 @@ describe('SelectorField', () => {
       [{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }, { cols: 'TEMP' }],
       (items) => { written = items; },
     );
+    await onCols(container);
     fireEvent.click(sw(container, 'PRES'));
     await flush();
     expect(written).toEqual([{ cols: 'TEMP' }]);
@@ -146,6 +165,7 @@ describe('SelectorField', () => {
       [{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }],
       (items) => { written = items; },
     );
+    await onCols(container);
     const direct = [...row(container, 'PRES').querySelectorAll('[data-case]')]
       .find((e) => e.getAttribute('data-case') === 'direct')!;
     fireEvent.click(direct.querySelector('button')!);
@@ -155,6 +175,7 @@ describe('SelectorField', () => {
 
   it('cancelling a chain on a value with nothing else switches it back off', async () => {
     const { container } = mount([]);
+    await onCols(container);
     fireEvent.click(sw(container, 'TEMP'));
     await flush();
     fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="through"]')!);
@@ -164,15 +185,17 @@ describe('SelectorField', () => {
     expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
   });
 
-  it('shows the document it writes, in the selector form and never a resolved name', () => {
+  it('shows the document it writes, in the selector form and never a resolved name', async () => {
     // `PRES_rescaled` must not appear: the UI writes the TOML, DashiBoard resolves it.
     const { container } = mount([{ cols: ['No', 'year'] }, { cols: 'month', through: ['log'] }]);
+    await onCols(container);
     expect(writes(container)).toBe('{cols = ["No", "year"]}, {cols = "month", through = "log"}');
     expect(writes(container)).not.toContain('month_log');
   });
 
   it('switches vocabulary on a tab click, and says when one is empty', async () => {
     const { container } = mount([]);
+    await onCols(container);
     fireEvent.click(tab(container, 'groups'));
     await flush();
     expect(row(container, 'weather')).not.toBeNull();
@@ -193,6 +216,7 @@ describe('SelectorField', () => {
 
     it('offers through… as unreachable rather than as a dead end', async () => {
       const { container } = mountNoNodes([]);
+      await onCols(container);
       fireEvent.click(sw(container, 'TEMP'));
       await flush();
       const through = row(container, 'TEMP')
@@ -203,6 +227,7 @@ describe('SelectorField', () => {
 
     it('still offers direct, which is the one qualification that needs nothing', async () => {
       const { container } = mountNoNodes([]);
+      await onCols(container);
       fireEvent.click(sw(container, 'TEMP'));
       await flush();
       const direct = row(container, 'TEMP')
@@ -210,27 +235,29 @@ describe('SelectorField', () => {
       expect(direct.disabled).toBe(false);
     });
 
-    it('withholds + once direct is taken, since nothing further can be specified', () => {
+    it('withholds + once direct is taken, since nothing further can be specified', async () => {
       // Both routes closed: direct is used and no chain can be built. A + here opens a panel
       // whose every option is disabled, which is worse than not offering it.
       const { container } = mountNoNodes([{ cols: 'PRES' }]);
       expect(container.querySelector('[data-add-case="PRES"]')).toBeNull();
     });
 
-    it('keeps + while a chain is still buildable', () => {
+    it('keeps + while a chain is still buildable', async () => {
       const { container } = mount([{ cols: 'PRES' }]);
+      await onCols(container);
       expect(container.querySelector('[data-add-case="PRES"]')).not.toBeNull();
     });
   });
 
-  it('counts each tab by values carrying a qualification, not by items', () => {
+  it('counts each tab by values carrying a qualification, not by items', async () => {
     // `PRES` twice is one value, so the tab says 1 — the count answers "how many of these have I
     // touched", which is what a hidden tab needs to report.
     const { container } = mount([{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }]);
+    await onCols(container);
     expect(tab(container, 'cols').textContent).toContain('1');
   });
 
-  it('expands the document once per change, not once per read', () => {
+  it('expands the document once per change, not once per read', async () => {
     // `rows()` was a plain function called from every row's `casesFor`, the chip list, the writes
     // strip and the tab counts — O(values × items) expansions per render.
     const spy = vi.spyOn(selector, 'expand');
@@ -273,8 +300,9 @@ describe('SelectorField, single', () => {
       <SelectorField single itemNode={itemNode} defs={defs} label="partition" value={value} onChange={onChange} />
     ));
 
-  it('reads one item back as the one value that is on', () => {
+  it('reads one item back as the one value that is on', async () => {
     const { container } = one({ cols: 'PRES' });
+    await onCols(container);
     expect(sw(container, 'PRES').getAttribute('aria-checked')).toBe('true');
     expect(casesOf(container, 'PRES')).toEqual(['direct']);
     expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
@@ -284,6 +312,7 @@ describe('SelectorField, single', () => {
   it('writes one item, not a list, and a second pick replaces the first', async () => {
     let written: SelectorItem | undefined | null = null;
     const { container } = one({ cols: 'PRES' }, (item) => { written = item; });
+    await onCols(container);
     fireEvent.click(sw(container, 'TEMP'));
     await flush();
     fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="direct"]')!);
@@ -294,6 +323,7 @@ describe('SelectorField, single', () => {
   it('empties the field when its value is switched off', async () => {
     let written: SelectorItem | undefined | null = null;
     const { container } = one({ cols: 'PRES' }, (item) => { written = item; });
+    await onCols(container);
     fireEvent.click(sw(container, 'PRES'));
     await flush();
     expect(written).toBeUndefined();
@@ -301,12 +331,14 @@ describe('SelectorField, single', () => {
 
   it('carries a through chain, read and written', async () => {
     const { container } = one({ cols: 'PRES', through: ['rescale'] });
+    await onCols(container);
     expect(casesOf(container, 'PRES')).toEqual(['rescale']);
     expect(writes(container)).toBe('{cols = "PRES", through = "rescale"}');
 
     let written: SelectorItem | undefined | null = null;
     cleanup();
     const second = one(undefined, (item) => { written = item; });
+    await onCols(second.container);
     fireEvent.click(sw(second.container, 'TEMP'));
     await flush();
     fireEvent.click(row(second.container, 'TEMP').querySelector('[data-specify="through"]')!);
@@ -318,14 +350,65 @@ describe('SelectorField, single', () => {
     expect(written).toEqual({ cols: 'TEMP', through: ['split'] });
   });
 
-  it('has no order strip and offers no second qualification', () => {
+  it('has no order strip and offers no second qualification', async () => {
     const { container } = one({ cols: 'PRES' });
-    expect(container.querySelector('[aria-label="partition order"]')).toBeNull();
+    await onCols(container);
+    expect(container.querySelector('[data-move]')).toBeNull();
     expect(container.querySelector('[data-add-case]')).toBeNull();
   });
 
-  it('says the field is not set when empty, rather than showing an empty list', () => {
+  it('says the field is not set when empty, rather than showing an empty list', async () => {
     const { container } = one(undefined);
+    await onCols(container);
     expect(writes(container)).toBe('not set');
+  });
+});
+
+describe('SelectorField, layout', () => {
+  it('shows the name and the chips with the panel folded, in the notation that is typed', () => {
+    const { container } = mount([{ cols: 'PRES', through: ['rescale', 'log'] }, { groups: 'weather' }]);
+    expect(container.querySelector('[data-panel]')!.hasAttribute('hidden')).toBe(true);
+    expect(container.querySelector('[data-fold]')!.getAttribute('aria-expanded')).toBe('false');
+    expect([...container.querySelectorAll('[data-chip]')].map((c) => c.getAttribute('data-chip')))
+      .toEqual(['cols:PRES@rescale@log', 'groups:weather']);
+  });
+
+  it('unfolds the panel from the button beside the name', async () => {
+    const { container } = mount([]);
+    fireEvent.click(container.querySelector('[data-fold]')!);
+    await flush();
+    expect(container.querySelector('[data-panel]')!.hasAttribute('hidden')).toBe(false);
+    expect(container.querySelector('[data-fold]')!.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('removes a value from its chip, which is the only way with the panel folded', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([{ cols: 'PRES' }, { cols: 'TEMP' }], (items) => { written = items; });
+    fireEvent.click(container.querySelector('[data-chip="cols:PRES"] [data-chip-remove]')!);
+    await flush();
+    expect(written).toEqual([{ cols: 'TEMP' }]);
+  });
+
+  it('orders the tabs nodes, groups, cols, and leaves out a kind with nothing to offer', async () => {
+    const { container } = mount([]);
+    open(container); await flush();
+    expect([...container.querySelectorAll('[role=tab]')].map((t) => t.getAttribute('data-tab')))
+      .toEqual(['nodes', 'groups', 'cols']);
+    cleanup();
+    const noGroups = { ...defs, group: { ...defs.group, enum: [] } } as Defs;
+    const bare = render(() => <SelectorField itemNode={itemNode} defs={noGroups} label="inputs" value={[]} onChange={() => {}} />);
+    open(bare.container); await flush();
+    expect([...bare.container.querySelectorAll('[role=tab]')].map((t) => t.getAttribute('data-tab')))
+      .toEqual(['nodes', 'cols']);
+  });
+
+  it('shows a lone selector its chip too, without the arrows', () => {
+    const { container } = render(() => (
+      <SelectorField single itemNode={itemNode} defs={defs} label="partition" value={{ nodes: 'split' }} onChange={() => {}} />
+    ));
+    const chip = container.querySelector('[data-chip="nodes:split"]')!;
+    expect(chip).not.toBeNull();
+    expect(chip.querySelector('[data-move]')).toBeNull();
+    expect(chip.querySelector('[data-chip-remove]')).not.toBeNull();
   });
 });

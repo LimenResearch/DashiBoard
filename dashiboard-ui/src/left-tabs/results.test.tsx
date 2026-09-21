@@ -13,6 +13,7 @@ import { Results } from './results';
 import {
   importCards, forgetAllVerdicts, verdictOf, exportCards, PROBE_STORE, emptyProbe, type CardsStore,
   recordVerdict, forgetVerdict, setCardField, rejectDocument, documentVerdict,
+  FILTERS_STORE, LOADER_STORE, Interval,
 } from '../stores';
 
 /** Two nodes, so a per-node report has something to be paired with. */
@@ -356,7 +357,6 @@ describe('the pointer next to Run pipeline', () => {
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
     expect(line(container)).toBeNull();
     expect(container.querySelector('[data-run-error]')!.textContent).toContain('at least one loop');
-    expect(container.querySelector('[data-document-faults]')).toBeNull();
   });
 });
 
@@ -366,7 +366,33 @@ describe('the document\'s own line next to Run pipeline', () => {
   // reads the document's verdict, so an edit expires it like any other (owner, 2026-09-18).
   const LOOP = 'The input graph contains at least one loop: rescaled, grouped';
   const said = (c: HTMLElement) =>
-    [...c.querySelectorAll('[data-document-verdict] p')].map((p) => p.textContent);
+    [...c.querySelectorAll('[data-document-verdict]')].map((el) => el.textContent);
+
+  it('is said in the one "Needs attention" chip next to the Run button, not in a host of its own', async () => {
+    // Owner, 2026-09-21: first it was a panel under the row, then a second chip beside the
+    // first — two hosts for one kind of message. There is one: the chip next to Run names the
+    // items at fault and says what the document was refused for.
+    rejectDocument(exportCards(), [{ message: LOOP }]);
+    await flush();
+    const { container, getByText } = render(() => <Results />);
+    const row = getByText(/run pipeline/i).parentElement!;
+    const chips = container.querySelectorAll('[data-needs-attention]');
+    expect(chips.length).toBe(1);
+    expect(chips[0].parentElement).toBe(row);
+    expect(container.querySelector('[data-document-verdict]')!.closest('[data-needs-attention]')).toBe(chips[0]);
+    expect(chips[0].textContent).toBe(`Needs attention: ${LOOP}`);
+  });
+
+  it('names the items and says the document\'s sentence in the same chip', async () => {
+    const doc = exportCards();
+    recordVerdict('node:0', doc.nodes[0], 'rejected', [{ message: 'x' }]);
+    rejectDocument(doc, [{ message: LOOP }]);
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(container.querySelectorAll('[data-needs-attention]').length).toBe(1);
+    expect(container.querySelector('[data-needs-attention]')!.textContent)
+      .toBe(`Needs attention: rescaled — ${LOOP}`);
+  });
 
   it('is absent until the document was asked about and refused', async () => {
     const { container } = render(() => <Results />);
@@ -374,9 +400,21 @@ describe('the document\'s own line next to Run pipeline', () => {
     rejectDocument(exportCards(), [{ message: LOOP }]);
     await flush();
     expect(said(container)).toEqual([LOOP]);
-    expect(container.querySelector('[data-document-verdict]')!.className).toMatch(/destructive/);
-    // The items are not named for it: nobody's card is at fault.
-    expect(container.querySelector('[data-needs-attention]')).toBeNull();
+    expect(container.querySelector('[data-needs-attention]')!.className).toMatch(/destructive/);
+    // No item is named for it: nobody's card is at fault.
+    expect(container.querySelector('[data-attention-items]')).toBeNull();
+  });
+
+  it('says two sentences apart when the document was refused for two things', async () => {
+    // Two separate loops are two issues from the server, so two sentences; run together they
+    // would read as one.
+    const OTHER = 'The input graph contains at least one loop: c, d';
+    rejectDocument(exportCards(), [{ message: LOOP }, { message: OTHER }]);
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(said(container)).toEqual([LOOP, OTHER]);
+    expect(container.querySelector('[data-needs-attention]')!.textContent)
+      .toBe(`Needs attention: ${LOOP}; ${OTHER}`);
   });
 
   it('goes with the next edit', async () => {
@@ -400,5 +438,77 @@ describe('the document\'s own line next to Run pipeline', () => {
     expect(documentVerdict()?.findings).toEqual([{ message: LOOP }]);
     // The run's own block says it already; the document line does not say it again.
     expect(container.textContent!.split(LOOP).length - 1).toBe(1);
+  });
+});
+
+describe('the dot next to Run pipeline', () => {
+  // The results under the button are the last *successful* run's, and nothing said so: after an
+  // edit they describe a pipeline that is no longer the one on screen, and a failed run's text
+  // outlived the document it was about (owner, 2026-09-21: a loop's text still showing after
+  // another document was loaded). The dot is the same one cards and groups have, for the run:
+  // amber until run, green when the last run succeeded and nothing it depends on has changed,
+  // red when something needs attention or the last run of this very pipeline failed.
+  const runDot = (c: HTMLElement) => c.querySelector('[data-dot="run"]') as HTMLElement;
+  const state = (c: HTMLElement) => runDot(c).getAttribute('data-state');
+
+  it('is amber before any run, and sits right after the button', () => {
+    const { container, getByText } = render(() => <Results />);
+    expect(state(container)).toBe('unconfirmed');
+    expect(runDot(container).previousElementSibling).toBe(getByText(/run pipeline/i));
+  });
+
+  it('turns green on a successful run, and amber again when a card is edited', async () => {
+    serve(RUN);
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(state(container)).toBe('confirmed'));
+    setCardField(0, 'suffix', 'edited');
+    await flush();
+    expect(state(container)).toBe('unconfirmed');
+    // The last successful run's results stay: the dot is what says they may no longer match.
+    expect(container.querySelector('[data-tabs="results"]')).not.toBeNull();
+  });
+
+  it('turns amber again when a filter changes, or another table is loaded', async () => {
+    serve(RUN);
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(state(container)).toBe('confirmed'));
+    FILTERS_STORE[1]((draft) => { draft.numerical.TEMP = new Interval(0, 1); });
+    await flush();
+    expect(state(container)).toBe('unconfirmed');
+
+    await runPipeline(getByText);
+    await waitFor(() => expect(state(container)).toBe('confirmed'));
+    LOADER_STORE[1](reconcile([{ name: 'OTHER', type: 'numerical', eltype: 'float', summary: { min: 0, max: 1 } }] as never));
+    await flush();
+    expect(state(container)).toBe('unconfirmed');
+  });
+
+  it('turns red on a failed run, and the run\'s text goes once the pipeline is no longer the one that failed', async () => {
+    serve({ valid: false, kind: 'execution', errors: ['Binder Error'], issues: [] });
+    const { container, getByText } = render(() => <Results />);
+    await runPipeline(getByText);
+    await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
+    expect(state(container)).toBe('rejected');
+    // Another document is loaded: the failure was about the previous one.
+    importCards({ nodes: [{ id: 'other', card: { type: 'rescale' } }], groups: {} });
+    await flush();
+    expect(container.querySelector('[data-run-error]')).toBeNull();
+    expect(state(container)).toBe('unconfirmed');
+  });
+
+  it('is red while something needs attention, run or not', async () => {
+    const doc = exportCards();
+    recordVerdict('node:0', doc.nodes[0], 'rejected', [{ message: 'x' }]);
+    await flush();
+    const { container } = render(() => <Results />);
+    expect(state(container)).toBe('rejected');
+    forgetVerdict('node:0');
+    await flush();
+    expect(state(container)).toBe('unconfirmed');
+    rejectDocument(exportCards(), [{ message: 'a loop' }]);
+    await flush();
+    expect(state(container)).toBe('rejected');
   });
 });

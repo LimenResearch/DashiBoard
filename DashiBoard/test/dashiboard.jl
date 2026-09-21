@@ -548,6 +548,30 @@ mktempdir() do data_dir
             @test occursin("empty", issue["message"])
             @test !occursin("UndefKeywordError", join(answer["errors"]))
         end
+        # An empty group used to end the reply: the cards were never looked at, so a document
+        # with an empty group *and* a broken card named the group only, and the card turned red
+        # one fix and one question later (seen in a browser, 2026-09-21, loading a document).
+        # Both are told in one answer, the group first as in the document.
+        empty_and_broken = JSON.json((;
+            filters = [],
+            nodes = [
+                (; id = "fine", card = Dict(
+                    "type" => "rescale", "method" => Dict("type" => "zscore"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z",
+                )),
+                (; id = "broken", card = Dict("type" => "rescale")),
+            ],
+            groups = Dict("empty" => []),
+        ))
+        for route in ("probe-pipeline", "evaluate-pipeline")
+            answer = JSON.parse(HTTP.post(url * route, body = empty_and_broken).body)
+            @test answer["valid"] == false
+            @test answer["kind"] == "pipeline"
+            @test [(issue["pointer"], issue["reason"]) for issue in answer["issues"]] ==
+                [("/groups/empty", "empty"), ("/nodes/1/card", "required")]
+            @test length(answer["errors"]) == 2
+            @test !occursin("UndefKeywordError", join(answer["errors"]))
+        end
         # Every issue says how bad it is; a schema failure is an error.
         two_broken = JSON.json((;
             filters = [],

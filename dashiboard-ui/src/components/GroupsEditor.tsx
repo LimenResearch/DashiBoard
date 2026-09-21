@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { Button } from "./Button";
 import { Disclosure, summaryAction } from "./Disclosure";
+import { StateDot } from "./StateDot";
 import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
 import {
@@ -18,7 +19,6 @@ import {
   removeGroup,
   renameGroup,
   setGroup,
-  type CardsStore,
   type Selector,
 } from "../stores";
 import { askProbe } from "../probe";
@@ -119,25 +119,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                       {/* Amber until asked, then green or red on what the server answered: the
                           findings render inside the body, which announces nothing while the
                           group is folded. */}
-                      <span
-                        data-state={groupState(name)}
-                        aria-label={groupState(name)}
-                        title={
-                          groupState(name) === "rejected"
-                            ? "the server found something wrong — open to see what"
-                            : groupState(name) === "confirmed"
-                              ? "confirmed"
-                              : "not confirmed yet"
-                        }
-                        class={[
-                          "ml-1 h-2 w-2 shrink-0 rounded-full",
-                          {
-                            "bg-success": groupState(name) === "confirmed",
-                            "bg-destructive": groupState(name) === "rejected",
-                            "bg-warning": groupState(name) === "unconfirmed",
-                          },
-                        ]}
-                      />
+                      <StateDot state={groupState(name)} />
                     </span>
                     <span data-group-actions class="ml-auto flex shrink-0 items-center gap-2">
                       {/*

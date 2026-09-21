@@ -288,6 +288,29 @@ function failure_report(kind::AbstractString, exception::Exception)
 end
 
 """
+    card_schema_issues(nodes, groups, cols) -> Vector
+
+The cards' schema failures, asked for on their own — for the one case where the build cannot be
+relied on to report them: a document that also has an empty group.
+
+`empty_group_issues` has to answer before the pipeline is built (see there), and it used to end
+the reply, so the cards were never looked at: a document with an empty group *and* a broken card
+named the group only, and the card turned red one fix and one question later (seen in a browser,
+2026-09-21, loading a document). The constructor validates the whole document before it builds
+anything, so a schema failure still arrives as `SchemaValidationErrors` whatever the groups
+hold; anything else it throws here is the empty group's own consequence (a card built with no
+inputs), which `empty_group_issues` already says in better words, and is dropped.
+"""
+function card_schema_issues(nodes::AbstractVector, groups::AbstractDict, cols)
+    try
+        Pipelines.Pipeline(nodes, groups, cols)
+    catch exception
+        exception isa Pipelines.SchemaValidationErrors && return Pipelines.issue_report(exception)
+    end
+    return []
+end
+
+"""
     loop_issues(nodes, groups) -> Vector
 
 One issue per loop in the document's dependency graph, naming its members.
@@ -488,11 +511,16 @@ function probe_pipeline(req::HTTP.Request)
     groups = get(spec, "groups", Dict{String, Any}())
 
     # Before building: see `empty_group_issues` for why construction cannot report this itself.
+    # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
+    # first as in the document.
     empty = empty_group_issues(groups)
-    isempty(empty) || return json_response((;
-        valid = false, kind = "pipeline", cols,
-        errors = [issue.message for issue in empty], issues = empty,
-    ))
+    if !isempty(empty)
+        issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
+        return json_response((;
+            valid = false, kind = "pipeline", cols,
+            errors = [issue.message for issue in issues], issues,
+        ))
+    end
 
     pipeline = try
         Pipelines.Pipeline(spec["nodes"], groups, cols)
@@ -603,10 +631,14 @@ function evaluate_pipeline(req::HTTP.Request)
         # one — `failure_report` is `(; valid, kind, errors, issues)` — and the run's client asks
         # the probe for the column list.
         empty = empty_group_issues(groups)
-        isempty(empty) || return json_response((;
-            valid = false, kind = "pipeline",
-            errors = [issue.message for issue in empty], issues = empty,
-        ))
+        if !isempty(empty)
+            # With the cards' own schema failures, as the probe answers (`card_schema_issues`).
+            issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
+            return json_response((;
+                valid = false, kind = "pipeline",
+                errors = [issue.message for issue in issues], issues,
+            ))
+        end
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
         exception isa Exception || rethrow()

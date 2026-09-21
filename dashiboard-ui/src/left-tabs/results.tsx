@@ -4,10 +4,11 @@ import { A, Button } from "../components/Button";
 import { DownloadJSONButton } from "../components/JSON";
 import { Graph } from "../components/Graph";
 import { TableView } from "../components/TableView";
+import { StateDot, type DotState } from "../components/StateDot";
 import { Tabs } from "../components/Tabs";
 import { getURL, postRequest } from "../requests";
 import {
-  CARDS_STORE, documentFindings, documentVerdict, exportCards, itemKey, rejectDocument,
+  CARDS_STORE, LOADER_JSON, documentFindings, documentVerdict, exportCards, itemKey, rejectDocument,
   rejectFromIssues, verdictOf,
   type ProbeIssue, type VariableSummary,
 } from "../stores";
@@ -67,6 +68,25 @@ export function Results() {
   const [failure, setFailure] = createSignal<{ kind?: string; errors: string[] } | null>(null);
 
   /**
+   * Everything a run depends on, as one string: the filters, the cards and groups, and the loaded
+   * table. A run is *about* this, so what it left on screen — its failure text, its results, the
+   * dot — is only current while this has not changed. Filters and the table count as much as the
+   * cards: a run sends them all, and results that no longer match are stale whichever changed
+   * (owner, 2026-09-21).
+   */
+  const runSignature = createMemo(() => JSON.stringify(wireDocument()) + LOADER_JSON());
+  /**
+   * What the last run to land ran, and whether it succeeded. Not persisted: a reload leaves no
+   * results on screen, so there is nothing for a green dot to vouch for.
+   */
+  const [ranOn, setRanOn] = createSignal<{ signature: string; ok: boolean } | null>(null);
+  /**
+   * The last run's failure, while it is still about the pipeline on screen. It used to outlive
+   * it: a loop's text stayed up after another document had been loaded (seen 2026-09-21).
+   */
+  const currentFailure = () => (ranOn()?.signature === runSignature() ? failure() : null);
+
+  /**
    * What the reader should do about it, which is the one thing the server's message cannot say.
    *
    * The two kinds call for opposite responses — a document that could not be built is fixed in
@@ -89,6 +109,7 @@ export function Results() {
       // lands is not the one the server judged. `wireDocument()` hands out live proxies, which
       // could also differ from the copy by a staged write in this very tick; the spread pins it.
       const sent = exportCards();
+      const asked = runSignature();
       const answer = (await postRequest(
         "evaluate-pipeline",
         { ...wireDocument(), nodes: sent.nodes, groups: sent.groups },
@@ -98,11 +119,13 @@ export function Results() {
       // default it was given. Whatever the cause, the reader must not be left thinking the run
       // succeeded — which is what an unchanged screen says.
       if (answer === null) {
+        setRanOn({ signature: asked, ok: false });
         setResult(null);
         setFailure({ errors: ["Could not reach DashiBoard. Is the server running?"] });
         return;
       }
       if (answer.valid === false) {
+        setRanOn({ signature: asked, ok: false });
         setResult(null);
         const issues = Array.isArray(answer.issues) ? answer.issues : [];
         if (issues.length > 0) rejectFromIssues(issues, sent);
@@ -139,6 +162,7 @@ export function Results() {
         });
         return;
       }
+      setRanOn({ signature: asked, ok: true });
       setFailure(null);
       setResult(answer);
       setRuns((n) => n + 1);
@@ -199,7 +223,7 @@ export function Results() {
   const documentLines = createMemo(() =>
     (documentVerdict()?.findings ?? [])
       .map((finding) => finding.message)
-      .filter((line) => !(failure()?.errors ?? []).includes(line)),
+      .filter((line) => !(currentFailure()?.errors ?? []).includes(line)),
   );
 
   const empty = (message: string) => (
@@ -229,43 +253,74 @@ export function Results() {
     return names;
   });
 
+  /**
+   * Where the pipeline stands with a run — the dot cards and groups have, for the run. Red while
+   * something needs attention or the last run of this very pipeline failed; green when it
+   * succeeded and nothing it depends on has changed since; amber otherwise, which is both "never
+   * run" and "edited since". The results below are the last *successful* run's and stay on
+   * screen, so this dot is what says whether they still describe the pipeline above.
+   */
+  const runState = createMemo<DotState>(() => {
+    if (needsAttention().length > 0 || documentVerdict() !== null) return "rejected";
+    const last = ranOn();
+    if (last === null || last.signature !== runSignature()) return "unconfirmed";
+    return last.ok ? "confirmed" : "rejected";
+  });
+
   return (
     <div>
       <div class="flex flex-wrap items-center gap-2 p-3">
         <Button disabled={running() || cards.nodes.length === 0} onClick={() => void run()}>
           {running() ? "Running…" : "Run pipeline"}
         </Button>
+        <StateDot
+          name="run"
+          state={runState()}
+          titles={{
+            unconfirmed: "not run since the last change — the results below are the last successful run's",
+            confirmed: "the last run succeeded, and nothing it depends on has changed since",
+            rejected: "something needs attention, or the last run of this pipeline failed",
+          }}
+        />
         <Show when={cards.nodes.length === 0}>
           <span class="text-control-xs text-muted-foreground">Add a card first.</span>
         </Show>
-        <Show when={needsAttention().length > 0}>
+        {/*
+          One host for what needs attention before a run: the items that were asked about and
+          refused, by name, and — when it is the document itself that was refused — the
+          server's sentence for it. They were two hosts for a while (a panel under the row, then
+          a second chip), which read as two kinds of message; it is one (owner, 2026-09-21).
+          `min-w-0` and `break-words` because a sentence can be long and the row wraps.
+        */}
+        <Show when={needsAttention().length > 0 || documentLines().length > 0}>
           <span
             data-needs-attention
-            class="rounded-sm border border-destructive/30 bg-destructive/10 px-2 py-1 text-control-xs text-destructive"
+            class="min-w-0 rounded-sm border border-destructive/30 bg-destructive/10 px-2 py-1 text-control-xs break-words text-destructive"
           >
-            Needs attention: <span class="font-mono">{needsAttention().join(", ")}</span>
+            Needs attention:{" "}
+            <Show when={needsAttention().length > 0}>
+              <span data-attention-items class="font-mono">{needsAttention().join(", ")}</span>
+            </Show>
+            <Show when={needsAttention().length > 0 && documentLines().length > 0}>{" — "}</Show>
+            <For each={documentLines()}>
+              {(line: string, at) => (
+                <>
+                  <Show when={at() > 0}>{"; "}</Show>
+                  <span data-document-verdict class="font-mono whitespace-pre-wrap">{line}</span>
+                </>
+              )}
+            </For>
           </span>
         </Show>
       </div>
 
-
-      <Show when={documentLines().length > 0}>
-        <div
-          data-document-verdict
-          class="mx-3 mb-2 rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-control-xs text-destructive"
-        >
-          <For each={documentLines()}>
-            {(line: string) => <p class="font-mono break-words whitespace-pre-wrap">{line}</p>}
-          </For>
-        </div>
-      </Show>
 
       {/*
         Destructive styling, not the warning used for an unfinished card: this one already ran and
         did not work. The text is the server's own — `showerror` on whatever Julia threw — because
         a paraphrase of an error nobody anticipated is worth less than the error.
       */}
-      <Show when={failure()} keyed>
+      <Show when={currentFailure()} keyed>
         {(f: { kind?: string; errors: string[] }) => (
           <div
             data-run-error={f.kind ?? ""}

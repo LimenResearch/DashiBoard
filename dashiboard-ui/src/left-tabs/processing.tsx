@@ -7,6 +7,7 @@ import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
 import { Disclosure, summaryAction } from "../components/Disclosure";
+import { StateDot } from "../components/StateDot";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
 import {
@@ -455,25 +456,7 @@ export function Cards() {
                       this dot is the only thing on screen, so the answer has to live here as
                       well as in the findings below. A live warning never changes it.
                     */}
-                    <span
-                      data-state={nodeState()}
-                      aria-label={nodeState()}
-                      title={
-                        nodeState() === "rejected"
-                          ? "the server found something wrong — open to see what"
-                          : nodeState() === "confirmed"
-                            ? "confirmed"
-                            : "not confirmed yet"
-                      }
-                      class={[
-                        "ml-1 h-2 w-2 shrink-0 rounded-full",
-                        {
-                          "bg-success": nodeState() === "confirmed",
-                          "bg-destructive": nodeState() === "rejected",
-                          "bg-warning": nodeState() === "unconfirmed",
-                        },
-                      ]}
-                    />
+                    <StateDot state={nodeState()} />
                   </span>
                   <span data-card-actions class="ml-auto flex shrink-0 items-center gap-2">
                     {/*

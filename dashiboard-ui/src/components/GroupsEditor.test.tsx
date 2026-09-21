@@ -504,3 +504,20 @@ describe('an answer that arrives after its group is gone', () => {
     expect(container.querySelector('[data-finding]')).toBeNull();
   });
 });
+
+describe('what a group is offered', () => {
+  const offered = (c: HTMLElement) =>
+    [...c.querySelectorAll('[data-selector] [data-panel] [data-value]')].map((e) => e.getAttribute('data-value'));
+
+  it('leaves out what depends on the group once the server has said what', async () => {
+    const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [] };
+    importCards({ nodes: [{ id: 'up', card: rescale }, { id: 'down', card: { ...rescale, inputs: [{ groups: 'g' }] } }], groups: { g: [] } });
+    const withNodes = { ...defs, node: { ...defs.node, enum: ['up', 'down'] } } as Defs;
+    const { container } = render(() => <GroupsEditor defs={withNodes} />);
+    await flush();
+    expect(offered(container)).toEqual(['up', 'down']);
+    PROBE_STORE[1]((d) => { d.referable = { nodes: [], groups: { g: { nodes: ['up'], groups: [] } } }; });
+    await flush();
+    expect(offered(container)).toEqual(['up']);
+  });
+});

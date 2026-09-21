@@ -38,7 +38,7 @@ import {
   type ProbeStore,
   type ProbeIssue,
 } from "../stores";
-import { defaultsFor, withoutOption, type Defs, type IRNode } from "../ir";
+import { defaultsFor, onlyOptions, withoutOption, type Defs, type IRNode } from "../ir";
 import { checkNames, checkNode, type Incompleteness } from "../completeness";
 import { askProbe } from "../probe";
 
@@ -147,14 +147,19 @@ export function Cards() {
   const cardTypes = () => Object.keys(payload()?.cards ?? {}).sort();
 
   /**
-   * The vocabulary this card may draw on: everything, minus its own name.
+   * The vocabulary this card may draw on: what the server says it can refer to without a loop.
    *
-   * A card naming itself — as an input, or as a step in a `through` chain — is a cycle, and the
-   * server rejects the whole document for it. Offering it is offering a choice that cannot come
-   * out well, so it is removed from the vocabulary rather than validated after the fact.
+   * A card naming itself or anything that depends on it — as an input, or as a step in a
+   * `through` chain — is a cycle, and the server rejects the whole document for it. Offering it
+   * is offering a choice that cannot come out well, so it is removed from the vocabulary rather
+   * than validated after the fact. Until the server has answered for these cards, only the
+   * card's own name is removed.
    */
   const defsForNode = (index: number): Defs => {
     const defs = payload()!.defs;
+    // An answer about another number of cards is about an older document: its indices are not ours.
+    const may = probe.referable?.nodes.length === state.nodes.length ? probe.referable.nodes[index] : undefined;
+    if (may !== undefined) return onlyOptions(onlyOptions(defs, "node", may.nodes), "group", may.groups);
     const self = state.nodes[index]?.id;
     return self ? withoutOption(defs, "node", self) : defs;
   };

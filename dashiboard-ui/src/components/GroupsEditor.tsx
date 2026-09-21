@@ -26,7 +26,7 @@ import {
 import { askProbe } from "../probe";
 import { issueFindings } from "../findings";
 import type { Incompleteness } from "../completeness";
-import { withoutOption, type Defs, type IRNode } from "../ir";
+import { onlyOptions, withoutOption, type Defs, type IRNode } from "../ir";
 
 // Authoring `[groups]` — §6's "one picker, two levels".
 //
@@ -52,6 +52,13 @@ export function GroupsEditor(props: { defs: Defs }) {
   };
   // What the continuous probe says live about a group is only its *warnings*. Its errors are not
   // shown here: red is reserved for what Confirm or a Run found (decided 2026-09-17).
+  const defsForGroup = (name: string): Defs => {
+    const may = probe.referable?.groups[name];
+    return may === undefined
+      ? withoutOption(props.defs, "group", name)
+      : onlyOptions(onlyOptions(props.defs, "node", may.nodes), "group", may.groups);
+  };
+
   const warnings = createMemo(() => probe.issues.filter((issue) => issue.severity === "warning"));
 
   // The `$defs/variable` node: one item of a selector list, which is exactly what a group holds.
@@ -233,9 +240,9 @@ export function GroupsEditor(props: { defs: Defs }) {
                 </div>
                 <SelectorField
                   itemNode={itemNode()}
-                  // A group naming itself is a loop — measured, and rejected as one — so its
-                  // own name is not on offer inside it.
-                  defs={withoutOption(props.defs, "group", name)}
+                  // A group naming itself, or what depends on it, is a loop — rejected as one — so
+                  // it is offered what the server says is safe; before that, all but its own name.
+                  defs={defsForGroup(name)}
                   label="columns"
                   value={state.groups[name]}
                   onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}

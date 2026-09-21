@@ -184,12 +184,17 @@ export type ProbeIssue = {
   message: string;
 };
 
+/** The nodes and groups an item can refer to without making a loop. */
+export type Referable = { nodes: string[]; groups: string[] };
+
 export type ProbeStore = {
   valid: boolean;
   cols: string[];
   nodes: ProbeNode[];
   errors: string[];
   issues: ProbeIssue[];
+  /** Per card, by index, and per group, by name; `null` when the server could not say. */
+  referable: { nodes: Referable[]; groups: Record<string, Referable> } | null;
 };
 
 export const emptyProbe = (): ProbeStore => ({
@@ -198,6 +203,7 @@ export const emptyProbe = (): ProbeStore => ({
   nodes: [],
   errors: [],
   issues: [],
+  referable: null,
 });
 
 /**

@@ -40,7 +40,15 @@ describe('usableProbe', () => {
       allowed: null, missing: [], related: [], message: '`TEMP_z` already exists',
     };
     expect(usableProbe({ valid: true, cols: ['TEMP'], nodes: [node], errors: [], issues: [issue] }))
-      .toEqual({ valid: true, cols: ['TEMP'], nodes: [node], errors: [], issues: [issue] });
+      .toEqual({ valid: true, cols: ['TEMP'], nodes: [node], errors: [], issues: [issue], referable: null });
+  });
+
+  it('keeps what each item may refer to, and reads anything else as not said', () => {
+    const referable = { nodes: [{ nodes: [], groups: ['g'] }], groups: { g: { nodes: [], groups: [] } } };
+    expect(usableProbe({ valid: true, referable }).referable).toEqual(referable);
+    expect(usableProbe({ valid: true }).referable).toBeNull();
+    expect(usableProbe({ valid: true, referable: 3 }).referable).toBeNull();
+    expect(usableProbe({ valid: true, referable: { nodes: 'x', groups: {} } }).referable).toBeNull();
   });
 
   it('falls back to an empty probe when there is no reply at all', () => {

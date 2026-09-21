@@ -4,6 +4,7 @@ import {
   resolveRef,
   widgetFor,
   withoutOption,
+  onlyOptions,
   type Defs,
   type IRNode,
 } from './ir';
@@ -268,5 +269,15 @@ describe('defaultsFor', () => {
       properties: [{ key: 'inputs', required: true, value: { type: 'string' } }],
     };
     expect(defaultsFor(node, defs)).toBeUndefined();
+  });
+});
+
+describe('onlyOptions', () => {
+  it('keeps the allowed names of one vocabulary, in its own order, and leaves the rest', () => {
+    const defs = { node: { type: 'string', enum: ['a', 'b', 'c'] }, col: { type: 'string', enum: ['x'] } } as Defs;
+    const cut = onlyOptions(defs, 'node', ['c', 'a', 'zz']);
+    expect(cut.node.enum).toEqual(['a', 'c']);
+    expect(cut.col).toBe(defs.col);
+    expect(onlyOptions(defs, 'missing', ['a'])).toBe(defs);
   });
 });

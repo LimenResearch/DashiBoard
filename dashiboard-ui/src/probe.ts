@@ -15,6 +15,13 @@ import type { CardsStore, ProbeIssue, ProbeNode, ProbeStore } from "./stores";
  * empty lists and an absent `valid` reads as true, so a reply that says nothing says nothing
  * wrong.
  */
+const usableReferable = (x: unknown): ProbeStore["referable"] => {
+  const r = x as { nodes?: unknown; groups?: unknown } | null | undefined;
+  const shaped = typeof r === "object" && r !== null && Array.isArray(r.nodes) &&
+    typeof r.groups === "object" && r.groups !== null;
+  return shaped ? (r as ProbeStore["referable"]) : null;
+};
+
 export const usableProbe = (result: unknown): ProbeStore => {
   const r = (result ?? {}) as Partial<ProbeStore>;
   const list = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : []);
@@ -24,6 +31,7 @@ export const usableProbe = (result: unknown): ProbeStore => {
     nodes: list<ProbeNode>(r.nodes),
     errors: list<string>(r.errors),
     issues: list<ProbeIssue>(r.issues),
+    referable: usableReferable(r.referable),
   };
 };
 

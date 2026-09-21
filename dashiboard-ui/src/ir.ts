@@ -76,6 +76,14 @@ export function withoutOption(defs: Defs, key: string, value: string): Defs {
   return { ...defs, [key]: { ...vocabulary, enum: vocabulary.enum.filter((o) => o !== value) } };
 }
 
+/** `defs` with one vocabulary cut down to the names in `allowed`, in its own order. */
+export function onlyOptions(defs: Defs, key: string, allowed: readonly string[]): Defs {
+  const vocabulary = defs[key];
+  if (vocabulary === undefined || !Array.isArray(vocabulary.enum)) return defs;
+  const keep = new Set<unknown>(allowed);
+  return { ...defs, [key]: { ...vocabulary, enum: vocabulary.enum.filter((o) => keep.has(o)) } };
+}
+
 const REF_PREFIX = "#/$defs/";
 
 /** Follow `$ref` chains into `$defs`. An unresolvable or cyclic ref yields `{}`, not a throw. */

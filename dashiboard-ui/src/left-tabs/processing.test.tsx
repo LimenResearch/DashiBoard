@@ -730,3 +730,52 @@ describe('the card type dropdown', () => {
     expect(exportCards().nodes.at(-1)!.card.type).toBe('glm');
   });
 });
+
+describe('what a card is offered', () => {
+  /** The server's defs name the document's own nodes, where the fixture names its own. */
+  const irFor = (body: { nodes?: string[]; include?: string[] }) => {
+    const full = structuredClone(payload) as unknown as { defs: Record<string, { enum?: string[] }> };
+    full.defs.node = { ...full.defs.node, enum: body.nodes ?? [] };
+    return Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, (full as unknown as Record<string, unknown>)[k]]));
+  };
+
+  it('leaves out the nodes that depend on it once the server has said which', async () => {
+    const referable = {
+      nodes: [{ nodes: [], groups: [] }, { nodes: ['a'], groups: [] }, { nodes: ['a', 'b'], groups: [] }],
+      groups: {},
+    };
+    let answer: (reply: unknown) => void = () => {};
+    postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) =>
+      page === 'probe-pipeline' ? new Promise((resolve) => { answer = resolve; })
+      : Promise.resolve(page === 'get-card-ir' ? irFor(body) : []));
+    const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [] };
+    importCards({ nodes: [{ id: 'a', card: rescale }, { id: 'b', card: rescale }, { id: 'c', card: rescale }], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelectorAll('[data-selector]').length).toBeGreaterThanOrEqual(3));
+    const offered = (at: number) => {
+      const card = [...container.querySelectorAll('details')].filter((d) => d.querySelector('[data-card-title]'))[at];
+      const field = card.querySelector('[data-selector]')!;
+      // `nodes` is the first tab, and a kind with nothing to offer has none.
+      if (field.querySelector('[role=tab][aria-selected="true"]')?.getAttribute('data-tab') !== 'nodes') return [];
+      return [...field.querySelectorAll('[data-panel] [data-value]')].map((e) => e.getAttribute('data-value'));
+    };
+    expect(offered(0)).toEqual(['b', 'c']);                       // before any answer: everything but itself
+    await waitFor(() => expect(postRequest.mock.calls.some((c) => c[0] === 'probe-pipeline')).toBe(true));
+    answer({ ...CLEAN_PROBE, referable });
+    await waitFor(() => expect(offered(0)).toEqual([]));          // b and c depend on a
+    expect(offered(2)).toEqual(['a', 'b']);
+  });
+
+  it('does not read an answer about a document with other cards', async () => {
+    const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [] };
+    postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) =>
+      Promise.resolve(page === 'get-card-ir' ? irFor(body) : page === 'probe-pipeline' ? new Promise(() => {}) : []));
+    importCards({ nodes: [{ id: 'a', card: rescale }, { id: 'b', card: rescale }], groups: {} });
+    PROBE_STORE[1]((d) => { d.referable = { nodes: [{ nodes: [], groups: [] }], groups: {} }; });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelectorAll('[data-selector]').length).toBeGreaterThanOrEqual(2));
+    const card = [...container.querySelectorAll('details')].filter((d) => d.querySelector('[data-card-title]'))[0];
+    const shown = [...card.querySelector('[data-selector]')!.querySelectorAll('[data-panel] [data-value]')];
+    expect(shown.map((e) => e.getAttribute('data-value'))).toEqual(['b']);
+  });
+});

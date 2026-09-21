@@ -457,6 +457,7 @@ function dropName(item: Selector, kind: "groups" | "nodes", name: string): Selec
   return "cols" in out || "groups" in out || "nodes" in out ? out : null;
 }
 
+/** `item` with `from` replaced by `to`, in the kind's value and in a `through` chain. */
 function renameIn(item: Selector, kind: "groups" | "nodes", from: string, to: string): Selector {
   const out: Selector = { ...item };
   const value = out[kind];

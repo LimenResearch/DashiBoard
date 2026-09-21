@@ -373,7 +373,9 @@ describe('the card header', () => {
     const title = container.querySelector('[data-card-title]')!;
     expect(title.className).toMatch(/min-w-0/);
     expect(title.className).not.toMatch(/truncate/);
-    expect(title.getAttribute('title')).toBe('dimensionality_reduction : dimensionality_reduction');
+    // The kind is the server's own title for the card type, not the raw type name: folded, a
+    // card has to read as a card of that kind, and a group as a group.
+    expect(title.getAttribute('title')).toBe('Dimensionality Reduction : dimensionality_reduction');
     const text = container.querySelector('[data-card-text]')!;
     expect(text.className).toMatch(/truncate/);
     expect(text.className).not.toMatch(/flex/);
@@ -707,5 +709,24 @@ describe('a card-IR answer that arrives after a newer one', () => {
     const offered = [...reader.querySelectorAll('[data-tabs="kinds"]')][0]
       .parentElement!.querySelectorAll('[data-value]');
     expect([...offered].map((e) => e.getAttribute('data-value'))).toEqual(['third']);
+  });
+});
+
+describe('the card type dropdown', () => {
+  it('lists the card types by the titles the folded cards use, and still adds the type chosen', async () => {
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('#card-type option')).not.toBeNull());
+    const options = [...container.querySelectorAll('#card-type option')] as HTMLOptionElement[];
+    const byValue = Object.fromEntries(options.map((o) => [o.value, o.textContent]));
+    expect(byValue.dimensionality_reduction).toBe('Dimensionality Reduction');
+    expect(byValue.glm).toBe('GLM');
+    // The value stays the type name: it is what the document holds.
+    const select = container.querySelector('#card-type') as HTMLSelectElement;
+    select.value = 'glm';
+    fireEvent.change(select);
+    await flush();
+    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Add card')!);
+    await flush();
+    expect(exportCards().nodes.at(-1)!.card.type).toBe('glm');
   });
 });

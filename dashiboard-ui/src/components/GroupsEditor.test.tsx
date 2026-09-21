@@ -181,7 +181,7 @@ describe('GroupsEditor', () => {
     await flush();
     const details = container.querySelector('details') as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    expect(details.querySelector('summary')!.textContent).toContain('name');
+    expect(details.querySelector('summary')!.textContent).toContain('Group');
     expect(details.querySelector('summary')!.textContent).toContain('weather');
   });
 

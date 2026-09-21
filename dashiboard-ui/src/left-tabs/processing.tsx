@@ -7,7 +7,7 @@ import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
 import { Disclosure, summaryAction } from "../components/Disclosure";
-import { StateDot } from "../components/StateDot";
+import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
 import {
@@ -87,6 +87,13 @@ export function Cards() {
   // can land out of order: an older one arriving last used to put back a vocabulary the document
   // no longer has, so pickers offered a node name that did not exist any more (measured
   // 2026-09-21; it takes a slow server). Same guard as the continuous probe's `probeSeq`.
+  // The server's title for a card type ("GLM", "Interpolation"); derived from the type name
+  // until the IR has arrived, or for a type it does not know.
+  const cardTitle = (type: string) => {
+    const title = (payload()?.cards[type] as { title?: unknown } | undefined)?.title;
+    return typeof title === "string" && title !== "" ? title : readableType(type);
+  };
+
   let irSeq = 0;
   async function loadIR(vocabulary: Vocabulary) {
     const seq = ++irSeq;
@@ -394,7 +401,8 @@ export function Cards() {
             value={chosen()}
             onChange={(event) => setChosen(event.currentTarget.value)}
           >
-            <For each={cardTypes()}>{(type) => <option value={type}>{type}</option>}</For>
+            {/* The title the folded cards use; the value stays the type name the document holds. */}
+            <For each={cardTypes()}>{(type) => <option value={type}>{cardTitle(type)}</option>}</For>
           </select>
           {/*
             The card starts with the defaults its IR declares, rather than with only a type. The
@@ -455,27 +463,12 @@ export function Cards() {
                       `truncate` lives on the inner, non-flex `data-card-text` span around the text
                       run, not on this flex wrapper. The full text still reaches the reader through
                       `title`. */}
-                  <span
-                    data-card-title
-                    title={`${String(node.card.type)} : ${node.id || "unnamed"}`}
-                    class="flex min-w-0 items-center gap-1.5"
-                  >
-                    <span data-card-text class="min-w-0 truncate">
-                      <span class="font-mono text-control-xs font-semibold text-primary">
-                        {String(node.card.type)}
-                      </span>
-                      <span class="text-muted-foreground">:</span>
-                      <span class="font-mono text-control-xs">
-                        {node.id || <span class="text-destructive italic">unnamed</span>}
-                      </span>
-                    </span>
-                    {/*
-                      Amber until asked, then green or red on what the server answered. Folded,
-                      this dot is the only thing on screen, so the answer has to live here as
-                      well as in the findings below. A live warning never changes it.
-                    */}
-                    <StateDot state={nodeState()} />
-                  </span>
+                  <SummaryTitle
+                    hook="card"
+                    kind={cardTitle(String(node.card.type))}
+                    name={node.id ?? ""}
+                    state={nodeState()}
+                  />
                   <span data-card-actions class="ml-auto flex shrink-0 items-center gap-2">
                     {/*
                       The distinction it carries is *completeness*, not validity, and the two come

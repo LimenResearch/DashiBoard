@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { Button } from "./Button";
 import { Disclosure, summaryAction } from "./Disclosure";
-import { StateDot } from "./StateDot";
+import { SummaryTitle } from "./SummaryTitle";
 import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
 import {
@@ -108,21 +108,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                         so `truncate` lives on the inner, non-flex `data-group-text` span around the
                         text run, not on this flex wrapper. The full text still reaches the reader
                         through `title`. */}
-                    <span
-                      data-group-title
-                      title={`name : ${name}`}
-                      class="flex min-w-0 items-center gap-1.5"
-                    >
-                      <span data-group-text class="min-w-0 truncate">
-                        <span class="text-control-xs font-semibold text-primary">name</span>
-                        <span class="text-muted-foreground">:</span>
-                        <span class="font-mono text-control-xs">{name}</span>
-                      </span>
-                      {/* Amber until asked, then green or red on what the server answered: the
-                          findings render inside the body, which announces nothing while the
-                          group is folded. */}
-                      <StateDot state={groupState(name)} />
-                    </span>
+                    <SummaryTitle hook="group" kind="Group" name={name} state={groupState(name)} />
                     <span data-group-actions class="ml-auto flex shrink-0 items-center gap-2">
                       {/*
                         Asks the probe rather than judging locally: an empty group passes schema

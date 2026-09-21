@@ -360,6 +360,36 @@ function loop_issues(nodes::AbstractVector, groups::AbstractDict)
 end
 
 """
+    referable(nodes, groups)
+
+For every card (by index) and group (by name), the nodes and groups it may refer to without
+making a loop: all of them except itself and what depends on it. `nothing` when the dependency
+graph cannot be built. Edges run from a dependency to what depends on it, so what depends on an
+item is what can be reached from it.
+"""
+function referable(nodes::AbstractVector, groups::AbstractDict)
+    graph, = try
+        Pipelines.dependency_graph(nodes, groups)
+    catch
+        return nothing
+    end
+    n_nodes = length(nodes)
+    ids = Pipelines.get_id.(nodes)
+    group_names = collect(String, keys(groups))
+    function allowed(vertex)
+        free = findall(==(typemax(Int)), gdistances(graph, vertex))
+        return (;
+            nodes = String[ids[i] for i in free if i <= n_nodes],
+            groups = String[group_names[i - n_nodes] for i in free if i > n_nodes],
+        )
+    end
+    return (;
+        nodes = [allowed(i) for i in 1:n_nodes],
+        groups = Dict(name => allowed(n_nodes + j) for (j, name) in enumerate(group_names)),
+    )
+end
+
+"""
     build_failure(nodes, groups, exception)
 
 The failure envelope for a document that could not be built — `failure_report`, with a loop
@@ -511,6 +541,8 @@ function probe_pipeline(req::HTTP.Request)
     spec = json_read(req)
     cols = colnames(REPOSITORY[], "source")
     groups = get(spec, "groups", Dict{String, Any}())
+    # Sent with every answer below, so a picker offers an item only what cannot make a loop.
+    may_refer = referable(spec["nodes"], groups)
 
     # Before building: see `empty_group_issues` for why construction cannot report this itself.
     # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
@@ -520,7 +552,7 @@ function probe_pipeline(req::HTTP.Request)
         issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
         return json_response((;
             valid = false, kind = "pipeline", cols,
-            errors = [issue.message for issue in issues], issues,
+            errors = [issue.message for issue in issues], issues, referable = may_refer,
         ))
     end
 
@@ -531,7 +563,7 @@ function probe_pipeline(req::HTTP.Request)
         # Always `pipeline`: this route resolves and never runs, so a fault it can see is by
         # construction a fault of the document. Deliberately not logged — the probe fires on every
         # edit, and most edits are documents the author has not finished writing yet.
-        return json_response((; build_failure(spec["nodes"], groups, exception)..., cols))
+        return json_response((; build_failure(spec["nodes"], groups, exception)..., cols, referable = may_refer))
     end
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
@@ -574,6 +606,7 @@ function probe_pipeline(req::HTTP.Request)
         kind = isempty(absent) ? nothing : "pipeline",
         cols,
         nodes,
+        referable = may_refer,
         source_vars = Pipelines.get_source_vars(pipeline),
         output_vars = Pipelines.get_output_vars(pipeline),
         errors = String[],

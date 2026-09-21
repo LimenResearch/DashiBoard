@@ -20,7 +20,7 @@ using TOML: TOML
 
 # For naming the members of a loop (handlers.jl, `loop_issues`): Graphs' own error for a cyclic
 # dependency graph says only that there is one, and a client cannot act on that.
-using Graphs: strongly_connected_components, has_edge
+using Graphs: strongly_connected_components, has_edge, gdistances
 
 using DBInterface: DBInterface
 

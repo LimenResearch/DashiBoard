@@ -99,7 +99,10 @@ export function GroupsEditor(props: { defs: Defs }) {
             }
 
             return (
-            <div class="my-2 rounded-sm border border-border p-2">
+            <div
+              class="my-2 rounded-sm border border-border p-2"
+              data-last-item={state.nodes.length === 0 && Object.keys(state.groups).at(-1) === name ? "" : undefined}
+            >
               <Disclosure
                 onToggle={setUnfolded}
                 bodyClass="mt-1 flex flex-col gap-1"

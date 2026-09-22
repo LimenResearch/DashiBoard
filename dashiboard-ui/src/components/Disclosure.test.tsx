@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -97,5 +97,59 @@ describe('Disclosure', () => {
       <Disclosure open summary={<span>cluster</span>}>body</Disclosure>
     ));
     expect(details(container).open).toBe(true);
+  });
+});
+
+describe('Disclosure, when it unfolds', () => {
+  const rect = (el: Element, top: number, height: number) => {
+    el.getBoundingClientRect = () => ({ top, bottom: top + height, height } as DOMRect);
+  };
+  const frame = () => new Promise((done) => requestAnimationFrame(() => done(null)));
+  /** Earlier tests' unfoldings still have a frame pending; let it pass before listening. */
+  const listen = async () => { await frame(); return vi.spyOn(window, 'scrollBy').mockImplementation(() => {}); };
+
+  it('scrolls its content to the middle of the view once, and not when it folds', async () => {
+    const scrolled = await listen();
+    const { container } = render(() => <Disclosure summary={<span>cluster</span>}>body</Disclosure>);
+    const d = details(container);
+    rect(d, 1000, 200);
+    d.open = true;                                     // jsdom fires `toggle` for the attribute change
+    await frame();
+    expect(scrolled).toHaveBeenCalledTimes(1);
+    // centre of the content to the centre of the view: 1000 + 100 - 768 / 2
+    expect(scrolled.mock.calls[0][0]).toMatchObject({ top: 716 });
+    d.open = false;
+    await frame();
+    expect(scrolled).toHaveBeenCalledTimes(1);
+    scrolled.mockRestore();
+  });
+
+  it('ends the last item of the pipeline at the bottom of the view, above the sticky actions', async () => {
+    const scrolled = await listen();
+    const { container } = render(() => (
+      <>
+        <div data-last-item><Disclosure summary={<span>cluster</span>}>body</Disclosure></div>
+        <div data-add />
+      </>
+    ));
+    rect(container.querySelector('[data-add]')!, 700, 68);
+    const d = details(container);
+    rect(d, 1000, 200);
+    d.open = true;
+    await frame();
+    // bottom of the content to the top of the sticky row: 1200 - (768 - 68)
+    expect(scrolled.mock.calls[0][0]).toMatchObject({ top: 500 });
+    scrolled.mockRestore();
+  });
+
+  it('keeps the top of content taller than the view on screen', async () => {
+    const scrolled = await listen();
+    const { container } = render(() => <Disclosure summary={<span>cluster</span>}>body</Disclosure>);
+    const d = details(container);
+    rect(d, 300, 2000);
+    d.open = true;
+    await frame();
+    expect(scrolled.mock.calls[0][0]).toMatchObject({ top: 292 });
+    scrolled.mockRestore();
   });
 });

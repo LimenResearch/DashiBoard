@@ -52,11 +52,33 @@ type DisclosureProps = {
   bodyClass?: string;
 };
 
+/**
+ * Bring what just unfolded into view: centred, or — for the last item of the pipeline, marked
+ * `data-last-item` — ending at the bottom of the view, just above the sticky row of actions,
+ * which is on screen regardless. Content taller than the view keeps its top on screen.
+ * Unfolding lengthens the page below the hand, so without this the new content can lie
+ * entirely off screen.
+ */
+export function showUnfolded(element: Element) {
+  requestAnimationFrame(() => {
+    const rect = element.getBoundingClientRect();
+    const sticky = document.querySelector("[data-add]")?.getBoundingClientRect().height ?? 0;
+    const view = window.innerHeight - sticky;
+    const top = element.closest("[data-last-item]") !== null
+      ? rect.bottom - view
+      : rect.height > view ? rect.top - 8 : rect.top + rect.height / 2 - view / 2;
+    window.scrollBy({ top, behavior: "smooth" });
+  });
+}
+
 export function Disclosure(props: DisclosureProps) {
   return (
     <details
       open={props.open ?? false}
-      onToggle={(event) => props.onToggle?.(event.currentTarget.open)}
+      onToggle={(event) => {
+        if (event.currentTarget.open) showUnfolded(event.currentTarget);
+        props.onToggle?.(event.currentTarget.open);
+      }}
       class={props.class ?? ""}
     >
       {/* Wraps: a long title (a card named after a long type) used to push the actions past the

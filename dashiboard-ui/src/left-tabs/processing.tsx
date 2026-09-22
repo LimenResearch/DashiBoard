@@ -470,7 +470,7 @@ export function Cards() {
           }
 
           return (
-          <div class="my-2 rounded-sm border border-border p-2">
+          <div class="my-2 rounded-sm border border-border p-2" data-last-item={index() === state.nodes.length - 1 ? "" : undefined}>
             <Disclosure
               bodyClass="mt-2 flex flex-col gap-1 border-t border-border pt-2"
               summary={

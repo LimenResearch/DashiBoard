@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 
-import { Chevron } from "./Disclosure";
+import { Chevron, showUnfolded } from "./Disclosure";
 import { SelectorHelp } from "./SelectorHelp";
 import { Tabs } from "./Tabs";
 import {
@@ -388,7 +388,11 @@ export function SelectorField(props: SelectorFieldProps) {
             aria-expanded={open() ? "true" : "false"}
             aria-controls={panelId}
             aria-label={`${open() ? "fold" : "unfold"} the choices for ${props.label}`}
-            onClick={() => setOpen(!open())}
+            onClick={() => {
+              const unfold = !open();
+              setOpen(unfold);
+              if (unfold) showUnfolded(root!.querySelector("[data-panel]")!);
+            }}
             class="flex items-center gap-1.5 rounded-sm hover:bg-muted"
           >
             <Chevron turned={open()} />

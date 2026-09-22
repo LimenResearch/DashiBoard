@@ -585,6 +585,19 @@ describe('SelectorField, teaching the keys', () => {
   });
 });
 
+describe('SelectorField, when its panel unfolds', () => {
+  it('brings the panel into the middle of the view', async () => {
+    const scrolled = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+    const { container } = mount([]);
+    const panel = container.querySelector('[data-panel]')!;
+    panel.getBoundingClientRect = () => ({ top: 1000, bottom: 1200, height: 200 } as DOMRect);
+    open(container); await flush();
+    await new Promise((done) => requestAnimationFrame(() => done(null)));
+    expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ top: 716 }));
+    scrolled.mockRestore();
+  });
+});
+
 describe('SelectorField, folded by its host', () => {
   it('draws no fold control of its own, and the panel follows the host', async () => {
     const [shown, setShown] = createSignal(false);

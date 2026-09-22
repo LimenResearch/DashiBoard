@@ -43,18 +43,17 @@ after TAB: [cols:] [bill_length] [@impute] [@zscore] ▏
 
 | input | effect |
 |---|---|
-| focus | nothing opens: a box that opened its list on focus would swallow the TAB of someone passing through |
-| any text, or Down, in an empty box | the list offers the kinds that have something: `nodes:`, `groups:`, `cols:` |
+| focus | the list opens on the kinds that have something: `nodes:`, `groups:`, `cols:` (revised 2026-09-22: the list always shows while the box is in hand; `:` alone asks for it too) |
 | `c` TAB | token `cols:`; the list shows every column |
 | text | the list narrows: names containing the text, those starting with it first, each in the server's order |
 | Up / Down | move the highlight in the list |
-| TAB | the highlighted match (the top one by default) becomes a token |
-| `@` | the list switches to the nodes a chain may pass through |
-| `imp` TAB | token `@impute`; `@` again continues the chain, in the order typed |
-| ENTER | the entry is finished: a chip appears, name and chain clear, **the kind token stays**, and the list closes until the next keystroke |
+| TAB, something typed or a highlight moved | the highlighted match (the top one by default) becomes a token |
+| TAB, nothing typed | leaves the field, as TAB does everywhere, whatever the list shows — also right after ENTER; Shift+TAB always goes back |
+| after a name | the list shows the nodes a chain may pass through — **only those that read the value**, from what the probe says each node reads (`through.ts`); `@` is optional |
+| `imp` TAB | token `@impute`; the list continues the chain with the nodes that read what `impute` produced, in the order typed |
+| ENTER | the entry is finished: a chip appears, name and chain clear, **the kind token stays** and its names are on offer |
 | Backspace, nothing typed | removes the last token whole; the kind goes last |
 | Esc | closes the list; pressed again, clears the entry |
-| TAB, no list open | leaves the field, as TAB does everywhere — also right after ENTER, with the kind token still in the box; Shift+TAB always goes back |
 
 - Only names on offer become tokens, so a name with spaces or `@` in it is harmless and a typo
   cannot be entered. ENTER on a name with no `@` means *direct*.

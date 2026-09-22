@@ -13,7 +13,7 @@ import {
   type SelectorRow,
 } from "../selector";
 import { widgetFor, type Defs, type IRNode } from "../ir";
-import { emptyEntry, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
+import { emptyEntry, engaged, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
 import * as _ from "lodash";
 
 // The variable picker (C2), built to study 05.
@@ -46,6 +46,8 @@ type SelectorFieldProps = {
   required?: boolean;
   /** Given, the host folds the panel — a group's own line does — and no fold control is drawn. */
   open?: boolean;
+  /** Narrows `all`, the nodes `through` accepts, to those a chain may pass through next after `row`. */
+  chainFor?: (row: SelectorRow, all: string[]) => string[];
   value: unknown;
 } & (
   | { single?: false; onChange: (items: SelectorItem[]) => void }
@@ -154,12 +156,21 @@ export function SelectorField(props: SelectorFieldProps) {
   const clearPending = (id: string) => setPending(pending().filter((p) => p !== id));
 
   // --- the typed entry: the panel's steps, from the keyboard -----------------
-  const [entry, setEntry] = createSignal(emptyEntry);
-  const vocabulary = createMemo(() => ({
-    kinds: tabKinds(),
-    options: Object.fromEntries(tabKinds().map((kind) => [kind, optionsOf(kind)])),
-    chain: chainOptions(),
-  }));
+  // Closed until the box is in hand.
+  const [entry, setEntry] = createSignal({ ...emptyEntry, open: false });
+  /** The chain steps on offer after `row`: the host's say, else every node. */
+  const chainFor = (row: SelectorRow) => {
+    const narrow = props.chainFor;
+    return narrow === undefined ? chainOptions() : narrow(row, chainOptions());
+  };
+  const vocabulary = createMemo(() => {
+    const e = entry();
+    return {
+      kinds: tabKinds(),
+      options: Object.fromEntries(tabKinds().map((kind) => [kind, optionsOf(kind)])),
+      chain: e.kind !== null && e.name !== null ? chainFor({ kind: e.kind, value: e.name, chain: e.chain }) : chainOptions(),
+    };
+  });
   const listId = _.uniqueId("selector-list-");
   let root: HTMLDivElement | undefined;
   let box: HTMLInputElement | undefined;
@@ -237,7 +248,8 @@ export function SelectorField(props: SelectorFieldProps) {
     }
   };
 
-  const highlightedId = (index: number) => (entry().open && entry().highlight === index ? true : undefined);
+  const highlightedId = (index: number) =>
+    entry().open && engaged(entry()) && entry().highlight === index ? true : undefined;
 
   const openKind = () => {
     // The box and the panel are one list: a kind token selects the tab.
@@ -283,11 +295,11 @@ export function SelectorField(props: SelectorFieldProps) {
               data-highlighted={highlightedId(i())}
               role="option"
               id={`${listId}-${i()}`}
-              aria-selected={entry().highlight === i() ? "true" : "false"}
+              aria-selected={highlightedId(i()) ? "true" : "false"}
               onClick={() => { if (atKind()) apply({ type: "pick", value, how: "continue" }); }}
               class={[
                 "flex items-center gap-2 rounded-sm px-1.5 py-0.5 font-mono text-control-xs",
-                { "bg-accent/60": entry().highlight === i(), "cursor-pointer": atKind() },
+                { "bg-accent/60": highlightedId(i()) === true, "cursor-pointer": atKind() },
               ]}
             >
               <span class="min-w-0 grow truncate">{atKind() ? `${value}:` : value}</span>
@@ -463,7 +475,7 @@ export function SelectorField(props: SelectorFieldProps) {
               role="combobox"
               aria-expanded={entry().open ? "true" : "false"}
               aria-controls={open() ? panelId : listId}
-              aria-activedescendant={entry().open ? `${listId}-${entry().highlight}` : undefined}
+              aria-activedescendant={entry().open && engaged(entry()) ? `${listId}-${entry().highlight}` : undefined}
               aria-autocomplete="list"
               aria-label={`${props.label}, type a selection`}
               autocomplete="off"
@@ -472,6 +484,7 @@ export function SelectorField(props: SelectorFieldProps) {
               value={entry().text}
               onInput={(event) => apply({ type: "text", value: event.currentTarget.value })}
               onKeyDown={onEntryKey}
+              onFocus={() => apply({ type: "focus" })}
               onBlur={() => { if (entry().open) setEntry({ ...entry(), open: false }); }}
               class="min-w-24 grow bg-transparent font-mono text-control-xs outline-none"
             />
@@ -675,7 +688,7 @@ export function SelectorField(props: SelectorFieldProps) {
                           <span class="text-detail tracking-wider text-muted-foreground uppercase">
                             add a pass-through
                           </span>
-                          <For each={chainOptions()}>
+                          <For each={chainFor({ kind: kind(), value, chain })}>
                             {(node) => (
                               <button
                                 type="button"

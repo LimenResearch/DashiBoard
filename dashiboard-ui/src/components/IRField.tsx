@@ -4,6 +4,7 @@ import type { Element as JSXElement } from "solid-js";
 import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
 import { SelectorField } from "./SelectorField";
+import type { SelectorRow } from "../selector";
 import { defaultsFor, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
@@ -30,6 +31,8 @@ type IRFieldProps = {
   inline?: boolean;
   /** Prefix for every id below this field, so two cards of one type do not collide. */
   idPrefix?: string;
+  /** Handed to every selector below: which nodes a chain may pass through next. */
+  chainFor?: (row: SelectorRow, all: string[]) => string[];
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -138,6 +141,7 @@ export function IRField(props: IRFieldProps) {
               <For each={w().properties} keyed={(entry) => entry.key}>
                 {(entry) => (
                   <IRField
+                    chainFor={props.chainFor}
                     node={entry().value}
                     defs={props.defs}
                     label={entry().key}
@@ -210,6 +214,7 @@ export function IRField(props: IRFieldProps) {
                 </Row>
                 <Show when={w().objects[chosen()]}>
                   <IRField
+                    chainFor={props.chainFor}
                     node={w().objects[chosen()]!}
                     defs={props.defs}
                     label={props.label}
@@ -350,6 +355,7 @@ export function IRField(props: IRFieldProps) {
                     <For each={asArray(props.value)}>
                       {(item, index) => (
                         <IRField
+                          chainFor={props.chainFor}
                           node={w().items}
                           defs={props.defs}
                           label={`${props.label}[${index()}]`}
@@ -369,6 +375,7 @@ export function IRField(props: IRFieldProps) {
                 {/* No disclosure around it: the picker keeps its name, its chips and its text
                     box on screen and folds the rest itself. */}
                 <SelectorField
+                  chainFor={props.chainFor}
                   itemNode={w().items}
                   defs={props.defs}
                   label={props.label}
@@ -388,6 +395,7 @@ export function IRField(props: IRFieldProps) {
           case "selector":
             return (
               <SelectorField
+                chainFor={props.chainFor}
                 single
                 itemNode={props.node}
                 defs={props.defs}

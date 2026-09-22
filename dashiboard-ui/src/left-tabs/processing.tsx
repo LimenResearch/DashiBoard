@@ -10,6 +10,7 @@ import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
+import { throughOptions } from "../through";
 import {
   CARDS_STORE,
   CARDS_JSON,
@@ -36,6 +37,8 @@ import {
   forgetVerdict,
   PROBE_STORE,
   droppedReferences,
+  describedNodes,
+  rememberDescribed,
   pruneReferences,
   setDroppedReferences,
   type ProbeNode,
@@ -207,6 +210,7 @@ export function Cards() {
           return;
         }
         setProbe(reconcile(answer));
+        rememberDescribed(answer, document.nodes.map((node) => node.id ?? ""));
       });
     }, PROBE_QUIET_MS);
   });
@@ -560,6 +564,9 @@ export function Cards() {
                 defs={defsForNode(index())}
                 label={String(node.card.type)}
                 idPrefix={`node-${index()}`}
+                // A chain may only pass through nodes that read what it carries; the probe
+                // says what each node reads.
+                chainFor={(row, all) => throughOptions(row, all, describedNodes(), state.groups)}
                 value={node.card}
                 onChange={(card) => setCard(index(), card as Card)}
               />

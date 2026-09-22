@@ -4,9 +4,9 @@ import { createSignal, For, Show } from "solid-js";
 // reach for exactly the people the text box is for.
 
 const KEYS: [string, string][] = [
-  ["c, g or n, then Tab", "choose cols, groups or nodes"],
-  ["type, then Tab", "take the top match (↑ ↓ to choose another)"],
-  ["@", "pass through a node; repeat for a chain"],
+  ["c, g or n, then Tab", "choose cols, groups or nodes (the list is always showing)"],
+  ["type, then Tab", "take the top match (↑ ↓ to choose another); Tab with nothing typed leaves"],
+  ["a node after a name (@ optional)", "pass through it; repeat for a chain — only nodes that read the value are offered"],
   ["Enter", "add it"],
   ["Backspace", "undo the last part"],
   ["Esc", "close the list, then clear"],

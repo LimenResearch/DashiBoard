@@ -459,8 +459,46 @@ describe('SelectorField, typed entry', () => {
     expect(written).toEqual([{ cols: 'TEMP' }]);
     fireEvent.click(container.querySelector('[data-suggestion="PRES"] [data-pick="through"]')!); await flush();
     expect(tokens(container)).toEqual(['cols:', 'PRES']);
-    expect(box(container).value).toBe('@');
+    expect(box(container).value).toBe('');
     expect(container.querySelector('[data-suggestion="rescale"]')).not.toBeNull();
+  });
+
+  it('offers the kinds on focus, the names after a kind, and after a name only the nodes its host allows', async () => {
+    const chainFor = vi.fn((row: { value: string; chain: string[] }) => (row.value === 'PRES' && row.chain.length === 0 ? ['split'] : ['rescale', 'split']));
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} chainFor={chainFor} />
+    ));
+    fireEvent.focus(box(container)); await flush();
+    expect([...container.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'))).toEqual(['nodes', 'groups', 'cols']);
+    await type(container, 'c'); await key(container, 'Tab');
+    expect(container.querySelector('[data-suggestion="TEMP"]')).not.toBeNull();
+    await type(container, 'PRES'); await key(container, 'Tab');
+    expect([...container.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'))).toEqual(['split']);
+    expect(chainFor).toHaveBeenCalledWith({ kind: 'cols', value: 'PRES', chain: [] }, ['rescale', 'split']);
+    await key(container, 'Enter');                                 // nothing typed: direct
+    expect(tokens(container)).toEqual(['cols:']);
+  });
+
+  it('narrows the panel\'s chain builder the same way', async () => {
+    const chainFor = () => ['split'];
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} chainFor={chainFor} />
+    ));
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(sw(container, 'PRES')); await flush();
+    fireEvent.click(row(container, 'PRES').querySelector('[data-specify="through"]')!); await flush();
+    const offered = [...builderIn(container, 'PRES').querySelectorAll('button')].map((b) => b.textContent).filter((t) => t !== 'cancel');
+    expect(offered).toEqual(['split']);
+  });
+
+  it('shows no highlight for an untouched list, then the top match once something is typed', async () => {
+    const { container } = mount([]);
+    fireEvent.focus(box(container)); await flush();
+    expect(container.querySelector('[data-highlighted]')).toBeNull();
+    expect(box(container).getAttribute('aria-activedescendant')).toBeNull();
+    await type(container, 'c');
+    expect(container.querySelector('[data-highlighted]')!.getAttribute('data-suggestion')).toBe('cols');
+    expect(box(container).getAttribute('aria-activedescendant')).not.toBeNull();
   });
 
   it('does not add the same value with the same chain twice', async () => {

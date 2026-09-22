@@ -251,6 +251,20 @@ export function fieldPath(pointer: string): string {
 export const PROBE_STORE = createStore<ProbeStore>(emptyProbe());
 
 /**
+ * What the server last said each node reads and writes. The probe describes the nodes only when
+ * the whole document builds, and a card being filled in breaks the build until it is complete —
+ * exactly when its chains are typed. So the last descriptions are kept, minus the nodes the
+ * document no longer has, and the pickers narrow their chains by them.
+ */
+export const [describedNodes, setDescribedNodes] = createSignal<ProbeNode[]>([]);
+
+export function rememberDescribed(answer: Pick<ProbeStore, "valid" | "nodes">, ids: readonly string[]) {
+  const known = new Set(ids);
+  const latest = answer.valid && answer.nodes.length > 0 ? answer.nodes : describedNodes();
+  setDescribedNodes(latest.filter((node) => known.has(node.id)));
+}
+
+/**
  * A server's pointed issues, as rejected verdicts on the items they point at.
  *
  * The one bridge from issues to red. A failed run and an upload both come through here, so an

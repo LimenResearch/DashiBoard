@@ -8,14 +8,17 @@ export type EntryVocabulary = { kinds: string[]; options: Record<string, string[
 export type EntryState = {
   kind: string | null; name: string | null; chain: string[];
   text: string; open: boolean; highlight: number;
+  /** The highlight was moved by hand: the list is engaged even with nothing typed. */
+  moved: boolean;
 };
 export type EntryInput =
-  | { type: "text"; value: string } | { type: "tab" } | { type: "enter" } | { type: "backspace" }
-  | { type: "escape" } | { type: "down" } | { type: "up" }
+  | { type: "text"; value: string } | { type: "focus" } | { type: "tab" } | { type: "enter" }
+  | { type: "backspace" } | { type: "escape" } | { type: "down" } | { type: "up" }
   | { type: "pick"; value: string; how: "continue" | "direct" | "through" };
 export type EntryStep = { state: EntryState; emit?: SelectorRow; leave?: true };
 
-export const emptyEntry: EntryState = { kind: null, name: null, chain: [], text: "", open: false, highlight: 0 };
+/** The list shows whenever the box is in hand; Esc or leaving closes it. */
+export const emptyEntry: EntryState = { kind: null, name: null, chain: [], text: "", open: true, highlight: 0, moved: false };
 
 /** Names starting with the text, then names containing it; each in the order given. */
 export function matches(query: string, options: readonly string[]): string[] {
@@ -26,31 +29,37 @@ export function matches(query: string, options: readonly string[]): string[] {
   return [...starts, ...contains];
 }
 
-/** Which part of an entry the text is for. After a name, only a chain step (`@…`) can follow. */
-export function stageOf(state: EntryState): "kind" | "name" | "chain" | "done" {
+/** Which part of an entry the text is for. After a name only chain steps can follow. */
+export function stageOf(state: EntryState): "kind" | "name" | "chain" {
   if (state.kind === null) return "kind";
   if (state.name === null) return "name";
-  return state.text.startsWith("@") ? "chain" : "done";
+  return "chain";
 }
+
+/** What is typed for the current stage: a chain step may be written with or without its `@`. */
+const queryOf = (state: EntryState) =>
+  stageOf(state) === "chain" && state.text.startsWith("@") ? state.text.slice(1) : state.text;
 
 export function suggestions(state: EntryState, vocabulary: EntryVocabulary): string[] {
   switch (stageOf(state)) {
     case "kind": return matches(state.text, vocabulary.kinds);
     case "name": return matches(state.text, vocabulary.options[state.kind!] ?? []);
-    case "chain": return matches(state.text.slice(1), vocabulary.chain);
-    default: return [];
+    case "chain": return matches(queryOf(state), vocabulary.chain);
   }
 }
 
-/** The state after `value` is accepted for the current stage. */
+/** The state after `value` is accepted for the current stage; the next stage's list shows. */
 function accept(state: EntryState, value: string): EntryState {
+  const next = { ...state, text: "", open: true, highlight: 0, moved: false };
   switch (stageOf(state)) {
-    case "kind": return { ...state, kind: value, text: "", open: true, highlight: 0 };
-    case "name": return { ...state, name: value, text: "", open: false, highlight: 0 };
-    case "chain": return { ...state, chain: [...state.chain, value], text: "", open: false, highlight: 0 };
-    default: return state;
+    case "kind": return { ...next, kind: value };
+    case "name": return { ...next, name: value };
+    case "chain": return { ...next, chain: [...state.chain, value] };
   }
 }
+
+/** Something was typed or chosen: a match is highlighted, and TAB and ENTER may take it. */
+export const engaged = (state: EntryState) => queryOf(state) !== "" || state.moved;
 
 const highlighted = (state: EntryState, vocabulary: EntryVocabulary): string | undefined =>
   state.open ? suggestions(state, vocabulary)[state.highlight] : undefined;
@@ -63,59 +72,58 @@ function finish(state: EntryState, single: boolean): EntryStep {
 
 export function step(state: EntryState, input: EntryInput, vocabulary: EntryVocabulary, single = false): EntryStep {
   switch (input.type) {
+    case "focus":
+      return { state: { ...state, open: true } };
     case "text": {
-      // After a name only a chain step can follow, so the `@` may be left out.
-      const value = state.name !== null && input.value !== "" && !input.value.startsWith("@")
-        ? `@${input.value}` : input.value;
-      // `cols:` typed out, and `bill@` typed through, both accept what came before the mark.
-      if (stageOf(state) === "kind" && value.endsWith(":")) {
+      // A `:` alone asks for the kinds, it names none.
+      const value = stageOf(state) === "kind" && input.value === ":" ? "" : input.value;
+      // `cols:` typed out, and `bill@` typed through, both accept what came before the mark;
+      // the mark alone only asks for the list.
+      if (stageOf(state) === "kind" && value.endsWith(":") && value.length > 1) {
         const top = matches(value.slice(0, -1), vocabulary.kinds)[0];
-        return { state: top === undefined ? { ...state, text: value, open: true, highlight: 0 } : accept({ ...state, text: value.slice(0, -1) }, top) };
+        if (top !== undefined) return { state: accept({ ...state, text: value.slice(0, -1) }, top) };
       }
-      if (stageOf(state) === "name" && value.endsWith("@") && !(vocabulary.options[state.kind!] ?? []).some((o) => o.toLowerCase().startsWith(value.toLowerCase()))) {
+      if (stageOf(state) === "name" && value.endsWith("@") && value.length > 1 &&
+          !(vocabulary.options[state.kind!] ?? []).some((o) => o.toLowerCase().startsWith(value.toLowerCase()))) {
         const top = matches(value.slice(0, -1), vocabulary.options[state.kind!] ?? [])[0];
-        if (top !== undefined) return { state: { ...accept({ ...state, text: value.slice(0, -1) }, top), text: "@", open: true } };
+        if (top !== undefined) return { state: accept({ ...state, text: value.slice(0, -1) }, top) };
       }
-      return { state: { ...state, text: value, open: true, highlight: 0 } };
+      return { state: { ...state, text: value, open: true, highlight: 0, moved: false } };
     }
     case "down":
     case "up": {
-      if (!state.open) return { state: { ...state, open: true, highlight: 0 } };
       const count = suggestions(state, vocabulary).length;
-      if (count === 0) return { state };
+      if (count === 0) return { state: { ...state, open: true } };
       const delta = input.type === "down" ? 1 : -1;
-      return { state: { ...state, highlight: (state.highlight + delta + count) % count } };
+      // From an untouched list the first press lands on the first match (Up: on the last).
+      const from = state.open && engaged(state) ? state.highlight : delta > 0 ? -1 : count;
+      return { state: { ...state, open: true, highlight: (from + delta + count) % count, moved: true } };
     }
     case "tab": {
-      if (!state.open) return { state, leave: true };
+      // TAB completes only what was typed or chosen; otherwise it leaves the field, as TAB does.
+      if (!state.open || !engaged(state)) return { state, leave: true };
       const value = highlighted(state, vocabulary);
       return { state: value === undefined ? state : accept(state, value) };
     }
     case "enter": {
-      // ENTER takes the highlighted match only for something typed: with nothing typed it
-      // finishes what is already accepted, and never picks the first name off an open list.
-      const stage = stageOf(state);
-      const query = stage === "chain" ? state.text.slice(1) : state.text;
-      if (stage === "kind" || query === "") return finish({ ...state, text: "" }, single);
+      // ENTER takes the highlighted match only for something typed or chosen: otherwise it
+      // finishes what is already accepted, and never picks the first name off a list by itself.
+      if (stageOf(state) === "kind" || !engaged(state)) return finish({ ...state, text: "" }, single);
       const value = highlighted(state, vocabulary);
       return value === undefined ? { state } : finish(accept(state, value), single);
     }
     case "backspace": {
       if (state.text !== "") return { state };
-      if (state.chain.length > 0) return { state: { ...state, chain: state.chain.slice(0, -1), open: false } };
-      if (state.name !== null) return { state: { ...state, name: null, open: false } };
+      if (state.chain.length > 0) return { state: { ...state, chain: state.chain.slice(0, -1), highlight: 0, moved: false } };
+      if (state.name !== null) return { state: { ...state, name: null, highlight: 0, moved: false } };
       return { state: { ...emptyEntry } };
     }
     case "escape":
-      return { state: state.open ? { ...state, open: false } : emptyEntry };
+      return { state: state.open ? { ...state, open: false } : { ...emptyEntry, open: false } };
     case "pick": {
       const accepted = accept({ ...state, open: true }, input.value);
-      if (input.how === "direct") {
-        // The hand is on the mouse: the list stays for the next pick, where ENTER closes it.
-        const done = finish(accepted, single);
-        return single ? done : { ...done, state: { ...done.state, open: true } };
-      }
-      if (input.how === "through") return { state: { ...accepted, text: "@", open: true, highlight: 0 } };
+      if (input.how === "direct") return finish(accepted, single);
+      if (input.how === "through") return { state: accepted };
       return { state: accepted };
     }
   }

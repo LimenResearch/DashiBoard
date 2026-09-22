@@ -3,7 +3,7 @@ import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
 import { flush, reconcile } from 'solid-js';
 import payload from '../fixtures/card-ir.json';
 import {
-  importCards, addGroup, removeNode, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
+  importCards, addGroup, addNode, removeNode, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
   forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict, setDroppedReferences,
 } from '../stores';
 
@@ -848,5 +848,37 @@ describe('the Add card menu', () => {
     fireEvent.click(button(container)); await flush();
     fireEvent.focusOut(container.querySelector('[role=menu]')!, { relatedTarget: document.body }); await flush();
     expect(container.querySelector('[role=menu]')).toBeNull();
+  });
+});
+
+describe('a chain while the document does not build', () => {
+  it('is still narrowed by what the server last said about the other cards', async () => {
+    const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [{ cols: 'TEMP' }] };
+    const described = { id: 'r', inputs: ['TEMP'], outputs: ['TEMP_rescaled'], unproduced: [] };
+    let valid = true;
+    postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) => {
+      if (page === 'get-card-ir') {
+        const full = structuredClone(payload) as unknown as { defs: Record<string, { enum?: string[] }> };
+        full.defs.node = { ...full.defs.node, enum: body.nodes ?? [] };
+        return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, (full as unknown as Record<string, unknown>)[k]])));
+      }
+      if (page === 'probe-pipeline') return Promise.resolve(valid ? { ...CLEAN_PROBE, nodes: [described] } : { valid: false, cols: [], errors: ['x'], issues: [] });
+      return Promise.resolve([]);
+    });
+    importCards({ nodes: [{ id: 'r', card: rescale }], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(PROBE_STORE[0].nodes.length).toBe(1));
+    valid = false;
+    addNode({ type: 'rescale' }, 'half');                       // no method: the document no longer builds
+    await waitFor(() => expect(PROBE_STORE[0].valid).toBe(false));
+    await waitFor(() => expect(container.querySelectorAll('[data-selector]').length).toBeGreaterThanOrEqual(2));
+    const field = [...container.querySelectorAll('[data-selector]')].at(-1)!;      // the half-built card's inputs
+    const box = field.querySelector('[data-entry]') as HTMLInputElement;
+    fireEvent.input(box, { target: { value: 'c' } }); await flush();
+    fireEvent.keyDown(box, { key: 'Tab' }); await flush();
+    fireEvent.input(box, { target: { value: 'No' } }); await flush();
+    fireEvent.keyDown(box, { key: 'Tab' }); await flush();
+    // `No` is read by nobody the server described, so no node is offered — not `r`, which reads TEMP
+    expect([...field.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'))).toEqual([]);
   });
 });

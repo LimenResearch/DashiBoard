@@ -5,9 +5,11 @@ import { Disclosure } from "./Disclosure";
 import { SummaryTitle } from "./SummaryTitle";
 import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
+import { throughOptions } from "../through";
 import {
   CARDS_STORE,
   PROBE_STORE,
+  describedNodes,
   exportCards,
   issuesForGroup,
   recordVerdict,
@@ -167,6 +169,7 @@ export function GroupsEditor(props: { defs: Defs }) {
                 label="selection"
                 required
                 open={unfolded()}
+                chainFor={(row, all) => throughOptions(row, all, describedNodes(), state.groups)}
                 value={state.groups[name]}
                 onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}
               />

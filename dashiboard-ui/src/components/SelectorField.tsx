@@ -282,13 +282,17 @@ export function SelectorField(props: SelectorFieldProps) {
       onMouseDown={(event) => event.preventDefault()}
       class={open()
         ? "flex flex-col p-1"
-        : "absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm"}
+        : "absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm"}
     >
       <For each={suggestions(entry(), vocabulary())} fallback={
         <li class="p-1 text-control-xs text-muted-foreground italic">nothing matches</li>
       }>
         {(value, i) => {
-          const atKind = () => stageOf(entry()) === "kind";
+          const stage = () => stageOf(entry());
+          // A click on the row is the plain choice: the kind, the name as direct, or the next
+          // step of a chain. Only `through…` needs a button of its own.
+          const pick = () =>
+            apply({ type: "pick", value, how: stage() === "name" ? "direct" : "continue" });
           return (
             <li
               data-suggestion={value}
@@ -296,29 +300,23 @@ export function SelectorField(props: SelectorFieldProps) {
               role="option"
               id={`${listId}-${i()}`}
               aria-selected={highlightedId(i()) ? "true" : "false"}
-              onClick={() => { if (atKind()) apply({ type: "pick", value, how: "continue" }); }}
+              onClick={pick}
               class={[
-                "flex items-center gap-2 rounded-sm px-1.5 py-0.5 font-mono text-control-xs",
-                { "bg-accent/60": highlightedId(i()) === true, "cursor-pointer": atKind() },
+                "flex cursor-pointer items-center gap-2 rounded-sm px-1.5 py-0.5 font-mono text-control-xs hover:bg-muted",
+                { "bg-accent/60": highlightedId(i()) === true },
               ]}
             >
-              <span class="min-w-0 grow truncate">{atKind() ? `${value}:` : value}</span>
-              <Show when={!atKind()}>
-                <button
-                  type="button"
-                  tabindex={-1}
-                  data-pick="direct"
-                  onClick={() => apply({ type: "pick", value, how: "direct" })}
-                  class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary"
-                >
-                  direct
-                </button>
+              <span class="min-w-0 grow truncate">{stage() === "kind" ? `${value}:` : value}</span>
+              <Show when={stage() === "name"}>
                 <button
                   type="button"
                   tabindex={-1}
                   data-pick="through"
                   disabled={chainOptions().length === 0}
-                  onClick={() => apply({ type: "pick", value, how: "through" })}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    apply({ type: "pick", value, how: "through" });
+                  }}
                   class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary disabled:opacity-40"
                 >
                   through…

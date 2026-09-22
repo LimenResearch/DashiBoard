@@ -440,6 +440,12 @@ describe('SelectorField, typed entry', () => {
     expect(container.querySelector('[role=listbox]')).toBeNull();
   });
 
+  it('floats the dropdown above the sticky row at the foot of the tab', async () => {
+    const { container } = mount([]);
+    await type(container, 'c'); await key(container, 'Tab');
+    expect(container.querySelector('[role=listbox]')!.className).toMatch(/\bz-30\b/);   // the row is z-10
+  });
+
   it('drives the open panel: the tab follows the kind, the rows narrow, the highlight moves', async () => {
     const { container } = mount([]);
     open(container); await flush();
@@ -451,16 +457,21 @@ describe('SelectorField, typed entry', () => {
     expect(container.querySelector('[data-panel] [data-highlighted]')!.getAttribute('data-value')).toBe(shown[0]);
   });
 
-  it('gives the mouse the panel\'s two words in the list: direct finishes, through… asks for a node', async () => {
+  it('a click on a row is direct at a name and a step in a chain; only through… is a button', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount([], (items) => { written = items; });
     await type(container, 'c'); await key(container, 'Tab');
-    fireEvent.click(container.querySelector('[data-suggestion="TEMP"] [data-pick="direct"]')!); await flush();
+    expect(container.querySelector('[data-pick="direct"]')).toBeNull();
+    fireEvent.click(container.querySelector('[data-suggestion="TEMP"]')!); await flush();
     expect(written).toEqual([{ cols: 'TEMP' }]);
     fireEvent.click(container.querySelector('[data-suggestion="PRES"] [data-pick="through"]')!); await flush();
     expect(tokens(container)).toEqual(['cols:', 'PRES']);
-    expect(box(container).value).toBe('');
     expect(container.querySelector('[data-suggestion="rescale"]')).not.toBeNull();
+    fireEvent.click(container.querySelector('[data-suggestion="rescale"]')!); await flush();
+    expect(tokens(container)).toEqual(['cols:', 'PRES', '@rescale']);
+    expect(container.querySelector('[data-suggestion] [data-pick]')).toBeNull();   // a chain step has no buttons
+    await key(container, 'Enter');
+    expect(written).toEqual([{ cols: 'PRES', through: ['rescale'] }]);   // the mount's value is static: one write at a time
   });
 
   it('offers the kinds on focus, the names after a kind, and after a name only the nodes its host allows', async () => {

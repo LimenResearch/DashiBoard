@@ -6,7 +6,7 @@ import { Button } from "../components/Button";
 import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
-import { Disclosure, summaryAction } from "../components/Disclosure";
+import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
@@ -16,6 +16,7 @@ import {
   CardsStore,
   Card,
   LOADER_STORE,
+  addGroup,
   addNode,
   removeNode,
   setCard,
@@ -230,6 +231,9 @@ export function Cards() {
    * Its own `askProbe`, not the continuous probe's reply: that one writes the store and nothing
    * else, and by the time it answers the document may already be a later one.
    */
+  /** Take the hand to a new item's name box once it is drawn; the item stays folded. */
+  const reach = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
+
   async function loadCards(value: unknown): Promise<string[]> {
     // One plain copy is what is stored, what is asked about and what the verdicts bind to —
     // not `exportCards()` read back right after `importCards`, which on Solid 2 may still be
@@ -414,46 +418,11 @@ export function Cards() {
         </div>
       </Show>
 
-      {/*
-        Groups first, as their own section: a card's `groups:` selector can only offer names that
-        already exist, so authoring in the other order means scrolling past the cards to define a
-        group and back up to use it. "Add card" then sits directly above the cards it creates,
-        rather than above the groups — a control belongs next to what it produces.
-      */}
+      {/* Groups first: a card's `groups:` selector can only offer names that already exist. */}
       <Show when={payload()}>
         <GroupsEditor defs={payload()!.defs} />
       </Show>
 
-      <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
-        <div class="flex items-center gap-2 p-3">
-          <label for="card-type" class="text-control-xs font-semibold text-primary">
-            Card type
-          </label>
-          <select
-            id="card-type"
-            class="h-control-xs rounded-sm border border-border pl-2 text-control-xs"
-            value={chosen()}
-            onChange={(event) => setChosen(event.currentTarget.value)}
-          >
-            {/* The title the folded cards use; the value stays the type name the document holds. */}
-            <For each={cardTypes()}>{(type) => <option value={type}>{cardTitle(type)}</option>}</For>
-          </select>
-          {/*
-            The card starts with the defaults its IR declares, rather than with only a type. The
-            form displayed them either way; the document did not carry them, so what was on screen
-            and what a download produced disagreed.
-          */}
-          <Button
-            onClick={() => {
-              const ir = payload()?.cards[chosen()];
-              const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
-              addNode({ type: chosen(), ...(defaults as object) } as Card);
-            }}
-          >
-            Add card
-          </Button>
-        </div>
-      </Show>
 
       <For each={state.nodes}>
         {(node, index) => {
@@ -506,29 +475,6 @@ export function Cards() {
                     // `through:` chain refers to. A taken name is refused in `rename`.
                     edit={{ id: `node-id-${index()}`, label: "node id", onRename: rename }}
                   />
-                  <span data-card-actions class="ml-auto flex shrink-0 items-center gap-2">
-                    {/*
-                      The distinction it carries is *completeness*, not validity, and the two come
-                      apart in both directions: an empty group passes schema validation (measured —
-                      `weather = []` constructs) and is still not something anyone meant to define,
-                      while a blank `suffix` is filled in and the schema rejects it. So Confirm
-                      cannot just be the validator — see `confirmNode` for what it is instead.
-                    */}
-                    <Button
-                      title="mark this card deliberately finished"
-                      onClick={summaryAction(() => {
-                        void confirmNode(index());
-                      })}
-                    >
-                      Confirm
-                    </Button>
-                    <Button
-                      variant="danger"
-                      onClick={summaryAction(() => removeNode(index()))}
-                    >
-                      Remove
-                    </Button>
-                  </span>
                 </>
               }
             >
@@ -606,10 +552,66 @@ export function Cards() {
               />
             </Show>
             </Disclosure>
+            {/* At the foot, after the last field, and outside what folds. */}
+            <span data-card-actions class="mt-1 flex shrink-0 items-center justify-end gap-2">
+              {/*
+                The distinction it carries is *completeness*, not validity, and the two come
+                apart in both directions: an empty group passes schema validation (measured —
+                `weather = []` constructs) and is still not something anyone meant to define,
+                while a blank `suffix` is filled in and the schema rejects it. So Confirm
+                cannot just be the validator — see `confirmNode` for what it is instead.
+              */}
+              <Button
+                title="mark this card deliberately finished"
+                onClick={() => void confirmNode(index())}
+              >
+                Confirm
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => removeNode(index())}
+              >
+                Remove
+              </Button>
+            </span>
           </div>
           );
         }}
       </For>
+
+      {/* After the last item and before the files, where a hand that has just finished one item
+          is; pinned to the bottom of the view so it is there without scrolling. */}
+      <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
+        <div data-add class="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-border bg-background p-3">
+          <Button onClick={() => reach(`group-name-${addGroup()}`)}>Add group</Button>
+          <label for="card-type" class="text-control-xs font-semibold text-primary">
+            Card type
+          </label>
+          <select
+            id="card-type"
+            class="h-control-xs rounded-sm border border-border pl-2 text-control-xs"
+            value={chosen()}
+            onChange={(event) => setChosen(event.currentTarget.value)}
+          >
+            {/* The title the folded cards use; the value stays the type name the document holds. */}
+            <For each={cardTypes()}>{(type) => <option value={type}>{cardTitle(type)}</option>}</For>
+          </select>
+          {/*
+            The card starts with the defaults its IR declares, rather than with only a type. The
+            form displayed them either way; the document did not carry them, so what was on screen
+            and what a download produced disagreed.
+          */}
+          <Button
+            onClick={() => {
+              const ir = payload()?.cards[chosen()];
+              const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
+              reach(`node-id-${addNode({ type: chosen(), ...(defaults as object) } as Card)}`);
+            }}
+          >
+            Add card
+          </Button>
+        </div>
+      </Show>
 
       {/* `CARDS_JSON`, not `exportCards`: `Documents` clears what it said when the document
           changes, and it learns that by reading `document()` in an effect. `exportCards` reads a
@@ -617,6 +619,7 @@ export function Cards() {
           over the whole store, so parsing it back is a tracked read of the same document. */}
       <Documents
         kind="cards"
+        noun="pipeline"
         document={() => JSON.parse(CARDS_JSON()) as CardsStore}
         onLoad={loadCards}
       />

@@ -1,14 +1,13 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { Button } from "./Button";
-import { Disclosure, summaryAction } from "./Disclosure";
+import { Disclosure } from "./Disclosure";
 import { SummaryTitle } from "./SummaryTitle";
 import { SelectorField } from "./SelectorField";
 import type { SelectorItem } from "../selector";
 import {
   CARDS_STORE,
   PROBE_STORE,
-  addGroup,
   exportCards,
   issuesForGroup,
   recordVerdict,
@@ -66,11 +65,6 @@ export function GroupsEditor(props: { defs: Defs }) {
 
   return (
     <div>
-      <div class="flex items-center gap-2 p-3">
-        <span class="text-control-xs font-semibold text-primary">Groups</span>
-        <Button onClick={() => void addGroup()}>Add group</Button>
-      </div>
-
       <Show
         when={Object.keys(state.groups).length > 0}
         fallback={
@@ -124,73 +118,6 @@ export function GroupsEditor(props: { defs: Defs }) {
                       state={groupState(name)}
                       edit={{ id: `group-name-${name}`, label: "group name", onRename: rename }}
                     />
-                    <span data-group-actions class="ml-auto flex shrink-0 items-center gap-2">
-                      {/*
-                        Asks the probe rather than judging locally: an empty group passes schema
-                        validation (measured — `weather = []` constructs), so completeness here was
-                        never the validator's to answer, and used to be `checkGroup`'s own guess at
-                        it. Since the 2026-09-16 fixes the server reports an empty group itself
-                        (`empty_group_issues`, surfaced as `/groups/<name>`), Confirm now asks
-                        the same question the continuous probe asks and shows its answer — one
-                        source of truth instead of two that could disagree.
-                      */}
-                      <Button
-                        title="mark this group deliberately finished"
-                        onClick={summaryAction(() => {
-                          // One plain snapshot, taken before any `await`, is what gets probed
-                          // and what the verdict binds to — never a store proxy, which would
-                          // read the group as it is once the reply lands. Mirrors `confirmNode`
-                          // in processing.tsx: an edit made while the request is in flight must
-                          // leave the group unasked, not stamp it with an answer about content
-                          // the server never saw.
-                          const document = exportCards();
-                          const items = document.groups[name];
-                          const key = `group:${name}`;
-                          // The answer is only worth recording while this group is still the
-                          // one that was asked: removed and re-added under the same name, it is
-                          // a new group that nobody asked about (`stores.ts`, `askedOf`).
-                          const asked = askedOf(key);
-                          const decide = (found: Incompleteness[]) =>
-                            recordVerdict(key, items, found.length > 0 ? "rejected" : "confirmed", found);
-                          void (async () => {
-                            // The server's answer, not ours: an empty group is reported by the
-                            // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
-                            // one rule that used to live here (`checkGroup`) is gone.
-                            const answer = await askProbe(document);
-                            if (!stillAsked(key, asked)) return;
-                            // `null` means the probe could not be asked at all (item 1: a missing
-                            // dev-server proxy route, or the server being down) — not that it came
-                            // back clean. Reading it as "no issues" is what let an empty group
-                            // through Confirm with a green dot (final review, 2026-09-16).
-                            if (answer === null) {
-                              decide([{
-                                message: "Could not reach DashiBoard to check this group — is the server running?",
-                              }]);
-                              return;
-                            }
-                            // A document that does not build is nobody's item (a loop): it
-                            // goes on the document's own verdict, said once next to Run, and the
-                            // group is left unasked — same rule as `confirmNode`.
-                            const loose = documentFindings(answer);
-                            if (loose.length > 0) {
-                              forgetVerdict(key);
-                              rejectDocument(document, loose);
-                              return;
-                            }
-                            // A warning is not a finding: it renders live, amber, and never
-                            // stops Confirm.
-                            decide(issueFindings(
-                              issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
-                            ));
-                          })();
-                        })}
-                      >
-                        Confirm
-                      </Button>
-                      <Button variant="danger" onClick={summaryAction(() => removeGroup(name))}>
-                        Remove
-                      </Button>
-                    </span>
                   </>
                 }
               >
@@ -243,6 +170,74 @@ export function GroupsEditor(props: { defs: Defs }) {
                 value={state.groups[name]}
                 onChange={(items: SelectorItem[]) => setGroup(name, items as Selector[])}
               />
+              {/* At the foot, after the last thing to fill in, and outside what folds. */}
+              <span data-group-actions class="mt-1 flex shrink-0 items-center justify-end gap-2">
+                {/*
+                  Asks the probe rather than judging locally: an empty group passes schema
+                  validation (measured — `weather = []` constructs), so completeness here was
+                  never the validator's to answer, and used to be `checkGroup`'s own guess at
+                  it. Since the 2026-09-16 fixes the server reports an empty group itself
+                  (`empty_group_issues`, surfaced as `/groups/<name>`), Confirm now asks
+                  the same question the continuous probe asks and shows its answer — one
+                  source of truth instead of two that could disagree.
+                */}
+                <Button
+                  title="mark this group deliberately finished"
+                  onClick={() => {
+                    // One plain snapshot, taken before any `await`, is what gets probed
+                    // and what the verdict binds to — never a store proxy, which would
+                    // read the group as it is once the reply lands. Mirrors `confirmNode`
+                    // in processing.tsx: an edit made while the request is in flight must
+                    // leave the group unasked, not stamp it with an answer about content
+                    // the server never saw.
+                    const document = exportCards();
+                    const items = document.groups[name];
+                    const key = `group:${name}`;
+                    // The answer is only worth recording while this group is still the
+                    // one that was asked: removed and re-added under the same name, it is
+                    // a new group that nobody asked about (`stores.ts`, `askedOf`).
+                    const asked = askedOf(key);
+                    const decide = (found: Incompleteness[]) =>
+                      recordVerdict(key, items, found.length > 0 ? "rejected" : "confirmed", found);
+                    void (async () => {
+                      // The server's answer, not ours: an empty group is reported by the
+                      // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
+                      // one rule that used to live here (`checkGroup`) is gone.
+                      const answer = await askProbe(document);
+                      if (!stillAsked(key, asked)) return;
+                      // `null` means the probe could not be asked at all (item 1: a missing
+                      // dev-server proxy route, or the server being down) — not that it came
+                      // back clean. Reading it as "no issues" is what let an empty group
+                      // through Confirm with a green dot (final review, 2026-09-16).
+                      if (answer === null) {
+                        decide([{
+                          message: "Could not reach DashiBoard to check this group — is the server running?",
+                        }]);
+                        return;
+                      }
+                      // A document that does not build is nobody's item (a loop): it
+                      // goes on the document's own verdict, said once next to Run, and the
+                      // group is left unasked — same rule as `confirmNode`.
+                      const loose = documentFindings(answer);
+                      if (loose.length > 0) {
+                        forgetVerdict(key);
+                        rejectDocument(document, loose);
+                        return;
+                      }
+                      // A warning is not a finding: it renders live, amber, and never
+                      // stops Confirm.
+                      decide(issueFindings(
+                        issuesForGroup(answer.issues, name).filter((issue) => issue.severity !== "warning"),
+                      ));
+                    })();
+                  }}
+                >
+                  Confirm
+                </Button>
+                <Button variant="danger" onClick={() => removeGroup(name)}>
+                  Remove
+                </Button>
+              </span>
             </div>
             );
           }}

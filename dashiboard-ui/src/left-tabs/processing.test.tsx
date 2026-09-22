@@ -381,6 +381,56 @@ describe('the card header', () => {
     expect(text.className).not.toMatch(/flex/);
     expect(container.querySelector('[data-card-actions]')!.className).toMatch(/shrink-0/);
   });
+
+  it('keeps Confirm and Remove at the foot of the card, on screen when it is folded', async () => {
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-card-actions]')).not.toBeNull());
+    const actions = container.querySelector('[data-card-actions]')!;
+    expect([...actions.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Confirm', 'Remove']);
+    expect(actions.closest('details')).toBeNull();
+    const card = actions.parentElement!;
+    expect(card.querySelector('details')).not.toBeNull();
+    expect(card.lastElementChild).toBe(actions);
+  });
+});
+
+describe('adding to the pipeline', () => {
+  it('adds a group, which is what makes the groups tab in every picker non-empty', async () => {
+    importCards({ nodes: [], groups: {} });
+    const { getByText, container } = render(() => <Cards />);
+    await waitFor(() => expect(getByText('Add group')).toBeDefined());
+    fireEvent.click(getByText('Add group'));
+    await flush();
+    expect((container.querySelector('input[aria-label="group name"]') as HTMLInputElement).value).toBe('group');
+    expect(exportCards().groups).toEqual({ group: [] });
+  });
+
+  it('puts the hand on the new item: its name box takes the focus, and the item stays folded', async () => {
+    importCards({ nodes: [], groups: {} });
+    const { getByText, container } = render(() => <Cards />);
+    await waitFor(() => expect(getByText('Add card')).toBeDefined());
+    fireEvent.click(getByText('Add group'));
+    await flush(); await new Promise((done) => requestAnimationFrame(() => done(null)));
+    const groupName = container.querySelector('input[aria-label="group name"]') as HTMLInputElement;
+    expect(document.activeElement).toBe(groupName);
+    expect(groupName.closest('details')!.open).toBe(false);
+    fireEvent.click(getByText('Add card'));
+    await flush(); await new Promise((done) => requestAnimationFrame(() => done(null)));
+    const cardName = container.querySelector('#node-id-0') as HTMLInputElement;
+    expect(document.activeElement).toBe(cardName);
+    expect(cardName.closest('details')!.open).toBe(false);
+  });
+
+  it('offers Add group and Add card together after the last item, before the pipeline files, and keeps them on screen', async () => {
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-add]')).not.toBeNull());
+    const add = container.querySelector('[data-add]')!;
+    expect([...add.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['Add group', 'Add card']);
+    expect(add.className).toMatch(/sticky/);
+    expect(add.nextElementSibling).toBe(container.querySelector('[data-documents]'));
+    const lastItem = [...container.querySelectorAll('details')].at(-1)!;
+    expect(lastItem.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 describe("a card's name", () => {
@@ -573,7 +623,7 @@ describe('loading a cards document asks', () => {
     await waitFor(() => expect(container.querySelector('[data-documents="cards"] [data-pick]')).not.toBeNull());
     fireEvent.click(container.querySelector('[data-documents="cards"] [data-pick]')!);
     await flush();
-    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Load cards')!);
+    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Load pipeline')!);
     await flush();
     await new Promise((r) => setTimeout(r, 0));
     await flush();
@@ -656,7 +706,7 @@ describe('loading a cards document that names what it does not have', () => {
     fireEvent.click(container.querySelector('[data-documents="cards"] [data-pick]')!);
     await flush();
     postRequest.mockClear();
-    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Load cards')!);
+    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Load pipeline')!);
     await waitFor(() => expect(container.querySelector('[data-dropped-references]')).not.toBeNull());
     const notice = container.querySelector('[data-dropped-references]')!;
     expect(notice.textContent).toMatch(/^References removed — not in the table or the document:/);

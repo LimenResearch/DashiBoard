@@ -523,14 +523,14 @@ describe('the authoring page', () => {
       [...container.querySelectorAll('details')].find((d) =>
         (d.querySelector('summary input') as HTMLInputElement | null)?.value.includes(type),
       )!;
-    fireEvent.click([...cardOf('cluster').querySelectorAll('summary button')][0]);
+    fireEvent.click([...cardOf('cluster').parentElement!.querySelectorAll('[data-card-actions] button')][0]);
     await waitFor(() =>
       expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0),
     );
     expect(cardOf('rescale').querySelectorAll('[data-finding]')).toHaveLength(0);
 
     // Remove the first card. The cluster card slides from index 1 to index 0.
-    fireEvent.click([...cardOf('rescale').querySelectorAll('summary button')][1]);
+    fireEvent.click([...cardOf('rescale').parentElement!.querySelectorAll('[data-card-actions] button')][1]);
     await flush();
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
     expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0);
@@ -548,7 +548,7 @@ describe('the authoring page', () => {
     const card = [...container.querySelectorAll('details')].find((d) =>
       (d.querySelector('summary input') as HTMLInputElement | null)?.value.includes('rescale'),
     )!;
-    const actions = [...card.querySelectorAll('summary button')].map((b) => b.textContent);
+    const actions = [...card.parentElement!.querySelectorAll('[data-card-actions] button')].map((b) => b.textContent);
     expect(actions).toEqual(['Confirm', 'Remove']);
   });
 

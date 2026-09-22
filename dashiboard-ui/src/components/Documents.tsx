@@ -20,6 +20,8 @@ type DocumentKind = Exclude<FileKind, "table">;
 
 type DocumentsProps = {
   kind: DocumentKind;
+  /** What the buttons call the document; the server's `kind` stays on the wire. */
+  noun?: string;
   /** The document as it is saved and downloaded — already encoded, plain JSON. Read in an effect
    *  to notice edits, so it has to be a *tracked* read of the owner's store. */
   document: () => unknown;
@@ -38,7 +40,8 @@ const sentences = (reply: Reply) =>
 export function Documents(props: DocumentsProps) {
   const [picked, setPicked] = createSignal<string | null>(null);
   // The default name is a starting point, read once: a kind does not change under a mounted row.
-  const [name, setName] = createSignal(`${untrack(() => props.kind)}.json`);
+  const noun = () => props.noun ?? props.kind;
+  const [name, setName] = createSignal(`${untrack(noun)}.json`);
   const [overwrite, setOverwrite] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   let refresh: () => void = () => {};
@@ -99,13 +102,13 @@ export function Documents(props: DocumentsProps) {
     <div data-documents={props.kind} class="flex flex-col gap-2 p-3">
       <FilePicker
         kind={props.kind}
-        label={`A ${props.kind} file in the data directory`}
+        label={`A ${noun()} file in the data directory`}
         onChange={(value) => setPicked(Array.isArray(value) ? (value[0] ?? null) : value || null)}
         refreshRef={(f) => { refresh = f; }}
       />
       <div class="flex flex-wrap items-center gap-2">
         <Button disabled={busy() || picked() === null} onClick={() => void load()}>
-          Load {props.kind}
+          Load {noun()}
         </Button>
         <Input
           aria-label="file name"
@@ -114,10 +117,10 @@ export function Documents(props: DocumentsProps) {
         />
         <Checkbox label="replace an existing file" checked={overwrite()} onChange={setOverwrite} />
         <Button disabled={busy() || name() === ""} onClick={() => void save()}>
-          Save {props.kind}
+          Save {noun()}
         </Button>
-        <DownloadJSONButton data={props.document()} name={name() || `${props.kind}.json`}>
-          Download {props.kind}
+        <DownloadJSONButton data={props.document()} name={name() || `${noun()}.json`}>
+          Download {noun()}
         </DownloadJSONButton>
       </div>
       {/* Same dress as a failed run's text under Run: the server's own sentence about the

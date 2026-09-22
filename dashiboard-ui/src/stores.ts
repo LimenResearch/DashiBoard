@@ -380,11 +380,15 @@ function freshId(type: string, taken: Set<string>): string {
   }
 }
 
-export function addNode(card: Card, id?: string) {
+/** Append a card and return its index. */
+export function addNode(card: Card, id?: string): number {
+  let index = -1;
   setCards((draft) => {
     const taken = new Set(draft.nodes.map((node) => node.id).filter((x): x is string => !!x));
+    index = draft.nodes.length;
     draft.nodes.push({ id: id ?? freshId(card.type, taken), card });
   });
+  return index;
 }
 
 /**

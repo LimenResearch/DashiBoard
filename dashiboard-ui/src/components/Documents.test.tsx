@@ -41,6 +41,20 @@ describe('Documents', () => {
     expect(container.querySelector('[data-document-error]')).toBeNull();
   });
 
+  it("calls the document by another name on its buttons, and keeps the server's kind on the wire", async () => {
+    serve({ 'read-document': { valid: true, document: CARDS } });
+    const { container, getByText } = render(() => (
+      <Documents kind="cards" noun="pipeline" document={() => CARDS} onLoad={() => Promise.resolve([])} />
+    ));
+    expect(getByText('Save pipeline')).toBeDefined();
+    expect(getByText('Download pipeline')).toBeDefined();
+    expect((container.querySelector('input[aria-label="file name"]') as HTMLInputElement).value).toBe('pipeline.json');
+    fireEvent.click(container.querySelector('[data-pick]')!);
+    await flush();
+    fireEvent.click(getByText('Load pipeline'));
+    await waitFor(() => expect(postRequest).toHaveBeenCalledWith('read-document', { path: 'sub/cards.json', kind: 'cards' }, null));
+  });
+
   it('cannot load before a file is picked', () => {
     const { getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={() => []} />);
     expect((getByText('Load cards') as HTMLButtonElement).disabled).toBe(true);

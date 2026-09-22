@@ -46,13 +46,6 @@ describe('GroupsEditor', () => {
     expect(container.textContent).toContain('No groups defined');
   });
 
-  it('adds a group, which is what makes the groups tab in every picker non-empty', async () => {
-    const { getByText, container } = mount();
-    fireEvent.click(getByText('Add group'));
-    await flush();
-    expect(nameFields(container).map((f) => f.value)).toEqual(['group']);
-    expect(exportCards().groups).toEqual({ group: [] });
-  });
 
   it('edits a group with the same picker a card field uses', async () => {
     addGroup('weather');
@@ -202,12 +195,17 @@ describe('GroupsEditor', () => {
     // which was never clicked — vacuously true, and it let a mutation through.
   });
 
-  it('offers Confirm before Remove on a group too', async () => {
+  it('offers Confirm before Remove on a group too, at its foot and on screen when folded', async () => {
     addGroup('weather');
     const { container } = mount();
     await flush();
-    const actions = [...container.querySelectorAll('summary button')].map((b) => b.textContent);
-    expect(actions).toEqual(['Confirm', 'Remove']);
+    const actions = container.querySelector('[data-group-actions]')!;
+    expect([...actions.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Confirm', 'Remove']);
+    // Under everything the group shows, so a keyboard user reaches them after the last field
+    // rather than walking back to the top; outside what folds, so they never disappear.
+    expect(actions.closest('details')).toBeNull();
+    expect(actions.parentElement!.lastElementChild).toBe(actions);
+    expect(actions.compareDocumentPosition(container.querySelector('[data-entry]')!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 
   it('refuses to confirm an empty group, and says what to do', async () => {

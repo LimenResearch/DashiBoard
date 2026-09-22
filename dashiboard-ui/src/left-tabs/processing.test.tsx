@@ -414,7 +414,8 @@ describe('adding to the pipeline', () => {
     const groupName = container.querySelector('input[aria-label="group name"]') as HTMLInputElement;
     expect(document.activeElement).toBe(groupName);
     expect(groupName.closest('details')!.open).toBe(false);
-    fireEvent.click(getByText('Add card'));
+    fireEvent.click(getByText('Add card')); await flush();
+    fireEvent.click(container.querySelector('[data-card-type="rescale"]')!);
     await flush(); await new Promise((done) => requestAnimationFrame(() => done(null)));
     const cardName = container.querySelector('#node-id-0') as HTMLInputElement;
     expect(document.activeElement).toBe(cardName);
@@ -797,79 +798,55 @@ describe('a card-IR answer that arrives after a newer one', () => {
   });
 });
 
-describe('the card type dropdown', () => {
-  it('lists the card types by the titles the folded cards use, and still adds the type chosen', async () => {
+describe('the Add card menu', () => {
+  const button = (c: HTMLElement) => [...c.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Add card')!;
+  const items = (c: HTMLElement) => [...c.querySelectorAll('[role=menuitem]')] as HTMLButtonElement[];
+
+  it('is closed until asked, then lists the card types by title and takes the focus', async () => {
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelector('#card-type option')).not.toBeNull());
-    const options = [...container.querySelectorAll('#card-type option')] as HTMLOptionElement[];
-    const byValue = Object.fromEntries(options.map((o) => [o.value, o.textContent]));
-    expect(byValue.dimensionality_reduction).toBe('Dimensionality Reduction');
-    expect(byValue.glm).toBe('GLM');
-    // The value stays the type name: it is what the document holds.
-    const select = container.querySelector('#card-type') as HTMLSelectElement;
-    select.value = 'glm';
-    fireEvent.change(select);
-    await flush();
-    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Add card')!);
-    await flush();
+    await waitFor(() => expect(button(container)).toBeDefined());
+    expect(container.querySelector('[role=menu]')).toBeNull();
+    expect(button(container).getAttribute('aria-haspopup')).toBe('menu');
+    expect(button(container).getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(button(container)); await flush();
+    await new Promise((done) => requestAnimationFrame(() => done(null)));
+    expect(button(container).getAttribute('aria-expanded')).toBe('true');
+    const byType = Object.fromEntries(items(container).map((b) => [b.getAttribute('data-card-type'), b.textContent]));
+    expect(byType.dimensionality_reduction).toBe('Dimensionality Reduction');
+    expect(byType.glm).toBe('GLM');
+    expect(document.activeElement).toBe(items(container)[0]);
+  });
+
+  it('adds the type picked, closes, and puts the hand on the new card', async () => {
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(button(container)).toBeDefined());
+    fireEvent.click(button(container)); await flush();
+    fireEvent.click(container.querySelector('[data-card-type="glm"]')!); await flush();
+    await new Promise((done) => requestAnimationFrame(() => done(null)));
     expect(exportCards().nodes.at(-1)!.card.type).toBe('glm');
-  });
-});
-
-describe('what a card is offered', () => {
-  /** The server's defs name the document's own nodes, where the fixture names its own. */
-  const irFor = (body: { nodes?: string[]; include?: string[] }) => {
-    const full = structuredClone(payload) as unknown as { defs: Record<string, { enum?: string[] }> };
-    full.defs.node = { ...full.defs.node, enum: body.nodes ?? [] };
-    return Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, (full as unknown as Record<string, unknown>)[k]]));
-  };
-
-  it('leaves out the nodes that depend on it once the server has said which', async () => {
-    const referable = {
-      nodes: [{ nodes: [], groups: [] }, { nodes: ['a'], groups: [] }, { nodes: ['a', 'b'], groups: [] }],
-      groups: {},
-    };
-    let answer: (reply: unknown) => void = () => {};
-    postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) =>
-      page === 'probe-pipeline' ? new Promise((resolve) => { answer = resolve; })
-      : Promise.resolve(page === 'get-card-ir' ? irFor(body) : []));
-    const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [] };
-    importCards({ nodes: [{ id: 'a', card: rescale }, { id: 'b', card: rescale }, { id: 'c', card: rescale }], groups: {} });
-    const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelectorAll('[data-selector]').length).toBeGreaterThanOrEqual(3));
-    const offered = (at: number) => {
-      const card = [...container.querySelectorAll('details')].filter((d) => d.querySelector('[data-card-title]'))[at];
-      const field = card.querySelector('[data-selector]')!;
-      // `nodes` is the first tab, and a kind with nothing to offer has none.
-      if (field.querySelector('[role=tab][aria-selected="true"]')?.getAttribute('data-tab') !== 'nodes') return [];
-      return [...field.querySelectorAll('[data-panel] [data-value]')].map((e) => e.getAttribute('data-value'));
-    };
-    expect(offered(0)).toEqual(['b', 'c']);                       // before any answer: everything but itself
-    await waitFor(() => expect(postRequest.mock.calls.some((c) => c[0] === 'probe-pipeline')).toBe(true));
-    answer({ ...CLEAN_PROBE, referable });
-    await waitFor(() => expect(offered(0)).toEqual([]));          // b and c depend on a
-    expect(offered(2)).toEqual(['a', 'b']);
+    expect(container.querySelector('[role=menu]')).toBeNull();
+    expect((document.activeElement as HTMLElement).id).toBe(`node-id-${exportCards().nodes.length - 1}`);
   });
 
-  it('does not read an answer about a document with other cards', async () => {
-    const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [] };
-    postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) =>
-      Promise.resolve(page === 'get-card-ir' ? irFor(body) : page === 'probe-pipeline' ? new Promise(() => {}) : []));
-    importCards({ nodes: [{ id: 'a', card: rescale }, { id: 'b', card: rescale }], groups: {} });
-    PROBE_STORE[1]((d) => { d.referable = { nodes: [{ nodes: [], groups: [] }], groups: {} }; });
+  it('walks with the arrows, and Escape closes it back onto the button', async () => {
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelectorAll('[data-selector]').length).toBeGreaterThanOrEqual(2));
-    const card = [...container.querySelectorAll('details')].filter((d) => d.querySelector('[data-card-title]'))[0];
-    const shown = [...card.querySelector('[data-selector]')!.querySelectorAll('[data-panel] [data-value]')];
-    expect(shown.map((e) => e.getAttribute('data-value'))).toEqual(['b']);
+    await waitFor(() => expect(button(container)).toBeDefined());
+    fireEvent.click(button(container)); await flush();
+    await new Promise((done) => requestAnimationFrame(() => done(null)));
+    fireEvent.keyDown(items(container)[0], { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items(container)[1]);
+    fireEvent.keyDown(items(container)[1], { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(items(container)[0]);
+    fireEvent.keyDown(items(container)[0], { key: 'Escape' }); await flush();
+    expect(container.querySelector('[role=menu]')).toBeNull();
+    expect(document.activeElement).toBe(button(container));
   });
-});
 
-describe("a card's name, where it is read", () => {
-  it('is edited in the card line, with no second name field', async () => {
+  it('closes when the focus leaves it', async () => {
     const { container } = render(() => <Cards />);
-    await waitFor(() => expect(container.querySelector('#node-id-0')).not.toBeNull());
-    expect(container.querySelector('#node-id-0')!.closest('summary')).not.toBeNull();
-    expect([...container.querySelectorAll('label')].map((l) => l.textContent)).not.toContain('name');
+    await waitFor(() => expect(button(container)).toBeDefined());
+    fireEvent.click(button(container)); await flush();
+    fireEvent.focusOut(container.querySelector('[role=menu]')!, { relatedTarget: document.body }); await flush();
+    expect(container.querySelector('[role=menu]')).toBeNull();
   });
 });

@@ -6,8 +6,11 @@ import { importCards, emptyCards, exportCards, PROBE_STORE, emptyProbe } from '.
 
 // Solid 2 defers signal updates, so an interaction and an assertion that depends on it cannot
 // share a tick: `flush()` settles the scheduler between them.
-async function selectOption(select: HTMLSelectElement, value: string) {
-  fireEvent.change(select, { target: { value } });
+/** Add a card of `type` through the Add card menu. */
+async function addCard(container: HTMLElement, type: string) {
+  fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Add card')!);
+  await flush();
+  fireEvent.click(container.querySelector(`[data-card-type="${type}"]`)!);
   await flush();
 }
 
@@ -136,19 +139,20 @@ describe('the page is a set of tabs', () => {
 
 describe('the authoring page', () => {
   it('offers every card type the server describes', async () => {
-    const { container, getByLabelText } = renderHome();
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    expect(picker.options).toHaveLength(10);
-    expect([...picker.options].map((o) => o.value)).toContain('split');
+    fireEvent.click(await waitFor(() => getByText('Add card')));
+    await flush();
+    const offered = [...container.querySelectorAll('[role=menuitem]')].map((b) => b.getAttribute('data-card-type'));
+    expect(offered).toHaveLength(10);
+    expect(offered).toContain('split');
   });
 
   it('adds a card and shows it in the authored document', async () => {
-    const { container, getByLabelText, getByText, findByTestId } = renderHome();
+    const { container, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
 
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
     expect(exportCards().nodes[0].card.type).toBe('rescale');
@@ -173,11 +177,10 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText, findByTestId } = renderHome();
+    const { container, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'split');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'split');
     await flush();
 
     fireEvent.click(getByText(/run pipeline/i));
@@ -203,11 +206,10 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText, findByTestId } = renderHome();
+    const { container, getByText, findByTestId } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
     await flush();
 
     fireEvent.click(getByText(/run pipeline/i));
@@ -239,11 +241,10 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { getByLabelText, getByText, container } = renderHome();
+    const { getByText, container } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
 
     // The resolved names render live; the finding itself waits for the author to ask.
     await waitFor(() => expect(container.textContent).toContain('TEMP_a_a'));
@@ -280,11 +281,10 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { getByLabelText, getByText, container } = renderHome();
+    const { getByText, container } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
 
     // Shown once the author asks (Confirm) — the probe's errors do not paint a card by themselves.
     await waitFor(() => expect(getByText('Confirm')).not.toBeNull());
@@ -304,11 +304,10 @@ describe('the authoring page', () => {
     // A card naming itself is a cycle, and the server rejects the whole document for it. The
     // fixture's node vocabulary is ["rescale", "split"], and a rescale card is auto-named
     // "rescale" — so this is exactly the case the screen was getting wrong.
-    const { getByLabelText, getByText, container } = renderHome();
+    const { getByText, container } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
     await flush();
 
     const nodeTabs = [...container.querySelectorAll('[role=tab][data-tab="nodes"]')];
@@ -337,11 +336,10 @@ describe('the authoring page', () => {
   });
 
   it('folds a card to one line naming its type and the id others refer to it by', async () => {
-    const { container, getByLabelText, getByText } = renderHome();
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
     await flush();
 
     const card = [...container.querySelectorAll('details')].find((d) =>
@@ -358,11 +356,10 @@ describe('the authoring page', () => {
     // The form displayed `suffix: rescaled` either way; the document did not carry it, so what
     // was on screen and what a download produced disagreed. `method` stays absent: it is required
     // and the IR names no default option, so it is the author's to answer.
-    const { container, getByLabelText, getByText } = renderHome();
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
 
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
     const card = exportCards().nodes[0].card;
@@ -392,11 +389,10 @@ describe('the authoring page', () => {
       return Promise.resolve([]);
     });
 
-    const { container, getByLabelText, getByText } = renderHome();
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'cluster');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'cluster');
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
 
     const probesBefore = probeCalls();
@@ -509,13 +505,11 @@ describe('the authoring page', () => {
     });
     // Findings are keyed by position, so a splice would slide the second card's answer onto the
     // first. A precise field pointer on the wrong card is worse than no pointer at all.
-    const { container, getByLabelText, getByText } = renderHome();
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
-    await selectOption(picker, 'cluster');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
+    await addCard(container, 'cluster');
     await waitFor(() => expect(exportCards().nodes).toHaveLength(2));
 
     // Confirm the *second* card only, so the two cards are distinguishable by their findings.
@@ -538,11 +532,10 @@ describe('the authoring page', () => {
 
   it('offers Confirm before Remove on a card, so the safe action comes first', async () => {
     // Order matters: the destructive control should not be the first one reached.
-    const { container, getByLabelText, getByText } = renderHome();
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
     await flush();
 
     const card = [...container.querySelectorAll('details')].find((d) =>
@@ -563,19 +556,18 @@ describe('the authoring page', () => {
       }
       return Promise.resolve([]);
     });
-    const { getByLabelText, getByText, container } = renderHome();
+    const { getByText, container } = renderHome();
     await openTab(container, 'Process');
-    const picker = (await waitFor(() => getByLabelText(/card type/i))) as HTMLSelectElement;
-    await selectOption(picker, 'rescale');
-    fireEvent.click(getByText(/add card/i));
+    await waitFor(() => getByText('Add card'));
+    await addCard(container, 'rescale');
     // the resolved name comes from Julia; nothing here reimplements suffix concatenation
     await waitFor(() => expect(container.textContent).toContain('TEMP_rescaled'));
   });
 
   it('asks for the IR with the vocabularies the document defines', async () => {
-    const { container, getByLabelText } = renderHome();
+    const { container, getByText } = renderHome();
     await openTab(container, 'Process');
-    await waitFor(() => getByLabelText(/card type/i));
+    await waitFor(() => getByText('Add card'));
     const ask = postRequest.mock.calls.find((c) => c[0] === 'get-card-ir');
     expect(ask).toBeDefined();
     // the group dialect needs all three, since which nodes and groups are referenceable

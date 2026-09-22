@@ -74,7 +74,12 @@ export function Cards() {
   const [probe, setProbe] = PROBE_STORE;
 
   const [payload, setPayload] = createSignal<Payload | null>(null);
-  const [chosen, setChosen] = createSignal("");
+  const [menuOpen, setMenuOpen] = createSignal(false);
+  // Below the button when the page has room there, else above: the row can sit anywhere from the
+  // top of a short page to the bottom of the view.
+  const [menuAbove, setMenuAbove] = createSignal(false);
+  let menuButton: HTMLButtonElement | undefined;
+  let menu: HTMLUListElement | undefined;
   const [error, setError] = createSignal<string | null>(null);
 
   // `cards` is fetched once and kept; only `defs` follows the vocabulary. See the handler.
@@ -123,8 +128,6 @@ export function Cards() {
     if (cards === null) return;                       // cannot happen on the first call
     setCardIRs(cards);
     setPayload({ defs: received.defs, cards });
-    const types = Object.keys(cards).sort();
-    if (!chosen() && types.length > 0) setChosen(types[0]);
   }
 
   // Refetch whenever the *vocabulary* changes — columns, node ids, group names — not only on
@@ -231,6 +234,16 @@ export function Cards() {
    * Its own `askProbe`, not the continuous probe's reply: that one writes the store and nothing
    * else, and by the time it answers the document may already be a later one.
    */
+  /**
+   * A new card of `type`, with the defaults its IR declares rather than only a type: the form
+   * displayed them either way, and a document without them disagreed with the screen.
+   */
+  const add = (type: string) => {
+    const ir = payload()?.cards[type];
+    const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
+    reach(`node-id-${addNode({ type, ...(defaults as object) } as Card)}`);
+  };
+
   /** Take the hand to a new item's name box once it is drawn; the item stays folded. */
   const reach = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
 
@@ -584,32 +597,66 @@ export function Cards() {
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
         <div data-add class="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-border bg-background p-3">
           <Button onClick={() => reach(`group-name-${addGroup()}`)}>Add group</Button>
-          <label for="card-type" class="text-control-xs font-semibold text-primary">
-            Card type
-          </label>
-          <select
-            id="card-type"
-            class="h-control-xs rounded-sm border border-border pl-2 text-control-xs"
-            value={chosen()}
-            onChange={(event) => setChosen(event.currentTarget.value)}
-          >
-            {/* The title the folded cards use; the value stays the type name the document holds. */}
-            <For each={cardTypes()}>{(type) => <option value={type}>{cardTitle(type)}</option>}</For>
-          </select>
-          {/*
-            The card starts with the defaults its IR declares, rather than with only a type. The
-            form displayed them either way; the document did not carry them, so what was on screen
-            and what a download produced disagreed.
-          */}
-          <Button
-            onClick={() => {
-              const ir = payload()?.cards[chosen()];
-              const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
-              reach(`node-id-${addNode({ type: chosen(), ...(defaults as object) } as Card)}`);
-            }}
-          >
-            Add card
-          </Button>
+          {/* The card types, on demand: a menu above the button, since the row is at the foot. */}
+          <div class="relative">
+            <Button
+              menu={{ open: menuOpen(), ref: (el) => { menuButton = el; } }}
+              onClick={() => {
+                const below = window.innerHeight - (menuButton?.getBoundingClientRect().bottom ?? 0);
+                setMenuAbove(below < 320);
+                setMenuOpen(!menuOpen());
+              }}
+            >
+              Add card
+            </Button>
+            <Show when={menuOpen()}>
+              <ul
+                role="menu"
+                aria-label="card type"
+                ref={(el) => { menu = el; requestAnimationFrame(() => el.querySelector("button")?.focus()); }}
+                onFocusOut={(event) => {
+                  if (!menu?.contains(event.relatedTarget as Node | null)) setMenuOpen(false);
+                }}
+                onKeyDown={(event) => {
+                  const items = [...(menu?.querySelectorAll("button") ?? [])];
+                  const at = items.indexOf(document.activeElement as HTMLButtonElement);
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                    event.preventDefault();
+                    const step = event.key === "ArrowDown" ? 1 : -1;
+                    items[(at + step + items.length) % items.length]?.focus();
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    setMenuOpen(false);
+                    menuButton?.focus();
+                  }
+                }}
+                class={[
+                  "absolute left-0 z-20 max-h-72 min-w-48 overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm",
+                  menuAbove() ? "bottom-full mb-1" : "top-full mt-1",
+                ]}
+              >
+                <For each={cardTypes()}>
+                  {(type) => (
+                    <li role="none">
+                      {/* The title the folded cards use; the document holds the type name. */}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        data-card-type={type}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          add(type);
+                        }}
+                        class="w-full rounded-sm px-2 py-1 text-left text-control-xs hover:bg-muted focus:bg-muted focus:outline-none"
+                      >
+                        {cardTitle(type)}
+                      </button>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
+          </div>
         </div>
       </Show>
 

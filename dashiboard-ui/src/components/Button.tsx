@@ -1,6 +1,6 @@
 // Solid 2 exports the element type directly; `JSX.Element` is the Solid 1 namespace
 // idiom and no longer resolves. Aliased so it does not read as the DOM's global `Element`.
-import type { Element as JSXElement } from "solid-js";
+import { untrack, type Element as JSXElement } from "solid-js";
 
 // The button, as a design-system component rather than as one page's button.
 //
@@ -50,6 +50,8 @@ type ButtonProps = {
   /** The accessible name, for a button whose visible label is a glyph ("↻") and says nothing
    *  to a screen reader. Left off when the children already read as words. */
   label?: string;
+  /** For a button that opens a menu: the ARIA pair, and a handle to give the focus back. */
+  menu?: { open: boolean; ref: (el: HTMLButtonElement) => void };
   children: JSXElement;
 };
 
@@ -60,6 +62,9 @@ export function Button(props: ButtonProps) {
       disabled={props.disabled ?? false}
       title={props.title}
       aria-label={props.label}
+      aria-haspopup={props.menu === undefined ? undefined : "menu"}
+      aria-expanded={props.menu === undefined ? undefined : props.menu.open ? "true" : "false"}
+      ref={(el) => untrack(() => props.menu)?.ref(el)}
       class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
     >
       {props.children}

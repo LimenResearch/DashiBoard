@@ -76,7 +76,7 @@ describe('the page is a set of tabs', () => {
     const { container } = renderHome();
     await waitFor(() => expect(sectionTabs(container).length).toBeGreaterThan(0));
     expect(sectionTabs(container).map((t) => t.textContent)).toEqual([
-      'Load', 'Filter', 'Process', 'The document',
+      'Load', 'Filter', 'Process', 'Document',
     ]);
     expect(onScreen(container)).toEqual(['Load']);
 
@@ -157,7 +157,7 @@ describe('the authoring page', () => {
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
     expect(exportCards().nodes[0].card.type).toBe('rescale');
 
-    await openTab(container, 'The document');
+    await openTab(container, 'Document');
     const pane = await findByTestId('document');
     await waitFor(() => expect(pane.textContent).toContain('rescale'));
     // the pane shows the wire document: filters from one store, nodes/groups from the other
@@ -194,7 +194,7 @@ describe('the authoring page', () => {
   });
 
   it('shows the reader exactly what the run will post, not a second assembly of it', async () => {
-    // "The document" pane exists to answer "what am I about to send". Built separately from what
+    // The Document pane exists to answer "what am I about to send". Built separately from what
     // is sent, it could be wrong in precisely that situation — so both go through `wireDocument`
     // and this is the assertion that keeps them there.
     const posted: Record<string, unknown>[] = [];
@@ -216,7 +216,7 @@ describe('the authoring page', () => {
     await waitFor(() => expect(posted.some((p) => p.page === 'evaluate-pipeline')).toBe(true));
     const sent = posted.find((p) => p.page === 'evaluate-pipeline')!.body;
 
-    await openTab(container, 'The document');
+    await openTab(container, 'Document');
     const pane = await findByTestId('document');
     // Through JSON both ways: the posted body holds store proxies, and the wire only ever carries
     // what survives serialisation anyway.

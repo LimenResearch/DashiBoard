@@ -8,7 +8,7 @@ import { Cards } from "../left-tabs/processing";
 import { Results } from "../left-tabs/results";
 import { wireDocument } from "../wire";
 
-const SECTIONS = ["Load", "Filter", "Process", "The document"] as const;
+const SECTIONS = ["Load", "Filter", "Process", "Document"] as const;
 type Section = (typeof SECTIONS)[number];
 
 /** `?tab=` value ↔ section name. Lower-case, one word, so the URL reads well. */
@@ -42,7 +42,7 @@ export default function Home() {
         <section class="mt-4" data-section="Load" hidden={section() !== "Load"}><Loader /></section>
         <section data-section="Filter" hidden={section() !== "Filter"}><Filters /></section>
         <section data-section="Process" hidden={section() !== "Process"}><Cards /></section>
-        <section data-section="The document" hidden={section() !== "The document"}>
+        <section data-section="Document" hidden={section() !== "Document"}>
           <pre data-testid="document" class="overflow-x-auto rounded-sm bg-muted p-3 text-control-xs">
             {JSON.stringify(wireDocument(), null, 2)}
           </pre>

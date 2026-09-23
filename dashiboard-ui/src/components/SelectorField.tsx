@@ -274,6 +274,10 @@ export function SelectorField(props: SelectorFieldProps) {
     <ul
       id={listId}
       role="listbox"
+      // A scrollable box is a tab stop in Chrome, and this one is removed the moment the box
+      // loses focus — so TAB landed on it, it vanished, and the focus fell to the body. A
+      // combobox's list is never focused anyway: `aria-activedescendant` points into it.
+      tabindex={-1}
       aria-label={`${props.label} suggestions`}
       // Keeps the focus in the box while the mouse picks.
       onMouseDown={(event) => event.preventDefault()}
@@ -513,7 +517,7 @@ export function SelectorField(props: SelectorFieldProps) {
           count={(kind) => optionsOf(kind).filter((v) => casesFor(kind, v).length > 0).length}
         />
 
-        <div class="max-h-64 overflow-y-auto p-1">
+        <div tabindex={-1} class="max-h-64 overflow-y-auto p-1">
           <Show when={stageOf(entry()) === "chain" && open()}>
             <SuggestionList />
           </Show>

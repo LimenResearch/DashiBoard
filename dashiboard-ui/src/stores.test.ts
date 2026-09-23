@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { flush, reconcile } from 'solid-js';
+import { flush, reconcile, snapshot } from 'solid-js';
 import {
   emptyCards, importCards, exportCards, setCard, setCardField, addNode, removeNode, setNodeId,
   issuesForNode, fieldPath, type ProbeIssue,
@@ -719,5 +719,42 @@ describe('rememberDescribed', () => {
     expect(s.describedNodes()).toEqual([a, b]);
     s.rememberDescribed({ valid: false, nodes: [] }, ['b']); await flush();             // a was removed
     expect(s.describedNodes()).toEqual([b]);
+  });
+});
+
+describe('presets follow the names they hold', () => {
+  const set = async (s: typeof import('./stores'), value: Record<string, unknown>) => {
+    s.PRESETS_STORE[1](reconcile(value as never)); await flush();
+  };
+  const presets = async () => (await import('./stores')).PRESETS_STORE[0];
+
+  it('follows a node rename and drops the node when it goes', async () => {
+    const s = await import('./stores');
+    s.importCards({ nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: {} }); await flush();
+    await set(s, { partition: { nodes: 'r' }, order_by: [{ cols: 'TEMP', through: ['r', 'other'] }] });
+    s.setNodeId(0, 'resc'); await flush();
+    expect(snapshot(await presets())).toEqual({
+      partition: { nodes: 'resc' }, order_by: [{ cols: 'TEMP', through: ['resc', 'other'] }],
+    });
+    s.removeNode(0); await flush();
+    expect(snapshot(await presets())).toEqual({ order_by: [{ cols: 'TEMP', through: ['other'] }] });
+  });
+
+  it('follows a group rename and drops the group when it goes', async () => {
+    const s = await import('./stores');
+    s.importCards({ nodes: [], groups: { weather: [] } }); await flush();
+    await set(s, { group_by: [{ groups: 'weather' }, { cols: 'TEMP' }] });
+    s.renameGroup('weather', 'sky'); await flush();
+    expect(snapshot(await presets())).toEqual({ group_by: [{ groups: 'sky' }, { cols: 'TEMP' }] });
+    s.removeGroup('sky'); await flush();
+    expect(snapshot(await presets())).toEqual({ group_by: [{ cols: 'TEMP' }] });
+  });
+
+  it('keeps a preset that names nothing of the document', async () => {
+    const s = await import('./stores');
+    s.importCards({ nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: {} }); await flush();
+    await set(s, { partition: { cols: 'TEMP' } });
+    s.removeNode(0); await flush();
+    expect(snapshot(await presets())).toEqual({ partition: { cols: 'TEMP' } });
   });
 });

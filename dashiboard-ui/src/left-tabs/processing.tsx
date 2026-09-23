@@ -1,16 +1,19 @@
 import {
   createEffect, createMemo, createSignal, For, onCleanup, Show, Store, reconcile, untrack,
+  snapshot,
 } from "solid-js";
 
 import { Button } from "../components/Button";
 import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
+import { Presets } from "../components/Presets";
 import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
 import { throughOptions } from "../through";
+import { presetFields, presetsFor } from "../presets";
 import {
   CARDS_STORE,
   CARDS_JSON,
@@ -36,6 +39,7 @@ import {
   rejectDocument,
   forgetVerdict,
   PROBE_STORE,
+  PRESETS_STORE,
   droppedReferences,
   describedNodes,
   rememberDescribed,
@@ -75,6 +79,7 @@ export function Cards() {
   const [state] = CARDS_STORE;
   const [metadata] = LOADER_STORE;
   const [probe, setProbe] = PROBE_STORE;
+  const [presets] = PRESETS_STORE;
 
   const [payload, setPayload] = createSignal<Payload | null>(null);
   const [menuOpen, setMenuOpen] = createSignal(false);
@@ -245,7 +250,12 @@ export function Cards() {
   const add = (type: string) => {
     const ir = payload()?.cards[type];
     const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
-    reach(`node-id-${addNode({ type, ...(defaults as object) } as Card)}`);
+    // The author's starting values for the fields cards share, for the fields this type has.
+    // Only at creation: a preset set later never rewrites a card already on screen.
+    const preset = payload() === null
+      ? {}
+      : presetsFor(presetFields(payload()!.cards, payload()!.defs), ir, snapshot(presets));
+    reach(`node-id-${addNode({ type, ...(defaults as object), ...preset } as Card)}`);
   };
 
   /** Take the hand to a new item's name box once it is drawn; the item stays folded. */
@@ -619,6 +629,7 @@ export function Cards() {
             <Show when={menuOpen()}>
               <ul
                 role="menu"
+                tabindex={-1}
                 aria-label="card type"
                 ref={(el) => { menu = el; requestAnimationFrame(() => el.querySelector("button")?.focus()); }}
                 onFocusOut={(event) => {
@@ -664,6 +675,7 @@ export function Cards() {
               </ul>
             </Show>
           </div>
+          <Presets cards={payload()!.cards} defs={payload()!.defs} />
         </div>
       </Show>
 

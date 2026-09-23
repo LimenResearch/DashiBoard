@@ -5,6 +5,7 @@ import payload from '../fixtures/card-ir.json';
 import {
   importCards, addGroup, addNode, removeNode, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
   forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict, setDroppedReferences,
+  PRESETS_STORE,
 } from '../stores';
 
 const postRequest = vi.fn();
@@ -47,6 +48,8 @@ beforeEach(() => {
   // `probe-pipeline` reply carrying issues) must not leak that into the next test's render. See the
   // identical reset in `GroupsEditor.test.tsx` and `routes/index.test.tsx`.
   PROBE_STORE[1](reconcile(emptyProbe()));
+  // Presets are a module-level store too, and a test that sets one must not leak it.
+  PRESETS_STORE[1](reconcile({}));
   // Verdicts are a module-level signal too; clearing `sessionStorage` does not empty it.
   forgetAllVerdicts();
 });
@@ -426,7 +429,7 @@ describe('adding to the pipeline', () => {
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelector('[data-add]')).not.toBeNull());
     const add = container.querySelector('[data-add]')!;
-    expect([...add.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['Add group', 'Add card']);
+    expect([...add.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['Add group', 'Add card', 'Presets']);
     expect(add.className).toMatch(/sticky/);
     expect(add.nextElementSibling).toBe(container.querySelector('[data-documents]'));
     const lastItem = [...container.querySelectorAll('details')].at(-1)!;
@@ -817,6 +820,13 @@ describe('the Add card menu', () => {
     expect(document.activeElement).toBe(items(container)[0]);
   });
 
+  it('does not take the focus itself, being scrollable', async () => {
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(button(container)).toBeDefined());
+    fireEvent.click(button(container)); await flush();
+    expect(container.querySelector('[role=menu]')!.getAttribute('tabindex')).toBe('-1');
+  });
+
   it('adds the type picked, closes, and puts the hand on the new card', async () => {
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(button(container)).toBeDefined());
@@ -881,4 +891,36 @@ describe('a chain while the document does not build', () => {
     // `No` is read by nobody the server described, so no node is offered — not `r`, which reads TEMP
     expect([...field.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'))).toEqual([]);
   });
+});
+
+describe('presets for new cards', () => {
+  const addCard = async (c: HTMLElement, type: string) => {
+    fireEvent.click([...c.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Add card')!);
+    await flush();
+    fireEvent.click(c.querySelector(`[data-card-type="${type}"]`)!); await flush();
+  };
+
+  it('starts a new card with the presets its type has a field for', async () => {
+    PRESETS_STORE[1](reconcile({ partition: { cols: 'TEMP' }, order_by: [{ cols: 'PRES' }] }));
+    importCards({ nodes: [], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-presets]')).not.toBeNull());
+    await addCard(container, 'rescale');                       // has partition, not order_by
+    expect(exportCards().nodes.at(-1)!.card).toMatchObject({ type: 'rescale', partition: { cols: 'TEMP' } });
+    expect('order_by' in exportCards().nodes.at(-1)!.card).toBe(false);
+    await addCard(container, 'window_function');               // has order_by, not partition
+    expect(exportCards().nodes.at(-1)!.card).toMatchObject({ type: 'window_function', order_by: [{ cols: 'PRES' }] });
+    expect('partition' in exportCards().nodes.at(-1)!.card).toBe(false);
+  });
+
+  it('leaves a card made before the preset was set alone', async () => {
+    importCards({ nodes: [], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-presets]')).not.toBeNull());
+    await addCard(container, 'rescale');
+    expect('partition' in exportCards().nodes[0].card).toBe(false);
+    PRESETS_STORE[1](reconcile({ partition: { cols: 'TEMP' } })); await flush();
+    expect('partition' in exportCards().nodes[0].card).toBe(false);
+  });
+
 });

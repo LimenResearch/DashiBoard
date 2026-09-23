@@ -385,6 +385,17 @@ describe('SelectorField, typed entry', () => {
     expect(container.querySelector('[role=listbox]')).toBeNull();
   });
 
+  it('never takes the focus itself: a scrollable list is a tab stop in Chrome', async () => {
+    // Tab from the box landed on the list, which blur then removed, dropping the focus to the
+    // body — and any panel watching for focus leaving closed on it. The attribute is what turns
+    // that off; jsdom reports `tabIndex` as -1 either way, so the attribute is what is asserted.
+    const { container } = mount([]);
+    await type(container, 'c'); await key(container, 'Tab');
+    expect(container.querySelector('[role=listbox]')!.getAttribute('tabindex')).toBe('-1');
+    open(container); await flush();
+    expect(container.querySelector('[data-panel] .overflow-y-auto')!.getAttribute('tabindex')).toBe('-1');
+  });
+
   it('floats the dropdown above the sticky row at the foot of the tab', async () => {
     const { container } = mount([]);
     await type(container, 'c'); await key(container, 'Tab');

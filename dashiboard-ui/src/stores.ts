@@ -3,6 +3,7 @@ import {
   type Store, type StoreSetter,
 } from "solid-js";
 import { persisted, persistedSignal } from "./persist";
+import type { PresetStore } from "./presets";
 import type { Incompleteness } from "./completeness";
 import { issueFindings } from "./findings";
 
@@ -546,6 +547,7 @@ export function removeGroup(name: string) {
     delete draft.groups[name];
     forEachSelector(draft, (item) => dropName(item, "groups", name));
   });
+  editPresets((item) => dropName(item, "groups", name));
   // Or a later group under the same name and the same content would inherit an answer nobody
   // asked for it — red before its first Confirm, and across a reload.
   forgetVerdict(`group:${name}`);
@@ -573,6 +575,7 @@ export function renameGroup(from: string, to: string): boolean {
     );
     forEachSelector(draft, (item) => renameIn(item, "groups", from, to));
   });
+  if (renamed) editPresets((item) => renameIn(item, "groups", from, to));
   // The content is unchanged, so what the server said about it still stands — under the new name.
   if (renamed) moveVerdict(`group:${from}`, `group:${to}`);
   return renamed;
@@ -590,14 +593,16 @@ export function renameGroup(from: string, to: string): boolean {
  */
 export function setNodeId(nodeIndex: number, id: string): boolean {
   let renamed = false;
+  let was: string | undefined;
   setCards((draft) => {
     // Read `draft`, not `cards`: see `addGroup`.
     if (draft.nodes.some((node, at) => at !== nodeIndex && (node.id ?? "") === id)) return;
     renamed = true;
-    const from = draft.nodes[nodeIndex].id;
+    was = draft.nodes[nodeIndex].id;
     draft.nodes[nodeIndex].id = id;
-    if (from && from !== id) forEachSelector(draft, (item) => renameIn(item, "nodes", from, id));
+    if (was && was !== id) forEachSelector(draft, (item) => renameIn(item, "nodes", was!, id));
   });
+  if (renamed && was && was !== id) editPresets((item) => renameIn(item, "nodes", was!, id));
   return renamed;
 }
 
@@ -606,8 +611,40 @@ export function removeNode(nodeIndex: number) {
     const id = draft.nodes[nodeIndex]?.id;
     draft.nodes.splice(nodeIndex, 1);
     if (id) forEachSelector(draft, (item) => dropName(item, "nodes", id));
+    if (id) editPresets((item) => dropName(item, "nodes", id));
   });
   shiftVerdictsPast(nodeIndex);
+}
+
+// --- presets --------------------------------------------------------------------------------
+//
+// Starting values for the fields cards share (`presets.ts` says which), copied into a card when
+// it is created. Not part of the document: never saved, downloaded or sent, and kept per tab
+// beside it, so a reload does not lose the author's setting.
+
+const presetsPersisted = persisted<PresetStore>("dashi.presets", {});
+export const PRESETS_STORE: [Store<PresetStore>, StoreSetter<PresetStore>] =
+  [presetsPersisted[0], presetsPersisted[1]];
+const setPresets = presetsPersisted[1];
+
+/**
+ * Keep the presets in step with a name the document just changed.
+ *
+ * A preset naming a node or a group is a reference like any in the document, and it is copied
+ * into the next card: left stale it would start that card from something gone. Same two helpers
+ * the document's own references use, so the two cannot drift.
+ */
+function editPresets(edit: (item: Selector) => Selector | null) {
+  setPresets((draft) => {
+    for (const field of Object.keys(draft)) {
+      const value = draft[field];
+      const kept = (Array.isArray(value) ? value : [value])
+        .map((item) => edit(item as Selector))
+        .filter((item): item is Selector => item !== null);
+      if (kept.length === 0) delete draft[field];
+      else draft[field] = Array.isArray(value) ? kept : kept[0];
+    }
+  });
 }
 
 // --- verdicts -------------------------------------------------------------------------------

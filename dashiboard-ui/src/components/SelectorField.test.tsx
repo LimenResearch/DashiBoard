@@ -673,6 +673,45 @@ describe('SelectorField, the panel as the box', () => {
   });
 });
 
+describe('SelectorField, clearing', () => {
+  const fieldClear = (c: HTMLElement) => c.querySelector('[data-clear-field]') as HTMLButtonElement;
+  const boxClear = (c: HTMLElement) => c.querySelector('[data-clear-entry]') as HTMLButtonElement;
+  const box = (c: HTMLElement) => c.querySelector('[data-entry]') as HTMLInputElement;
+  const tokensIn = (c: HTMLElement) => [...c.querySelectorAll('[data-token]')].map((t) => t.textContent);
+
+  it('offers a × beside the name only when the field holds something, and empties it', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    expect(fieldClear(container)).toBeNull();
+    cleanup();
+    const second = mount([{ cols: 'PRES' }, { groups: 'weather' }], (items) => { written = items; });
+    const mark = fieldClear(second.container);
+    // Between the name and the chips it clears.
+    expect(mark.previousElementSibling!.querySelector('[data-selector-name]')).not.toBeNull();
+    expect(mark.nextElementSibling!.tagName).toBe('UL');
+    fireEvent.click(mark); await flush();
+    expect(written).toEqual([]);
+  });
+
+  it('offers a × inside the box only while it holds something, and empties the box alone', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([{ cols: 'PRES' }], (items) => { written = items; });
+    expect(boxClear(container)).toBeNull();
+    fireEvent.input(box(container), { target: { value: 'c' } }); await flush();
+    fireEvent.keyDown(box(container), { key: 'Tab' }); await flush();
+    expect(tokensIn(container)).toEqual(['cols:']);
+    expect(boxClear(container).getAttribute('tabindex')).toBe('-1');
+    // Out of the wrapping row: the growing input would push it onto a line of its own.
+    expect(boxClear(container).className).toContain('absolute');
+    expect(boxClear(container).parentElement!.className).toContain('relative');
+    fireEvent.click(boxClear(container)); await flush();
+    expect(tokensIn(container)).toEqual([]);
+    expect(box(container).value).toBe('');
+    expect(written).toBeNull();                       // the document is not touched
+    expect(container.querySelector('[data-chip]')).not.toBeNull();
+  });
+});
+
 describe('SelectorField, folded by its host', () => {
   it('draws no fold control of its own, and the panel follows the host', async () => {
     const [shown, setShown] = createSignal(false);

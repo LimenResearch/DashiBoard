@@ -13,13 +13,15 @@ import { untrack, type Element as JSXElement } from "solid-js";
 // there. And it brings no margin of its own: a component that positions itself is right in the one
 // place it was written for and wrong everywhere else.
 
-export type ButtonVariant = "default" | "danger";
+export type ButtonVariant = "default" | "caution" | "danger";
 export type ButtonSize = "sm" | "md";
 
 // C8: keyed on the union, never on `string`. Adding a variant fails the build rather than
 // resolving to `undefined` and rendering an unstyled control.
 const VARIANTS: Record<ButtonVariant, string> = {
   default: "bg-accent text-accent-foreground hover:bg-accent/70 focus:border-ring",
+  // Between the two: it undoes work without losing the thing itself.
+  caution: "bg-warning/10 text-warning hover:bg-warning/20 focus:border-warning",
   danger: "bg-destructive/10 text-destructive hover:bg-destructive/20 focus:border-destructive",
 };
 

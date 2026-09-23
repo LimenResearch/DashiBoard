@@ -389,7 +389,7 @@ describe('the card header', () => {
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelector('[data-card-actions]')).not.toBeNull());
     const actions = container.querySelector('[data-card-actions]')!;
-    expect([...actions.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Confirm', 'Remove']);
+    expect([...actions.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Confirm', 'Clear', 'Remove']);
     expect(actions.closest('details')).toBeNull();
     const card = actions.parentElement!;
     expect(card.querySelector('details')).not.toBeNull();
@@ -892,6 +892,26 @@ describe('a chain while the document does not build', () => {
     fireEvent.keyDown(box, { key: 'Tab' }); await flush();
     // `No` is read by nobody the server described, so no node is offered — not `r`, which reads TEMP
     expect([...field.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'))).toEqual([]);
+  });
+});
+
+describe('clearing a card', () => {
+  it('puts it back to what Add card would make, keeping its type and name', async () => {
+    PRESETS_STORE[1](reconcile({ partition: { cols: 'TEMP' } }));
+    importCards({ nodes: [{ id: 'r', card: { type: 'rescale', suffix: 'mine', inputs: [{ cols: 'PRES' }] } }], groups: {} });
+    const { container } = render(() => <Cards />);
+    // The IR has to be in: what a fresh card holds is what the IR declares.
+    await waitFor(() => expect(container.querySelector('[data-selector]')).not.toBeNull());
+    const actions = [...container.querySelectorAll('[data-card-actions] button')];
+    expect(actions.map((b) => b.textContent)).toEqual(['Confirm', 'Clear', 'Remove']);
+    // Green, amber, red: what it costs to press, left to right.
+    expect(actions[1].className).toContain('text-warning');
+    expect(actions[2].className).toContain('text-destructive');
+    fireEvent.click(actions[1]); await flush();
+    const node = exportCards().nodes[0];
+    expect(node.id).toBe('r');
+    expect(node.card).toMatchObject({ type: 'rescale', suffix: 'rescaled', partition: { cols: 'TEMP' } });
+    expect('inputs' in node.card).toBe(false);          // what was chosen is gone, not emptied
   });
 });
 

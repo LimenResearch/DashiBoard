@@ -240,6 +240,9 @@ export function GroupsEditor(props: { defs: Defs }) {
                 >
                   Confirm
                 </Button>
+                <Button variant="caution" title="empty this group, keeping its name" onClick={() => setGroup(name, [])}>
+                  Clear
+                </Button>
                 <Button variant="danger" onClick={() => removeGroup(name)}>
                   Remove
                 </Button>

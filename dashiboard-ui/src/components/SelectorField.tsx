@@ -401,6 +401,20 @@ export function SelectorField(props: SelectorFieldProps) {
             {name()}
           </button>
         </Show>
+        {/* Empties the field in one go; absent when there is nothing to empty. */}
+        <Show when={rows().length > 0}>
+          <button
+            type="button"
+            data-clear-field
+            aria-label={`clear ${props.label}`}
+            title={`clear ${props.label}`}
+            onClick={() => write([])}
+            // On the label's own baseline: centring its box put the glyph below the name's ink.
+            class="grid h-4 w-4 shrink-0 self-baseline place-items-center rounded-sm leading-none text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+          >
+            ×
+          </button>
+        </Show>
         <ul class="flex min-w-0 flex-wrap gap-1" aria-label={`${props.label} selection`}>
           <For each={rows()}>
             {(r, i) => {
@@ -468,7 +482,9 @@ export function SelectorField(props: SelectorFieldProps) {
         <div class="relative min-w-0 grow">
           <div
             onClick={() => box?.focus()}
-            class="flex cursor-text flex-wrap items-center gap-1 rounded-sm border border-border px-1.5 py-1 focus-within:border-primary"
+            // `relative` and the padding on the right: the × is taken out of the wrapping row,
+            // which the growing input otherwise pushes it off the end of, onto a second line.
+            class="relative flex cursor-text flex-wrap items-center gap-1 rounded-sm border border-border py-1 pr-7 pl-1.5 focus-within:border-primary"
           >
             <For each={tokens()}>
               {(token) => (
@@ -494,6 +510,29 @@ export function SelectorField(props: SelectorFieldProps) {
               onBlur={() => { if (entry().open) setEntry({ ...entry(), open: false }); }}
               class="min-w-24 grow bg-transparent font-mono text-control-xs outline-none"
             />
+            {/* Empties the box alone — the tokens and what is typed — never the field. Out of the
+                tab round: TAB through a box is how one leaves it. */}
+            <Show when={tokens().length > 0 || entry().text !== ""}>
+              <button
+                type="button"
+                tabindex={-1}
+                data-clear-entry
+                aria-label={`clear what is typed in ${props.label}`}
+                title="clear the box"
+                // Keeps the caret in the box: focusing it here would re-read the entry this
+                // very click is clearing, since a write is not visible until the next tick.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={(event) => {
+                  // The box's own row focuses the input on a click; that would re-read the entry
+                  // this click is clearing, a write not being visible until the next tick.
+                  event.stopPropagation();
+                  setEntry({ ...emptyEntry, open: true });
+                }}
+                class="absolute top-1/2 right-1.5 grid h-4 w-4 -translate-y-1/2 place-items-center rounded-sm leading-none text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+              >
+                ×
+              </button>
+            </Show>
           </div>
           {/* With the panel open, the panel is the list. */}
           <Show when={entry().open && !open()}>

@@ -197,7 +197,7 @@ describe('GroupsEditor', () => {
     const { container } = mount();
     await flush();
     const actions = container.querySelector('[data-group-actions]')!;
-    expect([...actions.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Confirm', 'Remove']);
+    expect([...actions.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Confirm', 'Clear', 'Remove']);
     // Under everything the group shows, so a keyboard user reaches them after the last field
     // rather than walking back to the top; outside what folds, so they never disappear.
     expect(actions.closest('details')).toBeNull();
@@ -497,6 +497,19 @@ describe('an answer that arrives after its group is gone', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(container.querySelector('[data-state]')!.getAttribute('data-state')).toBe('unconfirmed');
     expect(container.querySelector('[data-finding]')).toBeNull();
+  });
+});
+
+describe('clearing a group', () => {
+  it('empties its selection, leaving the group and its name', async () => {
+    importCards({ nodes: [], groups: { weather: [{ cols: 'TEMP' }] } });
+    const { container } = mount();
+    await flush();
+    const actions = [...container.querySelectorAll('[data-group-actions] button')];
+    expect(actions.map((b) => b.textContent)).toEqual(['Confirm', 'Clear', 'Remove']);
+    expect(actions[1].className).toContain('text-warning');
+    fireEvent.click(actions[1]); await flush();
+    expect(exportCards().groups).toEqual({ weather: [] });
   });
 });
 

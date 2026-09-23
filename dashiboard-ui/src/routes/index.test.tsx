@@ -519,7 +519,7 @@ describe('the authoring page', () => {
     expect(cardOf('rescale').querySelectorAll('[data-finding]')).toHaveLength(0);
 
     // Remove the first card. The cluster card slides from index 1 to index 0.
-    fireEvent.click([...cardOf('rescale').parentElement!.querySelectorAll('[data-card-actions] button')][1]);
+    fireEvent.click([...cardOf('rescale').parentElement!.querySelectorAll('[data-card-actions] button')].at(-1)!);
     await flush();
     await waitFor(() => expect(exportCards().nodes).toHaveLength(1));
     expect(cardOf('cluster').querySelectorAll('[data-finding]').length).toBeGreaterThan(0);
@@ -537,7 +537,7 @@ describe('the authoring page', () => {
       (d.querySelector('summary input') as HTMLInputElement | null)?.value.includes('rescale'),
     )!;
     const actions = [...card.parentElement!.querySelectorAll('[data-card-actions] button')].map((b) => b.textContent);
-    expect(actions).toEqual(['Confirm', 'Remove']);
+    expect(actions).toEqual(['Confirm', 'Clear', 'Remove']);
   });
 
   it('shows what a chain resolved to, rather than making the UI compute it', async () => {

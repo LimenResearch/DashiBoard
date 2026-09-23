@@ -248,16 +248,21 @@ export function Cards() {
    * A new card of `type`, with the defaults its IR declares rather than only a type: the form
    * displayed them either way, and a document without them disagreed with the screen.
    */
-  const add = (type: string) => {
+  /**
+   * A card of `type` as it starts life: the IR's own defaults, then the author's presets for the
+   * fields this type has. Presets are a starting value, so they belong to making a card and to
+   * emptying one back to a start — never to a card already being worked on.
+   */
+  const freshCard = (type: string): Card => {
     const ir = payload()?.cards[type];
     const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
-    // The author's starting values for the fields cards share, for the fields this type has.
-    // Only at creation: a preset set later never rewrites a card already on screen.
     const preset = payload() === null
       ? {}
       : presetsFor(presetFields(payload()!.cards, payload()!.defs), ir, snapshot(presets));
-    reach(`node-id-${addNode({ type, ...(defaults as object), ...preset } as Card)}`);
+    return { type, ...(defaults as object), ...preset } as Card;
   };
+
+  const add = (type: string) => reach(`node-id-${addNode(freshCard(type))}`);
 
   /** Take the hand to a new item's name box once it is drawn; the item stays folded. */
   const reach = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
@@ -597,6 +602,13 @@ export function Cards() {
                 onClick={() => void confirmNode(index())}
               >
                 Confirm
+              </Button>
+              <Button
+                variant="caution"
+                title="empty this card, keeping its type and name"
+                onClick={() => setCard(index(), freshCard(String(node.card.type)))}
+              >
+                Clear
               </Button>
               <Button
                 variant="danger"

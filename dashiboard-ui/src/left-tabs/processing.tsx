@@ -8,6 +8,7 @@ import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
 import { Presets } from "../components/Presets";
+import { HelpButton } from "../components/SelectorHelp";
 import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
@@ -676,6 +677,10 @@ export function Cards() {
             </Show>
           </div>
           <Presets cards={payload()!.cards} defs={payload()!.defs} />
+          {/* Apart from the three that make something: what the keys are, for the whole tab. */}
+          <div class="ml-auto">
+            <HelpButton />
+          </div>
         </div>
       </Show>
 

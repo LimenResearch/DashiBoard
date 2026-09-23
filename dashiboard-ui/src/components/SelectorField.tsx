@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { buttonClass } from "./Button";
 import { Chevron, showUnfolded } from "./Disclosure";
-import { SelectorHelp } from "./SelectorHelp";
+import { HelpTip, helpOpen, setHelpOpen } from "./SelectorHelp";
 import { Tabs } from "./Tabs";
 import {
   asItems,
@@ -220,6 +220,18 @@ export function SelectorField(props: SelectorFieldProps) {
   };
 
   const onEntryKey = (event: KeyboardEvent) => {
+    // The page's help, from wherever the caret is; the caret stays where it is, so a panel
+    // watching for focus leaving (the presets') does not close under the author.
+    if (event.key === "F1") {
+      event.preventDefault();
+      setHelpOpen(!helpOpen());
+      return;
+    }
+    if (event.key === "Escape" && helpOpen()) {
+      event.preventDefault();
+      setHelpOpen(false);
+      return;
+    }
     // With nothing typed, going left — or back — lands on the last chip.
     const back = event.key === "ArrowLeft" || (event.key === "Tab" && event.shiftKey);
     if (back && entry().text === "" && rows().length > 0) {
@@ -452,7 +464,7 @@ export function SelectorField(props: SelectorFieldProps) {
       </div>
 
       <div class={["flex items-start gap-1.5", indent()]}>
-        <SelectorHelp single={props.single} />
+        <HelpTip single={props.single} />
         <div class="relative min-w-0 grow">
           <div
             onClick={() => box?.focus()}

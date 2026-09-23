@@ -429,7 +429,9 @@ describe('adding to the pipeline', () => {
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelector('[data-add]')).not.toBeNull());
     const add = container.querySelector('[data-add]')!;
-    expect([...add.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['Add group', 'Add card', 'Presets']);
+    expect([...add.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['Add group', 'Add card', 'Presets', 'ⓘ']);
+    // The help sits apart, at the far end of the row.
+    expect(add.lastElementChild!.querySelector('[data-help]')).not.toBeNull();
     expect(add.className).toMatch(/sticky/);
     expect(add.nextElementSibling).toBe(container.querySelector('[data-documents]'));
     const lastItem = [...container.querySelectorAll('details')].at(-1)!;

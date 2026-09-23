@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
 import { createSignal, flush } from 'solid-js';
 import { SelectorField } from './SelectorField';
+import { helpOpen } from './SelectorHelp';
 import * as selector from '../selector';
 import type { SelectorItem } from '../selector';
 import type { Defs, IRNode } from '../ir';
@@ -542,10 +543,25 @@ describe('SelectorField, chips by keyboard', () => {
 });
 
 describe('SelectorField, teaching the keys', () => {
-  it('puts the help button just before the text box, and shows one whole example in the empty box', () => {
+  it('opens the page\'s help on F1, without taking the caret out of the box', async () => {
     const { container } = mount([]);
-    const focusable = [...container.querySelectorAll('[data-help], [data-entry]')];
-    expect(focusable.map((e) => e.hasAttribute('data-help'))).toEqual([true, false]);
+    const box = container.querySelector('[data-entry]') as HTMLInputElement;
+    box.focus();
+    expect(fireEvent.keyDown(box, { key: 'F1' })).toBe(false);     // prevented: not the browser's help
+    await flush();
+    expect(helpOpen()).toBe(true);
+    expect(document.activeElement).toBe(box);
+    fireEvent.keyDown(box, { key: 'Escape' }); await flush();      // Esc puts the help away first
+    expect(helpOpen()).toBe(false);
+    expect(container.querySelector('[data-token]')).toBeNull();
+  });
+
+  it('puts a hover-only mark before the text box, and shows one whole example in the empty box', () => {
+    const { container } = mount([]);
+    // No button of its own: one reachable ⓘ serves the page, and F1 opens it from here.
+    expect(container.querySelector('[data-help]')).toBeNull();
+    const marks = [...container.querySelectorAll('[data-help-tip], [data-entry]')];
+    expect(marks.map((e) => e.hasAttribute('data-help-tip'))).toEqual([true, false]);
     expect((container.querySelector('[data-entry]') as HTMLInputElement).placeholder)
       .toBe('nodes: name @node, then Enter');
   });

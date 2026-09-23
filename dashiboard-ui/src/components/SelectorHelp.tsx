@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 
 // The keys of the typed entry, by two paths rather than a button on every field: a quiet ⓘ beside
 // each box, which the pointer hovers, and one reachable ⓘ in the row of actions, which is also
@@ -104,10 +104,21 @@ export function HelpTip(props: { single?: boolean }) {
 export function HelpButton() {
   const [at, setAt] = createSignal<Place>({ up: true, max: TALL });
   let trigger: HTMLButtonElement | undefined;
+  let wrapper: HTMLDivElement | undefined;
   // Opened by F1 as well as by the button, so where it goes is decided whenever it opens.
   createEffect(helpOpen, (open) => { if (open) setAt(place(trigger)); });
+
+  // F1 leaves the caret where it was, so focus never enters this panel and focus leaving it
+  // cannot be what puts it away. Carrying on anywhere else does. One listener for this
+  // component's life: registering it per opening leaves one behind on unmount, and the next
+  // panel — the state is shared — is closed by the one before it.
+  const elsewhere = (event: Event) => {
+    if (helpOpen() && !wrapper?.contains(event.target as Node)) setHelpOpen(false);
+  };
+  document.addEventListener("mousedown", elsewhere, true);
+  onCleanup(() => document.removeEventListener("mousedown", elsewhere, true));
   return (
-    <div class="relative shrink-0" onFocusOut={() => setHelpOpen(false)}>
+    <div ref={(el) => { wrapper = el; }} class="relative shrink-0" onFocusOut={() => setHelpOpen(false)}>
       <button
         type="button"
         data-help

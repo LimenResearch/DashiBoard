@@ -79,6 +79,15 @@ describe('HelpButton, the keyboard’s path', () => {
     expect(note(container)).toBeNull();
   });
 
+  it('goes away on a click anywhere else, so an accidental F1 is undone by carrying on', async () => {
+    const { container } = render(() => <HelpButton />);
+    setHelpOpen(true); await flush();
+    fireEvent.mouseDown(container.querySelector('[role=note]')!); await flush();
+    expect(note(container)).not.toBeNull();                 // a click inside it is not "elsewhere"
+    fireEvent.mouseDown(document.body); await flush();
+    expect(note(container)).toBeNull();
+  });
+
   it('never grows past the view, and is not a tab stop of its own', async () => {
     const { container } = render(() => <HelpButton />);
     sitAt(container, '[data-help]', 600);

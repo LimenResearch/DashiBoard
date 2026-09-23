@@ -30,7 +30,8 @@ const SIZES: Record<ButtonSize, string> = {
 
 const DISABLED = "bg-secondary text-muted-foreground";
 
-function className(variant: ButtonVariant, size: ButtonSize, disabled: boolean) {
+/** The button dress, for the few places that need a `<button>` of their own. */
+export function buttonClass(variant: ButtonVariant = "default", size: ButtonSize = "sm", disabled = false) {
   return [
     "inline-flex items-center rounded-sm border border-transparent text-control-xs font-semibold",
     SIZES[size],
@@ -65,7 +66,7 @@ export function Button(props: ButtonProps) {
       aria-haspopup={props.menu === undefined ? undefined : "menu"}
       aria-expanded={props.menu === undefined ? undefined : props.menu.open ? "true" : "false"}
       ref={(el) => untrack(() => props.menu)?.ref(el)}
-      class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
+      class={buttonClass(props.variant, props.size, props.disabled)}
     >
       {props.children}
     </button>
@@ -89,7 +90,7 @@ export function A(props: AProps) {
       href={props.href}
       download={props.download}
       title={props.title}
-      class={className(props.variant ?? "default", props.size ?? "sm", props.disabled ?? false)}
+      class={buttonClass(props.variant, props.size, props.disabled)}
     >
       {props.children}
     </a>

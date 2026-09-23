@@ -67,7 +67,8 @@ export function showUnfolded(element: Element) {
     const top = element.closest("[data-last-item]") !== null
       ? rect.bottom - view
       : rect.height > view ? rect.top - 8 : rect.top + rect.height / 2 - view / 2;
-    window.scrollBy({ top, behavior: "smooth" });
+    // The page's scroller, which a test DOM leaves without `scrollBy`; the window's would log there.
+    (document.scrollingElement ?? document.documentElement).scrollBy?.({ top, behavior: "smooth" });
   });
 }
 

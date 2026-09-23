@@ -322,15 +322,10 @@ describe('the authoring page', () => {
     expect(offered).toContain('split');
     expect(offered).not.toContain('rescale');
 
-    // The same vocabulary feeds the pass-through composer, so it must be narrowed there too.
-    // The composer opens per value, so one has to be opened to see what it offers.
-    const row = container.querySelector('[data-value="split"]')!;
-    fireEvent.click(row.querySelector('[role=switch]')!);
+    // The same vocabulary feeds `through…`, so it must be narrowed there too.
+    fireEvent.click(container.querySelector('[data-value="split"] [data-through]')!);
     await flush();
-    fireEvent.click(container.querySelector('[data-value="split"] [data-specify="through"]')!);
-    await flush();
-    const builder = container.querySelector('[data-value="split"] [data-chain-builder]')!;
-    const names = [...builder.querySelectorAll('button')].map((b) => b.textContent);
+    const names = [...container.querySelectorAll('[data-value="split"] [data-chain-builder] [data-node]')].map((e) => e.getAttribute('data-node'));
     expect(names).toContain('split');
     expect(names).not.toContain('rescale');
   });

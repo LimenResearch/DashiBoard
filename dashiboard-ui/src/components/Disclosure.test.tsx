@@ -106,7 +106,12 @@ describe('Disclosure, when it unfolds', () => {
   };
   const frame = () => new Promise((done) => requestAnimationFrame(() => done(null)));
   /** Earlier tests' unfoldings still have a frame pending; let it pass before listening. */
-  const listen = async () => { await frame(); return vi.spyOn(window, 'scrollBy').mockImplementation(() => {}); };
+  const listen = async () => {
+    await frame();
+    const scrolled = vi.fn();
+    (Element.prototype as unknown as { scrollBy: unknown }).scrollBy = scrolled;
+    return Object.assign(scrolled, { mockRestore: () => { delete (Element.prototype as unknown as { scrollBy?: unknown }).scrollBy; } });
+  };
 
   it('scrolls its content to the middle of the view once, and not when it folds', async () => {
     const scrolled = await listen();

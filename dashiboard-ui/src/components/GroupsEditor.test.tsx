@@ -54,10 +54,7 @@ describe('GroupsEditor', () => {
     // The picker asks direct-or-through rather than assuming, so selecting is two steps.
     fireEvent.click(container.querySelector('[role=tab][data-tab="cols"]')!);
     await flush();
-    const row = container.querySelector('[data-value="TEMP"]')!;
-    fireEvent.click(row.querySelector('[role=switch]')!);
-    await flush();
-    fireEvent.click(container.querySelector('[data-value="TEMP"] [data-specify="direct"]')!);
+    fireEvent.click(container.querySelector('[data-value="TEMP"] [data-name]')!);
     await flush();
     expect(exportCards().groups.weather).toEqual([{ cols: 'TEMP' }]);
   });

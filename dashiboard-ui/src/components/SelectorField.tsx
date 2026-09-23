@@ -1,5 +1,6 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 
+import { buttonClass } from "./Button";
 import { Chevron, showUnfolded } from "./Disclosure";
 import { SelectorHelp } from "./SelectorHelp";
 import { Tabs } from "./Tabs";
@@ -24,9 +25,9 @@ import * as _ from "lodash";
 // of that fails exactly there: a row is a value, and a value appears once.
 //
 // The repair is what a row *holds*. It is not a value with a qualification, it is a value with a
-// **list** of them. Switch a value on and it has to say `direct` or `through`, with nothing
-// assumed; once it carries one, `+` adds another. Case E becomes one click rather than
-// unrepresentable.
+// **list** of them, and the row offers the two ways to add one the way the text box does: the
+// name is `direct`, `through…` opens the nodes to pass through. Case E becomes two clicks rather
+// than unrepresentable.
 //
 // One thing this deliberately does not do: compute resolved column names. Suffix concatenation is
 // DashiBoard's rule and a copy here is a second source of truth (A10, and C2's second constraint
@@ -67,6 +68,9 @@ type SelectorFieldProps = {
  * groups first, since a document that has them is mostly written in them.
  */
 const KIND_ORDER = ["nodes", "groups", "cols"];
+
+/** A chain as the panel reads it: `→ impute → zscore`, one arrow per step taken. */
+const arrowText = (chain: readonly string[]) => chain.map((node) => `→ ${node}`).join(" ");
 
 /** A selection as it is typed and as its chip reads: `cols:PRES@impute@zscore`. */
 export const chipText = (row: SelectorRow) =>
@@ -138,22 +142,15 @@ export function SelectorField(props: SelectorFieldProps) {
 
   // --- control state, which is not document state ---------------------------
   const [picked, setPicked] = createSignal<string | null>(null);
-  // Values switched on but not yet specified. A list, because switching on a second value should
-  // not silently abandon the first one's unanswered question.
-  const [pending, setPending] = createSignal<string[]>([]);
-  // One composer at a time: building a chain is a focused activity, and two half-built chains on
-  // screen is a state nobody meant to be in.
+  // One chain under construction at a time, keyed by the row: building a chain is a focused
+  // activity, and two half-built chains on screen is a state nobody meant to be in.
   const [composing, setComposing] = createSignal<{ key: string; chain: string[] } | null>(null);
+  const chainBeingBuilt = (key: string) => {
+    const c = composing();
+    return c !== null && c.key === key ? c.chain : null;
+  };
   // Native drag is not keyboard reachable, which is why the chips carry arrow buttons as well.
   const [dragging, setDragging] = createSignal<number | null>(null);
-
-  const idOf = (kind: string, value: string) => `${kind}:${value}`;
-  const isPending = (id: string) => pending().includes(id);
-  const chainBeingBuilt = (id: string) => {
-    const c = composing();
-    return c !== null && c.key === id ? c.chain : null;
-  };
-  const clearPending = (id: string) => setPending(pending().filter((p) => p !== id));
 
   // --- the typed entry: the panel's steps, from the keyboard -----------------
   // Closed until the box is in hand.
@@ -284,6 +281,20 @@ export function SelectorField(props: SelectorFieldProps) {
         ? "flex flex-col p-1"
         : "absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm"}
     >
+      {/* A chain with a step can be finished by mouse here; by keyboard it is ENTER. */}
+      <Show when={stageOf(entry()) === "chain" && entry().chain.length > 0}>
+        <li role="option" aria-selected="false" class="px-1.5 py-0.5">
+          <button
+            type="button"
+            tabindex={-1}
+            data-finish
+            onClick={() => apply({ type: "enter" })}
+            class="inline-flex h-5 items-center rounded-sm bg-accent px-2.5 text-control-xs font-semibold text-accent-foreground"
+          >
+            add {entry().chain.map((node) => `@${node}`).join("")}
+          </button>
+        </li>
+      </Show>
       <For each={suggestions(entry(), vocabulary())} fallback={
         <li class="p-1 text-control-xs text-muted-foreground italic">nothing matches</li>
       }>
@@ -329,22 +340,6 @@ export function SelectorField(props: SelectorFieldProps) {
     </ul>
   );
 
-  /**
-   * Whether another qualification could be specified at all.
-   *
-   * `direct` is available until taken; `through` needs at least one node to build a chain from,
-   * and a document with no nodes yet has none. When neither route is open there is nothing to
-   * offer, so the `+` is withheld rather than opening a panel whose every option is disabled.
-   */
-  const canAddCase = (kind: string, value: string) =>
-    !casesFor(kind, value).some((c) => c.length === 0) || chainOptions().length > 0;
-
-  /** On means: carries a qualification, or is part-way through choosing one. */
-  const isLive = (kind: string, value: string) => {
-    const id = idOf(kind, value);
-    return Boolean(casesFor(kind, value).length || isPending(id) || chainBeingBuilt(id));
-  };
-
   const reorder = (from: number, to: number) => {
     const next = [...rows()];
     if (to < 0 || to >= next.length || from === to) return;
@@ -352,13 +347,6 @@ export function SelectorField(props: SelectorFieldProps) {
     next.splice(to, 0, moved);
     write(next);
   };
-
-  function switchOff(kind: string, value: string) {
-    const id = idOf(kind, value);
-    clearPending(id);
-    if (chainBeingBuilt(id) !== null) setComposing(null);
-    write(rows().filter((r) => !(r.kind === kind && r.value === value)));
-  }
 
   const name = () => (
     <span data-selector-name class="text-control-xs font-semibold text-primary">
@@ -542,10 +530,10 @@ export function SelectorField(props: SelectorFieldProps) {
             <For each={panelValues()}>
               {(value, at) => {
                 const kind = () => openKind();
-                const id = () => idOf(kind(), value);
                 const cases = () => casesFor(kind(), value);
-                const on = () => isLive(kind(), value);
                 const hasDirect = () => cases().some((c) => c.length === 0);
+                const canThrough = () => chainFor({ kind: kind(), value, chain: [] }).length > 0;
+                const key = () => `${kind()}:${value}`;
 
                 return (
                   <div
@@ -554,194 +542,137 @@ export function SelectorField(props: SelectorFieldProps) {
                     data-highlighted={entry().kind === kind() ? highlightedId(at()) : undefined}
                     class={[
                       "flex flex-col gap-1 rounded-sm px-1.5 py-1",
-                      { "bg-accent/40": on(), "hover:bg-muted": !on() },
+                      { "bg-accent/40": cases().length > 0, "hover:bg-muted": cases().length === 0 },
                       "data-[highlighted]:outline data-[highlighted]:outline-1 data-[highlighted]:outline-primary",
                     ]}
                   >
                     <div class="flex flex-wrap items-center gap-2">
-                      {/*
-                        A switch rather than a checkbox: a checkbox says "included", and this says
-                        "has something to specify". Inline rather than extracted — a primitive with
-                        one use is a guess about the second.
-                      */}
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={on() ? "true" : "false"}
-                        aria-label={`select ${value}`}
-                        onClick={() => {
-                          if (on()) switchOff(kind(), value);
-                          else setPending([...pending(), id()]);
-                        }}
-                        class={[
-                          "relative h-4 w-7 flex-none rounded-full border transition-colors",
-                          { "border-primary bg-primary": on(), "border-border bg-secondary": !on() },
-                        ]}
-                      >
+                    {/* The row is the box's row: the name is `direct`, `through…` builds a chain. */}
+                    <button
+                      type="button"
+                      data-name
+                      aria-pressed={hasDirect() ? "true" : "false"}
+                      aria-label={`${hasDirect() ? "remove" : "add"} ${value} direct`}
+                      onClick={() => (hasDirect() ? removeCase(kind(), value, []) : addCase(kind(), value, []))}
+                      class={[
+                        "rounded-sm px-1 font-mono text-control-xs hover:text-primary",
+                        { "font-medium text-primary": cases().length > 0 },
+                      ]}
+                    >
+                      {value}
+                    </button>
+
+                    <For each={cases()}>
+                      {(chain) => (
                         <span
-                          class={[
-                            "absolute top-px left-px h-3 w-3 rounded-full bg-card transition-transform",
-                            { "translate-x-3": on() },
-                          ]}
-                        />
-                      </button>
-
-                      <span
-                        class={["font-mono text-control-xs", { "font-medium text-primary": on() }]}
-                      >
-                        {value}
-                      </span>
-
-                      {/* Qualifications sit on the value's own line — a second line per selected
-                          value costs more height than this layout is chosen for. */}
-                      <For each={cases()}>
-                        {(chain) => (
-                          <span
-                            data-case={chain.length === 0 ? "direct" : chain.join("→")}
-                            class="inline-flex h-5 items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 pr-0.5 pl-2 font-mono text-control-xs"
-                          >
-                            <span class="text-accent-foreground">
-                              {chain.length === 0 ? "direct" : chain.map((node) => `@${node}`).join("")}
-                            </span>
-                            <button
-                              type="button"
-                              aria-label={`remove ${chain.length === 0 ? "direct" : chain.join("→")} for ${value}`}
-                              onClick={() => removeCase(kind(), value, chain)}
-                              class="grid h-4 w-4 place-items-center rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
-                            >
-                              ×
-                            </button>
-                          </span>
-                        )}
-                      </For>
-
-                      {/* The + is the repair: it is what lets a value hold more than one
-                          qualification, and so what makes case E expressible at all. */}
-                      <Show
-                        when={
-                          props.single !== true &&
-                          cases().length > 0 &&
-                          !isPending(id()) &&
-                          chainBeingBuilt(id()) === null &&
-                          canAddCase(kind(), value)
-                        }
-                      >
-                        <button
-                          type="button"
-                          data-add-case={value}
-                          aria-label={`add another qualification for ${value}`}
-                          title="add another qualification"
-                          onClick={() => setPending([...pending(), id()])}
-                          class="grid h-5 w-5 place-items-center rounded-full border border-dashed border-border text-muted-foreground hover:border-solid hover:border-primary hover:bg-accent/60 hover:text-primary"
+                          data-case={chain.length === 0 ? "direct" : chain.join("→")}
+                          class="inline-flex h-5 items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 pr-0.5 pl-2 font-mono text-control-xs"
                         >
-                          +
-                        </button>
-                      </Show>
-
-                      {/* Nothing is assumed. A value switched on with no qualification is visibly
-                          unfinished, so the control asks rather than defaulting to direct. */}
-                      <Show when={isPending(id())}>
-                        <span class="ml-auto inline-flex items-center gap-1 rounded-full border border-warning/45 bg-warning/10 p-0.5">
-                          <span class="px-1 text-detail font-semibold tracking-wider text-warning uppercase">
-                            specify
+                          {/* Arrows where the chain is read, since they say what a chain *is*;
+                              `@` is the typed form, and the chips keep it. */}
+                          <span class="text-accent-foreground">
+                            {chain.length === 0 ? "direct" : arrowText(chain)}
                           </span>
                           <button
                             type="button"
-                            data-specify="direct"
-                            disabled={hasDirect()}
-                            onClick={() => {
-                              addCase(kind(), value, []);
-                              clearPending(id());
-                            }}
-                            class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40"
+                            aria-label={`remove ${chain.length === 0 ? "direct" : chain.join("→")} for ${value}`}
+                            onClick={() => removeCase(kind(), value, chain)}
+                            class="grid h-4 w-4 place-items-center rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
                           >
-                            direct
-                          </button>
-                          {/* A chain is built from nodes, so with none defined there is nothing to
-                              build one out of. Offered as unreachable rather than as a route that
-                              opens an empty composer. */}
-                          <button
-                            type="button"
-                            data-specify="through"
-                            disabled={chainOptions().length === 0}
-                            title={
-                              chainOptions().length === 0
-                                ? "no nodes defined yet — a pass-through is built from them"
-                                : undefined
-                            }
-                            onClick={() => {
-                              clearPending(id());
-                              setComposing({ key: id(), chain: [] });
-                            }}
-                            class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-inherit"
-                          >
-                            through…
+                            ×
                           </button>
                         </span>
-                      </Show>
+                      )}
+                    </For>
+
+                    <button
+                      type="button"
+                      data-through
+                      disabled={!canThrough()}
+                      title={canThrough() ? undefined : "no node can take this value further"}
+                      onClick={() => setComposing(chainBeingBuilt(key()) === null ? { key: key(), chain: [] } : null)}
+                      class="ml-auto inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-inherit"
+                    >
+                      through…
+                    </button>
                     </div>
 
-                    <Show when={chainBeingBuilt(id())} keyed>
-                      {(chain: string[]) => (
-                        <div
-                          data-chain-builder
-                          class="ml-9 flex flex-wrap items-center gap-1.5 rounded-sm border border-dashed border-primary/45 bg-primary/5 px-2 py-1.5"
-                        >
-                          <span class="text-detail tracking-wider text-muted-foreground uppercase">
-                            add a pass-through
-                          </span>
-                          <For each={chainFor({ kind: kind(), value, chain })}>
-                            {(node) => (
+                    {/* The nodes on offer, each on or off, read in click order. The chain is what
+                        the author sees before committing it, rather than after. */}
+                    <Show when={chainBeingBuilt(key())} keyed>
+                      {(chain: string[]) => {
+                        const taken = () => cases().some((c) => chainKey(c) === chainKey(chain));
+                        const toggle = (node: string) =>
+                          setComposing({
+                            key: key(),
+                            chain: chain.includes(node) ? chain.filter((n) => n !== node) : [...chain, node],
+                          });
+                        return (
+                          <div
+                            data-chain-builder
+                            class="ml-3 flex flex-col gap-1.5 rounded-sm border border-dashed border-primary/45 bg-primary/5 px-2 py-1.5"
+                          >
+                            {/* One row per thing: what to do, the nodes, the chain, the actions. */}
+                            <span class="text-detail tracking-wider text-muted-foreground uppercase">
+                              pick nodes — order matters
+                            </span>
+
+                            <div class="flex flex-wrap items-center gap-1.5">
+                              <For each={chainFor({ kind: kind(), value, chain: [] })}>
+                                {(node) => (
+                                  <button
+                                    type="button"
+                                    data-node={node}
+                                    aria-pressed={chain.includes(node) ? "true" : "false"}
+                                    onClick={() => toggle(node)}
+                                    class={[
+                                      "inline-flex h-5 items-center rounded-full border px-2 font-mono text-control-xs hover:border-primary hover:text-primary",
+                                      chain.includes(node)
+                                        ? "border-primary bg-primary/15 font-medium text-primary"
+                                        : "border-border bg-card",
+                                    ]}
+                                  >
+                                    {node}
+                                  </button>
+                                )}
+                              </For>
+                            </div>
+
+                            {/* The chain as it stands, once there is one to read. */}
+                            <Show when={chain.length > 0}>
+                              <div data-chain-preview class="font-mono text-control-xs font-medium text-primary">
+                                {arrowText(chain)}
+                              </div>
+                            </Show>
+
+                            <div class="flex flex-wrap items-center gap-1.5">
+                              {/* Nothing to add before a node is on; leaving is always offered. */}
+                              <Show when={chain.length > 0}>
+                                <button
+                                  type="button"
+                                  data-chain="commit"
+                                  disabled={taken()}
+                                  onClick={() => {
+                                    addCase(kind(), value, chain);
+                                    setComposing(null);
+                                  }}
+                                  class={buttonClass("default", "sm", taken())}
+                                >
+                                  {taken() ? "already added" : "add"}
+                                </button>
+                              </Show>
                               <button
                                 type="button"
-                                onClick={() => setComposing({ key: id(), chain: [...chain, node] })}
-                                class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-mono text-control-xs hover:border-primary hover:text-primary"
+                                data-chain="cancel"
+                                onClick={() => setComposing(null)}
+                                class={buttonClass("danger")}
                               >
-                                {node}
+                                cancel
                               </button>
-                            )}
-                          </For>
-                          <span class="ml-auto font-mono text-control-xs">
-                            <Show
-                              when={chain.length > 0}
-                              fallback={
-                                <span class="text-muted-foreground">
-                                  pick a node — order matters
-                                </span>
-                              }
-                            >
-                              <span class="font-medium text-primary">{chain.join(" → ")}</span>
-                            </Show>
-                          </span>
-                          <Show when={chain.length > 0}>
-                            <button
-                              type="button"
-                              data-chain="commit"
-                              disabled={cases().some((c) => chainKey(c) === chainKey(chain))}
-                              onClick={() => {
-                                addCase(kind(), value, chain);
-                                setComposing(null);
-                              }}
-                              class="inline-flex h-control-xs items-center rounded-sm bg-accent px-2.5 text-control-xs font-semibold text-accent-foreground disabled:opacity-50"
-                            >
-                              {cases().some((c) => chainKey(c) === chainKey(chain))
-                                ? "already added"
-                                : "add"}
-                            </button>
-                          </Show>
-                          <button
-                            type="button"
-                            data-chain="cancel"
-                            onClick={() => {
-                              setComposing(null);
-                              if (cases().length === 0) clearPending(id());
-                            }}
-                            class="inline-flex h-control-xs items-center rounded-sm px-2 text-control-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
-                          >
-                            cancel
-                          </button>
-                        </div>
-                      )}
+                            </div>
+                          </div>
+                        );
+                      }}
                     </Show>
                   </div>
                 );

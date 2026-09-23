@@ -23,15 +23,23 @@ const tab = (c: HTMLElement, kind: string) =>
   c.querySelector(`[role=tab][data-tab="${kind}"]`) as HTMLButtonElement;
 const row = (c: HTMLElement, value: string) =>
   c.querySelector(`[data-value="${value}"]`) as HTMLElement;
-const sw = (c: HTMLElement, value: string) =>
-  row(c, value).querySelector('[role=switch]') as HTMLButtonElement;
+/** The name is the `direct` control: `aria-pressed` says whether the value carries it. */
+const nameOf = (c: HTMLElement, value: string) =>
+  row(c, value).querySelector('[data-name]') as HTMLButtonElement;
+const isOn = (c: HTMLElement, value: string) => nameOf(c, value).getAttribute('aria-pressed');
 const casesOf = (c: HTMLElement, value: string) =>
   [...row(c, value).querySelectorAll('[data-case]')].map((e) => e.getAttribute('data-case'));
 /** Re-queried, never held: `<Show keyed>` replaces this node on every chain change. */
 const builderIn = (c: HTMLElement, value: string) =>
   row(c, value).querySelector('[data-chain-builder]') as HTMLElement;
 const nodeButton = (c: HTMLElement, value: string, name: string) =>
-  [...builderIn(c, value).querySelectorAll('button')].find((b) => b.textContent === name)!;
+  builderIn(c, value).querySelector(`[data-node="${name}"]`) as HTMLButtonElement;
+/** Build a chain by mouse: `through…` on the row, a click per node, then add. */
+const chainBy = async (c: HTMLElement, value: string, steps: string[]) => {
+  fireEvent.click(row(c, value).querySelector('[data-through]')!); await flush();
+  for (const step of steps) { fireEvent.click(nodeButton(c, value, step)); await flush(); }
+  fireEvent.click(builderIn(c, value).querySelector('[data-chain="commit"]')!); await flush();
+};
 const writes = (c: HTMLElement) =>
   (c.querySelector('.font-mono.break-words') as HTMLElement | null)?.textContent ?? '';
 
@@ -53,25 +61,24 @@ describe('SelectorField', () => {
       .toBe('cols');
   });
 
-  it('shows a switch per value in the open vocabulary, all off for an empty field', async () => {
+  it('shows a row per value in the open vocabulary, none carrying anything for an empty field', async () => {
     const { container } = mount([]);
     await onCols(container);
-    expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
+    expect(isOn(container, 'TEMP')).toBe('false');
     expect(casesOf(container, 'TEMP')).toEqual([]);
   });
 
   it('reads an existing document back onto the rows it came from', async () => {
     const { container } = mount([{ cols: ['PRES', 'TEMP'] }]);
     await onCols(container);
-    expect(sw(container, 'PRES').getAttribute('aria-checked')).toBe('true');
+    expect(isOn(container, 'PRES')).toBe('true');
     expect(casesOf(container, 'PRES')).toEqual(['direct']);
     expect(casesOf(container, 'TEMP')).toEqual(['direct']);
-    expect(sw(container, 'No').getAttribute('aria-checked')).toBe('false');
+    expect(isOn(container, 'No')).toBe('false');
   });
 
   it('holds the same value twice when it is qualified differently — case E', async () => {
-    // The case that rules out modelling a field as a set of values with attributes, and the whole
-    // reason this layout needed the `+` before it could be used at all.
+    // The case that rules out modelling a field as a set of values with attributes.
     const { container } = mount([{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }]);
     await onCols(container);
     expect(casesOf(container, 'PRES')).toEqual(['rescale', 'direct']);
@@ -83,80 +90,49 @@ describe('SelectorField', () => {
     expect(casesOf(container, 'PRES')).toEqual(['rescale→split']);
   });
 
-  it('asks direct-or-through when a value is switched on, and writes nothing yet', async () => {
-    // Nothing is assumed: a value switched on with no qualification is unfinished, not direct.
+  it('writes the item as direct on a click on its name', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount([], (items) => { written = items; });
     await onCols(container);
-    fireEvent.click(sw(container, 'TEMP'));
-    await flush();
-    expect(row(container, 'TEMP').querySelector('[data-specify="direct"]')).not.toBeNull();
-    expect(row(container, 'TEMP').querySelector('[data-specify="through"]')).not.toBeNull();
-    expect(written).toBeNull();
-  });
-
-  it('writes the item once direct is chosen', async () => {
-    let written: SelectorItem[] | null = null;
-    const { container } = mount([], (items) => { written = items; });
-    await onCols(container);
-    fireEvent.click(sw(container, 'TEMP'));
-    await flush();
-    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="direct"]')!);
+    fireEvent.click(nameOf(container, 'TEMP'));
     await flush();
     expect(written).toEqual([{ cols: 'TEMP' }]);
   });
 
-  it('adds a second qualification through +, which is what case E needs', async () => {
+  it('adds a second qualification through…, which is what case E needs', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount([{ cols: 'PRES' }], (items) => { written = items; });
-    await onCols(container);
-    fireEvent.click(container.querySelector('[data-add-case="PRES"]')!);
-    await flush();
-    fireEvent.click(row(container, 'PRES').querySelector('[data-specify="through"]')!);
-    await flush();
-    fireEvent.click(nodeButton(container, 'PRES', 'rescale'));
-    await flush();
-    fireEvent.click(builderIn(container, 'PRES').querySelector('[data-chain="commit"]')!);
-    await flush();
+    open(container); await flush(); await onCols(container);
+    await chainBy(container, 'PRES', ['rescale']);
     expect(written).toEqual([{ cols: 'PRES' }, { cols: 'PRES', through: ['rescale'] }]);
   });
 
-  it('will not offer direct twice for one value', async () => {
-    const { container } = mount([{ cols: 'PRES' }]);
+  it('will not write direct twice for one value: the second click on the name removes it', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([{ cols: 'PRES' }], (items) => { written = items; });
     await onCols(container);
-    fireEvent.click(container.querySelector('[data-add-case="PRES"]')!);
-    await flush();
-    const direct = row(container, 'PRES').querySelector('[data-specify="direct"]') as HTMLButtonElement;
-    expect(direct.disabled).toBe(true);
+    fireEvent.click(nameOf(container, 'PRES')); await flush();
+    expect(written).toEqual([]);
   });
 
   it('records the order nodes are clicked, since [a,b] names a different column from [b,a]', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount([], (items) => { written = items; });
-    await onCols(container);
-    fireEvent.click(sw(container, 'TEMP'));
-    await flush();
-    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="through"]')!);
-    await flush();
-    fireEvent.click(nodeButton(container, 'TEMP', 'split'));
-    await flush();
-    fireEvent.click(nodeButton(container, 'TEMP', 'rescale'));
-    await flush();
-    fireEvent.click(builderIn(container, 'TEMP').querySelector('[data-chain="commit"]')!);
-    await flush();
+    open(container); await flush(); await onCols(container);
+    await chainBy(container, 'TEMP', ['split', 'rescale']);
     expect(written).toEqual([{ cols: 'TEMP', through: ['split', 'rescale'] }]);
   });
 
-  it('switching a value off removes every qualification it carried', async () => {
+  it('the name removes only direct; a chain goes by its own ×', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = mount(
       [{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }, { cols: 'TEMP' }],
       (items) => { written = items; },
     );
     await onCols(container);
-    fireEvent.click(sw(container, 'PRES'));
+    fireEvent.click(nameOf(container, 'PRES'));
     await flush();
-    expect(written).toEqual([{ cols: 'TEMP' }]);
+    expect(written).toEqual([{ cols: 'PRES', through: ['rescale'] }, { cols: 'TEMP' }]);
   });
 
   it('removes one qualification without disturbing the other', async () => {
@@ -173,16 +149,15 @@ describe('SelectorField', () => {
     expect(written).toEqual([{ cols: 'PRES', through: ['rescale'] }]);
   });
 
-  it('cancelling a chain on a value with nothing else switches it back off', async () => {
-    const { container } = mount([]);
-    await onCols(container);
-    fireEvent.click(sw(container, 'TEMP'));
-    await flush();
-    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="through"]')!);
-    await flush();
-    fireEvent.click(row(container, 'TEMP').querySelector('[data-chain="cancel"]')!);
-    await flush();
-    expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
+  it('cancelling a chain leaves the value as it was', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(row(container, 'TEMP').querySelector('[data-through]')!); await flush();
+    fireEvent.click(nodeButton(container, 'TEMP', 'split')); await flush();
+    fireEvent.click(builderIn(container, 'TEMP').querySelector('[data-chain="cancel"]')!); await flush();
+    expect(written).toBeNull();
+    expect(isOn(container, 'TEMP')).toBe('false');
   });
 
   it('shows the document it writes, in the selector form and never a resolved name', async () => {
@@ -199,7 +174,7 @@ describe('SelectorField', () => {
     fireEvent.click(tab(container, 'groups'));
     await flush();
     expect(row(container, 'weather')).not.toBeNull();
-    expect(sw(container, 'weather')).not.toBeNull();
+    expect(nameOf(container, 'weather')).not.toBeNull();
   });
 
   describe('when the document defines no nodes', () => {
@@ -217,35 +192,15 @@ describe('SelectorField', () => {
     it('offers through… as unreachable rather than as a dead end', async () => {
       const { container } = mountNoNodes([]);
       await onCols(container);
-      fireEvent.click(sw(container, 'TEMP'));
-      await flush();
-      const through = row(container, 'TEMP')
-        .querySelector('[data-specify="through"]') as HTMLButtonElement;
+      const through = row(container, 'TEMP').querySelector('[data-through]') as HTMLButtonElement;
       expect(through.disabled).toBe(true);
-      expect(through.title).toMatch(/no nodes/i);
+      expect(through.title).toMatch(/no node/i);
     });
 
     it('still offers direct, which is the one qualification that needs nothing', async () => {
       const { container } = mountNoNodes([]);
       await onCols(container);
-      fireEvent.click(sw(container, 'TEMP'));
-      await flush();
-      const direct = row(container, 'TEMP')
-        .querySelector('[data-specify="direct"]') as HTMLButtonElement;
-      expect(direct.disabled).toBe(false);
-    });
-
-    it('withholds + once direct is taken, since nothing further can be specified', async () => {
-      // Both routes closed: direct is used and no chain can be built. A + here opens a panel
-      // whose every option is disabled, which is worse than not offering it.
-      const { container } = mountNoNodes([{ cols: 'PRES' }]);
-      expect(container.querySelector('[data-add-case="PRES"]')).toBeNull();
-    });
-
-    it('keeps + while a chain is still buildable', async () => {
-      const { container } = mount([{ cols: 'PRES' }]);
-      await onCols(container);
-      expect(container.querySelector('[data-add-case="PRES"]')).not.toBeNull();
+      expect(nameOf(container, 'TEMP').disabled).toBe(false);
     });
   });
 
@@ -296,9 +251,9 @@ describe('SelectorField, single', () => {
   it('reads one item back as the one value that is on', async () => {
     const { container } = one({ cols: 'PRES' });
     await onCols(container);
-    expect(sw(container, 'PRES').getAttribute('aria-checked')).toBe('true');
+    expect(isOn(container, 'PRES')).toBe('true');
     expect(casesOf(container, 'PRES')).toEqual(['direct']);
-    expect(sw(container, 'TEMP').getAttribute('aria-checked')).toBe('false');
+    expect(isOn(container, 'TEMP')).toBe('false');
     expect(writes(container)).toBe('{cols = "PRES"}');
   });
 
@@ -306,18 +261,16 @@ describe('SelectorField, single', () => {
     let written: SelectorItem | undefined | null = null;
     const { container } = one({ cols: 'PRES' }, (item) => { written = item; });
     await onCols(container);
-    fireEvent.click(sw(container, 'TEMP'));
-    await flush();
-    fireEvent.click(row(container, 'TEMP').querySelector('[data-specify="direct"]')!);
+    fireEvent.click(nameOf(container, 'TEMP'));
     await flush();
     expect(written).toEqual({ cols: 'TEMP' });
   });
 
-  it('empties the field when its value is switched off', async () => {
+  it('empties the field when its one value is clicked off', async () => {
     let written: SelectorItem | undefined | null = null;
     const { container } = one({ cols: 'PRES' }, (item) => { written = item; });
     await onCols(container);
-    fireEvent.click(sw(container, 'PRES'));
+    fireEvent.click(nameOf(container, 'PRES'));
     await flush();
     expect(written).toBeUndefined();
   });
@@ -331,15 +284,8 @@ describe('SelectorField, single', () => {
     let written: SelectorItem | undefined | null = null;
     cleanup();
     const second = one(undefined, (item) => { written = item; });
-    await onCols(second.container);
-    fireEvent.click(sw(second.container, 'TEMP'));
-    await flush();
-    fireEvent.click(row(second.container, 'TEMP').querySelector('[data-specify="through"]')!);
-    await flush();
-    fireEvent.click(nodeButton(second.container, 'TEMP', 'split'));
-    await flush();
-    fireEvent.click(builderIn(second.container, 'TEMP').querySelector('[data-chain="commit"]')!);
-    await flush();
+    open(second.container); await flush(); await onCols(second.container);
+    await chainBy(second.container, 'TEMP', ['split']);
     expect(written).toEqual({ cols: 'TEMP', through: ['split'] });
   });
 
@@ -347,7 +293,6 @@ describe('SelectorField, single', () => {
     const { container } = one({ cols: 'PRES' });
     await onCols(container);
     expect(container.querySelector('[data-move]')).toBeNull();
-    expect(container.querySelector('[data-add-case]')).toBeNull();
   });
 
   it('says the field is not set when empty, rather than showing an empty list', async () => {
@@ -496,9 +441,8 @@ describe('SelectorField, typed entry', () => {
       <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} chainFor={chainFor} />
     ));
     open(container); await flush(); await onCols(container);
-    fireEvent.click(sw(container, 'PRES')); await flush();
-    fireEvent.click(row(container, 'PRES').querySelector('[data-specify="through"]')!); await flush();
-    const offered = [...builderIn(container, 'PRES').querySelectorAll('button')].map((b) => b.textContent).filter((t) => t !== 'cancel');
+    fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();
+    const offered = [...builderIn(container, 'PRES').querySelectorAll('[data-node]')].map((e) => e.getAttribute('data-node'));
     expect(offered).toEqual(['split']);
   });
 
@@ -598,14 +542,107 @@ describe('SelectorField, teaching the keys', () => {
 
 describe('SelectorField, when its panel unfolds', () => {
   it('brings the panel into the middle of the view', async () => {
-    const scrolled = vi.spyOn(window, 'scrollBy').mockImplementation(() => {});
+    const scrolled = vi.fn(); (Element.prototype as unknown as { scrollBy: unknown }).scrollBy = scrolled;
     const { container } = mount([]);
     const panel = container.querySelector('[data-panel]')!;
     panel.getBoundingClientRect = () => ({ top: 1000, bottom: 1200, height: 200 } as DOMRect);
     open(container); await flush();
     await new Promise((done) => requestAnimationFrame(() => done(null)));
     expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ top: 716 }));
-    scrolled.mockRestore();
+    delete (Element.prototype as unknown as { scrollBy?: unknown }).scrollBy;
+  });
+});
+
+describe('SelectorField, the panel as the box', () => {
+  const nameOf = (c: HTMLElement, value: string) => row(c, value).querySelector('[data-name]') as HTMLButtonElement;
+  const through = (c: HTMLElement, value: string) => row(c, value).querySelector('[data-through]') as HTMLButtonElement;
+
+  it('adds direct on a click on the name, and removes it on the next', async () => {
+    const written: SelectorItem[][] = [];
+    const [value, setValue] = createSignal<SelectorItem[]>([]);
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value()} onChange={(items) => { written.push(items); setValue(items); }} />
+    ));
+    open(container); await flush(); await onCols(container);
+    expect(container.querySelector('[role=switch]')).toBeNull();
+    expect(container.querySelector('[data-add-case]')).toBeNull();
+    fireEvent.click(nameOf(container, 'PRES')); await flush();
+    expect(written.at(-1)).toEqual([{ cols: 'PRES' }]);
+    expect(casesOf(container, 'PRES')).toEqual(['direct']);
+    expect(nameOf(container, 'PRES').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(nameOf(container, 'PRES')); await flush();
+    expect(written.at(-1)).toEqual([]);
+  });
+
+  it('a click on the name adds direct beside a chain the value already carries', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([{ cols: 'PRES', through: ['rescale'] }], (items) => { written = items; });
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(nameOf(container, 'PRES')); await flush();
+    expect(written).toEqual([{ cols: 'PRES', through: ['rescale'] }, { cols: 'PRES' }]);
+  });
+
+  it('through… opens a builder under the row: nodes toggle, in click order, and add writes the chain', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = mount([], (items) => { written = items; });
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();
+    expect(builderIn(container, 'PRES')).not.toBeNull();
+    expect(container.querySelector('[data-value="TEMP"]')).not.toBeNull();          // the rows stay
+    fireEvent.click(nodeButton(container, 'PRES', 'split')); await flush();
+    fireEvent.click(nodeButton(container, 'PRES', 'rescale')); await flush();
+    const preview = () => builderIn(container, 'PRES').querySelector('[data-chain-preview]')!.textContent;
+    expect(nodeButton(container, 'PRES', 'split').getAttribute('aria-pressed')).toBe('true');
+    expect(preview()).toBe('→ split → rescale');
+    fireEvent.click(nodeButton(container, 'PRES', 'split')); await flush();          // deselect
+    expect(nodeButton(container, 'PRES', 'split').getAttribute('aria-pressed')).toBe('false');
+    expect(preview()).toBe('→ rescale');
+    fireEvent.click(builderIn(container, 'PRES').querySelector('[data-chain="commit"]')!); await flush();
+    expect(written).toEqual([{ cols: 'PRES', through: ['rescale'] }]);
+    expect(builderIn(container, 'PRES')).toBeNull();
+  });
+
+  it('keeps the instruction at the top of the builder, and cancels in the danger dress of Remove', async () => {
+    const { container } = mount([]);
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();
+    const builder = () => builderIn(container, 'PRES');
+    const said = () => builder().firstElementChild!;
+    expect(said().textContent).toBe('pick nodes — order matters');
+    expect(builder().children.length).toBe(3);                 // no chain yet, so no preview row
+    fireEvent.click(nodeButton(container, 'PRES', 'rescale')); await flush();
+    expect(said().textContent).toBe('pick nodes — order matters');     // it stays once a node is on
+    expect(builder().querySelector('[data-chain-preview]')!.textContent).toBe('→ rescale');
+    // Four rows, in reading order: what to do, the nodes, the chain, the actions.
+    const rows = () => [...builder().children];
+    expect(rows().length).toBe(4);
+    expect(rows()[1].querySelectorAll('[data-node]').length).toBeGreaterThan(0);
+    expect(rows()[2].hasAttribute('data-chain-preview')).toBe(true);
+    expect(rows()[3].querySelector('[data-chain="commit"]')).not.toBeNull();
+    const cancel = builder().querySelector('[data-chain="cancel"]')!;
+    expect(cancel.textContent).toBe('cancel');
+    expect(cancel.className).toContain('text-destructive');
+  });
+
+  it('reads a chain as arrows in the panel, the chip keeping the typed form', async () => {
+    const { container } = mount([{ cols: 'PRES', through: ['rescale', 'split'] }]);
+    open(container); await flush(); await onCols(container);
+    expect(row(container, 'PRES').querySelector('[data-case]')!.textContent).toContain('→ rescale → split');
+    expect(container.querySelector('[data-chip]')!.getAttribute('data-chip')).toBe('cols:PRES@rescale@split');
+  });
+
+  it('offers no add before a node is picked, and through… nothing when no node may follow', async () => {
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} chainFor={() => []} />
+    ));
+    open(container); await flush(); await onCols(container);
+    expect(through(container, 'PRES').disabled).toBe(true);
+    const { container: other } = mount([]);
+    open(other); await flush(); await onCols(other);
+    fireEvent.click(through(other, 'PRES')); await flush();
+    expect(builderIn(other, 'PRES').querySelector('[data-chain="commit"]')).toBeNull();
+    fireEvent.click(builderIn(other, 'PRES').querySelector('[data-chain="cancel"]')!); await flush();
+    expect(builderIn(other, 'PRES')).toBeNull();
   });
 });
 

@@ -93,7 +93,7 @@ describe('IRField', () => {
     // The open tab is `nodes`, the first with something to offer; it lists that vocabulary.
     expect(values).toEqual(['rescale', 'split']);
     // each value carries a switch, because it holds a *list* of qualifications rather than a flag
-    expect(container.querySelectorAll('[role=switch]').length).toBe(values.length);
+    expect(container.querySelectorAll('[data-name]').length).toBe(values.length);
   });
 
   it('shows only the chosen variant subform', () => {
@@ -274,9 +274,7 @@ describe('IRField, a lone selector', () => {
     expect(picker).toBeDefined();
     fireEvent.click(picker.querySelector('[role=tab][data-tab="cols"]')!);
     await flush();
-    fireEvent.click(picker.querySelector('[data-value="PRES"] [role=switch]')!);
-    await flush();
-    fireEvent.click(picker.querySelector('[data-value="PRES"] [data-specify="direct"]')!);
+    fireEvent.click(picker.querySelector('[data-value="PRES"] [data-name]')!);
     await flush();
     expect(written).toEqual({ type: 'rescale', suffix: 'z', partition: { cols: 'PRES' } });
 

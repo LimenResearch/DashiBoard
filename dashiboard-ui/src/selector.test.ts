@@ -88,8 +88,8 @@ describe('collapse', () => {
 
 describe('documentText', () => {
   it('writes the selector form, never a resolved column name', () => {
-    // The UI writes the TOML; DashiBoard resolves it. `month_log` must never appear here — that
-    // would be a second implementation of the suffix rule (06-design.md, A10 and amended C2).
+    // The UI writes the document; the server resolves it. `month_log` must never appear here —
+    // that would be a second implementation of the suffix rule.
     expect(
       documentText([
         { kind: 'cols', value: 'No', chain: [] },

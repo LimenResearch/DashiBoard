@@ -7,5 +7,5 @@
 LocalPreferences.toml
 
 # local tooling scratch — never committed
-.claude/worktrees/
+.claude/
 .superpowers/

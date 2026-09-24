@@ -18,6 +18,7 @@ makedocs(
         "Overview" => "index.md",
         "Getting Started" => "getting-started.md",
         "UI Guide" => "ui-guide.md",
+        "Embedding the UI" => "embedding.md",
         "N-Body Problem Guide" => "nbody-guide.md",
         "Deep Learning Guide" => "dl-guide.md",
         "DuckDBUtils API" => "lib/DuckDBUtils.md",

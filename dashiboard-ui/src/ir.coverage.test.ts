@@ -5,9 +5,8 @@ import payload from './fixtures/card-ir.json';
 // A contract test between the Julia IR and this renderer. The fixture is the real payload
 // POST /get-card-ir serves for the ten registered cards; regenerate it with
 //   julia --project=Pipelines/test  (see the dump in the commit message)
-// If Julia starts emitting a node type this mapping does not handle, this fails rather than
-// silently rendering nothing. Decisions section 13 calls this seam the one most likely to be
-// got wrong.
+// If the server starts emitting a node type this mapping does not handle, this fails rather than
+// silently rendering nothing — the seam most likely to be got wrong.
 
 const defs = payload.defs as Defs;
 const cards = payload.cards as Record<string, IRNode>;

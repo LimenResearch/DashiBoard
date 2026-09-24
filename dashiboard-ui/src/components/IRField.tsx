@@ -8,14 +8,13 @@ import type { SelectorRow } from "../selector";
 import { defaultsFor, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
-// `widgetFor` returns. Decisions section 13 is what makes this a switch over a closed set
-// rather than an attempt to recover intent from JSON Schema keywords.
+// `widgetFor` returns — a switch over a closed set rather than an attempt to recover intent from
+// JSON Schema keywords.
 //
 // Select and multiselect use native controls rather than the choices.js `Combobox`. That is
-// deliberate and temporary: 08-frontend-rebuild.md records the Combobox rebuilding its whole
-// option list on every selection, and wiring the renderer to it before that resync is hardened
-// would bake the flicker into every field. Both sit behind the same descriptor, so swapping is
-// a one-component change. A native `<select multiple>` also shows every option without typing,
+// deliberate and temporary: the `Combobox` rebuilds its whole option list on every selection, and
+// wiring the renderer to it before that is hardened would bake the flicker into every field. Both
+// sit behind the same descriptor, so swapping is a one-component change. A native `<select multiple>` also shows every option without typing,
 // which was the original complaint about the old select.
 
 type IRFieldProps = {

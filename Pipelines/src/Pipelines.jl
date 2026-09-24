@@ -13,13 +13,20 @@ export Card,
     StreamlinerCard,
     WildCard
 
-public get_metadata, register_card, CardSpec, card_widgets
+public get_metadata, register_card, CardSpec
+
+# The two artefacts of one traversal. `card_schema` was already called by
+# ExperimentTracking without being declared; `card_ir` and `ir_definitions` are its consumers'
+# new entry points. The IR types are deliberately NOT public: an IR serialises through
+# `JSON.json` via DashiBase's `show`, so a consumer needs no type name from here.
+public card_ir, ir_definitions, card_schema
 
 public register_wild_card, WildCardSettings
 
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
-public get_source_vars, get_output_vars
+public get_source_vars, get_output_vars, unproduced_references, get_id, issue_report,
+    card_issues
 
 public train!, evaljoin, train_evaljoin!
 
@@ -31,9 +38,6 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
-
-using TOML: TOML
-using RelocatableFolders: @path
 
 using JLD2: jldopen
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
@@ -160,14 +164,7 @@ using Dates: hour, minute
 const AbstractPrimaryKey = AbstractString
 const PrimaryKey = String
 
-function parse_toml_config(args...)::StringDict
-    fs..., l = args
-    path = @path joinpath(@__DIR__, "..", "assets", fs..., string(l, ".toml"))
-    return TOML.parsefile(path)
-end
-
 include("tables.jl")
-include("widgets.jl")
 include("utils.jl")
 
 include("dict_helpers.jl")

@@ -214,29 +214,3 @@ function evaluate(
     end
     return map(first, rescaled)
 end
-
-## UI representation
-
-function CardWidget(
-        ::Type{RescaleCard}, key::AbstractString;
-        global_options::AbstractDict, user_options::AbstractDict
-    )
-
-    config = CardWidgetConfigs(parse_toml_config("config", key))
-    c = combine_options(config.widget_configs; global_options, user_options)
-
-    methods = collect(keys(RESCALERS))
-    need_group = String[k for (k, v) in pairs(RESCALERS) if !isempty(v.stats)]
-
-    fields = [
-        Widget("method", c; options = methods),
-        Widget("group_by", c, visible = Dict("method" => need_group), required = false),
-        Widget("inputs", c),
-        Widget("targets", c, required = false),
-        Widget("partition", c, required = false),
-        Widget("suffix", c, value = "rescaled"),
-        Widget("target_suffix", c, value = "", required = false),
-    ]
-
-    return CardWidget(key, fields, OutputSpec("inputs", "suffix"))
-end

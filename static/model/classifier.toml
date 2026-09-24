@@ -16,12 +16,9 @@ agg = "mean"
 name = "accuracy"
 agg = "mean"
 
-[[widgets]]
+[[properties]]
 key = "features"
-widget = "input"
-label = "Features"
-placeholder = "Select number of features"
-type = "number"
-min = 1
-step = 1
-value = 5
+title = "Features"
+description = "Number of features"
+type = "integer"
+minimum = 1

@@ -8,12 +8,9 @@ shuffle = false
 name = "Adam"
 eta = 1e-2
 
-[[widgets]]
+[[properties]]
 key = "iterations"
-widget = "input"
-label = "Iterations"
-placeholder = "Select number of iterations"
-type = "number"
-min = 1
-step = 1
-value = 10
+title = "Iterations"
+description = "Number of iterations"
+type = "integer"
+minimum = 1

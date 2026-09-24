@@ -34,7 +34,6 @@ end
 function parse_without_properties(dir, x)
     file = string(x, ".toml")
     c = TOML.parsefile(joinpath(dir, file))
-    delete!(c, "widgets")
     delete!(c, "properties")
     return c
 end

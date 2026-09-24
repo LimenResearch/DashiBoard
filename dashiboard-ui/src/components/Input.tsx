@@ -1,0 +1,76 @@
+// The text field.
+//
+// Height, not vertical padding. Sizing a control by padding around a large font is what made our
+// Button three times the size of its host's. The height itself is a token now rather than a
+// literal, so a roomier host can resize this field through the same channel it repaints it — see
+// the density block in App.css.
+//
+// It carries an `invalid` state because the probe addresses each failure by JSON Pointer, so a
+// field can be told it is the offender; without a state to render, that information has nowhere to
+// land but a banner above the page.
+
+const BASE =
+  "h-control-xs rounded-sm border px-2 text-control-xs outline-none ring-offset-2 focus:ring-2 focus:ring-ring";
+
+type InputProps = {
+  type?: string;
+  /**
+   * Extra classes, for layout — `w-full` and the like.
+   *
+   * Concatenated, not merged. Solid's `class` array form joins strings and resolves nothing, so
+   * passing a *size* here does not override the base: both utilities apply and the one declared
+   * later in the generated CSS wins, which is `text-detail` over `text-control-xs` and
+   * `h-control-xs` over `h-control-sm` — an order nothing at the call site can see or influence.
+   *
+   * nexus-weaver hit the inverse with tailwind-merge, which does resolve conflicts but from a
+   * table of Tailwind's own names: a custom `text-detail` was unrecognised, fell back to being
+   * treated as a *colour*, and was destroyed outright by any colour class beside it — 43
+   * elements, whole suite green. Our composition cannot make that mistake because it makes no
+   * decision at all; the cost is that a collision here is silent in a different way. Pass layout,
+   * not size.
+   */
+  class?: string;
+  value?: string;
+  placeholder?: string;
+  id?: string;
+  required?: boolean;
+  disabled?: boolean;
+  /** Marks the field as the offender, for both sighted users and assistive tech. */
+  invalid?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  "aria-label"?: string;
+  onChange?: (e: Event & { currentTarget: HTMLInputElement }) => void;
+};
+
+export function Input(props: InputProps) {
+  return (
+    <input
+      type={props.type ?? "text"}
+      // Solid 2's `class` takes arrays and objects directly; building the string by hand re-runs
+      // the whole expression on every change.
+      class={[
+        BASE,
+        {
+          "border-destructive text-destructive": props.invalid === true,
+          "border-border": props.invalid !== true,
+        },
+        props.class ?? "",
+      ]}
+      value={props.value}
+      placeholder={props.placeholder}
+      id={props.id}
+      required={props.required}
+      disabled={props.disabled ?? false}
+      aria-invalid={props.invalid === true ? "true" : "false"}
+      aria-label={props["aria-label"]}
+      min={props.min}
+      max={props.max}
+      step={props.step}
+      // Wrapped rather than bound directly: an event handler on a native element is not reactive
+      // the way other JSX props are, so a direct binding captures the first value of the prop.
+      onChange={(e) => props.onChange?.(e)}
+    />
+  );
+}

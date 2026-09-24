@@ -133,32 +133,3 @@ function (cc::ClusterCard)(model, t, id_var::AbstractPrimaryKey)
     # we simply return those used for the prediction with the correct indices
     return SimpleTable(id_var => model.id, cc.output => model.label)
 end
-
-## UI representation
-
-function CardWidget(
-        ::Type{ClusterCard}, key::AbstractString;
-        global_options::AbstractDict, user_options::AbstractDict
-    )
-
-    config = CardWidgetConfigs(parse_toml_config("config", key))
-    c = combine_options(config.widget_configs; global_options, user_options)
-
-    methods = collect(keys(CLUSTERING_METHODS))
-    support_weights = ["kmeans"]
-
-    fields = vcat(
-        [
-            Widget("inputs", c),
-            Widget("method", c, options = methods),
-        ],
-        method_dependent_widgets(c, "method", config.methods),
-        [
-            Widget("weights", c, visible = "method" => support_weights, required = false),
-            Widget("partition", c, required = false),
-            Widget("output", c),
-        ]
-    )
-
-    return CardWidget(key, fields, OutputSpec("output"))
-end

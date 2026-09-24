@@ -75,31 +75,3 @@ function (drc::DimensionalityReductionCard)(model, t, id_var::AbstractPrimaryKey
     end
     return pred_table
 end
-
-## UI representation
-
-function CardWidget(
-        ::Type{DimensionalityReductionCard}, key::AbstractString;
-        global_options::AbstractDict, user_options::AbstractDict
-    )
-
-    config = CardWidgetConfigs(parse_toml_config("config", key))
-    c = combine_options(config.widget_configs; global_options, user_options)
-
-    methods = collect(keys(PROJECTION_METHODS))
-
-    fields = vcat(
-        [
-            Widget("inputs", c),
-            Widget("method", c, options = methods),
-            Widget("n_components", c),
-        ],
-        method_dependent_widgets(c, "method", config.methods),
-        [
-            Widget("partition", c, required = false),
-            Widget("output", c, value = "component"),
-        ]
-    )
-
-    return CardWidget(key, fields, OutputSpec("output", nothing, "n_components"))
-end

@@ -106,30 +106,3 @@ function evaluate(
     replace_table(repository, query, destination; schema)
     return [sc.output]
 end
-
-## UI representation
-
-function CardWidget(
-        ::Type{SplitCard}, key::AbstractString;
-        global_options::AbstractDict, user_options::AbstractDict
-    )
-
-    config = CardWidgetConfigs(parse_toml_config("config", key))
-    c = combine_options(config.widget_configs; global_options, user_options)
-
-    methods = collect(keys(SPLITTING_METHODS))
-
-    fields = vcat(
-        [
-            Widget("method", c; options = methods),
-        ],
-        method_dependent_widgets(c, "method", config.methods),
-        [
-            Widget("order_by", c),
-            Widget("group_by", c, required = false),
-            Widget("output", c, value = "partition"),
-        ]
-    )
-
-    return CardWidget(key, fields, OutputSpec("output"))
-end

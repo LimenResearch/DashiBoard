@@ -1,0 +1,600 @@
+@import 'tailwindcss';
+
+/* Self-hosted rather than fetched from Google: DashiBoard runs standalone, sometimes on machines
+   that cannot reach a font CDN, and a webfont that silently falls back looks like a styling
+   decision rather than a missing dependency. These ship in the bundle. */
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+/*
+  The design tokens (C5).
+
+  Names, authoring form and derivation are not ours to choose: `06-design.md`'s C5 contract says a
+  host writes its token values "straight onto the frame's `:root` with no parsing", so any name we
+  invented would simply not be overridden. Values are therefore bare `H S% L%` triplets — never
+  `hsl(...)` — and every consumer writes `hsl(var(--token))`, with `hsl(var(--token) / 0.3)` for
+  alpha. Token *names* mirror `05-nexus-weaver-brief.md` §3b exactly.
+
+  **The values are the host's, verbatim from nexus-weaver-pro `main` at 2b6cef5** (supplied by
+  that session 2026-09-10, post PR #15). Owner decision: DashiBoard adopts the host's default
+  scheme, not merely its token names — so these are copied, never approximated. Two things that
+  session corrected in passing: everything here is committed, not working-tree state, and
+  `--primary-glow` is now authoritative (`.gradient-primary` dereferences the token instead of
+  hardcoding teal), so our brief's §3c notes on both are stale.
+
+  These are defaults, not configuration. §9 layer 1 requires DashiBoard to run standalone, so the
+  frame ships a complete palette and a missing or malformed payload is a degradation rather than a
+  failure. Nothing here may become the only definition of a colour.
+
+  Not defined here, deliberately:
+  - the eight `--sidebar-*` tokens — host chrome, which §3b says an embedded UI should not use;
+  - `--gradient-primary` — nothing here paints a gradient. It may still arrive in a payload and
+    land harmlessly. `--primary-glow` *is* carried: it stopped being dead upstream and is now the
+    gradient's second stop, so it is a value worth staying in step with even unused.
+*/
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: 210 20% 98%;
+  --foreground: 220 20% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 20% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 20% 10%;
+  --primary: 174 62% 32%;
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: 174 62% 42%;
+  --secondary: 210 14% 93%;
+  --secondary-foreground: 220 20% 20%;
+  --muted: 210 14% 95%;
+  --muted-foreground: 220 10% 46%;
+  --accent: 174 30% 92%;
+  --accent-foreground: 174 62% 25%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 90%;
+  --input: 220 13% 90%;
+  /* Derived, exactly as the host derives it — so a ring never stops matching the button it rings.
+     A host publishing computed styles sends this as a resolved triplet, which overrides cleanly. */
+  --ring: var(--primary);
+
+  --success: 160 60% 32%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 33%;
+  --warning-foreground: 0 0% 100%;
+  --info: 200 80% 39%;
+  --info-foreground: 0 0% 100%;
+
+  /* Tells the browser which way to render the widgets it owns — the dropdown list and its
+     highlight, scrollbars, spinners. Styling `option` reaches almost none of that and is ignored
+     outright on several platforms, so this is the fix rather than a fallback. */
+  color-scheme: light;
+
+  --radius: 0.5rem;
+
+  /*
+    Typeface, tokenised for the reason density is. A hardcoded family is one a host payload cannot
+    reach — and `--font-*` costs nothing until someone needs it.
+
+    Two faces because this UI names things. Column names, node ids and pass-through chains are
+    *identifiers*: `PRES`, `_tiled_partition`, `rescale → log`. Setting them in mono is not
+    decoration — it is the difference between reading a label and reading a name, and it makes a
+    trailing underscore or a doubled character visible instead of plausible.
+
+    Divergence worth knowing: nexus-weaver runs Inter. Embedded, our type will not match its host.
+    That is deliberate — this is DashiBoard's own identity, the same call as keeping our own
+    palette — but it is the one axis where matching was never attempted rather than attempted and
+    missed.
+  */
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+
+  /*
+    Density, as tokens rather than as literals — the other half of the adaptation contract.
+
+    Colour was adaptable and density was not: a host could repaint this frame completely and
+    could not resize it at all. That only became visible when nexus-weaver re-measured their
+    census and it turned out there was no single host density to copy — they run two conventions
+    split by feature area. An axis that varies between surfaces cannot be handled by matching one
+    of them.
+
+    **Vocabulary agreed with nexus-weaver-pro, 2026-09-12**: `--control-<property>-<step>`, with
+    step names matching the variant API so `size="sm"` and `--control-height-sm` are visibly the
+    same thing. Values are theirs too, so a step means the same measurement on both sides; which
+    step an app *uses* is its own density choice. We run `xs`.
+
+    Three properties per step, not two. Tailwind's `text-xs` sets font-size **and** line-height,
+    so a token carrying only the size silently drops the leading and the control inherits whatever
+    surrounds it — right on the page it was written for, drifting everywhere else. We shipped
+    exactly that bug for three commits; their warning is what found it.
+
+    These are geometry, so `:root` only and never `.dark` — they are named in the palette-parity
+    test's exception list for that reason.
+
+    Two mechanisms, and they do not cover the same ground.
+
+    **Same-document, inheritance does the work.** A custom property inherits, so a subtree that
+    redeclares a step resizes every control inside it with no call site naming a size — a dense
+    panel beside a roomy canvas, in one document, costs three declarations.
+
+    **Across a frame it does nothing.** Custom properties do not inherit through an iframe; that
+    is the first line of C5 and has been since 2026-09-09. An earlier version of this comment said
+    a host could set density on a wrapper the way it sets a palette. That is false, and it was
+    false in a way our own design doc already recorded — corrected 2026-09-12 after
+    nexus-weaver-pro withdrew the claim and dashiboard-d6 caught it.
+
+    So embedded, density rides the same payload as the palette: no *second* channel to design,
+    which is the true and useful half, but not "no protocol". Nothing is built on either side yet
+    — no postMessage, no URL theming, no token enumeration — so there is nothing to receive and a
+    receiver here would sit idle. Standalone working on its own is what makes that a schedule
+    fact rather than a problem.
+
+    **When the sender is written, enumerate the token set rather than listing properties.**
+    Density was missing from the adaptation contract in the first place because colour was
+    enumerated by hand and nothing else was conceived of as varying. A hand-written list
+    reproduces that the next time a category appears, and a payload missing a token looks exactly
+    like a complete one.
+  */
+  --control-height-default: 2.5rem;
+  --control-height-sm: 2rem;
+  --control-height-xs: 1.75rem;
+
+  --control-text-default: 0.875rem;
+  --control-text-sm: 0.75rem;
+  --control-text-xs: 0.75rem;
+
+  --control-leading-default: 1.25rem;
+  --control-leading-sm: 1rem;
+  --control-leading-xs: 1rem;
+
+  /* Secondary text — a label beside a control, not a control, so not on that scale. */
+  --text-detail: 0.625rem;
+  --text-detail-leading: 0.875rem;
+
+  --shadow-card: 0 1px 3px 0 hsl(220 20% 10% / 0.06), 0 1px 2px -1px hsl(220 20% 10% / 0.06);
+  --shadow-elevated: 0 4px 12px -2px hsl(220 20% 10% / 0.08), 0 2px 6px -2px hsl(220 20% 10% / 0.04);
+}
+
+/*
+  Every token gets a dark value, including the status scales and the shadows.
+
+  That is not thoroughness for its own sake: §3c records the host shipping a `.dark` block that
+  omitted exactly those, which was invisible only while dark mode was unreachable. Transmitting
+  tokens is what forces a palette to be complete, so the gap arrives the moment the contract does.
+
+  Two rules from §3b that a light palette does not prepare you for. Status hues lift 8-10% in
+  lightness, and **their foregrounds flip from white to the page ground** — mirroring the
+  light-mode white-on-everything convention makes lifted warning yellow unreadable. And shadows go
+  from tinted to pure black at higher alpha, since a tinted shadow is invisible on a dark ground.
+*/
+.dark {
+  color-scheme: dark;
+
+  --background: 220 20% 7%;
+  --foreground: 220 10% 90%;
+  --card: 220 20% 10%;
+  --card-foreground: 220 10% 90%;
+  --popover: 220 20% 10%;
+  --popover-foreground: 220 10% 90%;
+  --primary: 174 62% 48%;
+  --primary-foreground: 220 20% 7%;
+  --primary-glow: 174 62% 58%;
+  --secondary: 220 20% 15%;
+  --secondary-foreground: 220 10% 85%;
+  --muted: 220 20% 14%;
+  --muted-foreground: 220 10% 55%;
+  --accent: 174 30% 15%;
+  --accent-foreground: 174 62% 60%;
+  /*
+    Lifted from L50%, and the foreground flipped — our one deliberate divergence from the host's
+    palette, because their value fails here.
+
+    Measured: `0 62% 50%` on `--card` is **3.49**, under AA, and `text-destructive` on a card is
+    shipped — probe errors, the invalid interval bound, the Remove label. L50% only looked safe
+    because their own contrast pass measured light-mode status colours on white and never measured
+    destructive-on-card in dark.
+
+    L60% takes it to 4.69 on card. That breaks white-on-fill (3.80), which is the same trade they
+    documented for `--primary` — and it has the same answer, already used for the other three
+    status scales in this block: the foreground flips to the page ground, giving 4.99. Destructive
+    was the only status colour in their dark palette still carrying white, which is precisely why
+    it was the one that failed. This applies their rule rather than inventing one.
+  */
+  --destructive: 0 62% 60%;
+  --destructive-foreground: 220 20% 7%;
+  --border: 220 20% 18%;
+  --input: 220 20% 18%;
+  --ring: var(--primary);
+
+  --success: 160 55% 48%;
+  --success-foreground: 220 20% 7%;
+  --warning: 38 92% 58%;
+  --warning-foreground: 220 20% 7%;
+  --info: 200 80% 58%;
+  --info-foreground: 220 20% 7%;
+
+  /* `--radius` has no dark variant, correctly — it is a length, not a colour. */
+
+  --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.4), 0 1px 2px -1px hsl(0 0% 0% / 0.4);
+  --shadow-elevated: 0 4px 12px -2px hsl(0 0% 0% / 0.5), 0 2px 6px -2px hsl(0 0% 0% / 0.3);
+}
+
+/*
+  `inline` so a utility compiles to `hsl(var(--primary))` rather than to a second variable holding
+  it. Either resolves a runtime `:root` rewrite correctly; this one keeps the indirection the
+  payload has to travel through down to one hop.
+
+  The radius scale is *derived* rather than authored, matching §3b: transmit `--radius` and compute
+  the rest, so a host that sends a different one reshapes the whole scale.
+*/
+@utility h-control-xs {
+  height: var(--control-height-xs);
+}
+
+@utility h-control-sm {
+  height: var(--control-height-sm);
+}
+
+@utility h-control-default {
+  height: var(--control-height-default);
+}
+
+/* Font size and leading together, always — separating them is how the leading goes missing. */
+@utility text-control-xs {
+  font-size: var(--control-text-xs);
+  line-height: var(--control-leading-xs);
+}
+
+@utility text-control-sm {
+  font-size: var(--control-text-sm);
+  line-height: var(--control-leading-sm);
+}
+
+@utility text-control-default {
+  font-size: var(--control-text-default);
+  line-height: var(--control-leading-default);
+}
+
+@utility text-detail {
+  font-size: var(--text-detail);
+  line-height: var(--text-detail-leading);
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-elevated: var(--shadow-elevated);
+}
+
+/*
+  The density convention.
+
+  No custom spacing scale, and there should not be one — the host runs stock Tailwind, so a scale
+  of our own would be a second source of truth for sizes.
+
+  **Corrected 2026-09-11.** The first census we were given was measured with a single-line grep
+  that missed 64 of 91 multi-line `<Input>` tags. The re-measured figures say close to the
+  opposite, and the earlier version of this block asserted a convention that described about a
+  third of the host's inputs:
+
+    Button         n=186   h-9 x80, h-7 x33, h-10 x22, h-6 x20, h-8 x15, h-5 x11, h-4 x5
+    Input          n=91    h-10 x54 (shadcn default), h-8 x21, h-7 x11, h-6 x4, h-9 x1
+    SelectTrigger  n=33    h-10 x18 (shadcn default), h-8 x7, h-9 x4, h-7 x4
+
+  So the host's *modal* control is shadcn's own h-10, and compact is a minority override. It is
+  also not drift: of 31 files, 14 are entirely compact and 13 entirely default, split by feature
+  area rather than by surface kind — their densest screen and their roomiest are both dialogs.
+
+  **We stay compact, for a reason that survives the correction.** The only DashiBoard relationship
+  that repository models is `RichNode.dashiboardPipelineId` — a node in the graph — and graph
+  authoring is on the compact side of their split. So this matches the surface we would actually
+  be embedded beside, which is a checkable claim, rather than "the host's convention", which was
+  not one. If the embed ever lands next to their roomy surfaces instead, this is the block to
+  revisit.
+
+    form controls  h-7, text-xs. Height, not vertical padding: sizing a control by padding around
+                   a large font is what made our Button three times its host's.
+    body text      text-xs
+    headings       none. Section headers are text-xs/text-sm with font-medium/font-semibold;
+                   text-base and above is headings only, upstream and here. Building a real
+                   heading scale would make us look less like the host, not more.
+    gaps           gap-1.5 / gap-2
+    card padding   p-2.5 / p-3
+    table cells    px-2 py-1.5. NOT px-1 py-0 — that is badge padding.
+    icons          h-3 w-3
+
+  **The type scale was retracted too, 2026-09-12.** It had been offered as the half that held up.
+  Re-measured, 475 of 921 sized-text tokens there — 51% — are arbitrary values below `text-xs`, in
+  five distinct sizes across 65 files. Their type scale is the *least* consolidated thing in their
+  system, not the settled part. Nothing of it is synced here.
+
+  Worth recording how that was missed, because we repeated it. Their pattern was
+  `\btext-(\[[0-9]+px\]|xs|sm)\b`, and `\b` cannot match between `-` and `[`, so the alternative
+  naming the arbitrary form matched nothing and returned a clean-looking result. We then reasoned
+  from that absence: this comment used to say the bracket sizes were "absent from the corrected
+  census, so our few uses of them are ours". Backwards. They were absent because the measurement
+  could not see them, and they are half of that codebase's text. An absence is only evidence when
+  the method that produced it has been shown able to find the thing.
+
+  **Our scale is two sizes, and that is the decision.** `--control-text-*` for anything in a
+  control, `--text-detail` for a label beside one. A value below Tailwind's scale can only be
+  spelled as an arbitrary value, and arbitrary values collide with nothing — so nothing ever
+  forces a choice between 9px and 10px, and they accumulate silently. We had one (`text-[9px]` on
+  a tab badge) and folded it into `--text-detail` rather than making it a third. The invariant in
+  `designSystem.test.ts` is what keeps that from being a one-off tidy.
+*/
+
+
+/*
+  choices.js, brought inside the system.
+  
+  It ships its own stylesheet, which is normally where a third-party control stops matching
+  everything around it. This one is already fully tokenised — every colour and measurement is a
+  `--choices-*` custom property with a hardcoded fallback — so it does not need replacing or
+  overriding rule by rule. Setting the variables is enough, and a `var()` fallback only applies
+  when the property is unset, so these win without a specificity fight.
+
+  Both halves matter. The colours make it stop looking like a different library; the measurements
+  make it stop looking like a different application. Its default control is 44px tall against our
+  28px, which at this density is the loudest thing on the page.
+
+  Every value here dereferences one of our tokens, so dark mode and any host payload are already
+  handled — there is no `.dark` variant of this block and there must not be one.
+*/
+:root {
+  /* colour */
+  --choices-bg-color: hsl(var(--background));
+  --choices-bg-color-dropdown: hsl(var(--popover));
+  --choices-bg-color-disabled: hsl(var(--muted));
+  --choices-disabled-color: hsl(var(--muted-foreground));
+  --choices-text-color: hsl(var(--foreground));
+  --choices-keyline-color: hsl(var(--border));
+  --choices-primary-color: hsl(var(--primary));
+  --choices-highlight-color: hsl(var(--primary));
+  --choices-highlighted-color: hsl(var(--accent));
+  --choices-item-color: hsl(var(--primary-foreground));
+  --choices-item-disabled-color: hsl(var(--muted-foreground));
+  --choices-invalid-color: hsl(var(--destructive));
+
+  /* `darken`/`lighten` are the two ends of its color-mix() shading. Pointing them at foreground
+     and background rather than at literal black and white makes them swap round in dark mode,
+     where darkening a border is the wrong direction. */
+  --choices-darken: hsl(var(--foreground));
+  --choices-lighten: hsl(var(--background));
+
+  /* density — the h-7 control, not the 44px one */
+  --choices-input-height: 1.75rem;
+  --choices-font-size-lg: 0.75rem;
+  --choices-font-size-md: 0.75rem;
+  --choices-font-size-sm: 0.625rem;
+  --choices-inner-padding: 0.125rem 0.375rem;
+  --choices-inner-one-padding: 0.125rem 0.375rem;
+  --choices-dropdown-item-padding: 0.25rem 0.5rem;
+  --choices-multiple-item-padding: 0.0625rem 0.375rem;
+  --choices-multiple-item-margin: 0.125rem;
+  --choices-input-margin-bottom: 0.125rem;
+  --choices-guttering: 0.5rem;
+
+  /* radius derives, like everything else, so a transmitted --radius reaches it too */
+  --choices-border-radius: calc(var(--radius) - 4px);
+  --choices-border-radius-item: calc(var(--radius) - 2px);
+}
+
+
+/*
+  ag-grid Quartz, brought inside the system — the same move as choices.js above, and for the same
+  reason: it is variable-driven, so it does not need overriding rule by rule.
+
+  Its stylesheets had never been imported at all. `ag-theme-quartz` was on the element while
+  `@ag-grid-community/styles` was not installed, so the class named a theme that did not exist —
+  the third silent no-op of this shape, after `form-checkbox` and the hardcoded gradient next door.
+  A grid without `ag-grid.css` is not merely unthemed, it is structurally unstyled.
+
+  Density matters more here than anywhere else on the page, because a grid repeats its row height
+  once per row. Quartz ships 42px rows; ours are 28px, matching every other control.
+*/
+/*
+  The class is doubled deliberately. ag-grid sets these same properties on `.ag-theme-quartz` in
+  its own stylesheet, so at equal specificity the winner is whichever file the bundler happens to
+  emit second. It is ours today; that is chunk ordering, not a guarantee. Doubling the class costs
+  nothing and settles it.
+
+  choices.js above needs no such trick: it only ever *reads* its variables with `var(…, fallback)`
+  and never sets them, so a fallback yields the moment we define one.
+*/
+.ag-theme-quartz.ag-theme-quartz {
+  /* surface */
+  --ag-background-color: hsl(var(--background));
+  --ag-foreground-color: hsl(var(--foreground));
+  --ag-data-color: hsl(var(--foreground));
+  --ag-secondary-foreground-color: hsl(var(--muted-foreground));
+  --ag-disabled-foreground-color: hsl(var(--muted-foreground));
+  --ag-border-color: hsl(var(--border));
+  --ag-secondary-border-color: hsl(var(--border));
+  --ag-wrapper-border-radius: var(--radius);
+  --ag-border-radius: calc(var(--radius) - 4px);
+
+  /* header */
+  --ag-header-background-color: hsl(var(--muted));
+  --ag-header-foreground-color: hsl(var(--muted-foreground));
+  --ag-subheader-background-color: hsl(var(--muted));
+
+  /* rows */
+  --ag-odd-row-background-color: hsl(var(--background));
+  --ag-row-hover-color: hsl(var(--accent));
+  --ag-column-hover-color: hsl(var(--accent));
+  --ag-selected-row-background-color: hsl(var(--accent));
+  --ag-row-loading-skeleton-effect-color: hsl(var(--muted));
+
+  /* accents and state */
+  --ag-active-color: hsl(var(--primary));
+  --ag-checkbox-checked-color: hsl(var(--primary));
+  --ag-checkbox-unchecked-color: hsl(var(--muted-foreground));
+  --ag-checkbox-background-color: hsl(var(--background));
+  --ag-range-selection-background-color: hsl(var(--primary) / 0.1);
+  --ag-range-selection-border-color: hsl(var(--primary));
+  --ag-invalid-color: hsl(var(--destructive));
+  --ag-input-border-color: hsl(var(--border));
+  --ag-input-border-color-invalid: hsl(var(--destructive));
+  --ag-input-focus-border-color: hsl(var(--ring));
+
+  /* floating surfaces */
+  --ag-menu-background-color: hsl(var(--popover));
+  --ag-menu-border-color: hsl(var(--border));
+  --ag-panel-background-color: hsl(var(--popover));
+  --ag-panel-border-color: hsl(var(--border));
+  --ag-control-panel-background-color: hsl(var(--muted));
+  --ag-tooltip-background-color: hsl(var(--popover));
+  --ag-chip-background-color: hsl(var(--secondary));
+  --ag-chip-border-color: hsl(var(--border));
+  --ag-modal-overlay-background-color: hsl(var(--background) / 0.7);
+  --ag-card-shadow: var(--shadow-elevated);
+  --ag-popup-shadow: var(--shadow-elevated);
+
+  /* density — 28px rows, not Quartz's 42 */
+  --ag-font-family: inherit;
+  --ag-font-size: 0.75rem;
+  --ag-grid-size: 4px;
+  --ag-row-height: 1.75rem;
+  --ag-header-height: 1.75rem;
+  --ag-list-item-height: 1.5rem;
+  --ag-cell-horizontal-padding: 0.5rem;
+  --ag-icon-size: 0.75rem;
+}
+
+
+/*
+  The pipeline graph.
+
+  Graphviz bakes colours into the SVG as presentation attributes, which CSS outranks — so the
+  graph can follow the tokens even though it is generated server-side, where the theme is not
+  knowable. It cannot be fixed in the DOT: the mode is per-viewer and can change at runtime by
+  postMessage, long after the DOT was produced.
+
+  Left alone deliberately: `font-family` and `font-size`. Graphviz computes every coordinate in
+  the SVG from the font it laid out with, so restyling the type does not restyle the drawing —
+  it moves the text out of the boxes. Times,serif is foreign to us and stays.
+
+  What this fixes is the §3c failure next door, arriving by a different route: `<text>` carries no
+  fill at all, so it inherits SVG's black default — legible on a light ground and invisible on a
+  dark one, with nothing to warn you.
+*/
+.dashi-graph text {
+  fill: hsl(var(--foreground));
+}
+
+/* Node outlines and group ellipses. */
+.dashi-graph polygon[stroke="black"],
+.dashi-graph ellipse[stroke="black"] {
+  stroke: hsl(var(--border));
+}
+
+/* A filled node means "this one would be recomputed" — the one piece of state the graph carries,
+   so the distinction from a transparent node has to survive the retint in both modes. */
+.dashi-graph polygon[fill="white"],
+.dashi-graph ellipse[fill="white"] {
+  fill: hsl(var(--card));
+}
+
+/* Edges, and the arrowheads that terminate them — one colour, or the head detaches from its line. */
+.dashi-graph path[stroke="black"] {
+  stroke: hsl(var(--muted-foreground));
+}
+
+.dashi-graph polygon[fill="black"] {
+  fill: hsl(var(--muted-foreground));
+  stroke: hsl(var(--muted-foreground));
+}
+
+/*
+  The disclosure chevron turns with its *own* disclosure.
+
+  `details[open] > summary` is a direct-child chain, so it reads the state of the nearest
+  `<details>` and nothing above it. Tailwind's `group-open` variant cannot express this: it
+  compiles to `:is(.group:is([open]) *)`, which matches every descendant of every open group, so a
+  nested chevron turned when its parent opened and then stayed turned regardless of its own state.
+*/
+details[open] > summary .disclosure-chevron {
+  rotate: 90deg;
+}
+
+/*
+  Native form controls, which the browser draws itself.
+
+  `color-scheme` above is the right mechanism and it covers the control, the scrollbars and the
+  spinners — the closed `<select>` renders dark from it alone. It does not reach the *popup*:
+  several browsers draw the option list with OS widgets, Firefox on Linux most visibly, and there
+  `color-scheme` governs the chrome but not the rows. These rules reach the rows.
+
+  One limit worth writing down rather than rediscovering: the highlight on the row under the
+  cursor is drawn by the platform in some browsers and no CSS changes it. `option:checked` is
+  honoured and covers the selected row, which is the one that reads as wrong on a dark ground.
+*/
+select {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+option {
+  background-color: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+}
+
+option:checked {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+option:disabled {
+  color: hsl(var(--muted-foreground));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* custom atomic class to avoid "jumps" when scrollbar appears */
+
+.scrollbar-gutter-stable {
+    scrollbar-gutter: stable;
+}

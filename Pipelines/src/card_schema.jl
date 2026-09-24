@@ -7,15 +7,22 @@ end
 
 # Card schema
 
-function schema_definitions(variables::AbstractVector)
-    variable_schema = StringIR(enum = variables)
-    variables_schema = ArrayIR{String}(items = VARIABLE_DEF, default = String[])
-    nonempty_variables_schema = ArrayIR{String}(items = VARIABLE_DEF, minItems = 1)
+"""
+    ir_definitions(variables::AbstractVector)
+
+Return the shared `\$defs` entries as IR nodes, for a renderer to resolve `ReferenceIR`s against.
+`schema_definitions` is this projected through `json_schema`, so the two cannot drift.
+"""
+function ir_definitions(variables::AbstractVector)
     return StringDict(
-        "variable" => json_schema(variable_schema),
-        "variables" => json_schema(variables_schema),
-        "nonempty_variables" => json_schema(nonempty_variables_schema),
+        "variable" => StringIR(enum = variables),
+        "variables" => ArrayIR{String}(items = VARIABLE_DEF, default = String[]),
+        "nonempty_variables" => ArrayIR{String}(items = VARIABLE_DEF, minItems = 1),
     )
+end
+
+function schema_definitions(variable_config::Any)
+    return map_into(json_schema, StringDict, ir_definitions(variable_config))
 end
 
 function card_schema(
@@ -27,11 +34,33 @@ function card_schema(
     return schema
 end
 
-function card_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
+"""
+    card_ir(key::AbstractString)
+
+Return the intermediate representation for card `key` — the artefact a UI renders from, as
+opposed to the JSON Schema it validates with. Both come from this one traversal: `card_schema`
+is defined as `json_schema(card_ir(key))` plus the type discriminator, so a divergence between
+them is a bug in one function rather than two descriptions drifting apart.
+
+The IR is independent of the variable vocabulary; its `ReferenceIR`s are resolved against
+[`ir_definitions`](@ref).
+"""
+function card_ir(key::AbstractString)
     spec = get_spec(key)
     T = spec.type
     ir = (T <: WildCard) ? WildCardIR(spec.settings) : ObjectIR(T)
-    schema::StringDict = json_schema(ir)
+    # The card's label belongs in the IR: a renderer needs it, and it saves `card_schema`
+    # annotating a built schema. `something` mirrors `card_schema`'s `get!` semantics, so a
+    # card that sets its own title keeps it.
+    return ObjectIR(;
+        title = something(ir.title, spec.label),
+        ir.description, ir.properties, ir.additionalProperties, ir.constraints,
+    )
+end
+
+function card_schema(key::AbstractString; additionalProperties::Bool = false)::StringDict
+    spec = get_spec(key)
+    schema::StringDict = json_schema(card_ir(key))
     # set defaults if not provided by card schema implementation
     schema["properties"]["type"] = StringDict("const" => key)
     ("type" in schema["required"]) || push!(schema["required"], "type")

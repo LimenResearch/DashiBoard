@@ -3,7 +3,13 @@ using DuckDBUtils, DataIngestion, Pipelines, StreamlinerCore
 
 makedocs(
     sitename = "DashiBoard",
-    format = Documenter.HTML(inventory_version = v"2.0.0"),
+    # Pretty URLs (`ui-guide/` rather than `ui-guide.html`) need a web server to resolve, so a
+    # local build keeps the file names — otherwise every link is dead when `build/index.html` is
+    # opened from disk.
+    format = Documenter.HTML(
+        inventory_version = v"2.0.0",
+        prettyurls = get(ENV, "CI", nothing) == "true",
+    ),
     modules = [DuckDBUtils, DataIngestion, Pipelines, StreamlinerCore],
     # Internal helpers carry docstrings for maintainers without necessarily
     # being part of the manual; only exported names must be documented there.
@@ -12,6 +18,7 @@ makedocs(
         "Overview" => "index.md",
         "Getting Started" => "getting-started.md",
         "UI Guide" => "ui-guide.md",
+        "Embedding the UI" => "embedding.md",
         "N-Body Problem Guide" => "nbody-guide.md",
         "Deep Learning Guide" => "dl-guide.md",
         "DuckDBUtils API" => "lib/DuckDBUtils.md",

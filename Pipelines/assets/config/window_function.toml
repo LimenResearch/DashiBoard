@@ -1,5 +1,0 @@
-widget_configs = {}
-
-methods.rank.widgets = []
-methods.percent_rank.widgets = []
-methods.row_number.widgets = []

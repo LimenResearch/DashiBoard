@@ -1,9 +1,0 @@
-[widget_configs.model]
-widget = "select"
-label = "Model configuration"
-placeholder = "Select a model configuration..."
-
-[widget_configs.training]
-widget = "select"
-label = "Training configuration"
-placeholder = "Select a training configuration..."

@@ -34,6 +34,44 @@ get_output_vars(p::Pipeline) = get_output_vars(p.enriched_digraph)
 
 graphviz(io::IO, p::Pipeline) = graphviz(io, p.enriched_digraph, p.nodes)
 
+"""
+    unproduced_references(p::Pipeline, available)
+
+Node indices paired with the inputs they consume that nothing makes available — neither the
+source columns in `available` nor any node's outputs.
+
+Schema validation cannot catch these. A `through` qualifier builds a column *name* by
+concatenating the suffixes of the nodes it lists, and validation only checks that the *base*
+column exists in the source; the constructed name is never compared against anything. So
+`{cols = "PRES", through = ["rescale", "log"]}` names `PRES_rescaled_log` and is accepted even when
+`log` emits only `No_log`, failing later inside a task with an exception that names neither the
+column nor the node.
+
+Walks by layer so the pool grows in execution order. That ordering is defensive rather than
+load-bearing: every reference — `nodes`, `groups` and `through` alike — creates a dependency edge
+(`group_api/deps.jl`), so a node can never consume a column produced after it. Nodes excluded from
+`layers` are the precomputed ones, whose outputs are already present.
+"""
+function unproduced_references(p::Pipeline, available)
+    pool = Set{String}(available)
+    for i in p.precomputed_nodes
+        union!(pool, get_node_outputs(p.nodes[i]))
+    end
+
+    issues = Pair{Int, Vector{String}}[]
+    for idxs in p.layers
+        for i in idxs
+            absent = filter(!in(pool), get_node_inputs(p.nodes[i]))
+            isempty(absent) || push!(issues, i => absent)
+        end
+        # A whole layer becomes available at once: nodes within one are independent.
+        for i in idxs
+            union!(pool, get_node_outputs(p.nodes[i]))
+        end
+    end
+    return issues
+end
+
 function foreach_layer(
         f::F, repository::Repository, p::Pipeline,
         tbl::AbstractString, id_var::AbstractPrimaryKey;

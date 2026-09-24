@@ -79,9 +79,8 @@ function LoggingMiddleware(handler)
             @debug "$(Dates.format(arrived, "yyyy-mm-dd HH:MM:SS.sss")) " *
                 "#$(n) $(request.method) $(request.target) $(status) $(elapsed)s"
             # Julia block-buffers `stderr` when it is not a terminal, so a redirected log stays
-            # empty until the process exits — measured: a server that had failed a run showed a
-            # zero-byte file for as long as it kept running. A log nobody can read while the
-            # server is up is not a log, so every request flushes on its way out.
+            # empty until the process exits. A log nobody can read while the server is up is not a
+            # log, so every request flushes on its way out.
             #
             # Unconditional, and it covers more than this line: a handler's own `@error` is
             # written during the call this brackets, so one flush here carries it out too, whether
@@ -119,9 +118,9 @@ end
 A 200 with `d` as JSON and the CORS headers.
 
 Non-finite floats are written as `null`. `JSON.json` refuses `NaN` and `Inf` outright, so a run
-whose z-score of a zero-variance column was `NaN` on every row was reported to the client as an
-execution failure (A12, measured on `constant = 42`, 2026-09-13 and 2026-09-16) — the pipeline
-had succeeded; only the response could not be written. `allownan = true` alone is not the fix:
+whose z-score of a zero-variance column is `NaN` on every row would be reported to the client as
+an execution failure although the pipeline succeeded — only the response could not be written.
+`allownan = true` alone is not the fix:
 the tokens it writes are not JSON and the browser's parser rejects them. `null` is what every
 JSON client already reads as "no value", and it is what the rows path (`fetch_data`) produces too.
 """

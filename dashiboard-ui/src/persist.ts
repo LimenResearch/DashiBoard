@@ -5,7 +5,7 @@ import {
 
 // sessionStorage-backed state.
 //
-// The stores are module-level globals (decisions §2: the store *is* the document), and a reload
+// The stores are module-level globals — the store *is* the document — and a reload
 // used to start them empty — twenty cards gone for pressing F5. `sessionStorage` rather than
 // `localStorage` because the document belongs to this tab's session: two tabs editing two
 // pipelines must not overwrite each other, and closing the tab is the natural end of the work.

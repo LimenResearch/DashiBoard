@@ -11,10 +11,9 @@
 // same value may legitimately appear twice under different qualifications (case E). So rows carry
 // the chain, and only consecutive runs sharing a kind and a chain are merged back together.
 //
-// There is deliberately no resolver here. `through` names a column by concatenating node suffixes,
-// and that rule belongs to DashiBoard: a copy of it in TypeScript is a second source of truth for
-// a naming law, which is what A10 exists to delete and what C2's second constraint was withdrawn
-// for (06-design.md, amended 2026-09-12). The UI writes the TOML; DashiBoard resolves it.
+// There is deliberately no resolver here. `through` names a column by concatenating node
+// suffixes, and that rule belongs to the server: a copy of it in TypeScript would be a second
+// source of truth for a naming law. The UI writes the document, the server resolves it.
 
 export type SelectorItem = {
   through?: string[];
@@ -56,7 +55,7 @@ export function expand(items: SelectorItem[], kinds: readonly string[]): Selecto
  * Rows back to items, merging only *consecutive* runs of the same kind and chain.
  *
  * Consecutive matters. Merging two `cols` runs separated by a `groups` item would move those
- * columns next to each other, and the field is ordered — §12's positional `weights` rule reads
+ * columns next to each other, and the field is ordered: a positional rule such as `weights` reads
  * that order, so a silent reordering changes which weight lands on which column.
  */
 export function collapse(rows: SelectorRow[]): SelectorItem[] {

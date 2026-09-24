@@ -9,7 +9,7 @@ import type { ProbeIssue } from "./stores";
  * Schema issues as findings, one per control rather than one per issue.
  *
  * A `required` failure names every absent field at once and carries a `related` pointer per
- * name (A7), so the server already knows which control each belongs to — the work here is
+ * name, so the server already knows which control each belongs to — the work here is
  * placing them, not finding them.
  */
 export const issueFindings = (issues: readonly ProbeIssue[]): Incompleteness[] =>

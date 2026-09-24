@@ -13,8 +13,8 @@ import { postRequest } from "../requests";
 //
 // It replaces the browser's own file dialog. That dialog read a file on the author's machine,
 // which the server never saw, and so showed the whole disk, while tables were confined to the
-// server's data directory and picked from a list. One visibility now (owner, 2026-09-18): the
-// server lists, reads and writes documents inside that directory, through the same picker.
+// server's data directory and picked from a list. One visibility now: the server lists, reads and
+// writes documents inside that directory, through the same picker.
 
 type DocumentKind = Exclude<FileKind, "table">;
 

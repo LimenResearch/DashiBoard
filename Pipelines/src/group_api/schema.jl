@@ -94,7 +94,7 @@ end
 """
     SchemaValidationErrors(errors)
 
-Every schema failure in one document, rather than whichever came first (A11).
+Every schema failure in one document, rather than whichever came first.
 
 Validation used to `throw` on the first bad group or card, so a document with two mistakes
 reported one and hid the other — and fixing it revealed the next, one round trip at a time. Worse,
@@ -124,7 +124,7 @@ escape_pointer(token::AbstractString) = replace(token, "~" => "~0", "/" => "~1")
 
 Convert a `JSONSchema.SingleIssue` path — `"[method][dissimilarity][p]"` — to a JSON Pointer.
 
-Two things make this less mechanical than it looks, both measured rather than read:
+Two things make this less mechanical than it looks:
 
   * `path` indexes arrays **the Julia way**. The third element of `inputs` reports `[inputs][3]`,
     and a JSON Pointer counts from zero, so array steps subtract one. Skip this and the form
@@ -155,7 +155,7 @@ end
     issue_report(err::SchemaValidationError)
 
 A validation failure as data rather than prose: where it happened, which keyword failed, and —
-where the validator carries it — what would have been accepted (A7).
+where the validator carries it — what would have been accepted.
 
 The distinction that matters is between a form that can offer a correction and one that can only
 say no. An `enum` failure arrives with the values that *are* allowed; a `required` failure arrives
@@ -244,8 +244,8 @@ function validate_pipeline_schema(
         card_schemas[key] = JSONSchema.Schema(card_schema(key, variable_config))
     end
 
-    # Collected, not thrown one at a time (A11). Groups first because that is document order, but
-    # a bad group no longer stops the cards from being looked at.
+    # Collected, not thrown one at a time. Groups first because that is document order, but a bad
+    # group does not stop the cards from being looked at.
     # After https://github.com/JuliaIO/JSONSchema.jl/pull/83 is merged, consider setting
     # `fail_fast = false` to collect _all_ errors within each group.
     errors = SchemaValidationError[]

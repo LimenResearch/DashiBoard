@@ -2,54 +2,30 @@ import type { PipelineNode } from "./stores";
 
 // What the UI can answer about a definition on its own, without asking the server.
 //
-// The line between this module and the probe is *scope*, not severity:
+// The line between this module and the probe is *scope*, not severity: this module answers
+// questions about one definition in isolation, the probe answers everything that depends on the
+// graph. A field nobody filled in is ours — it is visible in the card in front of you — while an
+// unproduced reference or a cycle is the server's, since neither can be seen without the other
+// cards. A duplicate id is ours only because `setNodeId` refuses one at the name field.
 //
-//   this module answers questions about one definition in isolation;
-//   the probe answers everything that depends on the graph.
+// Whatever the server can answer, the server answers. A card's schema — a required field absent,
+// a list below its minimum, a value outside an enum — is asked of it per card through
+// `POST /validate-card`, and an empty group is reported by the probe. So `checkNode` and
+// `checkNames` are all that is left here.
 //
-// So a field nobody filled in is ours — it is visible in the card in front of you — while an
-// unproduced reference or a cycle is the server's, because neither can be seen without the
-// other cards — and a duplicate id, once the server's, is ours since `setNodeId` refuses one
-// (`checkNames`). Whatever the server can answer, the server answers: duplicating
-// that here would be the second source of truth A10 exists to delete, and C2's second constraint
-// was withdrawn over.
-//
-// An earlier version of this module drew the line at *legality* instead — it held only checks the
-// server would accept — and so deliberately excluded required fields, on the reasoning that the
-// probe already reports them against the exact field. Two measurements retired that:
-//
-//   * The probe is a **first-failure** reporter. `validate_pipeline_schema` throws on the first
-//     card that fails, and the handler wraps that one exception, so a document with two broken
-//     cards comes back with exactly one issue naming the first. Measured: two empty cards yield
-//     `[{pointer: "/nodes/0/card", missing: ["method", "inputs"]}]` and nothing about node 1. The
-//     failure branch also carries no `nodes`, so the graph analysis is unavailable on exactly the
-//     documents that most need it.
-//   * The IR is not a second description. It is the server's own, fetched at runtime from
-//     `get-card-ir`, and `widgetFor` is the same descriptor the renderer dispatches on — so a
-//     field this module names is always a field drawn on screen, and it cannot drift from what
-//     the schema admits without the form drifting too. That is §13's whole point: one traversal,
-//     two artefacts.
-//
-// Everything here is therefore derived from the IR rather than decided in this file. Where a rule
-// looks like a judgement call — may a required list be empty? — it is read from the node, because
-// the same question has different answers on different cards (see `checkFields`).
-//
-// **The line, after the consolidation of 2026-09-14.** This file holds only checks with no server
-// counterpart. Everything a card's schema can answer — a required field absent, a list below its
-// minimum, a value outside an enum — is asked of Pipelines directly, per card, through
-// `POST /validate-card` over `Pipelines.card_issues`. There was a walk here that re-implemented
-// `required` and `minItems` in TypeScript; measured against `validate_pipeline_schema` it found
-// exactly the same set, nested cases included, and it is gone.
-//
-// `checkNode` is what is left. `checkGroup` went on 2026-09-16 when the probe learned to report
-// an empty group itself (`empty_group_issues`).
+// What this module does name is read from the IR, never decided here: the IR is the server's own
+// description, fetched from `get-card-ir`, and `widgetFor` is the same descriptor the renderer
+// dispatches on — so a field named here is always a field drawn on screen, and it cannot drift
+// from what the schema admits without the form drifting too. Where a rule looks like a judgement
+// call — may a required list be empty? — it is read from the node, because the same question has
+// different answers on different cards (see `checkFields`).
 
 export type Incompleteness = {
   /** What the author would do about it, phrased as the thing to do rather than as a complaint. */
   message: string;
   /**
-   * Where, as a JSON Pointer into the document, in A7's scheme — so a finding from here and one
-   * from the server render through one code path and read the same way.
+   * Where, as a JSON Pointer into the document — the server's own scheme, so a finding from here
+   * and one from the server render through one code path and read the same way.
    */
   pointer?: string;
   /** A probe finding carries this through; a UI-only check has none and reads as an error. */
@@ -74,13 +50,11 @@ export function checkNode(node: PipelineNode): Incompleteness[] {
 /**
  * Cards that share a name with an earlier card — the later ones, each with its finding.
  *
- * The server refuses the document (`Encountered nodes with equal \`id\``) with no pointer, so it
- * cannot say which card; the UI can. This is the rule `setNodeId` enforces at the name field,
- * so the only way two cards still arrive with one name is an uploaded document, and an upload
- * places the finding here rather than refusing the file (owner, 2026-09-18: the form exists to
- * fix documents). A missing id counts as "" — `Pipelines.get_id`'s default — so two unnamed
- * cards collide the same way. The first holder keeps its name unmarked: it is the later card
- * that has to change.
+ * The server refuses such a document with no pointer, so it cannot say which card; the UI can.
+ * `setNodeId` enforces this at the name field, so two cards with one name can only arrive in a
+ * loaded document — which is marked rather than refused, the form being there to fix it. A
+ * missing id counts as "", the server's own default, so two unnamed cards collide the same way.
+ * The first holder keeps its name unmarked: it is the later card that has to change.
  */
 export function checkNames(
   nodes: readonly PipelineNode[],

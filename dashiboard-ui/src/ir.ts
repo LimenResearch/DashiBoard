@@ -4,10 +4,9 @@
 // is pure, and it can be tested against the real vocabulary POST /get-card-ir serves. The
 // components then only have to draw what they are told.
 //
-// The IR exists precisely so this mapping is a switch over a closed set rather than an attempt
-// to recover intent from JSON Schema keywords (decisions section 13). A `tagged_object` says it
-// is a variant selector; the equivalent schema says `allOf` of `if`/`then` over a `const`, from
-// which the same fact has to be inferred.
+// The IR exists precisely so this mapping is a switch over a closed set rather than an attempt to
+// recover intent from JSON Schema keywords. A `tagged_object` says it is a variant selector; the
+// equivalent schema says `allOf` of `if`/`then` over a `const`, from which it has to be inferred.
 
 export type IRNode = { [key: string]: unknown };
 export type Defs = { [name: string]: IRNode };
@@ -64,7 +63,7 @@ export type Widget =
  * Used to keep a thing from naming itself. A node listing its own id — as an input or as a step
  * in a `through` chain — is a cycle, and so is a group naming itself; the server rejects both, so
  * offering them is offering a choice that cannot come out well. Narrowing the vocabulary makes it
- * unrepresentable rather than merely invalid, which is the same move C2 makes for selector kind.
+ * unrepresentable rather than merely invalid.
  *
  * Only *self*-reference is removed here. Excluding everything downstream would mean rebuilding
  * the dependency graph in the browser, which is the server's job and already done: a longer cycle
@@ -106,9 +105,8 @@ export function resolveRef(node: IRNode, defs: Defs): IRNode {
  *
  * Read off the `oneOf` the IR carries in `constraints` — `[{required: ["nodes"]}, …]` — which is
  * the gate the server enforces. Taking the kinds from there rather than from a literal list here
- * means the UI cannot drift from what the schema admits, and A7's one remaining validator leak
- * (that `oneOf` summarising when the *kind* is malformed) is retired by making the kind
- * unrepresentably wrong rather than merely invalid.
+ * means the UI cannot drift from what the schema admits, and a malformed kind becomes
+ * unrepresentable rather than something the server has to refuse.
  */
 function selectorKinds(node: IRNode): string[] | null {
   const constraints = Array.isArray(node.constraints) ? node.constraints : [];

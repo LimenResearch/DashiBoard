@@ -5,9 +5,9 @@
 // literal, so a roomier host can resize this field through the same channel it repaints it — see
 // the density block in App.css.
 //
-// It carries an `invalid` state because A7 gives it something to say. The probe addresses each
-// failure by JSON Pointer, so a field can be told it is the offender; without a state to render,
-// that information has nowhere to land but a banner above the page.
+// It carries an `invalid` state because the probe addresses each failure by JSON Pointer, so a
+// field can be told it is the offender; without a state to render, that information has nowhere to
+// land but a banner above the page.
 
 const BASE =
   "h-control-xs rounded-sm border px-2 text-control-xs outline-none ring-offset-2 focus:ring-2 focus:ring-ring";

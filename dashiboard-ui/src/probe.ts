@@ -11,7 +11,7 @@ import type { CardsStore, ProbeIssue, ProbeNode, ProbeStore } from "./stores";
  * server's `failure_report` is `{valid, kind, errors, issues}`, plus `cols` on the probe's
  * schema path. The old shape test required `nodes` before it would keep anything, so every real
  * failure reply was replaced by `emptyProbe()` — `valid: true`, no issues — which is what let an
- * empty group be confirmed with a green dot (final review, 2026-09-16). Absent fields become
+ * empty group be confirmed with a green dot. Absent fields become
  * empty lists and an absent `valid` reads as true, so a reply that says nothing says nothing
  * wrong.
  */

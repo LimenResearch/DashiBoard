@@ -1,4 +1,4 @@
-// The API base address is resolved at RUNTIME, never baked into the bundle (decisions 11 / C6).
+// The API base address is resolved at RUNTIME, never baked into the bundle.
 // One build therefore works served by ExperimentTracking beside the API (same origin, relative
 // URLs) and served from a dev server against DashiBoard on another port, with no rebuild.
 //

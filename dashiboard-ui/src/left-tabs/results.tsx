@@ -14,12 +14,11 @@ import {
 } from "../stores";
 import { wireDocument } from "../wire";
 
-// What a run produced (C4). Four answers to four different questions, so four panes rather than
-// one scroll: the output table is what the pipeline *made*, the plots are what individual cards
-// chose to draw, the graph is how the cards relate, and the report is what each card measured.
+// What a run produced. Four answers to four different questions, so four panes rather than one
+// scroll: the output table is what the pipeline *made*, the plots are what individual cards chose
+// to draw, the graph is how the cards relate, and the report is what each card measured.
 //
-// `left-tabs/` is a holdover name — these are the page's sections, and §7 retires the folder along
-// with the tabbed shell when the canvas lands. Kept here so all the sections stay in one place.
+// `left-tabs/` is a holdover name: these are the page's sections, kept together in one folder.
 
 /** The shape of `POST /evaluate-pipeline`'s answer. Every field is optional: an older server, or
  *  a failed request, must degrade to an empty pane rather than a crash. */
@@ -71,8 +70,7 @@ export function Results() {
    * Everything a run depends on, as one string: the filters, the cards and groups, and the loaded
    * table. A run is *about* this, so what it left on screen — its failure text, its results, the
    * dot — is only current while this has not changed. Filters and the table count as much as the
-   * cards: a run sends them all, and results that no longer match are stale whichever changed
-   * (owner, 2026-09-21).
+   * cards: a run sends them all, and results that no longer match are stale whichever changed.
    */
   const runSignature = createMemo(() => JSON.stringify(wireDocument()) + LOADER_JSON());
   /**
@@ -81,8 +79,8 @@ export function Results() {
    */
   const [ranOn, setRanOn] = createSignal<{ signature: string; ok: boolean } | null>(null);
   /**
-   * The last run's failure, while it is still about the pipeline on screen. It used to outlive
-   * it: a loop's text stayed up after another document had been loaded (seen 2026-09-21).
+   * The last run's failure, while it is still about the pipeline on screen — so a loop's text
+   * does not stay up over a document that no longer has one.
    */
   const currentFailure = () => (ranOn()?.signature === runSignature() ? failure() : null);
 
@@ -215,10 +213,9 @@ export function Results() {
 
   /**
    * What the server refused about the *document* — a loop, a chain nothing can resolve — in its
-   * own words, members named. Nobody's card is at fault for it, so it is not written on one
-   * (seen in a browser, 2026-09-18, on every card that was asked); it is read off the document's
-   * verdict, recorded by whoever asked — a Confirm, a load, a failed run — and expired by the next
-   * edit. Not repeated while this run's own block already says the same sentence.
+   * own words, members named. Nobody's card is at fault for it, so it is not written on one: it
+   * is read off the document's verdict, recorded by whoever asked — a Confirm, a load, a failed
+   * run — and expired by the next edit. Not repeated while this run's own block says the same.
    */
   const documentLines = createMemo(() =>
     (documentVerdict()?.findings ?? [])
@@ -235,12 +232,11 @@ export function Results() {
    * and with the cards folded.
    *
    * Read from the verdicts, the same source as the dots, so the two cannot disagree: an item is
-   * named once a Confirm, a failed run or an upload rejected its current content, and an edit
-   * expires the verdict and drops it (decided 2026-09-18). This line used to read the continuous
-   * probe and named items before anyone asked — the very "red before asked" the items gave up
-   * on 2026-09-17. Names only: the findings are read on the items. Nodes by id, or "card N" for
-   * an unnamed one, in document order; then groups by name. Running is still allowed: the line
-   * says where to look, it does not gate.
+   * named once a Confirm, a failed run or a load rejected its current content, and an edit expires
+   * the verdict and drops it. The continuous probe is deliberately not read here, or items would
+   * be named before anyone asked. Names only — the findings are read on the items — nodes by id,
+   * or "card N" for an unnamed one, in document order, then groups by name. Running is still
+   * allowed: the line says where to look, it does not gate.
    */
   const needsAttention = createMemo(() => {
     const names: string[] = [];
@@ -287,9 +283,8 @@ export function Results() {
         </Show>
         {/*
           One host for what needs attention before a run: the items that were asked about and
-          refused, by name, and — when it is the document itself that was refused — the
-          server's sentence for it. They were two hosts for a while (a panel under the row, then
-          a second chip), which read as two kinds of message; it is one (owner, 2026-09-21).
+          refused, by name, and — when it is the document itself that was refused — the server's
+          sentence for it. One host rather than two, or they read as two kinds of message.
           `min-w-0` and `break-words` because a sentence can be long and the row wraps.
         */}
         <Show when={needsAttention().length > 0 || documentLines().length > 0}>

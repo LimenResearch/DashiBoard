@@ -24,8 +24,7 @@ export function Loader() {
    * builds, so this costs one comparison). And every load that lands, because the summaries alone
    * cannot tell two tables apart: a summary is a column's extrema or its distinct values, so the
    * same rows in another order — or yesterday's export and today's — summarise identically, and
-   * the grid kept showing the first file's rows after the second had been loaded (measured
-   * 2026-09-21; seen in a browser with `same-summary-A/B.parquet`).
+   * the grid would otherwise keep showing the first file's rows after the second was loaded.
    */
   const revision = createMemo((previous: number | undefined) => {
     void LOADER_JSON();
@@ -71,7 +70,7 @@ export function Loader() {
         table, so this stays usable on a source far larger than the browser — which is the point
         of previewing it here rather than trusting the column list.
 
-        `processed={false}` reads the source; the pipeline's output is a different pane (C4).
+        `processed={false}` reads the source; the pipeline's output is a different pane.
       */}
       <Show when={state.length > 0}>
         <div class="p-3">

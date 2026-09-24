@@ -8,7 +8,7 @@ import { For, Show } from "solid-js";
 
 export type TabSize = "sm" | "md";
 
-// C8: keyed on the union, never on `string`. Add a size and this fails to build rather than
+// Keyed on the union, never on `string`: add a size and this fails to build rather than
 // resolving to `undefined` and silently rendering an unstyled tab — the shape that painted 12 of
 // 22 nodes black next door.
 const SIZING: Record<TabSize, string> = {

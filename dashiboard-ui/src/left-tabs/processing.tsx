@@ -94,17 +94,16 @@ export function Cards() {
   // `cards` is fetched once and kept; only `defs` follows the vocabulary. See the handler.
   const [cardIRs, setCardIRs] = createSignal<{ [type: string]: IRNode } | null>(null);
 
-  // The IR is what the renderer builds from, and since A2 it is the only description of a card
-  // that exists (§13). Which nodes and groups are referenceable depends on the document being
-  // edited, not only on the source, so this re-runs when either changes.
+  // The IR is what the renderer builds from, and the only description of a card that exists.
+  // Which nodes and groups may be referred to depends on the document being edited, not only on
+  // the source, so this re-runs when either changes.
   //
   // The vocabulary arrives as an argument rather than being read here: this runs from an effect
   // *callback*, where a read of a store or a signal is untracked — so reading the document here
   // would be a dependency the effect does not have, and the diagnostics say so.
   // Which card-IR request is the latest. Every vocabulary change asks again, and the answers
-  // can land out of order: an older one arriving last used to put back a vocabulary the document
-  // no longer has, so pickers offered a node name that did not exist any more (measured
-  // 2026-09-21; it takes a slow server). Same guard as the continuous probe's `probeSeq`.
+  // can land out of order: an older one arriving last would put back a vocabulary the document no
+  // longer has, and the pickers would offer a node name that is gone. Same guard as `probeSeq`.
   // The server's title for a card type ("GLM", "Interpolation"); derived from the type name
   // until the IR has arrived, or for a type it does not know.
   const cardTitle = (type: string) => {
@@ -233,7 +232,7 @@ export function Cards() {
    * Loading a cards document is an act of asking.
    *
    * The document is put in place exactly as it came — a broken one included, because fixing it
-   * here is what the form is for (owner, 2026-09-18) — and then asked about once, on the
+   * here is what the form is for — and then asked about once, on the
    * author's behalf, from that same copy. What the server points at is rejected on its item,
    * the way a failed run's issues are; a taken name is ours to place (`checkNames`), since the
    * server reports it with no pointer; whatever is left has no item and goes on the document's
@@ -352,7 +351,7 @@ export function Cards() {
    * `validate-card`, the probe — and the verdict itself use that snapshot. Not the store: a
    * store proxy captured here would read the *current* card by the time a reply lands, so an
    * edit made while a request is in flight would be stamped green on content the server never
-   * saw (measured against solid-js rc.6 in review, 2026-09-17). With the snapshot, the verdict
+   * saw. With the snapshot, the verdict
    * binds to what was checked and the edited card simply reads as unasked. Findings travel with
    * the verdict (`stores.ts`, verdicts), which also follows its card across a removal.
    */
@@ -387,20 +386,17 @@ export function Cards() {
     if (issues.length > 0) return verdict(issueFindings(issues));
 
     const answer = await askProbe(document);
-    // `null` means the probe could not be asked at all (item 1: a missing dev-server proxy route,
-    // or the server being down) — not that it came back clean. Reading it as "no issues" is what
-    // let an empty group through Confirm with a green dot (final review, 2026-09-16); the same
-    // failure reaches a card's Confirm through this same `askProbe` call.
+    // `null` means the probe could not be asked at all — the server down, a missing proxy route —
+    // not that it came back clean. Read as "no issues" it would confirm an unchecked card.
     if (answer === null) {
       return verdict([{
         message: "Could not reach DashiBoard to check this card — is the server running?",
       }]);
     }
-    // A document that does not build — a loop, a chain nothing can resolve — is nobody's card:
-    // written on whichever card was asked, one loop read as a fault of every card (seen in a
-    // browser, 2026-09-18). It goes on the document, which says it once next to Run, and this
-    // card is not vouched for: whether something produces its inputs is a question of the very
-    // graph that does not build. So it is left unasked — amber — rather than green or red.
+    // A document that does not build — a loop, a chain nothing can resolve — is nobody's card. It
+    // goes on the document, which says it once next to Run, and this card is not vouched for:
+    // whether something produces its inputs is a question of the very graph that does not build.
+    // So it is left unasked — amber — rather than green or red.
     const loose = documentFindings(answer);
     if (loose.length > 0) {
       if (!stillAsked(key, asked)) return;
@@ -416,8 +412,7 @@ export function Cards() {
   const probeIssues = createMemo(() => probe.issues);
   // What the continuous probe says live about a card is only its *warnings* (a column about to be
   // overwritten). Its errors are not shown here: red is reserved for what Confirm or a Run found,
-  // and until then the card is amber (decided 2026-09-17). The document-level banner that used
-  // to sit above the cards went with it — the pointer next to Run pipeline names the items now.
+  // and until then the card is amber.
   const warningsForNode = (index: number) =>
     issuesForNode(probeIssues(), index).filter((issue) => issue.severity === "warning");
 
@@ -512,11 +507,6 @@ export function Cards() {
               }
             >
             {/*
-              A7: the probe addresses each failure by JSON Pointer, so it is shown on the card it
-              belongs to, naming the field and — for an enum — what would have been accepted.
-              Attaching to the whole page was the behaviour this replaces.
-            */}
-            {/*
               What Confirm (or a Run) found on this exact content: red, one per control, and
               only while the verdict is a rejection — an edit drops them with the verdict.
               A UI finding (no name) and a server finding render through this one path.
@@ -534,9 +524,8 @@ export function Cards() {
                 </p>
               )}
             </For>
-            {/* A refused name, with the other banners rather than under the field: seen in a
-                browser with the field between two red banners, it read as two kinds of thing
-                (owner, 2026-09-17). One stack, then the fields. */}
+            {/* A refused name joins the other banners rather than sitting under the field, where
+                it read as a different kind of thing. One stack, then the fields. */}
             <Show when={nameError()}>
               <p
                 data-name-error

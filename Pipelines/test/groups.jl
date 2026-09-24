@@ -170,8 +170,8 @@ end
 end
 
 @testset "graphviz for GroupDiGraph" begin
-    # A4: `graphviz` dispatched on the concrete `EnrichedDiGraph`, so a group-API pipeline raised
-    # a MethodError. Widening the signature would have been worse than the error: a
+    # `graphviz` dispatches on the concrete graph type, so a group-API pipeline needs its own
+    # method rather than a widened signature: a
     # `GroupDiGraph`'s vertices are the nodes followed by the *groups*, with no variable vertices
     # at all, so the variable labels would have been attached to group vertices silently.
     d = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
@@ -209,9 +209,9 @@ end
     @test nodes_entry.value.type == "one_or_many"
 end
 
-# The specification of what the variable picker (C2) must be able to express. Each case below was
-# established by running it, not by reading the schema, and the ones that look redundant are the
-# ones a simplification would quietly break — see `06-design.md`, "C2 in detail".
+# What a variable picker must be able to express. Each case below was established by running it,
+# not by reading the schema, and the ones that look redundant are the ones a simplification would
+# quietly break.
 @testset "selector cases the picker must express" begin
     base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
     cols = ["No", "PRES", "TEMP", "cbwd"]
@@ -249,8 +249,8 @@ end
         ]
     ) == ["PRES_rescaled", "PRES"]
 
-    # F/G: the `oneOf` gate. Two kinds in one item, or none, are refused — so A7's
-    # "unrepresentably wrong" is already enforced server-side; the UI doing it is defence in depth.
+    # The `oneOf` gate: two kinds in one item, or none, are refused. Enforced here, so a client
+    # that also refuses them is defence in depth rather than the only guard.
     rejects([Dict("cols" => "PRES", "groups" => "weather")])
     rejects([Dict{String, Any}()])
 
@@ -312,8 +312,8 @@ end
 
 # A schema failure comes back as data a form can act on, not prose it can only print.
 #
-# Every expectation below was measured against JSONSchema.jl rather than read off its source, and
-# two of them contradict what `06-design.md` recorded before the fixtures were run:
+# Every expectation below was established by running JSONSchema.jl rather than by reading it, and
+# two of them are not what its documentation suggests:
 #
 #   * `SingleIssue.path` indexes arrays the Julia way. The third element reports `[inputs][3]`,
 #     so a JSON Pointer must subtract one — otherwise the form highlights the wrong row.
@@ -529,8 +529,8 @@ end
 
 @testset "a document with no cards" begin
     # A filter-only run — filter the source, run, look — and the probe of a document whose last
-    # card was just removed both build a `Pipeline` with zero nodes. Measured 2026-09-16: the
-    # `reduce(vcat, ...)` over zero node outputs threw "reducing over an empty collection".
+    # card was just removed both build a `Pipeline` with zero nodes, where a `reduce(vcat, ...)`
+    # over zero node outputs throws "reducing over an empty collection".
     p = Pipelines.Pipeline(Any[], Dict{String, Any}(), ["TEMP", "PRES"])
     @test Pipelines.get_output_vars(p) == String[]
 end

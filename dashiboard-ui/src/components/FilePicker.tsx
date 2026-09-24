@@ -25,8 +25,8 @@ type FilePickerProps = {
 export function FilePicker(props: FilePickerProps) {
   // Asked once at mount, and again on the button. A memo over the promise asked exactly once:
   // if the server was still starting, `postRequest` answered `null`, the list stayed empty and
-  // nothing asked again — a reload during the same boot gave the same nothing (owner,
-  // 2026-09-18). The server walks the directory on every request, so asking is all it takes.
+  // nothing asked again, a reload during the same boot giving the same nothing. The server walks
+  // the directory on every request, so asking is all it takes.
   //
   // One listing for every picker: `list-files` names each file's kind, and tables, cards and
   // filters documents are confined to the same directory through the same control.

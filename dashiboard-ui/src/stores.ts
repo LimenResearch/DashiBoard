@@ -89,12 +89,9 @@ export const [droppedFilters, setDroppedFilters] = createSignal<string[]>([]);
 /**
  * Drop every filter whose column the loaded table lacks, and say which.
  *
- * A filter is authored against a table; load a table without that column and the filter cannot
- * apply — the run fails on it (measured 2026-09-16: a list filter on `cbwd` over
- * `pollution_test.parquet`). Keeping it and asking the author to remove it is friction; clearing
- * every filter whenever the column set changes (the earlier heuristic) threw away the ones that
- * still applied, silently. So: remove exactly the ones that cannot apply, keep the rest, and
- * return the names so the Filter tab can announce them.
+ * A filter is authored against a table, and a table without that column cannot apply it — the run
+ * fails on it. Only the filters that cannot apply are removed: clearing them all whenever the
+ * column set changes throws away the ones that still hold, silently.
  *
  * No summaries means no table is loaded, and a document's filters cannot be judged against
  * nothing — they stay.
@@ -122,11 +119,9 @@ export function pruneFilters(summaries: readonly { name: string }[]): string[] {
 // FILTERS_STORE and are converted at the wire boundary by `getFilters`, following the same
 // store-plus-getter split as the rest of this file.
 //
-// This store IS the document, rather than a bag of widget values: decisions section 2 requires
-// that what gets saved is the authored JSON and never a reconstruction, because by the time
-// `Card`s exist the group vocabulary has been resolved away and `StructUtils.lower` emits nulls
-// the schema forbids. Nothing saves to a registry yet (B6), so the cost of the widget-value shape
-// would only arrive later — which is exactly why it is cheaper to not adopt it now.
+// This store IS the document rather than a bag of widget values, so what gets saved is the
+// authored JSON and never a reconstruction: by the time `Card`s exist the group vocabulary has
+// been resolved away, and `StructUtils.lower` emits nulls the schema forbids.
 
 export type Selector = {
   nodes?: string | string[];
@@ -150,12 +145,11 @@ export type CardsStore = {
 export const emptyCards = (): CardsStore => ({ nodes: [], groups: {} });
 
 // What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, and any
-// reference nothing produces (A10).
+// reference nothing produces.
 //
-// The resolved names come from Julia. A `through` chain names a column by concatenating the
-// suffixes of the nodes it lists, and reimplementing that here would be a second source of truth
-// for a naming rule — the duplication this refactor exists to remove. The UI writes the document;
-// DashiBoard resolves it and says what it got.
+// The resolved names come from the server. A `through` chain names a column by concatenating the
+// suffixes of the nodes it lists, and computing that here would be a second source of truth for a
+// naming rule: the UI writes the document, the server resolves it and says what it got.
 
 export type ProbeNode = {
   id: string;
@@ -165,8 +159,8 @@ export type ProbeNode = {
 };
 
 /**
- * One failure, as data rather than prose (A7). `pointer` is a JSON Pointer into the *document*,
- * so the form can address the offending control instead of printing a sentence above the page.
+ * One failure, as data rather than prose. `pointer` is a JSON Pointer into the *document*, so the
+ * form can address the offending control instead of printing a sentence above the page.
  *
  * `allowed` carries what the schema would have accepted — the difference between offering a
  * correction and saying no. `missing` carries names that should exist and do not: absent required
@@ -280,9 +274,8 @@ export function rememberDescribed(answer: Pick<ProbeStore, "valid" | "nodes">, i
  * thing a verdict must never be. Defaults to the current document for callers with no request
  * in flight.
  *
- * Writes verdicts and nothing else. It used to write `PROBE_STORE` too, outside the continuous
- * probe's `probeSeq` guard, so an older probe reply landing afterwards erased a failed run's
- * issues from the store (measured 2026-09-17). The store has one writer now.
+ * Writes verdicts and nothing else: `PROBE_STORE` has one writer, the continuous probe, whose
+ * sequence guard is what keeps an older reply from erasing a newer one.
  */
 export function rejectFromIssues(
   issues: ProbeIssue[],
@@ -585,11 +578,10 @@ export function renameGroup(from: string, to: string): boolean {
  * Rename a node, and refuse a name another card already has.
  *
  * The card is untouched: the id belongs to the wrapper, not the card. Two cards with one name is a
- * document the server cannot build, and it says so with no pointer (measured 2026-09-17:
- * `Encountered nodes with equal \`id\``, `issues: []`), so no card could carry the finding —
- * refused here instead, as `renameGroup` refuses a second group's name. A missing id counts as
- * "": that is `Pipelines.get_id`'s default, so two unnamed cards collide the same way. One
- * unnamed card is still legal, and Confirm is what objects to it (`checkNode`).
+ * document the server cannot build, and it says so with no pointer, so no card could carry the
+ * finding — refused here instead, as `renameGroup` refuses a second group's name. A missing id
+ * counts as "", the server's own default, so two unnamed cards collide the same way. One unnamed
+ * card is legal, and Confirm is what objects to it.
  */
 export function setNodeId(nodeIndex: number, id: string): boolean {
   let renamed = false;
@@ -665,8 +657,8 @@ function editPresets(edit: (item: Selector) => Selector | null) {
 // signature check is the safety net beneath that — a key that lands on the wrong content reads
 // as unasked, never as somebody else's answer.
 //
-// Decided 2026-09-17: red is reserved for "you asked, and it was wrong". The continuous probe
-// never writes here; only Confirm and a Run do.
+// Red is reserved for "you asked, and it was wrong": the continuous probe never writes here, only
+// Confirm and a Run.
 
 export type Verdict = {
   signature: string;
@@ -707,11 +699,9 @@ export function confirmDefinition(key: string, value: unknown) {
 }
 
 // --- the document's own verdict ---------------------------------------------------------------
-// A relational fault — a loop, a `through` chain nothing can resolve — belongs to no card: seen in
-// a browser (2026-09-18) written on every card that happened to be asked, and again under the
-// document row. It gets a verdict of its own, keyed on the whole cards document and bound to its
-// content like any other, so it is said once (next to Run pipeline), only after somebody asked
-// (a Confirm, a load, a failed run), and any edit expires it.
+// A relational fault — a loop, a `through` chain nothing can resolve — belongs to no card, so it
+// gets a verdict of its own, keyed on the whole cards document and bound to its content like any
+// other: said once, next to Run pipeline, only after somebody asked, and expired by any edit.
 const DOCUMENT_KEY = "document";
 
 /** Record that the server refused this document, with its sentences. */
@@ -734,10 +724,9 @@ export function documentVerdict(): Verdict | null {
 
 // How many times each key's verdict has been taken away — by a removal, a rename, a forget.
 // A question asked of an item is only worth recording while this has not moved: content cannot
-// tell a removed group from a new one of the same name (`[]` is `[]`), so an answer that arrived
-// late used to mark a group nobody had asked about (measured 2026-09-17, again 2026-09-21; it
-// takes a slow server to show). Plain, not reactive: it is read once before a request and once
-// after, never rendered.
+// tell a removed group from a new one of the same name (`[]` is `[]`), so an answer arriving late
+// would otherwise mark an item nobody asked about. Plain, not reactive: read once before a
+// request and once after, never rendered.
 const retired = new Map<string, number>();
 const retire = (key: string) => retired.set(key, (retired.get(key) ?? 0) + 1);
 

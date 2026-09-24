@@ -17,7 +17,7 @@ import { widgetFor, type Defs, type IRNode } from "../ir";
 import { emptyEntry, engaged, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
 import * as _ from "lodash";
 
-// The variable picker (C2), built to study 05.
+// The variable picker.
 //
 // A field is a list of items, and a value may appear in it more than once qualified differently —
 // case E, which is what rules out modelling the field as a set of values with attributes. The
@@ -30,11 +30,11 @@ import * as _ from "lodash";
 // than unrepresentable.
 //
 // One thing this deliberately does not do: compute resolved column names. Suffix concatenation is
-// DashiBoard's rule and a copy here is a second source of truth (A10, and C2's second constraint
-// withdrawn 2026-09-12). The writes strip shows the document, never a resolved name.
+// the server's rule and a copy here would be a second source of truth. The writes strip shows the
+// document, never a resolved name.
 //
 // It does keep reordering. Cases append, so document order is the order the author built it in —
-// but §12's positional `weights` rule reads that order, and neither the tabbed rows nor the strip
+// but a positional rule such as `weights` reads that order, and neither the rows nor the strip
 // can change it once set, because rows are grouped by vocabulary and cross-kind order is not
 // something a grouped view can express. Hence the chip row.
 

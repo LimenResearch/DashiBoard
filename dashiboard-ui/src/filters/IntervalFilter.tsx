@@ -4,8 +4,8 @@ import { FILTERS_STORE, Interval } from "../stores";
 
 // A numeric column's range, as two bounds.
 //
-// Still two fields rather than one range slider — see `01-decisions.md`; a slider is a separate
-// decision, not a refactor of this one.
+// Two fields rather than one range slider: a slider is a separate decision, not a refactor of
+// this one.
 
 type IntervalFilterProps = {
   name: string;

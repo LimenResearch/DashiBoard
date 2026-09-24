@@ -2,8 +2,7 @@ import { createSignal } from "solid-js";
 
 // Light/dark mode.
 //
-// Three rules come from C5 and from the host's own implementation, and none of them are ours to
-// reinvent:
+// Three rules come from the host that embeds this UI, and none of them are ours to reinvent:
 //
 //   * **The mode arrives in the frame URL as `?theme=dark`, read once at load and never again.**
 //     That is what lets an embedded frame know the mode before first paint, so a light panel never
@@ -12,7 +11,7 @@ import { createSignal } from "solid-js";
 //     Later changes arrive by postMessage instead (not built yet).
 //   * **No third state.** The host matches the OS silently at launch and shows only light/dark,
 //     its owner having judged a monitor icon to be a state label rather than an affordance.
-//   * **Standalone has to work on its own** (§9 layer 1), so the OS preference is the fallback and
+//   * **Standalone has to work on its own**, so the OS preference is the fallback and
 //     the toggle is a real control here, not a stand-in for a host that is missing.
 
 export type ThemeMode = "light" | "dark";

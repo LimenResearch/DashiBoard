@@ -29,7 +29,7 @@ import { issueFindings } from "../findings";
 import type { Incompleteness } from "../completeness";
 import { onlyOptions, withoutOption, type Defs, type IRNode } from "../ir";
 
-// Authoring `[groups]` — §6's "one picker, two levels".
+// Authoring `[groups]`: one picker, two levels.
 //
 // A group *is* a list of selector items, the same shape a card's `inputs` holds, so this reuses
 // `SelectorField` rather than describing the vocabulary a second time. That is not a convenience:
@@ -52,7 +52,7 @@ export function GroupsEditor(props: { defs: Defs }) {
     return v?.verdict === "rejected" ? v.findings : [];
   };
   // What the continuous probe says live about a group is only its *warnings*. Its errors are not
-  // shown here: red is reserved for what Confirm or a Run found (decided 2026-09-17).
+  // shown here: red is reserved for what Confirm or a Run found.
   const defsForGroup = (name: string): Defs => {
     const may = probe.referable?.groups[name];
     return may === undefined
@@ -79,10 +79,9 @@ export function GroupsEditor(props: { defs: Defs }) {
         <For each={Object.keys(state.groups)}>
           {(name) => {
             // Why the last name typed into this group was refused — per group, since the `<For>`
-            // callback is a per-row owner, and read inside the group that caused it. It used to be
-            // one banner above the whole list, which scrolls away from the group being renamed
-            // and does not say which group it is about (owner, 2026-09-17). A card's refusal is
-            // the same move (`processing.tsx`, `rename`).
+            // callback is a per-row owner, and read inside the group that caused it rather than in
+            // one banner above the list, which scrolls away and names no group. A card's refusal
+            // is the same move (`processing.tsx`, `rename`).
             const [nameError, setNameError] = createSignal<string | null>(null);
             const [unfolded, setUnfolded] = createSignal(false);
             function rename(field: HTMLInputElement) {
@@ -139,9 +138,8 @@ export function GroupsEditor(props: { defs: Defs }) {
                     </p>
                   )}
                 </For>
-                {/* A refused name, with the other banners rather than under the field: seen in a
-                    browser with the field between two red banners, it read as two kinds of thing
-                    (owner, 2026-09-17). One stack, then the fields. */}
+                {/* A refused name joins the other banners rather than sitting under the field,
+                    where it read as a different kind of thing. One stack, then the fields. */}
                 <Show when={nameError()}>
                   <p
                     data-name-error
@@ -179,13 +177,9 @@ export function GroupsEditor(props: { defs: Defs }) {
               {/* At the foot, after the last thing to fill in, and outside what folds. */}
               <span data-group-actions class="mt-1 flex shrink-0 items-center justify-end gap-2">
                 {/*
-                  Asks the probe rather than judging locally: an empty group passes schema
-                  validation (measured — `weather = []` constructs), so completeness here was
-                  never the validator's to answer, and used to be `checkGroup`'s own guess at
-                  it. Since the 2026-09-16 fixes the server reports an empty group itself
-                  (`empty_group_issues`, surfaced as `/groups/<name>`), Confirm now asks
-                  the same question the continuous probe asks and shows its answer — one
-                  source of truth instead of two that could disagree.
+                  Asks the probe rather than judging locally. An empty group passes schema
+                  validation — `weather = []` constructs — so completeness was never the
+                  validator's to answer; the probe reports it, and Confirm shows that answer.
                 */}
                 <Button
                   title="mark this group deliberately finished"
@@ -206,15 +200,10 @@ export function GroupsEditor(props: { defs: Defs }) {
                     const decide = (found: Incompleteness[]) =>
                       recordVerdict(key, items, found.length > 0 ? "rejected" : "confirmed", found);
                     void (async () => {
-                      // The server's answer, not ours: an empty group is reported by the
-                      // probe since the 2026-09-16 fixes (`empty_group_issues`), so the
-                      // one rule that used to live here (`checkGroup`) is gone.
                       const answer = await askProbe(document);
                       if (!stillAsked(key, asked)) return;
-                      // `null` means the probe could not be asked at all (item 1: a missing
-                      // dev-server proxy route, or the server being down) — not that it came
-                      // back clean. Reading it as "no issues" is what let an empty group
-                      // through Confirm with a green dot (final review, 2026-09-16).
+                      // `null` means the probe could not be asked at all — the server down, a
+                      // missing proxy route — not that it came back clean.
                       if (answer === null) {
                         decide([{
                           message: "Could not reach DashiBoard to check this group — is the server running?",

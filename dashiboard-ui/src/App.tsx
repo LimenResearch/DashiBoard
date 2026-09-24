@@ -10,7 +10,7 @@ import './App.css';
 export default function App() {
   // Read the requested mode once, on the client. `onSettled` rather than module scope because
   // this renders on the server too, where there is no `window` — and once rather than reactively
-  // because C5 says the URL is read at load and never again: a host changing the mode sends a
+  // because the URL is read at load and never again: a host changing the mode sends a
   // message, it does not re-navigate the frame, which would remount the app and lose its state.
   onSettled(() => {
     const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;

@@ -276,10 +276,10 @@ A client reads the two the same way and means different things by them: a `pipel
 the author back to the cards, an `execution` failure back to the data.
 """
 function failure_report(kind::AbstractString, exception::Exception)
-    # A7: a schema failure carries a JSON Pointer into the document and what would have been
+    # A schema failure carries a JSON Pointer into the document and what would have been
     # accepted, so the form can address the control and offer a correction. Anything else — a
     # cyclic graph, a duplicate id, a binder error from DuckDB — has only its message.
-    # A11: validation collects, so one failure and twenty arrive in the same shape.
+    # Validation collects, so one failure and twenty arrive in the same shape.
     issues = exception isa Pipelines.SchemaValidationErrors ?
         Pipelines.issue_report(exception) : []
     return (;
@@ -295,13 +295,12 @@ end
 The cards' schema failures, asked for on their own — for the one case where the build cannot be
 relied on to report them: a document that also has an empty group.
 
-`empty_group_issues` has to answer before the pipeline is built (see there), and it used to end
-the reply, so the cards were never looked at: a document with an empty group *and* a broken card
-named the group only, and the card turned red one fix and one question later (seen in a browser,
-2026-09-21, loading a document). The constructor validates the whole document before it builds
-anything, so a schema failure still arrives as `SchemaValidationErrors` whatever the groups
-hold; anything else it throws here is the empty group's own consequence (a card built with no
-inputs), which `empty_group_issues` already says in better words, and is dropped.
+`empty_group_issues` has to answer before the pipeline is built (see there), and its answer must
+not end the reply, or a document with an empty group *and* a broken card would name the group
+only. The constructor validates the whole document before it builds anything, so a schema failure
+arrives as `SchemaValidationErrors` whatever the groups hold; anything else it throws here is the
+empty group's own consequence — a card built with no inputs — which `empty_group_issues` already
+says in better words, and is dropped.
 """
 function card_schema_issues(nodes::AbstractVector, groups::AbstractDict, cols)
     try
@@ -318,11 +317,11 @@ end
 One issue per loop in the document's dependency graph, naming its members.
 
 A loop is a fault of the document, not of any one card, and the sentence Graphs.jl has for it —
-"The input graph contains at least one loop." — names nothing, so a client could only repeat it
-on whichever card happened to be asked (seen in a browser, 2026-09-18, on every card). The members
-are recoverable without sorting: `Pipelines.dependency_graph` builds the graph and only the
-later topological sort throws, so the strongly connected components with more than one vertex
-(or a self-edge) are exactly the loops. Vertices are the nodes in document order, then the groups
+"The input graph contains at least one loop." — names nothing, so a client could only repeat it on
+whichever card happened to be asked. The members are recoverable without sorting:
+`Pipelines.dependency_graph` builds the graph and only the later topological sort throws, so the
+strongly connected components with more than one vertex (or a self-edge) are exactly the loops.
+Vertices are the nodes in document order, then the groups
 in `pairs(groups)` order — the numbering `dependency_graph` itself uses.
 
 The issue points at no item (`pointer = ""`): that is what tells a client it belongs to the
@@ -456,8 +455,8 @@ One `pipeline`-kind issue per group that names no columns.
 
 A group with an empty selector list is a legal document — `weather = []` constructs — and it
 resolves to zero columns, so a card reading it is built with no inputs and dies inside the card
-constructor with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
-smoke check 5). That message names the implementation, not the mistake. Checked here, before the
+constructor with `UndefKeywordError: keyword argument args not assigned`. That message names the
+implementation, not the mistake. Checked here, before the
 pipeline is built, because the group API keeps no provenance from a resolved column list back to
 the group that produced it: by the time construction fails, which group was empty is no longer
 knowable. Reported by the probe and by the run alike, in the same shape as a schema failure, so a
@@ -486,8 +485,8 @@ A warning per node whose outputs replace a column that already exists — in the
 by an earlier node.
 
 `rescale TEMP suffix = "rescaled"` against a source that already holds `TEMP_rescaled` is accepted
-at every layer and silently replaces the column (A13, measured 2026-09-13 and on 1M rows
-2026-09-16). Overwriting can be meant, so `severity = "warning"`: `valid` stays true and the run is
+at every layer and silently replaces the column. Overwriting can be meant, so
+`severity = "warning"`: `valid` stays true and the run is
 allowed; the form shows it on the card. Nodes are walked in document order, so the later of two
 cards emitting the same name is the one warned, and a name is compared against everything that
 exists *before* the node runs.
@@ -519,7 +518,7 @@ end
     probe_pipeline(req)
 
 Resolve a document without running it: which columns each node consumes and emits, and any it
-references that nothing produces (A10).
+references that nothing produces.
 
 Construction is the cheap half of `evaluate-pipeline` — it resolves the group vocabulary and
 validates against the schema — so a probe costs a graph walk and no data access beyond reading the
@@ -534,7 +533,7 @@ Construction is pure document processing, so anything it raises is a fact about 
 belongs in the response.
 
 A schema failure additionally comes back as `issues` — a JSON Pointer into the document, the
-failing keyword, and what would have been accepted (A7) — which is the vehicle a form needs to
+failing keyword, and what would have been accepted — which is the vehicle a form needs to
 address the offending control rather than print a sentence above it.
 """
 function probe_pipeline(req::HTTP.Request)
@@ -571,8 +570,8 @@ function probe_pipeline(req::HTTP.Request)
     # this the third answer to "what is this node called" in three files.
     ids = Pipelines.get_id.(spec["nodes"])
 
-    # A7's second error source. An unproduced reference is addressed at *node* granularity, not
-    # at the selector item that named it: resolution returns the node's resolved column list and
+    # The second source of pointed failures. An unproduced reference is addressed at *node*
+    # granularity, not at the selector item that named it: resolution returns the column list and
     # keeps no provenance back to the item, so `{cols = "PRES", through = [...]}` cannot be
     # singled out from its siblings. Reported in the same shape as a schema failure so a form
     # iterates one list, with `reason` telling them apart.
@@ -624,11 +623,9 @@ end
 Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
 selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
 
-This route used to take the flat `{filters, cards}` shape, and 06-design.md's "Do not do" once said
-not to migrate it, on the premise that the new UI would serve against ExperimentTracking and this
-server would be deleted. Under the standalone-first scope the new UI serves against *this* server
-until B1 and B6 land, so leaving it flat-only meant the UI could not preview the group vocabulary
-that §6's variable picker exists to author.
+This route also takes the flat `{filters, cards}` shape, which it accepted before groups existed.
+Both are kept: the UI authors the group dialect, and the group vocabulary is what its variable
+picker exists to write.
 """
 function evaluate_pipeline(req::HTTP.Request)
     spec = json_read(req)
@@ -717,8 +714,8 @@ Sorter(d::AbstractDict) = Sorter(d["colId"], ASC_DICT[d["sort"]])
 `Select` every column of `table`, with each floating-point column replaced by
 `CASE WHEN isfinite(col) THEN col END`.
 
-DuckDB's JSON writer emits bare `NaN` and `Infinity`, which are not JSON: a page of a z-scored
-constant column was unreadable to the browser (A12, measured 2026-09-16). The cast happens in
+DuckDB's JSON writer emits bare `NaN` and `Infinity`, which are not JSON, so a page of a z-scored
+constant column is unreadable to the browser. The cast happens in
 SQL so the page is written once and never post-processed as text. Column types come from
 `information_schema`, which is a catalogue lookup — not a pass over the table.
 

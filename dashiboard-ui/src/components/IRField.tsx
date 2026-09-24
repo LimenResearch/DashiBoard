@@ -339,7 +339,7 @@ export function IRField(props: IRFieldProps) {
           case "repeater": {
             // Re-narrowed locally — see the comment in `case "object"`.
             const w = () => widget() as Extract<Widget, { kind: "repeater" }>;
-            // A repeater over selector items is the variable picker (C2), not a generic list:
+            // A repeater over selector items is the variable picker, not a generic list:
             // its items are grouped by qualification rather than shown one per row.
             //
             // Decided in a memo and branched in JSX, not with an `if` here: this callback body
@@ -389,8 +389,8 @@ export function IRField(props: IRFieldProps) {
 
           // A lone `$defs/variable` — `partition`, `weights`, `gaussian_encoding.input`,
           // `interp.input`: one selector item, where a repeater over them is a list. There was no
-          // case for it, so the form drew nothing — two required fields could not be filled in
-          // from the UI at all (measured 2026-09-17). The server resolves such a field with
+          // case for it, so the form drew nothing and two required fields could not be filled in
+          // from the UI at all. The server resolves such a field with
           // `only(...)`, exactly one column; the picker in `single` mode holds exactly one row.
           case "selector":
             return (

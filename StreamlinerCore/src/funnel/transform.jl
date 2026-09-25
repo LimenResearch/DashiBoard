@@ -1,18 +1,18 @@
-struct RichColumn
+lift_transform(s::AbstractString) = PARSER[].transforms[s]
+
+lower_transform(transform) = findfirst(==(transform), PARSER[].transforms)
+
+@tags struct RichColumn
     colname::String
-    transform_name::String
-    transform::Function
+    # FIXME: avoid type instability here, consider `FunctionWrappers`
+    # Also consider a more uniform `{"type": transform_name}` API
+    transform::Function & (lift = lift_transform, lower = lower_transform)
 end
 
 colname(r::RichColumn) = r.colname
 
-get_metadata(r::RichColumn) = Dict("colname" => r.colname, "transform" => r.transform_name)
+get_metadata(r::RichColumn) = DashiBase.to_config(r)
 
-RichColumn(r::RichColumn) = r
+RichColumn(s::AbstractString) = RichColumn((colname = s, transform = ""))
 
-function RichColumn(s::Union{AbstractString, AbstractDict})
-    column_name::String, transform_name::String =
-        s isa AbstractDict ? (s["colname"], s["transform"]) : (s, "")
-    transform = PARSER[].transforms[transform_name]
-    return RichColumn(column_name, transform_name, transform)
-end
+RichColumn(d::Union{NamedTuple, AbstractDict}) = DashiBase.construct(RichColumn, d)

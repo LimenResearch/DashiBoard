@@ -14,6 +14,8 @@ mutable struct FunneledData{F <: Funnel, N} <: AbstractData{N}
     const funnel::F
     const partition::Maybe{String}
     const require_targets::Bool
+    # FIXME: initialize to `nothing`?
+    # be mindful of type instability
     unique_values::Dict{String, AbstractVector}
     helper_tables::Maybe{Dict{String, String}}
     helper_files::Maybe{Dict{String, String}}
@@ -55,6 +57,9 @@ end
 
 initialize_helper_tables(data::FunneledData) = data
 
+# TODO: support transforms in the schema
+const RICH_VARIABLES_DEF = VARIABLES_DEF
+
 # Interface:
 #
 # An implementation of a `FunnelType <: Funnel` must include:
@@ -78,11 +83,11 @@ initialize_helper_tables(data::FunneledData) = data
 
 # TODO: integrate with StructUtils tags to get fully specified schema
 @kwarg struct DBFunnel <: Funnel
-    order_by::Vector{String}
-    inputs::Vector{RichColumn}
-    input_paths::Maybe{String} = nothing
-    targets::Vector{RichColumn}
-    target_paths::Maybe{String} = nothing
+    order_by::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
+    inputs::Vector{RichColumn} = RichColumn[] & (dashi = RICH_VARIABLES_DEF,)
+    input_paths::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
+    targets::Vector{RichColumn} = RichColumn[] & (dashi = RICH_VARIABLES_DEF,)
+    target_paths::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
 end
 
 get_helpers_in(dbf::DBFunnel) = String[]
@@ -97,28 +102,13 @@ get_targets(dbf::DBFunnel) = dbf.targets
 get_constant_targets(dbf::DBFunnel) = String[]
 get_target_paths(dbf::DBFunnel) = dbf.target_paths
 
-function DBFunnel(d::AbstractDict)
-    order_by::Vector{String} = get(d, "order_by", String[])
-    inputs::Vector{RichColumn} = RichColumn.(get(d, "inputs", []))
-    input_paths::Maybe{String} = get(d, "input_paths", nothing)
-    targets::Vector{RichColumn} = RichColumn.(get(d, "targets", []))
-    target_paths::Maybe{String} = get(d, "target_paths", nothing)
-
-    # validation
-    if isempty(order_by)
-        throw(ArgumentError("User must define sorting variable(s)"))
-    end
-    if isempty(targets) && isnothing(target_paths)
-        throw(ArgumentError("User must define target variable(s) or target paths"))
-    end
-    if isempty(inputs) && isnothing(input_paths)
-        throw(ArgumentError("User must define input variable(s) or input paths"))
-    end
-
-    return DBFunnel(order_by, inputs, input_paths, targets, target_paths)
-end
+# FIXME: add checks that either inputs or input_paths are present
+# and similarly for outputs and output_paths
+DBFunnel(d::AbstractDict) = DashiBase.construct(DBFunnel, d)
 
 function get_metadata(dbf::DBFunnel)
+    c = DashiBase.to_config(dbf)
+
     return StringDict(
         "order_by" => dbf.order_by,
         "inputs" => get_metadata.(dbf.inputs),

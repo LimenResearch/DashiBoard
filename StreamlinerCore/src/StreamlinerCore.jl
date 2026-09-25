@@ -20,7 +20,7 @@ public get_helpers_in, get_helpers_out, get_order_by,
     get_targets, get_constant_targets, get_target_paths
 
 using DashiBase: DashiBase, DashiStyle, ObjectIR, TaggedObjectIR, Property,
-    StringDict, SymbolDict, Maybe
+    VARIABLE_DEF, VARIABLES_DEF, StringDict, SymbolDict, Maybe
 
 using DuckDBUtils: DuckDBUtils,
     Repository,
@@ -36,7 +36,7 @@ using DuckDBUtils: DuckDBUtils,
 using FunSQL: Agg, Fun, Lit, Var, Get, From, Group, Select, Where, Order, Limit
 using DBInterface: DBInterface
 
-using StructUtils: StructUtils, @kwarg
+using StructUtils: StructUtils, @kwarg, @tags
 using OrderedCollections: OrderedDict
 using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std

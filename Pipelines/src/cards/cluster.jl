@@ -117,7 +117,7 @@ end
 
 SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.partition)
 
-OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
+output_spec(cc::ClusterCard) = OutputSpec([cc.output])
 
 function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)

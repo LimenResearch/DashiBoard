@@ -33,7 +33,7 @@ end
 
 SourceVariables(wfc::WindowFunctionCard) = SourceVariables(; wfc.order_by, wfc.group_by)
 
-OutputVariables(wfc::WindowFunctionCard) = OutputVariables([wfc.output])
+output_spec(wfc::WindowFunctionCard) = OutputSpec([wfc.output])
 
 function train(
         ::Repository, ::WindowFunctionCard, ::AbstractString, ::AbstractPrimaryKey;

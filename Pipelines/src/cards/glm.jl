@@ -169,7 +169,7 @@ function SourceVariables(gc::AbstractGLMCard)
     )
 end
 
-OutputVariables(gc::AbstractGLMCard) = OutputVariables([output_var(gc)])
+output_spec(gc::AbstractGLMCard) = VariableTransformSpec([target_var(gc)], gc.suffix)
 
 ## GLMCard
 

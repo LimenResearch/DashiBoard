@@ -57,7 +57,7 @@ output_vars(drc::DimensionalityReductionCard) = join_names.(drc.output, 1:drc.n_
 
 SourceVariables(drc::DimensionalityReductionCard) = SourceVariables(; drc.inputs, drc.partition)
 
-OutputVariables(drc::DimensionalityReductionCard) = OutputVariables(output_vars(drc))
+output_spec(drc::DimensionalityReductionCard) = OutputSpec([drc.output], nothing, drc.n_components)
 
 function _train(drc::DimensionalityReductionCard, t, ::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), drc.inputs, dims = 1)

@@ -181,3 +181,47 @@ function evaluate(
         evaluate(repository, card, state, sd, id_var; schema)
     end
 end
+
+## Output transformation (consider adding inside `CardSpec`)
+
+abstract type AbstractOutputSpec end
+
+@defaults struct OutputSpec <: AbstractOutputSpec
+    names::Vector{String} # could be `OrderedSet{String}` as an optimization
+    suffix::Maybe{String} = nothing
+    number::Maybe{Int} = nothing
+end
+
+get_names(os::OutputSpec) = os.names
+
+@defaults struct VariableTransformSpec <: AbstractOutputSpec
+    cols::Vector{String} # could be `OrderedSet{String}` as an optimization
+    suffix::Maybe{String} = nothing
+    number::Maybe{Int} = nothing
+end
+
+get_names(vts::VariableTransformSpec) = vts.cols
+
+function _to_outputs(
+        names::AbstractVector{<:AbstractString},
+        suffix::Maybe{AbstractString},
+        number::Maybe{<:Integer}
+    )::Vector{String}
+    args = isnothing(suffix) ? (names,) : (names, suffix)
+    return isnothing(number) ? join_names.(args...) : vec(join_names.(args..., (1:number)'))
+end
+
+function _to_outputs(os::AbstractOutputSpec, names::AbstractVector{<:AbstractString} = get_names(os))
+    (; suffix, number) = os
+    return _to_outputs(names, suffix, number)
+end
+
+function to_outputs(n::Node, v::VariableTransformSpec, cols::AbstractVector{<:AbstractString})
+    extras = setdiff(cols, v.cols)
+    if !isempty(extras)
+        throw(ArgumentError("Columns $(extras) cannot pass through node $(n.id)"))
+    end
+    return _to_outputs(v, cols)
+end
+
+output_spec(::Card) = nothing

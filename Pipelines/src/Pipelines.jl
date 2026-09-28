@@ -152,7 +152,7 @@ using StreamlinerCore:
 using Clustering: assignments, kmeans, dbscan, affinityprop
 
 using Distances: pairwise, SqEuclidean, Euclidean, Cityblock, Chebyshev, Minkowski,
-    WeightedSqEuclidean, WeightedEuclidean, WeightedCityblock, WeightedMinkowski
+    WeightedSqEuclidean, WeightedEuclidean, WeightedCityblock, WeightedMinkowski, UnionMinkowskiMetric
 
 using LinearAlgebra: diagind
 

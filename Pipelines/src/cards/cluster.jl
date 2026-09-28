@@ -51,7 +51,16 @@ function (m::DBSCANMethod)(X; weights)
     (; radius, min_neighbors, min_cluster_size) = m
     isnothing(weights) || @warn "Weights not supported in DBSCAN"
     metric = get_dissimilarity(m.dissimilarity)
-    return dbscan(X, radius; metric, min_neighbors, min_cluster_size)
+    return if metric isa UnionMinkowskiMetric
+        # with Minkowski metric, the algorithm constructs a KDTree and avoids quadratic cost
+        dbscan(X, radius; metric, min_neighbors, min_cluster_size)
+    else
+        # FIXME: avoid quadratic cost (BallTree or custom tree)
+        dbscan(
+            pairwise(metric, X, dims = 2), radius;
+            metric = nothing, min_neighbors, min_cluster_size,
+        )
+    end 
 end
 
 """

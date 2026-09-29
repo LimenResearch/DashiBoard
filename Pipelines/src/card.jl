@@ -246,7 +246,7 @@ Create default reports for all `nodes` referring to a given `repository`.
 Each node must be of type `Node`.
 """
 function report(repository::Repository, nodes::AbstractVector)
-    return report.(Ref(repository), get_card.(nodes), get_state.(nodes))
+    return report.(Ref(repository), get_card.(nodes), get_model.(nodes))
 end
 
 """
@@ -264,7 +264,7 @@ Create default visualizations for all `nodes` referring to a given `repository`.
 Each node must be of type `Node`.
 """
 function visualize(repository::Repository, nodes::AbstractVector)
-    return visualize.(Ref(repository), get_card.(nodes), get_state.(nodes))
+    return visualize.(Ref(repository), get_card.(nodes), get_model.(nodes))
 end
 
 """

@@ -39,13 +39,13 @@ function train(
         ::Repository, ::WindowFunctionCard, ::AbstractString, ::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
-    return CardState()
+    return nothing
 end
 
 function evaluate(
         repository::Repository,
         wfc::WindowFunctionCard,
-        ::CardState,
+        ::Nothing,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing

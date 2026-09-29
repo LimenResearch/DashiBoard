@@ -104,7 +104,7 @@ function evaluate(
         schema::Maybe{AbstractString} = nothing
     )
 
-    isnothing(content) && throw(ArgumentError("Invalid state"))
+    isnothing(content) && throw(ArgumentError("Model was not successfully trained"))
 
     (; model, training, funnel, suffix) = sc
     streaming = Streaming(; training.device, training.batchsize)

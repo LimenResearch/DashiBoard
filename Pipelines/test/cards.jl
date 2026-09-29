@@ -373,6 +373,19 @@ end
     R = affinityprop(S; maxiter = 200, tol = 1.0e-6, damp = 0.5)
     @test R.converged
     @test df.apcluster == assignments(R)
+
+    # exercise non-minkowski path
+    card = Pipelines.Card(d["nonMinkowski"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "selection" => "clustering", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+    train_df = DBInterface.execute(DataFrame, repo, "FROM selection")
+    X = [train_df.TEMP train_df.PRES]'
+    R = dbscan(
+            Pipelines.pairwise(Pipelines.RMSDeviation(), X, dims = 2), 0.02;
+            metric = nothing
+        )
+    @test assignments(R) == df.non_minkowski
 end
 
 @testset "dimensionality reduction" begin

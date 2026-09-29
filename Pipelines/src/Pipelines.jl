@@ -151,7 +151,7 @@ using StreamlinerCore:
 
 using Clustering: assignments, kmeans, dbscan, affinityprop
 
-using Distances: pairwise, SqEuclidean, Euclidean, Cityblock, Chebyshev, Minkowski,
+using Distances: pairwise, SqEuclidean, Euclidean, Cityblock, Chebyshev, Minkowski, HellingerDist, RMSDeviation,
     WeightedSqEuclidean, WeightedEuclidean, WeightedCityblock, WeightedMinkowski, UnionMinkowskiMetric
 
 using LinearAlgebra: diagind

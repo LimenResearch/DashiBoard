@@ -130,6 +130,20 @@ card's `inputs` in length and order.
 end
 
 """
+    RMSDeviationMethod <: MetricMethod
+
+RMSDeviation distance (`"type" => "rmsdeviation"`).
+"""
+@kwarg struct RMSDeviationMethod <: MetricMethod end
+
+"""
+    HellingerDistMethod <: MetricMethod
+
+HellingerDist distance (`"type" => "hellingerdist"`).
+"""
+@kwarg struct HellingerDistMethod <: MetricMethod end
+
+"""
     get_dissimilarity(m::DissimilarityMethod)
 
 The Distances.jl object a `DissimilarityMethod` configures — usable
@@ -146,6 +160,8 @@ get_dissimilarity(m::MinkowskiMethod) = Minkowski(m.p)
 get_dissimilarity(m::WeightedEuclideanMethod) = WeightedEuclidean(m.weights)
 get_dissimilarity(m::WeightedCityblockMethod) = WeightedCityblock(m.weights)
 get_dissimilarity(m::WeightedMinkowskiMethod) = WeightedMinkowski(m.weights, m.p)
+get_dissimilarity(::RMSDeviationMethod) = RMSDeviation()
+get_dissimilarity(::HellingerDistMethod) = HellingerDist()
 
 """
     METRIC_METHODS
@@ -162,6 +178,8 @@ const METRIC_METHODS = OrderedDict{String, Type}(
     "weighted_euclidean" => WeightedEuclideanMethod,
     "weighted_cityblock" => WeightedCityblockMethod,
     "weighted_minkowski" => WeightedMinkowskiMethod,
+    "rmsdeviation" => RMSDeviationMethod,
+    "hellingerdist" => HellingerDistMethod
 )
 
 """

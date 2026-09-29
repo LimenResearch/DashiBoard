@@ -847,3 +847,33 @@ end
     @test stats["training"]["logitcrossentropy"] ≈ 2.82 atol = 1.0e-2
     @test stats["validation"]["logitcrossentropy"] ≈ 1.69 atol = 1.0e-2
 end
+
+# Which shape of specification each card declares. The three shapes mean different things to a
+# `through` chain, so a change that silently reclassifies a card has to fail here.
+@testset "output specifications" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    gc = Pipelines.Card(d["dayofweek"])
+    gspec = Pipelines.output_spec(gc)
+    @test gspec isa Pipelines.VariableTransformSpec
+    @test gspec.cols == ["date"]
+
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
+    sc = Pipelines.Card(d["percentile"])
+    # A split invents its column rather than deriving it, so nothing passes through one.
+    @test Pipelines.output_spec(sc) isa Pipelines.OutputSpec
+
+    # A wild card names its outputs outright, so it is the same shape as a split.
+    wc = Pipelines.Card(Dict("type" => "trivial", "inputs" => ["a", "b"], "outputs" => ["c"]))
+    @test Pipelines.output_spec(wc) isa Pipelines.OutputSpec
+    @test Pipelines.get_node_outputs(Node(wc)) == ["c"]
+
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
+    rc = Pipelines.Card(d["zscore2"])
+    rspec = Pipelines.output_spec(rc)
+    @test rspec isa Pipelines.InvertibleSpec
+    # Forward it renames every input and target, which is what a chain follows.
+    @test rspec.forward.cols == ["TEMP", "PRES"]
+    @test Pipelines.get_node_outputs(Node(rc)) == ["TEMP_rescaled", "PRES_rescaled"]
+    # Inverted it strips that suffix and applies `target_suffix` instead, which no transform says.
+    @test Pipelines.get_node_outputs(invert(Node(rc))) == ["PRES_hat"]
+end

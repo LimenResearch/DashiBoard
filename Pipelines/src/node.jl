@@ -198,6 +198,22 @@ end
 
 get_names(vts::VariableTransformSpec) = vts.cols
 
+"""
+    InvertibleSpec(forward, inverse_outputs)
+
+Outputs for a card that runs both ways: `forward` transforms the columns it is given, while the
+inverse writes `inverse_outputs` whatever it is handed. The inverse is a plain list because undoing
+a transformation is not itself one — it strips a suffix rather than appending one — so no
+`VariableTransformSpec` describes it.
+
+Answers `to_outputs` only when given a node: without the direction the question has no single
+answer.
+"""
+@defaults struct InvertibleSpec <: AbstractOutputSpec
+    forward::VariableTransformSpec
+    inverse_outputs::Vector{String} = String[]
+end
+
 function _to_outputs(
         names::AbstractVector{<:AbstractString},
         suffix::Maybe{AbstractString},
@@ -235,6 +251,8 @@ What `n` writes. Most specifications answer the same whichever way a node runs, 
 only consulted for the ones that do not.
 """
 to_outputs(::Node, os::AbstractOutputSpec) = to_outputs(os)
+
+to_outputs(n::Node, s::InvertibleSpec) = get_invert(n) ? s.inverse_outputs : to_outputs(s.forward)
 
 # A card that has not declared a specification answers the old way. This method is the whole of
 # what is left to migrate: when every card declares one, it goes, and `OutputVariables` stops

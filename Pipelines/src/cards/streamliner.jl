@@ -208,7 +208,7 @@ function evaluate(
         schema::Maybe{AbstractString} = nothing
     )
 
-    isnothing(content) && throw(ArgumentError("Invalid state"))
+    isnothing(content) && throw(ArgumentError("Model was not successfully trained"))
 
     (; model, training, funnel) = sc
     select = selected_products(sc)

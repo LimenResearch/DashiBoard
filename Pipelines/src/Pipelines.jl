@@ -15,6 +15,8 @@ export Card,
 
 public get_metadata, register_card, CardSpec
 
+public get_model, set_model!, get_state, set_state!
+
 # The two artefacts of one traversal. `card_schema` was already called by
 # ExperimentTracking without being declared; `card_ir` and `ir_definitions` are its consumers'
 # new entry points. The IR types are deliberately NOT public: an IR serialises through

@@ -97,11 +97,14 @@ struct Context
     outputs::Vector{Vector{String}}
 end
 
-# TODO: more general definition
+# Fold the chain: each node renames what the one before it handed on, and refuses a value it does
+# not transform. This is what makes a `through` list checkable rather than a name built on hope.
 function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVector)
-    isempty(is) && return x
-    suffix = join((node.card.suffix for node in view(nodes, is)), "_")
-    return join_names.(x, suffix)
+    for i in is
+        node = nodes[i]
+        x = to_outputs(node, output_spec(get_card(node)), x)
+    end
+    return x
 end
 
 # Nested column computations

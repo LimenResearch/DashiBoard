@@ -224,6 +224,27 @@ end
     end
     rejects(inputs) = (@test_throws Pipelines.SchemaValidationErrors resolve(inputs))
 
+    # The fixture has no valid chain of two: `rescale` writes `PRES_rescaled` and friends, and
+    # `log` reads only `No`. This adds a node that reads what `rescale` writes, so the ordered
+    # cases below have something real to be ordered about. Appended, so `pca` stays node 3.
+    function resolve_chained(inputs)
+        d = deepcopy(base)
+        push!(
+            d["nodes"],
+            Dict(
+                "id" => "recenter",
+                "card" => Dict(
+                    "type" => "rescale",
+                    "method" => Dict("type" => "zscore"),
+                    "suffix" => "recentered",
+                    "inputs" => [Dict("nodes" => "rescale")],
+                ),
+            ),
+        )
+        d["nodes"][3]["card"]["inputs"] = inputs
+        return Pipelines.Pipeline(d["nodes"], d["groups"], cols).nodes[3].card.inputs
+    end
+
     # A ≡ B: one item with two values and two items with one value each are indistinguishable.
     # So the item boundary carries no meaning *until* a `through` differs.
     @test resolve([Dict("cols" => ["PRES", "TEMP"])]) == ["PRES", "TEMP"]
@@ -262,17 +283,25 @@ end
         ["PRES_rescaled", "TEMP_rescaled", "No_log"]
     @test resolve([Dict("cols" => "TEMP"), Dict("cols" => "PRES")]) == ["TEMP", "PRES"]
 
-    # `through` is an ordered *list* of nodes whose suffixes concatenate, not a single node.
-    # So a Through panel keys on an ordered combination: [log, rescale] ≠ [rescale, log].
+    # `through` is an ordered *list* of nodes, each renaming what the one before it handed on,
+    # not a single node. So a Through panel keys on an ordered combination.
     @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
-    @test resolve([Dict("cols" => "PRES", "through" => ["log", "rescale"])]) == ["PRES_log_rescaled"]
+    @test resolve_chained([Dict("cols" => "PRES", "through" => ["rescale", "recenter"])]) ==
+        ["PRES_rescaled_recentered"]
 
-    # THE GAP, pinned deliberately. `through` builds a column *name* by concatenating suffixes;
-    # validation checks only that the base column exists in the source. Nothing produces
-    # `PRES_rescaled_log` — `log` consumes `No` and emits `No_log` — yet this is accepted here and
-    # fails later inside a task, naming neither the column nor the node. If someone adds that
-    # check, this test should start failing and be updated rather than deleted.
-    @test resolve([Dict("cols" => "PRES", "through" => ["rescale", "log"])]) == ["PRES_rescaled_log"]
+    # The reverse order is refused rather than built: `recenter` reads `PRES_rescaled`, not `PRES`.
+    @test_throws ArgumentError resolve_chained(
+        [Dict("cols" => "PRES", "through" => ["recenter", "rescale"])]
+    )
+
+    # A chain may only pass through a node that transforms the value it carries. `log` reads `No`
+    # and writes `No_log`, so it carries neither `PRES` nor `PRES_rescaled`. Building the name
+    # anyway is what used to defer the failure to a task that could name neither column nor node.
+    @test_throws ArgumentError resolve([Dict("cols" => "PRES", "through" => ["log", "rescale"])])
+    @test_throws ArgumentError resolve([Dict("cols" => "PRES", "through" => ["rescale", "log"])])
+
+    # A node that names its own outputs carries nothing: `partition` invents its column.
+    @test_throws ArgumentError resolve([Dict("cols" => "PRES", "through" => ["partition"])])
 
     # What *is* caught: a `through` naming the consuming node makes the dependency graph cyclic.
     @test_throws ErrorException resolve([Dict("cols" => "PRES", "through" => ["rescale", "pca"])])
@@ -297,13 +326,9 @@ end
     # A chain that names something a node actually emits.
     @test isempty(issues([Dict("cols" => "PRES", "through" => ["rescale"])]))
 
-    # A chain that names a column nothing emits: `log` consumes `No` and emits only `No_log`, so
-    # `PRES_rescaled_log` exists nowhere. Validation accepts it; this is what catches it.
-    found = issues([Dict("cols" => "PRES", "through" => ["rescale", "log"])])
-    @test length(found) == 1
-    node_idx, missing_cols = only(found)
-    @test node_idx == 3                       # the `pca` node
-    @test missing_cols == ["PRES_rescaled_log"]
+    # A chain that names a column nothing emits is refused while the pipeline is being built, so
+    # it never reaches this check: `log` consumes `No` and emits only `No_log`.
+    @test_throws ArgumentError issues([Dict("cols" => "PRES", "through" => ["rescale", "log"])])
 
     # The untouched fixture is clean, so this does not fire on well-formed documents.
     p = Pipelines.Pipeline(base["nodes"], base["groups"], available)

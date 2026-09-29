@@ -234,12 +234,41 @@ function to_outputs(os::AbstractOutputSpec, names::AbstractVector{<:AbstractStri
     return _to_outputs(names, suffix, number)
 end
 
+"""
+    to_outputs(n::Node, spec, cols)::Vector{String}
+
+The names `cols` take after passing through `n`.
+
+A chain only means something for a node that derives its outputs from columns it was handed. A node
+that invents its outputs, that undoes a transformation, or that declares nothing refuses: the name
+the chain would build exists nowhere, and letting it through defers the failure to a task that can
+name neither the column nor the node.
+"""
 function to_outputs(n::Node, v::VariableTransformSpec, cols::AbstractVector{<:AbstractString})
     extras = setdiff(cols, v.cols)
     if !isempty(extras)
-        throw(ArgumentError("Columns $(extras) cannot pass through node $(n.id)"))
+        throw(ArgumentError("Columns $(extras) cannot pass through node `$(n.id)`"))
     end
     return to_outputs(v, cols)
+end
+
+function to_outputs(n::Node, ::OutputSpec, ::AbstractVector{<:AbstractString})
+    return throw(
+        ArgumentError("Node `$(n.id)` names its own outputs, so nothing can pass through it")
+    )
+end
+
+function to_outputs(n::Node, ::Nothing, ::AbstractVector{<:AbstractString})
+    return throw(
+        ArgumentError("Node `$(n.id)` does not declare what it produces, so nothing can pass through it")
+    )
+end
+
+function to_outputs(n::Node, s::InvertibleSpec, cols::AbstractVector{<:AbstractString})
+    get_invert(n) && throw(
+        ArgumentError("Node `$(n.id)` undoes a transformation, so nothing can pass through it")
+    )
+    return to_outputs(n, s.forward, cols)
 end
 
 output_spec(::Card) = nothing

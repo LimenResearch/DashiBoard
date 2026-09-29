@@ -421,23 +421,21 @@ mktempdir() do data_dir
         @test parsed["valid"] == false
         @test parsed["kind"] == "pipeline"
 
-        # A10: probing constructs without executing, and reports references nothing produces.
-        # `through = ["r","r"]` names TEMP_a_a, which no node emits — schema validation accepts it.
+        # Probing constructs without executing, so a chain that cannot resolve is a fault the
+        # probe reports rather than a crash. `through = ["r", "r"]` asks `r` to carry `TEMP_a`,
+        # which it does not read — it reads `TEMP` — so the pipeline refuses to build and the
+        # answer names the node responsible.
         body = read(joinpath(@__DIR__, "static", "probe-bad.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body)
+        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
+        @test resp.status == 200
         probe = JSON.parse(resp.body)
         @test probe["valid"] == false
-        @test probe["kind"] == "pipeline"   # an unproduced reference is a document fault too
-        offender = only(filter(n -> !isempty(n["unproduced"]), probe["nodes"]))
-        @test offender["id"] == "bad"
-        @test offender["unproduced"] == ["TEMP_a_a"]
-        # and it still reports what it resolved, rather than only failing
-        @test "TEMP_a" in probe["nodes"][1]["outputs"]
-        # A7: the same failure also arrives in the uniform `issues` shape, addressed by pointer.
-        # Node granularity, not item: resolution keeps no provenance back to the selector item.
-        unproduced = only(filter(i -> i["reason"] == "unproduced", probe["issues"]))
-        @test unproduced["pointer"] == "/nodes/1/card"
-        @test unproduced["missing"] == ["TEMP_a_a"]
+        @test probe["kind"] == "pipeline"
+        @test occursin("cannot pass through node `r`", only(probe["errors"]))
+        # The vocabularies a picker offers from survive the failure, so a form can still correct
+        # the chain rather than going blank.
+        @test "TEMP" in probe["cols"]
+        @test haskey(probe, "referable")
 
         # A probe reports rather than throws — for *every* way a document can be malformed,
         # not only schema failures. Two nodes with no `id` both resolve to "", which the

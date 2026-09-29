@@ -119,11 +119,7 @@ end
 
 Return the lists of variables produced as output by a given `node`.
 """
-function get_node_outputs(node::Node)::Vector{String}
-    c, invert = get_card(node), get_invert(node)
-    vars = OutputVariables(c)
-    return invert ? vars.inverse_outputs : vars.outputs
-end
+get_node_outputs(node::Node)::Vector{String} = to_outputs(node, output_spec(get_card(node)))
 
 invertible(n::Node) = invertible(get_card(n))
 
@@ -211,7 +207,13 @@ function _to_outputs(
     return isnothing(number) ? join_names.(args...) : vec(join_names.(args..., (1:number)'))
 end
 
-function _to_outputs(os::AbstractOutputSpec, names::AbstractVector{<:AbstractString} = get_names(os))
+"""
+    to_outputs(os::AbstractOutputSpec, names = get_names(os))::Vector{String}
+
+The column names a card declaring `os` writes. Pass `names` to ask the same of a subset — what a
+`through` chain carrying part of a node's vocabulary comes out as.
+"""
+function to_outputs(os::AbstractOutputSpec, names::AbstractVector{<:AbstractString} = get_names(os))
     (; suffix, number) = os
     return _to_outputs(names, suffix, number)
 end
@@ -221,7 +223,23 @@ function to_outputs(n::Node, v::VariableTransformSpec, cols::AbstractVector{<:Ab
     if !isempty(extras)
         throw(ArgumentError("Columns $(extras) cannot pass through node $(n.id)"))
     end
-    return _to_outputs(v, cols)
+    return to_outputs(v, cols)
 end
 
 output_spec(::Card) = nothing
+
+"""
+    to_outputs(n::Node, spec)::Vector{String}
+
+What `n` writes. Most specifications answer the same whichever way a node runs, so the node is
+only consulted for the ones that do not.
+"""
+to_outputs(::Node, os::AbstractOutputSpec) = to_outputs(os)
+
+# A card that has not declared a specification answers the old way. This method is the whole of
+# what is left to migrate: when every card declares one, it goes, and `OutputVariables` stops
+# being reachable from here.
+function to_outputs(n::Node, ::Nothing)
+    vars = OutputVariables(get_card(n))
+    return get_invert(n) ? vars.inverse_outputs : vars.outputs
+end

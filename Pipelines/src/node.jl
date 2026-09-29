@@ -125,22 +125,6 @@ function invert(n::Node)
     return update_node(n; train = false, invert = true)
 end
 
-function regularize(v::AbstractVector)::Tuple{Vector{String}, Nothing}
-    cols::Vector{String} = v
-    return cols, nothing
-end
-
-function regularize((v, s)::Tuple{<:AbstractVector, T})::Tuple{Vector{String}, T} where {T}
-    cols::Vector{String} = v
-    return cols, s
-end
-
-function with_state!(n::Node, v)
-    cols, state = regularize(v)
-    set_state!(n, state)
-    return cols
-end
-
 """
     train!(
         repository::Repository,
@@ -180,13 +164,14 @@ function evaluate(
         sd::Pair, id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
-    card, model = get_card(node), get_model(node)
-    res = if get_invert(node)
-        evaluate(repository, card, model, sd, id_var; schema, invert = true)
+    card, model, state = get_card(node), get_model(node), get_state(node)
+    v, state′ = if get_invert(node)
+        evaluate(repository, card, model, state, sd, id_var; schema, invert = true)
     else
-        evaluate(repository, card, model, sd, id_var; schema)
+        evaluate(repository, card, model, state, sd, id_var; schema)
     end
-    return with_state!(node, res)
+    set_state!(node, state′)
+    return v
 end
 
 ## What a card writes

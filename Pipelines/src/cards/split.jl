@@ -87,13 +87,13 @@ function train(
         ::Repository, ::SplitCard, ::AbstractString, ::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
-    return CardState()
+    return nothing
 end
 
 function evaluate(
         repository::Repository,
         sc::SplitCard,
-        ::CardState,
+        ::Nothing,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing

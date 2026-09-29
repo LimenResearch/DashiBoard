@@ -5,12 +5,6 @@ end
 
 StateRef() = StateRef(nothing, nothing)
 
-get_model(s::StateRef) = s.model
-set_model!(s::StateRef, model) = (s.model = model)
-
-get_state(s::StateRef) = s.state
-set_state!(s::StateRef, state) = (s.state = state)
-
 struct Node
     card::Card
     id::String
@@ -85,11 +79,11 @@ get_train(node::Node) = node.train
 get_invert(node::Node) = node.invert
 get_label(node::Node) = node.label
 
-get_model(node::Node) = get_model(node.state)
-set_model!(node::Node, model) = set_model!(node.state, model)
+get_model(node::Node) = node.state.model
+set_model!(node::Node, model) = (node.state.model = model; node)
 
-get_state(node::Node) = get_state(node.state)
-set_state!(node::Node, state) = set_state!(node.state, state)
+get_state(node::Node) = node.state.state
+set_state!(node::Node, state) = (node.state.state = state; node)
 
 """
     get_node_inputs(node::Node)::Vector{String}
@@ -134,6 +128,22 @@ function invert(n::Node)
     return update_node(n; train = false, invert = true)
 end
 
+function regularize(v::AbstractVector)::Tuple{Vector{String}, Nothing}
+    cols::Vector{String} = v
+    return cols, nothing
+end
+
+function regularize((v, s)::Tuple{<:AbstractVector, T})::Tuple{Vector{String}, T} where {T}
+    cols::Vector{String} = v
+    return cols, s
+end
+
+function with_state!(n::Node, v)
+    cols, state = regularize(v)
+    set_state!(n, state)
+    return cols
+end
+
 """
     train!(
         repository::Repository,
@@ -174,9 +184,10 @@ function evaluate(
         schema::Maybe{AbstractString} = nothing
     )
     card, model = get_card(node), get_model(node)
-    return if get_invert(node)
+    res = if get_invert(node)
         evaluate(repository, card, model, sd, id_var; schema, invert = true)
     else
         evaluate(repository, card, model, sd, id_var; schema)
     end
+    return with_state!(node, res)
 end

@@ -62,8 +62,8 @@
     "output": "non_minkowski",
     "method": {
       "type": "dbscan",
-      "radius": 0.02,
-      "dissimilarity": { "type": "rmsdeviation"}
+      "radius": 1.2,
+      "dissimilarity": { "type": "rmsdeviation" }
     }
   },
   "affinity": {

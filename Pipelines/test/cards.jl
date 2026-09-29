@@ -373,6 +373,31 @@ end
     R = affinityprop(S; maxiter = 200, tol = 1.0e-6, damp = 0.5)
     @test R.converged
     @test df.apcluster == assignments(R)
+
+    # a non-Minkowski metric has no KDTree path, so the fit materializes a dense N×N
+    # distance matrix: test on a slice small enough to hold one
+    DBInterface.execute(
+        Returns(nothing),
+        repo,
+        """
+        CREATE OR REPLACE TABLE cl_slice AS (
+            SELECT * FROM selection ORDER BY "No" LIMIT 2000
+        );
+        """
+    )
+    card = Pipelines.Card(d["nonMinkowski"])
+    node = Node(card)
+    Pipelines.train_evaljoin!(repo, node, "cl_slice" => "clustering", "No")
+    df = DBInterface.execute(DataFrame, repo, "FROM clustering")
+    train_df = DBInterface.execute(DataFrame, repo, "FROM cl_slice")
+    X = [train_df.TEMP train_df.PRES]'
+    R = dbscan(
+        Pipelines.pairwise(Pipelines.RMSDeviation(), X, dims = 2), 1.2;
+        metric = nothing,
+    )
+    @test assignments(R) == df.non_minkowski
+    # the configured metric is load-bearing: at this radius Euclidean partitions differently
+    @test assignments(dbscan(X, 1.2)) != df.non_minkowski
 end
 
 @testset "dimensionality reduction" begin

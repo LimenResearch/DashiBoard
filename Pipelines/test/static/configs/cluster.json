@@ -56,6 +56,16 @@
       "radius": 0.02
     }
   },
+  "nonMinkowski": {
+    "type": "cluster",
+    "inputs": ["TEMP", "PRES"],
+    "output": "non_minkowski",
+    "method": {
+      "type": "dbscan",
+      "radius": 1.2,
+      "dissimilarity": { "type": "rmsdeviation" }
+    }
+  },
   "affinity": {
     "type": "cluster",
     "inputs": ["TEMP", "PRES"],

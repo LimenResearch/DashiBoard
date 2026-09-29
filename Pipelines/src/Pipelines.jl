@@ -32,7 +32,7 @@ public train!, evaljoin, train_evaljoin!
 
 public train, evaluate, inputs, outputs, invertible
 
-public report, visualize, get_card, get_state, invert, Node
+public report, visualize, get_card, invert, Node
 
 public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 

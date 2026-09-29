@@ -195,30 +195,28 @@ mktempdir() do dir
 
         _node = Node(Pipelines.Card(d["zscore"]))
         Pipelines.train!(repo, _node, "selection", "No")
-        card, state = get_card(_node), get_state(_node)
+        card, model, state = get_card(_node), get_model(_node), get_state(_node)
 
-        node = Pipelines.Node(
-            Dict(
-                "card" => d["zscore"],
-                "state" => Dict("content" => state.content, "metadata" => state.metadata)
-            )
-        )
+        node = Pipelines.Node(Dict("card" => d["zscore"]))
+        set_model!(node, model)
+        set_state!(node, state)
 
         @test get_card(node) isa Pipelines.RescaleCard
         for k in fieldnames(Pipelines.RescaleCard)
             @test getfield(get_card(node), k) == getfield(card, k)
         end
-        @test get_state(node).content == state.content
-        @test get_state(node).metadata == state.metadata
+        @test get_model(node) == model
+        @test get_state(node) == state
         @test node.train
         @test node.update
 
-        node2 = Pipelines.unlink(node)
+        node2 = Pipelines.update_node(node)
         @test node.card == node2.card
         @test node.update == node2.update
         @test node.train == node2.train
         @test node.invert == node2.invert
-        @test node.state[] == node2.state[]
+        @test get_model(node) == get_model(node2)
+        @test get_state(node) == get_state(node2)
         @test node.state !== node2.state
 
         node3 = Pipelines.Node(
@@ -233,15 +231,15 @@ mktempdir() do dir
         end
         @test !node3.train
         @test node3.update
-        @test isnothing(get_state(node3).content)
-        @test isempty(get_state(node3).metadata)
+        @test isnothing(get_model(node3))
+        @test isnothing(get_state(node3))
     end
 
     @testset "invert nodes" begin
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
         card = Pipelines.Card(d["zscore"])
         _update, _train, _invert = true, true, true
-        state = Pipelines.StateRef(Pipelines.CardState())
+        state = Pipelines.StateRef()
         @test_throws ArgumentError Node(card, "faulty", _update, _train, _invert, "zscore", state)
 
         node = Node(card)

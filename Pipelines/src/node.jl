@@ -125,6 +125,22 @@ function invert(n::Node)
     return update_node(n; train = false, invert = true)
 end
 
+function regularize(v::AbstractVector)::Tuple{Vector{String}, Nothing}
+    cols::Vector{String} = v
+    return cols, nothing
+end
+
+function regularize((v, s)::Tuple{<:AbstractVector, T})::Tuple{Vector{String}, T} where {T}
+    cols::Vector{String} = v
+    return cols, s
+end
+
+function with_state!(n::Node, v)
+    cols, state = regularize(v)
+    set_state!(n, state)
+    return cols
+end
+
 """
     train!(
         repository::Repository,
@@ -292,6 +308,7 @@ function Base.showerror(io::IO, err::ThroughError)
             join(err.cols, ", "), " cannot pass through it"
         )
     end
+    return with_state!(node, res)
 end
 
 """

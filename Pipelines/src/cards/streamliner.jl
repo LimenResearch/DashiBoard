@@ -179,14 +179,11 @@ function train(
             end
         end
         path = SC.output_path(dir)
-        # TODO: where to keep stats tensor?
-        jldopen(path, "a") do file
-            file["stats"] = SC.stats_tensor(result, dir)
-            file["unique_values"] = data.unique_values
-        end
         content = SC.has_weights(result) ? read(path) : nothing
         metadata = to_config(result)
-        return CardState(; content, metadata)
+        stats = SC.stats_tensor(result, dir)
+        unique_values = data.unique_values
+        return (; content, metadata, stats, unique_values)
     end
 end
 
@@ -205,16 +202,13 @@ end
 function evaluate(
         repository::Repository,
         sc::StreamlinerCard,
-        state::CardState,
+        (; content, metadata, unique_values),
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
 
-    # No model means either the card was never trained, or it was and training kept none: a model
-    # is kept only if its loss on the validation rows improved. The training metadata tells the two
-    # apart, and the second has a cause the author can act on.
-    isnothing(state.content) && throw(ArgumentError(no_model_message(sc, state)))
+    isnothing(content) && throw(ArgumentError("Invalid state"))
 
     (; model, training, funnel) = sc
     select = selected_products(sc)
@@ -224,10 +218,7 @@ function evaluate(
 
     return mktempdir() do dir
         path = SC.output_path(dir)
-        write(path, state.content)
-        unique_values = jldopen(path) do file
-            file["unique_values"]
-        end
+        write(path, content)
 
         data = FunneledData(
             Val(1), funnel, table_spec;
@@ -248,11 +239,10 @@ function evaluate(
     end
 end
 
-function report(::Repository, sc::StreamlinerCard, state::CardState)
+function report(::Repository, sc::StreamlinerCard, (; stats))
     (; loss, metrics) = sc.model
     syms = vcat([metricname(loss)], collect(Symbol, metricname.(metrics)))
     names = string.(syms)
-    stats = jlddeserialize(state.content, "stats")
     training = Dict(zip(names, stats[:, 1, end]))
     validation = Dict(zip(names, stats[:, 2, end]))
     return Dict("training" => training, "validation" => validation)

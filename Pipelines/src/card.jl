@@ -1,29 +1,3 @@
-## Card state type
-
-@kwarg struct CardState
-    content::Maybe{Vector{UInt8}} = nothing
-    metadata::StringDict = StringDict()
-end
-
-function jldserialize(m)
-    return mktemp() do path, io
-        jldopen(path, "w") do file
-            file["model_state"] = m
-        end
-        return read(io)
-    end
-end
-
-function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
-    return mktemp() do path, io
-        write(io, v)
-        flush(io)
-        jldopen(path) do file
-            return file[k]
-        end
-    end
-end
-
 ## Card interface
 
 """
@@ -203,7 +177,7 @@ invertible(::Card) = false
     train(
         repository::Repository, card::Card, source;
         schema::Union{AbstractString, Nothing} = nothing
-    )::CardState
+    )
 
 Return a trained model for a given `card` on a table `table` in the database `repository.db`.
 """
@@ -213,7 +187,7 @@ function train end
     evaluate(
         repository::Repository,
         card::Card,
-        state::CardState,
+        model,
         (source, destination)::Pair,
         id_var::AbstractString;
         schema::Union{AbstractString, Nothing} = nothing
@@ -243,12 +217,12 @@ function report(repository::Repository, nodes::AbstractVector)
 end
 
 """
-    report(::Repository, ::Card, ::CardState)
+    report(::Repository, ::Card, ::Any)
 
 Overload this method (replacing `Card` with a specific card type)
 to implement a default report for a given card type.
 """
-report(::Repository, ::Card, ::CardState) = StringDict()
+report(::Repository, ::Card, ::Any) = StringDict()
 
 """
     visualize(repository::Repository, nodes::AbstractVector)
@@ -261,12 +235,12 @@ function visualize(repository::Repository, nodes::AbstractVector)
 end
 
 """
-    visualize(::Repository, ::Card, ::CardState)
+    visualize(::Repository, ::Card, ::Any)
 
 Overload this method (replacing `Card` with a specific card type)
 to implement a default visualization for a given card type.
 """
-visualize(::Repository, ::Card, ::CardState) = nothing
+visualize(::Repository, ::Card, ::Any) = nothing
 
 ## Define new cards using a global dictionary
 

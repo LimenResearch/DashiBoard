@@ -19,13 +19,13 @@ function train(
 
     t = DBInterface.execute(fromtable, repository, q; schema)
     model = _train(c, t, id_var)
-    return CardState(content = jldserialize(model))
+    return model
 end
 
 function evaluate(
         repository::Repository,
         c::StandardCard,
-        state::CardState,
+        model,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
@@ -38,7 +38,6 @@ function evaluate(
         select_columns([id_var], vars.group_by, vars.helpers, vars.inputs)
     t = DBInterface.execute(fromtable, repository, q; schema)
 
-    model = jlddeserialize(state.content)
     pred_table = c(model, t, id_var)
     load_table(repository, pred_table, destination; schema)
     cols = String[string(k) for k in Tables.columnnames(Tables.columns(pred_table))]

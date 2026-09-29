@@ -168,6 +168,29 @@ name in `val`, not the missing one — so neither half identifies the control on
 """
 issue_report(errs::SchemaValidationErrors) = map(issue_report, errs.errors)
 
+"""
+    issue_report(err::ThroughError)
+
+A refused `through` chain in the shape every other issue uses, so a client reads one list.
+
+`allowed` is what distinguishes a form that can offer a correction from one that can only say no:
+it is exactly the set of columns the offending node does carry.
+"""
+function issue_report(err::ThroughError)
+    return (;
+        pointer = something(err.pointer, ""),
+        # One reason for every shape of refusal: a client branches on "through" and shows the
+        # sentence, rather than learning four names that all mean "this chain cannot resolve".
+        reason = "through",
+        severity = "error",
+        found = err.cols,
+        allowed = err.allowed,
+        missing = String[],
+        related = String[],
+        message = sprint(showerror, err),
+    )
+end
+
 function issue_report(err::SchemaValidationError)
     issue = err.issue
     pointer = err.pointer_base * err.pointer_tail

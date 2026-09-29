@@ -431,7 +431,14 @@ mktempdir() do data_dir
         probe = JSON.parse(resp.body)
         @test probe["valid"] == false
         @test probe["kind"] == "pipeline"
-        @test occursin("cannot pass through node `r`", only(probe["errors"]))
+        # It arrives in the same shape as a schema failure, so a form reads one list: the card to
+        # address, what the chain asked for, and what the offending node would have accepted.
+        issue = only(probe["issues"])
+        @test issue["reason"] == "through"
+        @test issue["pointer"] == "/nodes/1/card"
+        @test issue["found"] == ["TEMP_a"]
+        @test issue["allowed"] == ["TEMP"]
+        @test occursin("Node `r` does not read TEMP_a", issue["message"])
         # The vocabularies a picker offers from survive the failure, so a form can still correct
         # the chain rather than going blank.
         @test "TEMP" in probe["cols"]

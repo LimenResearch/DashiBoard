@@ -235,6 +235,40 @@ function to_outputs(os::AbstractOutputSpec, names::AbstractVector{<:AbstractStri
 end
 
 """
+    ThroughError(id, cols, allowed, reason, pointer = nothing)
+
+A `through` chain asked node `id` to carry `cols`, and it cannot.
+
+`allowed` is what the node *can* carry, or `nothing` when nothing passes through it at all — it is
+the set an author should be offered instead, which is the difference between a form that proposes a
+correction and one that can only refuse. `pointer` addresses the card or group whose chain is at
+fault; that is known where the chain is resolved rather than where it fails, so it is filled in
+there.
+"""
+struct ThroughError <: Exception
+    id::String
+    cols::Vector{String}
+    allowed::Maybe{Vector{String}}
+    reason::Symbol
+    pointer::Maybe{String}
+end
+
+ThroughError(id, cols, allowed, reason) = ThroughError(id, cols, allowed, reason, nothing)
+
+function Base.showerror(io::IO, err::ThroughError)
+    print(io, "Node `", err.id, "` ")
+    return if err.reason === :not_carried
+        print(io, "does not read ", join(err.cols, ", "), "; it reads ", join(err.allowed, ", "))
+    elseif err.reason === :names_own_outputs
+        print(io, "names its own outputs, so nothing can pass through it")
+    elseif err.reason === :undeclared
+        print(io, "does not declare what it produces, so nothing can pass through it")
+    else
+        print(io, "undoes a transformation, so nothing can pass through it")
+    end
+end
+
+"""
     to_outputs(n::Node, spec, cols)::Vector{String}
 
 The names `cols` take after passing through `n`.
@@ -246,28 +280,20 @@ name neither the column nor the node.
 """
 function to_outputs(n::Node, v::VariableTransformSpec, cols::AbstractVector{<:AbstractString})
     extras = setdiff(cols, v.cols)
-    if !isempty(extras)
-        throw(ArgumentError("Columns $(extras) cannot pass through node `$(n.id)`"))
-    end
+    isempty(extras) || throw(ThroughError(n.id, extras, v.cols, :not_carried))
     return to_outputs(v, cols)
 end
 
-function to_outputs(n::Node, ::OutputSpec, ::AbstractVector{<:AbstractString})
-    return throw(
-        ArgumentError("Node `$(n.id)` names its own outputs, so nothing can pass through it")
-    )
+function to_outputs(n::Node, ::OutputSpec, cols::AbstractVector{<:AbstractString})
+    return throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
 end
 
-function to_outputs(n::Node, ::Nothing, ::AbstractVector{<:AbstractString})
-    return throw(
-        ArgumentError("Node `$(n.id)` does not declare what it produces, so nothing can pass through it")
-    )
+function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString})
+    return throw(ThroughError(n.id, collect(String, cols), nothing, :undeclared))
 end
 
 function to_outputs(n::Node, s::InvertibleSpec, cols::AbstractVector{<:AbstractString})
-    get_invert(n) && throw(
-        ArgumentError("Node `$(n.id)` undoes a transformation, so nothing can pass through it")
-    )
+    get_invert(n) && throw(ThroughError(n.id, collect(String, cols), nothing, :inverted))
     return to_outputs(n, s.forward, cols)
 end
 

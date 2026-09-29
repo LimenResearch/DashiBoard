@@ -128,7 +128,19 @@ end
 
 (_::Context)(x::Any) = x
 
-function Context(G::DiGraph, nodes, groups)
+# A `through` failure knows which node refused but not which card or group asked it to, since it is
+# raised where the chain is walked. This is the frame that knows. Everything else passes untouched,
+# backtrace included.
+function at_pointer(f::F, pointer::AbstractString) where {F}
+    return try
+        f()
+    catch err
+        err isa ThroughError || rethrow()
+        throw(ThroughError(err.id, err.cols, err.allowed, err.reason, pointer))
+    end
+end
+
+function Context(G::DiGraph, nodes, groups, group_names)
     n_nodes, n_groups = length(nodes), length(groups)
     c = Context(
         Vector{Node}(undef, n_nodes),
@@ -136,11 +148,16 @@ function Context(G::DiGraph, nodes, groups)
     )
     for i in topological_sort(G)
         if i ≤ n_nodes
-            node = Node(c(nodes[i]))
+            node = at_pointer("/nodes/$(i - 1)/card") do
+                Node(c(nodes[i]))
+            end
             c.nodes[i] = node
             c.outputs[i] = get_node_outputs(node)
         else
-            c.outputs[i] = c(groups[i - n_nodes])
+            name = group_names[i - n_nodes]
+            c.outputs[i] = at_pointer("/groups/" * escape_pointer(name)) do
+                c(groups[i - n_nodes])
+            end
         end
     end
     return c

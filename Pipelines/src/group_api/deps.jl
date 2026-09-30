@@ -102,7 +102,7 @@ end
 function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVector)
     for i in is
         node = nodes[i]
-        x = to_outputs(node, output_spec(get_card(node)), x)
+        x = to_outputs(node, output_spec(get_card(node), get_invert(node)), x)
     end
     return x
 end

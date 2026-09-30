@@ -138,14 +138,12 @@ function SourceVariables(rc::RescaleCard)
 end
 
 # Forward, every input and target is renamed with one suffix, which is what a `through` chain
-# follows. Inverted, the targets lose that suffix and take `target_suffix` instead — a different
-# kind of function, so it travels as a list.
-function output_spec(rc::RescaleCard)
-    return InvertibleSpec(
-        VariableTransformSpec(input_and_target_vars(rc), rc.suffix),
-        inverse_output_vars(rc),
-    )
-end
+# follows. Inverted, the card writes the targets with `target_suffix` instead — a fixed list that
+# is derived from nothing a chain could be carrying, so nothing passes through it.
+output_spec(rc::RescaleCard) = VariableTransformSpec(input_and_target_vars(rc), rc.suffix)
+
+output_spec(rc::RescaleCard, invert::Bool) =
+    invert ? OutputSpec(inverse_output_vars(rc)) : output_spec(rc)
 
 function OutputVariables(rc::RescaleCard)
     return OutputVariables(output_vars(rc), inverse_output_vars(rc))

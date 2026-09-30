@@ -869,10 +869,12 @@ end
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
     rc = Pipelines.Card(d["zscore2"])
-    rspec = Pipelines.output_spec(rc)
-    @test rspec isa Pipelines.InvertibleSpec
     # Forward it renames every input and target, which is what a chain follows.
-    @test rspec.forward.cols == ["TEMP", "PRES"]
+    fwd = Pipelines.output_spec(rc)
+    @test fwd isa Pipelines.VariableTransformSpec
+    @test fwd.cols == ["TEMP", "PRES"]
+    # Inverted it writes a fixed list, which nothing a chain carries can be derived into.
+    @test Pipelines.output_spec(rc, true) isa Pipelines.OutputSpec
     @test Pipelines.get_node_outputs(Node(rc)) == ["TEMP_rescaled", "PRES_rescaled"]
     # Inverted it strips that suffix and applies `target_suffix` instead, which no transform says.
     @test Pipelines.get_node_outputs(invert(Node(rc))) == ["PRES_hat"]

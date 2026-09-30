@@ -119,7 +119,8 @@ end
 
 Return the lists of variables produced as output by a given `node`.
 """
-get_node_outputs(node::Node)::Vector{String} = to_outputs(node, output_spec(get_card(node)))
+get_node_outputs(node::Node)::Vector{String} =
+    to_outputs(node, output_spec(get_card(node), get_invert(node)))
 
 invertible(n::Node) = invertible(get_card(n))
 
@@ -198,22 +199,6 @@ end
 
 get_names(vts::VariableTransformSpec) = vts.cols
 
-"""
-    InvertibleSpec(forward, inverse_outputs)
-
-Outputs for a card that runs both ways: `forward` transforms the columns it is given, while the
-inverse writes `inverse_outputs` whatever it is handed. The inverse is a plain list because undoing
-a transformation is not itself one — it strips a suffix rather than appending one — so no
-`VariableTransformSpec` describes it.
-
-Answers `to_outputs` only when given a node: without the direction the question has no single
-answer.
-"""
-@defaults struct InvertibleSpec <: AbstractOutputSpec
-    forward::VariableTransformSpec
-    inverse_outputs::Vector{String} = String[]
-end
-
 function _to_outputs(
         names::AbstractVector{<:AbstractString},
         suffix::Maybe{AbstractString},
@@ -261,10 +246,8 @@ function Base.showerror(io::IO, err::ThroughError)
         print(io, "does not read ", join(err.cols, ", "), "; it reads ", join(err.allowed, ", "))
     elseif err.reason === :names_own_outputs
         print(io, "names its own outputs, so nothing can pass through it")
-    elseif err.reason === :undeclared
-        print(io, "does not declare what it produces, so nothing can pass through it")
     else
-        print(io, "undoes a transformation, so nothing can pass through it")
+        print(io, "does not declare what it produces, so nothing can pass through it")
     end
 end
 
@@ -292,12 +275,17 @@ function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString})
     return throw(ThroughError(n.id, collect(String, cols), nothing, :undeclared))
 end
 
-function to_outputs(n::Node, s::InvertibleSpec, cols::AbstractVector{<:AbstractString})
-    get_invert(n) && throw(ThroughError(n.id, collect(String, cols), nothing, :inverted))
-    return to_outputs(n, s.forward, cols)
-end
+"""
+    output_spec(card, invert::Bool)
 
+What `card` writes, as an output specification, or `nothing` when it does not declare one.
+
+Only an invertible card answers differently in the two directions, and only `RescaleCard` is
+invertible, so every other card ignores `invert`.
+"""
 output_spec(::Card) = nothing
+
+output_spec(c::Card, invert::Bool) = invert ? nothing : output_spec(c)
 
 """
     to_outputs(n::Node, spec)::Vector{String}
@@ -306,8 +294,6 @@ What `n` writes. Most specifications answer the same whichever way a node runs, 
 only consulted for the ones that do not.
 """
 to_outputs(::Node, os::AbstractOutputSpec) = to_outputs(os)
-
-to_outputs(n::Node, s::InvertibleSpec) = get_invert(n) ? s.inverse_outputs : to_outputs(s.forward)
 
 # A card that has not declared a specification answers the old way. This method is the whole of
 # what is left to migrate: when every card declares one, it goes, and `OutputVariables` stops

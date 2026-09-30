@@ -221,8 +221,8 @@ function evaluate(
         (source, destination), id_var; kwargs...
     )
 
-    res = evaluate(repository, card, model, source => destination, id_var; kwargs...)
-    return res, state
+    cols = evaluate(repository, card, model, source => destination, id_var; kwargs...)
+    return cols, state
 end
 
 """

@@ -59,6 +59,12 @@ function SourceVariables(sc::StreamlinerCard)
     )
 end
 
+# No `output_spec`: a streamliner writes several products, not one. Today that is the funnel's
+# targets renamed with `suffix` plus whatever `get_helpers_out` invents; once `ingest` accepts a
+# `select` wider than `(:prediction,)` it will also write one product per model output field, and
+# the same target column twice under different suffixes. A collection of specifications is where
+# that belongs, so this card keeps answering through `OutputVariables` until then — and with it,
+# `to_outputs(::Node, ::Nothing)` and `unproduced_references`, which cover nothing else.
 OutputVariables(sc::StreamlinerCard) = OutputVariables(output_vars(sc))
 
 function train(

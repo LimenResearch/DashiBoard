@@ -1,29 +1,3 @@
-## Card state type
-
-@kwarg struct CardState
-    content::Maybe{Vector{UInt8}} = nothing
-    metadata::StringDict = StringDict()
-end
-
-function jldserialize(m)
-    return mktemp() do path, io
-        jldopen(path, "w") do file
-            file["model_state"] = m
-        end
-        return read(io)
-    end
-end
-
-function jlddeserialize(v::AbstractVector{UInt8}, k = "model_state")
-    return mktemp() do path, io
-        write(io, v)
-        flush(io)
-        jldopen(path) do file
-            return file[k]
-        end
-    end
-end
-
 ## Card interface
 
 """
@@ -210,7 +184,7 @@ invertible(::Card) = false
     train(
         repository::Repository, card::Card, source;
         schema::Union{AbstractString, Nothing} = nothing
-    )::CardState
+    )
 
 Return a trained model for a given `card` on a table `table` in the database `repository.db`.
 """
@@ -220,10 +194,11 @@ function train end
     evaluate(
         repository::Repository,
         card::Card,
-        state::CardState,
+        model,
         (source, destination)::Pair,
         id_var::AbstractString;
-        schema::Union{AbstractString, Nothing} = nothing
+        schema::Union{AbstractString, Nothing} = nothing,
+        invert::Bool = false
     )
 
 Replace table `destination` in the database `repository.db` with the outcome of executing the `card`
@@ -234,10 +209,21 @@ to be joined with the column `id_var` of the original table.
 
 A valid implementation of `evaluate` must return the list of output variables added to `destination`.
 
-Here, `state` represents the result of `train(repository, card, source; schema)`.
+Here, `model` represents the result of `train(repository, card, source; schema)`.
 See also [`train`](@ref).
 """
 function evaluate end
+
+# fallback when state is provided
+# overload this method for a card that requires state
+function evaluate(
+        repository::Repository, card::Card, model, state,
+        (source, destination), id_var; kwargs...
+    )
+
+    cols = evaluate(repository, card, model, source => destination, id_var; kwargs...)
+    return cols, state
+end
 
 """
     report(repository::Repository, nodes::AbstractVector)
@@ -246,16 +232,16 @@ Create default reports for all `nodes` referring to a given `repository`.
 Each node must be of type `Node`.
 """
 function report(repository::Repository, nodes::AbstractVector)
-    return report.(Ref(repository), get_card.(nodes), get_state.(nodes))
+    return report.(Ref(repository), get_card.(nodes), get_model.(nodes))
 end
 
 """
-    report(::Repository, ::Card, ::CardState)
+    report(::Repository, ::Card, ::Any)
 
 Overload this method (replacing `Card` with a specific card type)
 to implement a default report for a given card type.
 """
-report(::Repository, ::Card, ::CardState) = StringDict()
+report(::Repository, ::Card, ::Any) = StringDict()
 
 """
     visualize(repository::Repository, nodes::AbstractVector)
@@ -264,16 +250,16 @@ Create default visualizations for all `nodes` referring to a given `repository`.
 Each node must be of type `Node`.
 """
 function visualize(repository::Repository, nodes::AbstractVector)
-    return visualize.(Ref(repository), get_card.(nodes), get_state.(nodes))
+    return visualize.(Ref(repository), get_card.(nodes), get_model.(nodes))
 end
 
 """
-    visualize(::Repository, ::Card, ::CardState)
+    visualize(::Repository, ::Card, ::Any)
 
 Overload this method (replacing `Card` with a specific card type)
 to implement a default visualization for a given card type.
 """
-visualize(::Repository, ::Card, ::CardState) = nothing
+visualize(::Repository, ::Card, ::Any) = nothing
 
 ## Define new cards using a global dictionary
 

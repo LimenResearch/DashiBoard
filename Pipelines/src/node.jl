@@ -1,8 +1,9 @@
 mutable struct StateRef
-    state::CardState
+    model::Any
+    state::Any
 end
-Base.getindex(ref::StateRef) = getfield(ref, 1)
-Base.setindex!(ref::StateRef, state::CardState) = setfield!(ref, 1, state)
+
+StateRef() = StateRef(nothing, nothing)
 
 struct Node
     card::Card
@@ -37,7 +38,7 @@ function update_node(
         train::Bool = n.train,
         invert::Bool = n.invert,
         label::AbstractString = n.label,
-        state::StateRef = n.state
+        state::StateRef = StateRef(get_model(n), get_state(n)) # avoid linking
     )
 
     return Node(card, id, update, train, invert, label, state)
@@ -45,7 +46,7 @@ end
 
 """
     Node(
-        card::Card, state = CardState();
+        card::Card, state::StateRef = StateRef();
         id::AbstractString = "",
         update::Bool = true, train::Bool = true,
         label::AbstractString = get_default_label(card)
@@ -54,12 +55,12 @@ end
 Generate a `Node` object from a [`Card`](@ref).
 """
 function Node(
-        card::Card, state::CardState = CardState();
+        card::Card, state::StateRef = StateRef();
         id::AbstractString = "",
         update::Bool = true, train::Bool = true,
         label::AbstractString = get_default_label(card)
     )
-    return Node(card, id, update, train, false, label, StateRef(state))
+    return Node(card, id, update, train, false, label, state)
 end
 
 get_id(d::AbstractDict)::String = get(d, "id", "")
@@ -69,16 +70,7 @@ function Node(d::AbstractDict; update::Bool = true)
     id::String = get_id(d)
     label::String = get(() -> get_default_label(card), d, "label")
     train::Bool = get(d, "train", true)
-    state_config = get(d, "state", nothing)
-    state = if isnothing(state_config)
-        CardState()
-    else
-        CardState(
-            content = d["state"]["content"],
-            metadata = d["state"]["metadata"]
-        )
-    end
-    return Node(card, state; id, update, train, label)
+    return Node(card; id, update, train, label)
 end
 
 get_card(node::Node) = node.card
@@ -87,8 +79,11 @@ get_train(node::Node) = node.train
 get_invert(node::Node) = node.invert
 get_label(node::Node) = node.label
 
-get_state(node::Node) = node.state[]
-set_state!(node::Node, state) = setindex!(node.state, state)
+get_model(node::Node) = node.state.model
+set_model!(node::Node, model) = (node.state.model = model; node)
+
+get_state(node::Node) = node.state.state
+set_state!(node::Node, state) = (node.state.state = state; node)
 
 """
     get_node_inputs(node::Node)::Vector{String}
@@ -133,8 +128,6 @@ function invert(n::Node)
     return update_node(n; train = false, invert = true)
 end
 
-unlink(n::Node) = update_node(n; state = StateRef(get_state(n)))
-
 """
     train!(
         repository::Repository,
@@ -154,7 +147,7 @@ function train!(
         table::AbstractString, id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
-    get_train(node) && set_state!(node, train(repository, get_card(node), table, id_var; schema))
+    get_train(node) && set_model!(node, train(repository, get_card(node), table, id_var; schema))
     return
 end
 
@@ -174,10 +167,12 @@ function evaluate(
         sd::Pair, id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
-    card, state = get_card(node), get_state(node)
-    return if get_invert(node)
-        evaluate(repository, card, state, sd, id_var; schema, invert = true)
+    card, model, state = get_card(node), get_model(node), get_state(node)
+    v, state′ = if get_invert(node)
+        evaluate(repository, card, model, state, sd, id_var; schema, invert = true)
     else
-        evaluate(repository, card, state, sd, id_var; schema)
+        evaluate(repository, card, model, state, sd, id_var; schema)
     end
+    set_state!(node, state′)
+    return v
 end

@@ -108,7 +108,7 @@ function train(
     for (i, μ) in enumerate(μs)
         params["μ_$i"] = [μ]
     end
-    return CardState(content = jldserialize(params))
+    return params
 end
 
 function gaussian_transform(x, μ, σ, d)
@@ -121,13 +121,11 @@ end
 function evaluate(
         repository::Repository,
         gec::GaussianEncodingCard,
-        state::CardState,
+        params_tbl,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
-
-    params_tbl = jlddeserialize(state.content)
 
     converted = map(1:gec.n_components) do i
         k = join_names(gec.input, gec.suffix, i)

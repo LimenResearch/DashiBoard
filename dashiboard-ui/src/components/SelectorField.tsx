@@ -657,11 +657,33 @@ export function SelectorField(props: SelectorFieldProps) {
                     <Show when={chainBeingBuilt(key())} keyed>
                       {(chain: string[]) => {
                         const taken = () => cases().some((c) => chainKey(c) === chainKey(chain));
+                        // Any step can be taken out and the rest kept — but a step carries what
+                        // the one before it produced, so removing one can leave a later step with
+                        // nothing it accepts. Keep the longest run the host still allows and drop
+                        // the remainder, so the draft is never a chain that cannot resolve.
+                        const prune = (steps: string[]) => {
+                          const kept: string[] = [];
+                          for (const step of steps) {
+                            if (!chainFor({ kind: kind(), value, chain: kept }).includes(step)) break;
+                            kept.push(step);
+                          }
+                          return kept;
+                        };
                         const toggle = (node: string) =>
                           setComposing({
                             key: key(),
-                            chain: chain.includes(node) ? chain.filter((n) => n !== node) : [...chain, node],
+                            chain: prune(
+                              chain.includes(node) ? chain.filter((n) => n !== node) : [...chain, node]
+                            ),
                           });
+                        // A chain is a sequence, so what may come next depends on what is already
+                        // in it — the same narrowing the typed box does. Steps already taken stay
+                        // on offer so they can be taken out again, and the vocabulary's order is
+                        // kept so the pills do not move around as they are picked.
+                        const offered = () => {
+                          const next = chainFor({ kind: kind(), value, chain });
+                          return chainOptions().filter((n) => chain.includes(n) || next.includes(n));
+                        };
                         return (
                           <div
                             data-chain-builder
@@ -673,7 +695,7 @@ export function SelectorField(props: SelectorFieldProps) {
                             </span>
 
                             <div class="flex flex-wrap items-center gap-1.5">
-                              <For each={chainFor({ kind: kind(), value, chain: [] })}>
+                              <For each={offered()}>
                                 {(node) => (
                                   <button
                                     type="button"

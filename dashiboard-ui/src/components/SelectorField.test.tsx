@@ -458,6 +458,35 @@ describe('SelectorField, typed entry', () => {
     expect(offered).toEqual(['split']);
   });
 
+  // The pills are a sequence, not a set: the second step carries what the first produced. So the
+  // offer has to move with the draft, or the panel builds chains the textbox would never offer
+  // and the server refuses on Confirm.
+  it('re-narrows the panel\'s chain builder at every step', async () => {
+    const nextOf: Record<string, string[]> = { '': ['rescale'], 'rescale': ['split'], 'rescale,split': [] };
+    const chainFor = (row: { chain: string[] }) => nextOf[row.chain.join(',')] ?? [];
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} chainFor={chainFor} />
+    ));
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();
+    const offered = () =>
+      [...builderIn(container, 'PRES').querySelectorAll('[data-node]')].map((e) => e.getAttribute('data-node'));
+    const pill = (name: string) => builderIn(container, 'PRES').querySelector(`[data-node="${name}"]`)!;
+
+    expect(offered()).toEqual(['rescale']);
+    fireEvent.click(pill('rescale')); await flush();
+    // What is taken stays on offer, so it can be taken back out; what is added is the next step.
+    expect(offered()).toEqual(['rescale', 'split']);
+    expect(pill('rescale').getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(pill('split')); await flush();
+    expect(offered()).toEqual(['rescale', 'split']);
+
+    // Taking a step out drops what followed it: those steps carried what it produced.
+    fireEvent.click(pill('rescale')); await flush();
+    expect(offered()).toEqual(['rescale']);
+    expect(builderIn(container, 'PRES').querySelector('[data-chain-preview]')).toBeNull();
+  });
+
   it('shows no highlight for an untouched list, then the top match once something is typed', async () => {
     const { container } = mount([]);
     fireEvent.focus(box(container)); await flush();

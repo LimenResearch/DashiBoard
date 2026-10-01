@@ -64,9 +64,13 @@ function carried(row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Se
 export function throughOptions(
   row: SelectorRow, all: string[], nodes: ProbeNode[], groups: Record<string, Selector[]>,
 ): string[] {
-  // Redundant once the nodes are described — a node never carries its own output — but it is the
-  // only rule left when they are not.
-  const fresh = all.filter((id) => !row.chain.includes(id));
+  // Two things hold whatever the server has said, so they are filtered here rather than left to
+  // the column check below: a chain never revisits a node, and a node never carries what it wrote
+  // itself. Both are redundant once the nodes are described — and they are all that is left when
+  // the document does not build, so nothing has been described at all.
+  const fresh = all.filter(
+    (id) => !row.chain.includes(id) && !(row.kind === "nodes" && id === row.value),
+  );
   if (nodes.length === 0) return fresh;
   const values = carried(row, nodes, groups);
   if (values === null) return fresh;

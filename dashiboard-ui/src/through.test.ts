@@ -81,6 +81,14 @@ describe('throughOptions', () => {
     expect(throughOptions({ kind: 'groups', value: 'odd', chain: [] }, ALL, NODES, GROUPS)).toEqual(ALL);
   });
 
+  // A document that does not build is described by nothing, so the picker falls back to the whole
+  // vocabulary — which must still not include the node whose output is the value, since a node
+  // cannot carry what it wrote.
+  it('never offers a node as a step through itself, even with nothing described', () => {
+    expect(throughOptions({ kind: 'nodes', value: 'imp', chain: [] }, ALL, [], GROUPS))
+      .toEqual(['zsc', 'sp', 'pca']);
+  });
+
   it('keeps the order of the vocabulary it was given', () => {
     const both = [node('a', [], [carries(['T'], 'a')]), node('b', [], [carries(['T'], 'b')])];
     expect(throughOptions({ kind: 'cols', value: 'T', chain: [] }, ['b', 'a'], both, {})).toEqual(['b', 'a']);

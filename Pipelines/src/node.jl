@@ -245,9 +245,15 @@ function Base.showerror(io::IO, err::ThroughError)
     return if err.reason === :not_carried
         print(io, "does not read ", join(err.cols, ", "), "; it reads ", join(err.allowed, ", "))
     elseif err.reason === :names_own_outputs
-        print(io, "names its own outputs, so nothing can pass through it")
+        print(
+            io, "writes columns of its own rather than renaming what it is given, so ",
+            join(err.cols, ", "), " cannot pass through it"
+        )
     else
-        print(io, "does not declare what it produces, so nothing can pass through it")
+        print(
+            io, "does not describe what it writes, so ",
+            join(err.cols, ", "), " cannot pass through it"
+        )
     end
 end
 
@@ -286,6 +292,22 @@ invertible, so every other card ignores `invert`.
 output_spec(::Card) = nothing
 
 output_spec(c::Card, invert::Bool) = invert ? nothing : output_spec(c)
+
+"""
+    through_options(node::Node)
+
+How a value may pass through `node`: one entry per way it can, naming the columns that entry
+accepts and the rule that renames them. Empty when nothing can pass through.
+
+A list rather than one entry because a card will be able to write several products — a prediction
+and its confidence bounds, say — each named by its own rule. None does yet, so every list here is
+empty or holds one entry.
+"""
+function through_options(node::Node)
+    spec = output_spec(get_card(node), get_invert(node))
+    spec isa VariableTransformSpec || return NamedTuple[]
+    return [(; spec.cols, spec.suffix, spec.number)]
+end
 
 """
     to_outputs(n::Node, spec)::Vector{String}

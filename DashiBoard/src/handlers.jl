@@ -602,6 +602,9 @@ function probe_pipeline(req::HTTP.Request)
             inputs = Pipelines.get_node_inputs(node),
             outputs = Pipelines.get_node_outputs(node),
             unproduced = get(absent, i, String[]),
+            # What a `through` chain may do with this node, so a picker offers only chains the
+            # pipeline would accept rather than guessing from which columns the node reads.
+            through = Pipelines.through_options(node),
         )
     end
 

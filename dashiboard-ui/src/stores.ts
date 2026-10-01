@@ -144,18 +144,32 @@ export type CardsStore = {
 
 export const emptyCards = (): CardsStore => ({ nodes: [], groups: {} });
 
-// What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, and any
-// reference nothing produces.
+/**
+ * One way a value may pass through a node: the columns that way accepts, and how it renames them.
+ *
+ * A list per node, because a card will be able to write several products — a prediction and its
+ * confidence bounds, say — each named by its own rule. None does yet.
+ */
+export type ThroughOption = { cols: string[]; suffix: string | null; number: number | null };
+
+// What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, any
+// reference nothing produces, and what a chain may do with it.
 //
-// The resolved names come from the server. A `through` chain names a column by concatenating the
-// suffixes of the nodes it lists, and computing that here would be a second source of truth for a
-// naming rule: the UI writes the document, the server resolves it and says what it got.
+// Resolved names come from the server: the UI writes the document, the server resolves it and
+// says what it got. `through` is the one exception, and a deliberate one. Narrowing a chain of
+// two needs the name the *first* step produces, which the server never reports — it reports each
+// node's outputs as configured, not what an arbitrary column becomes after passing through. So
+// the renaming rule is carried here as data (`suffix`, `number`) and applied by `toOutputs` in
+// `through.ts`, which is a second implementation of `Pipelines.to_outputs` and has to stay in
+// step with it. Both are pinned by the same examples: `PRES` through `rescaled`, and a numbered
+// encoding giving `date_gaussian_1..3`.
 
 export type ProbeNode = {
   id: string;
   inputs: string[];
   outputs: string[];
   unproduced: string[];
+  through: ThroughOption[];
 };
 
 /**

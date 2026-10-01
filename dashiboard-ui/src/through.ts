@@ -1,14 +1,38 @@
 import type { SelectorRow } from "./selector";
-import type { ProbeNode, Selector } from "./stores";
+import type { ProbeNode, Selector, ThroughOption } from "./stores";
 
-// Which nodes a `through` chain can pass through next, from what the server said each node reads
-// and writes. A node that never reads the value cannot transform it, so offering it is offering a
-// choice the server refuses. Names are the server's; nothing is concatenated here.
+// Which nodes a `through` chain can pass through next, from what the server said each node can
+// carry. A node that does not derive its outputs from the value cannot transform it, and the
+// pipeline refuses such a chain — so offering it would be offering a refusal.
 
-/** What the row hands to its next step: the value's columns, or the last step's outputs. */
-function carried(row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Selector[]>): string[] | null {
-  const last = row.chain.at(-1);
-  if (last !== undefined) return nodes.find((node) => node.id === last)?.outputs ?? null;
+/**
+ * What `names` become after passing through `t`.
+ *
+ * A port of `Pipelines.to_outputs`; see `ThroughOption` for why the rule is carried here at all.
+ * The index varies slowest because the server broadcasts names against `1:number` and flattens
+ * the result column-major.
+ */
+export function toOutputs(t: ThroughOption, names: readonly string[]): string[] {
+  const renamed = t.suffix == null ? [...names] : names.map((name) => `${name}_${t.suffix}`);
+  if (t.number == null) return renamed;
+  const out: string[] = [];
+  for (let i = 1; i <= t.number; i++) for (const name of renamed) out.push(`${name}_${i}`);
+  return out;
+}
+
+/**
+ * The way `node` carries all of `names`, if it has one.
+ *
+ * A probe reply is parsed JSON, not a checked type, so a server that does not send `through` at
+ * all leaves the field absent rather than empty. Read as "carries nothing": the picker then offers
+ * no chain, which is wrong but quiet, where dereferencing it would take the page down.
+ */
+function optionFor(node: ProbeNode, names: readonly string[]): ThroughOption | undefined {
+  return (node.through ?? []).find((t) => names.every((name) => t.cols.includes(name)));
+}
+
+/** The columns the value itself contributes, before any chain. `null` when unknown here. */
+function initial(row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Selector[]>): string[] | null {
   switch (row.kind) {
     case "cols": return [row.value];
     case "nodes": return nodes.find((node) => node.id === row.value)?.outputs ?? null;
@@ -22,15 +46,32 @@ function carried(row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Se
   }
 }
 
-/** `all`, narrowed to the nodes that read what `row` carries; `all` when that cannot be told. */
+/** What the row hands to its next step, walking the chain it already has. */
+function carried(row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Selector[]>): string[] | null {
+  let names = initial(row, nodes, groups);
+  for (const id of row.chain) {
+    if (names === null) return null;
+    const node = nodes.find((n) => n.id === id);
+    const option = node === undefined ? undefined : optionFor(node, names);
+    // A chain the server would refuse tells us nothing about what comes next.
+    if (option === undefined) return null;
+    names = toOutputs(option, names);
+  }
+  return names;
+}
+
+/** `all`, narrowed to the nodes that can carry what `row` holds; `all` when that cannot be told. */
 export function throughOptions(
   row: SelectorRow, all: string[], nodes: ProbeNode[], groups: Record<string, Selector[]>,
 ): string[] {
-  // A chain never revisits a node: it would have to read its own output.
+  // Redundant once the nodes are described — a node never carries its own output — but it is the
+  // only rule left when they are not.
   const fresh = all.filter((id) => !row.chain.includes(id));
   if (nodes.length === 0) return fresh;
   const values = carried(row, nodes, groups);
   if (values === null) return fresh;
-  const reads = new Set(nodes.filter((node) => node.inputs.some((input) => values.includes(input))).map((node) => node.id));
-  return fresh.filter((id) => reads.has(id));
+  return fresh.filter((id) => {
+    const node = nodes.find((n) => n.id === id);
+    return node !== undefined && optionFor(node, values) !== undefined;
+  });
 }

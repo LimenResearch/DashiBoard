@@ -711,8 +711,8 @@ describe('pruneReferences', () => {
 describe('rememberDescribed', () => {
   it('keeps the last descriptions the server gave, dropping only nodes the document no longer has', async () => {
     const s = await import('./stores');
-    const a = { id: 'a', inputs: ['T'], outputs: ['T_a'], unproduced: [] };
-    const b = { id: 'b', inputs: ['T_a'], outputs: ['T_a_b'], unproduced: [] };
+    const a = { id: 'a', inputs: ['T'], outputs: ['T_a'], unproduced: [], through: [] };
+    const b = { id: 'b', inputs: ['T_a'], outputs: ['T_a_b'], unproduced: [], through: [] };
     s.rememberDescribed({ valid: true, nodes: [a, b] }, ['a', 'b']); await flush();
     expect(s.describedNodes()).toEqual([a, b]);
     s.rememberDescribed({ valid: false, nodes: [] }, ['a', 'b', 'c']); await flush();   // the document broke: memory stays

@@ -8,7 +8,7 @@ import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
 import { Presets } from "../components/Presets";
-import { HelpButton } from "../components/SelectorHelp";
+import { HelpButton, HelpPanel } from "../components/SelectorHelp";
 import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
@@ -613,6 +613,9 @@ export function Cards() {
 
       {/* After the last item and before the files, where a hand that has just finished one item
           is; pinned to the bottom of the view so it is there without scrolling. */}
+      {/* Outside the row below, deliberately: that row is a stacking context, and the keys have to
+          be drawn over the selector's suggestion list, which is in one of its own. */}
+      <HelpPanel />
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
         <div data-add class="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-border bg-background p-3">
           <Button onClick={() => reach(`group-name-${addGroup()}`)}>Add group</Button>

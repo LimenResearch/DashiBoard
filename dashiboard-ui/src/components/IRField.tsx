@@ -3,6 +3,8 @@ import type { Element as JSXElement } from "solid-js";
 
 import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
+import { MapField } from "./MapField";
+import { plainColumns, pruneMap, transformRows } from "../transformRows";
 import { SelectorField } from "./SelectorField";
 import type { SelectorRow } from "../selector";
 import { conditionalOptions, conditionallyRequired, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
@@ -34,6 +36,13 @@ type IRFieldProps = {
   chainFor?: (row: SelectorRow, all: string[]) => string[];
   /** Handed to every selector below: which products a chain step may be narrowed to. */
   groupsFor?: (token: string, row: SelectorRow) => string[];
+  /**
+   * Handed to every map field below: the columns the card's list `name` resolved to, as the
+   * server said — `null` when it has not.
+   */
+  listsFor?: (name: string) => string[] | null;
+  /** Handed to every map field below: whether a column is categorical, where that is known. */
+  isCategorical?: (column: string) => boolean;
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -149,6 +158,17 @@ export function IRField(props: IRFieldProps) {
                 if (allowed === undefined || !Array.isArray(held)) continue;
                 if (allowed === null || !held.every((v) => allowed.includes(String(v)))) delete next[other.key];
               }
+              // A plain column taken out of a list takes its entry in the list's map with it.
+              for (const other of w().properties) {
+                const map = widgetFor(other.value, props.defs);
+                if (map.kind !== "map" || map.keysFrom !== key) continue;
+                const pruned = pruneMap(
+                  next[other.key] as Record<string, string> | undefined,
+                  plainColumns(asRecord(props.value)[key]), plainColumns(inner),
+                );
+                if (pruned === undefined) delete next[other.key];
+                else next[other.key] = pruned;
+              }
               props.onChange(next);
             };
             // What a sibling's choice makes required, on top of what the field always is.
@@ -175,11 +195,22 @@ export function IRField(props: IRFieldProps) {
                     const held = asRecord(props.value)[entry().key];
                     return a && held === undefined ? a : held;
                   };
+                  // A map is drawn beside the list its keys come from, a row per column.
+                  const map = () => {
+                    const widget = widgetFor(entry().value, props.defs);
+                    return widget.kind === "map" ? widget : null;
+                  };
                   return (
                     <Show when={!hidden()}>
+                      <Show
+                        when={map()}
+                        keyed
+                        fallback={
                       <IRField
                         chainFor={props.chainFor}
                         groupsFor={props.groupsFor}
+                        listsFor={props.listsFor}
+                        isCategorical={props.isCategorical}
                         node={node()}
                         defs={props.defs}
                         label={entry().key}
@@ -188,6 +219,29 @@ export function IRField(props: IRFieldProps) {
                         value={value()}
                         onChange={(inner) => write(entry().key, inner)}
                       />
+                        }
+                      >
+                        {(m: Extract<Widget, { kind: "map" }>) => {
+                          const list = m.keysFrom ?? "";
+                          const held = () => asRecord(asRecord(props.value)[entry().key]) as Record<string, string>;
+                          const rows = () => transformRows(
+                            props.listsFor?.(list) ?? null, plainColumns(asRecord(props.value)[list]), held(),
+                          );
+                          return (
+                            <MapField
+                              label={entry().key}
+                              id={`${id()}-${entry().key}`}
+                              listName={list}
+                              columns={rows().live}
+                              stale={rows().stale}
+                              values={m.values}
+                              held={held()}
+                              fixed={(column) => props.isCategorical?.(column) ?? false}
+                              onChange={(next) => write(entry().key, next)}
+                            />
+                          );
+                        }}
+                      </Show>
                     </Show>
                   );
                 }}
@@ -278,6 +332,8 @@ export function IRField(props: IRFieldProps) {
                   <IRField
                     chainFor={props.chainFor}
                     groupsFor={props.groupsFor}
+                    listsFor={props.listsFor}
+                    isCategorical={props.isCategorical}
                     node={w().objects[chosen()]!}
                     defs={props.defs}
                     label={props.label}
@@ -423,6 +479,8 @@ export function IRField(props: IRFieldProps) {
                         <IRField
                           chainFor={props.chainFor}
                           groupsFor={props.groupsFor}
+                          listsFor={props.listsFor}
+                          isCategorical={props.isCategorical}
                           node={w().items}
                           defs={props.defs}
                           label={`${props.label}[${index()}]`}
@@ -479,6 +537,11 @@ export function IRField(props: IRFieldProps) {
           // beats a JSON textarea that invites input the schema will reject — and it makes the
           // gap visible where it belongs. Reachable today only through glm's formula, where
           // Pipelines uses ArrayIR{Any}() with a "make more specific" TODO.
+          // A map belongs beside the list its keys come from, so its object draws it; alone it
+          // has no columns to offer a row for.
+          case "map":
+            return null;
+
           case "unknown":
             return (
               <Row label={props.label} required={props.required}>

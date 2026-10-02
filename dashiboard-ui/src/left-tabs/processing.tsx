@@ -573,6 +573,10 @@ export function Cards() {
                 // says what each node reads.
                 chainFor={(row, all) => throughOptions(row, all, describedNodes(), state.groups)}
                 groupsFor={(token, row) => groupsFor(token, row, describedNodes(), state.groups)}
+                // A list's columns are the server's to resolve; what kind a column is, the
+                // loaded table's to say.
+                listsFor={(name) => describedNodes().find((described) => described.id === node.id)?.lists?.[name] ?? null}
+                isCategorical={(column) => metadata.find((entry) => entry.name === column)?.type === "categorical"}
                 value={node.card}
                 onChange={(card) => setCard(index(), card as Card)}
               />

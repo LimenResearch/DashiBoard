@@ -5,7 +5,7 @@ import payload from '../fixtures/card-ir.json';
 import {
   importCards, addGroup, addNode, removeNode, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
   forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict, setDroppedReferences,
-  PRESETS_STORE,
+  PRESETS_STORE, LOADER_STORE,
 } from '../stores';
 
 const postRequest = vi.fn();
@@ -948,4 +948,36 @@ describe('presets for new cards', () => {
     expect('partition' in exportCards().nodes[0].card).toBe(false);
   });
 
+});
+
+// The form does not resolve a list itself: the rows of a transform map are the columns the
+// server said the list came to, and what the loaded table says of each.
+describe('a transform row per column the server resolved', () => {
+  it('reads the list from the probe and the column\'s kind from the table', async () => {
+    const fit = {
+      type: 'streamliner', model: { type: 'dense', features: 2 }, training: { type: 'batched', iterations: 1 },
+      funnel: { order_by: [{ cols: 'No' }], inputs: [{ groups: 'g' }], targets: [{ cols: 'TEMP' }] },
+    };
+    const described = {
+      id: 'fit', inputs: [], outputs: [], unproduced: [], through: [],
+      lists: { inputs: ['PRES', 'cbwd'], targets: ['TEMP'] },
+    };
+    postRequest.mockImplementation((page: string, body: { include?: string[] }) => {
+      if (page === 'get-card-ir') {
+        const full = structuredClone(payload) as Record<string, unknown>;
+        return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, full[k]])));
+      }
+      if (page === 'probe-pipeline') return Promise.resolve({ ...CLEAN_PROBE, nodes: [described] });
+      return Promise.resolve([]);
+    });
+    LOADER_STORE[1](reconcile([{ name: 'cbwd', type: 'categorical', eltype: 'string', summary: ['NE'] }]));
+    importCards({ nodes: [{ id: 'fit', card: fit }], groups: { g: [{ cols: ['PRES', 'cbwd'] }] } });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(PROBE_STORE[0].nodes.length).toBe(1));
+    const rows = () => [...container.querySelectorAll('#node-0-streamliner-funnel-funnel-input_transforms [data-row]')];
+    await waitFor(() => expect(rows().map((r) => r.getAttribute('data-row'))).toEqual(['PRES', 'cbwd']));
+    expect(rows()[0].querySelector('select')).not.toBeNull();
+    expect(rows()[1].querySelector('select')).toBeNull();        // categorical: nothing to choose
+    LOADER_STORE[1](reconcile([]));
+  });
 });

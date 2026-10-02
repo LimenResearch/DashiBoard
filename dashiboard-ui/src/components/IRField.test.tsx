@@ -436,3 +436,46 @@ describe('IRField, a field a sibling makes required', () => {
     expect(starred({ loader: { type: 'file' } })).toBe(false);
   });
 });
+
+// A map field draws a row per column of the list it belongs to: what the server says the list
+// resolves to, and what the author wrote plainly.
+describe('IRField, a map beside its list', () => {
+  const node: IRNode = {
+    type: 'object',
+    properties: [
+      { key: 'inputs', required: false, value: { $ref: '#/$defs/variables' } },
+      { key: 'input_transforms', required: false, value: { type: 'map', values: { type: 'string', enum: ['log', 'sqrt'] }, keys_from: 'inputs' } },
+    ],
+  };
+  const rows = (c: HTMLElement) => [...c.querySelectorAll('[data-row]')].map((r) => r.getAttribute('data-row'));
+  const mountMap = (value: unknown, extra: Record<string, unknown> = {}, onChange: (v: unknown) => void = () => {}) =>
+    render(() => <IRField node={node} defs={defs} label="funnel" idPrefix="n" value={value} onChange={onChange} {...extra} />);
+
+  it('lists what the server resolved', () => {
+    const { container } = mountMap({ inputs: [{ groups: 'g' }] }, { listsFor: (name: string) => (name === 'inputs' ? ['TEMP', 'PRES'] : null) });
+    expect(rows(container)).toEqual(['TEMP', 'PRES']);
+  });
+
+  it('lists the plain columns before the server has answered', () => {
+    const { container } = mountMap({ inputs: [{ cols: ['TEMP'] }, { groups: 'g' }] });
+    expect(rows(container)).toEqual(['TEMP']);
+  });
+
+  it('writes the choice into the map', async () => {
+    let written: unknown = null;
+    const value = { inputs: [{ cols: ['TEMP', 'PRES'] }] };
+    const { container } = mountMap(value, {}, (v) => { written = v; });
+    const control = container.querySelector('[data-row="PRES"] select') as HTMLSelectElement;
+    control.value = 'log'; fireEvent.change(control); await flush();
+    expect(written).toEqual({ ...value, input_transforms: { PRES: 'log' } });
+  });
+
+  it('shows no transform for a categorical column, and marks an entry the list has lost', () => {
+    const { container } = mountMap(
+      { inputs: [{ cols: 'TEMP' }], input_transforms: { GONE: 'log' } },
+      { listsFor: () => ['TEMP', 'cbwd'], isCategorical: (column: string) => column === 'cbwd' },
+    );
+    expect(container.querySelector('[data-row="cbwd"] select')).toBeNull();
+    expect(container.querySelector('[data-row="GONE"]')!.hasAttribute('data-stale')).toBe(true);
+  });
+});

@@ -172,6 +172,11 @@ export type ProbeNode = {
   outputs: string[];
   unproduced: string[];
   through: ThroughOption[];
+  /**
+   * What the card's lists resolved to, by list name, for the lists a form has to spell out — one
+   * row per column to choose a transform for. Absent from a server that does not send it.
+   */
+  lists?: Record<string, string[]>;
 };
 
 /**

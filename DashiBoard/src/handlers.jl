@@ -276,15 +276,15 @@ A client reads the two the same way and means different things by them: a `pipel
 the author back to the cards, an `execution` failure back to the data.
 """
 function failure_report(kind::AbstractString, exception::Exception)
-    # Two kinds of failure carry a JSON Pointer into the document and what would have been
-    # accepted, so the form can address the control and offer a correction: a schema failure, and
-    # a `through` chain the pipeline refused to resolve. Anything else — a cyclic graph, a
+    # Three kinds of failure carry a JSON Pointer into the document, so the form can address the
+    # control and, where it is known, offer a correction: a schema failure, a `through` chain the
+    # pipeline refused to resolve, and a product selection a card cannot write. Anything else — a cyclic graph, a
     # duplicate id, a binder error from DuckDB — has only its message.
     # Validation collects, so one schema failure and twenty arrive in the same shape; a chain
     # fails on the first one, so it arrives singular and is wrapped to match.
     issues = if exception isa Pipelines.SchemaValidationErrors
         Pipelines.issue_report(exception)
-    elseif exception isa Pipelines.ThroughError
+    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError}
         [Pipelines.issue_report(exception)]
     else
         []

@@ -75,7 +75,7 @@ function output_spec(sc::StreamlinerCard)
     helpers = SC.get_helpers_out(funnel)
     if !isempty(helpers)
         any(g -> g.name == "helpers", groups) &&
-            throw(ArgumentError("A model field named `helpers` collides with the funnel's own product"))
+            throw(ProductError("A model field named `helpers` collides with the funnel's own product", "select"))
         push!(groups, OutputGroup("helpers", OutputSpec(helpers)))
     end
     return groups

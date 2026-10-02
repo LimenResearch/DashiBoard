@@ -21,11 +21,25 @@
 
     # What a selection may not be.
     bad(select; suffix = "double") = Pipelines.product_groups(["TEMP"], select, all, suffix)
-    @test_throws ArgumentError bad(String[])                     # nothing to write
-    @test_throws ArgumentError bad(["double", "double"])          # the same product twice
-    @test_throws ArgumentError bad(["quadruple"])                 # not one this card has
+    @test_throws Pipelines.ProductError bad(String[])                     # nothing to write
+    @test_throws Pipelines.ProductError bad(["double", "double"])          # the same product twice
+    @test_throws Pipelines.ProductError bad(["quadruple"])                 # not one this card has
     # Two products with one suffix would write the same columns.
-    @test_throws ArgumentError bad(["double", "triple"]; suffix = "triple")
+    @test_throws Pipelines.ProductError bad(["double", "triple"]; suffix = "triple")
+
+    # In a document the refusal says which card and which field, so a form can point at it.
+    build(card) = Pipelines.Pipeline(
+        [Dict("id" => "two", "card" => merge(Dict{String, Any}("type" => "twofold", "inputs" => [Dict("cols" => "TEMP")]), card))],
+        Dict{String, Any}(), ["TEMP"]; validate_schema = false
+    )
+    e = @test_throws Pipelines.ProductError build(Dict("suffix" => "triple"))
+    @test e.value.pointer == "/nodes/0/card/suffix"
+    report = Pipelines.issue_report(e.value)
+    @test report.reason == "products"
+    @test report.pointer == "/nodes/0/card/suffix"
+    @test occursin("triple", report.message)
+    e = @test_throws Pipelines.ProductError build(Dict("select" => ["quadruple"]))
+    @test e.value.pointer == "/nodes/0/card/select"
 
     # A card that does not opt in has no products, and none of this touches it.
     @test isempty(Pipelines.products(Pipelines.Card(Dict("type" => "trivial", "inputs" => ["a"], "outputs" => ["c"]))))

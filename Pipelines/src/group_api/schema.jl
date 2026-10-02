@@ -206,6 +206,24 @@ function issue_report(err::ThroughError)
     )
 end
 
+"""
+    issue_report(err::ProductError)
+
+A refused product selection in the shape every other issue uses, addressed at the field at fault.
+"""
+function issue_report(err::ProductError)
+    return (;
+        pointer = something(err.pointer, ""),
+        reason = "products",
+        severity = "error",
+        found = nothing,
+        allowed = nothing,
+        missing = String[],
+        related = String[],
+        message = sprint(showerror, err),
+    )
+end
+
 function issue_report(err::SchemaValidationError)
     issue = err.issue
     pointer = err.pointer_base * err.pointer_tail

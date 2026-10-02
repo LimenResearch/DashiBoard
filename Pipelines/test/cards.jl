@@ -952,7 +952,7 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
 
         # A field the model does not yield is refused as soon as the card's outputs are asked for,
         # which building a pipeline does for every node.
-        @test_throws ArgumentError Pipelines.get_node_outputs(Node(Pipelines.Card(config(select = ["logvar"]))))
+        @test_throws Pipelines.ProductError Pipelines.get_node_outputs(Node(Pipelines.Card(config(select = ["logvar"]))))
 
         # The schema carries the rule per model, so a form offers only what the chosen model has.
         rule = only(Pipelines.DashiBase.constraints(Pipelines.StreamlinerCard))

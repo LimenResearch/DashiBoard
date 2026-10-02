@@ -16,11 +16,11 @@ export const issueFindings = (issues: readonly ProbeIssue[]): Incompleteness[] =
   // Errors only: a warning is never a finding (it renders live, amber), and every caller strips
   // warnings before asking here.
   issues.flatMap((issue) => {
-    // The server's graph checks (`empty`, `unproduced`, `through` — handlers.jl) write a sentence
+    // The server's graph checks (`empty`, `unproduced`, `through`, `products` — handlers.jl) write a sentence
     // about the document, not a schema failure with fields to point at: their `message` is the
     // finding. A refused chain names the node that cannot carry the value and what it does carry,
     // which no reconstruction from `found` and `allowed` would say as well.
-    if (issue.reason === "empty" || issue.reason === "unproduced" || issue.reason === "through") {
+    if (issue.reason === "empty" || issue.reason === "unproduced" || issue.reason === "through" || issue.reason === "products") {
       return [{ message: issue.message, pointer: issue.pointer }];
     }
     if (issue.missing.length > 0) {

@@ -139,15 +139,21 @@ end
 
 (_::Context)(x::Any) = x
 
+with_pointer(err::ThroughError, pointer::AbstractString) =
+    ThroughError(err.id, err.cols, err.allowed, err.reason, err.groups, pointer)
+# A product refusal is about one field of the card, so it is addressed one step further in.
+with_pointer(err::ProductError, pointer::AbstractString) =
+    ProductError(err.message, err.field, string(pointer, '/', err.field))
+
 # A `through` failure knows which node refused but not which card or group asked it to, since it is
-# raised where the chain is walked. This is the frame that knows. Everything else passes untouched,
-# backtrace included.
+# raised where the chain is walked; a product refusal knows the field but not the card. This is
+# the frame that knows. Everything else passes untouched, backtrace included.
 function at_pointer(f::F, pointer::AbstractString) where {F}
     return try
         f()
     catch err
-        err isa ThroughError || rethrow()
-        throw(ThroughError(err.id, err.cols, err.allowed, err.reason, err.groups, pointer))
+        err isa Union{ThroughError, ProductError} || rethrow()
+        throw(with_pointer(err, pointer))
     end
 end
 
@@ -159,11 +165,12 @@ function Context(G::DiGraph, nodes, groups, group_names)
     )
     for i in topological_sort(G)
         if i ≤ n_nodes
-            node = at_pointer("/nodes/$(i - 1)/card") do
-                Node(c(nodes[i]))
+            # Naming the outputs is where a card's product selection is checked, so it is done
+            # inside the frame that knows which card this is.
+            c.nodes[i], c.outputs[i] = at_pointer("/nodes/$(i - 1)/card") do
+                node = Node(c(nodes[i]))
+                node, get_node_outputs(node)
             end
-            c.nodes[i] = node
-            c.outputs[i] = get_node_outputs(node)
         else
             name = group_names[i - n_nodes]
             c.outputs[i] = at_pointer("/groups/" * escape_pointer(name)) do

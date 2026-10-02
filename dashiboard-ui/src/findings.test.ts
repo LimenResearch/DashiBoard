@@ -15,7 +15,7 @@ const issue = (over: Partial<ProbeIssue>): ProbeIssue => ({
 });
 
 describe("issues the server writes a sentence for", () => {
-  // Three of the server's checks describe the document rather than a schema keyword, and their
+  // Some of the server's checks describe the document rather than a schema keyword, and their
   // `message` is the whole finding. Anything else is a validator failure, whose message names a
   // JSON Schema keyword and would read as noise next to a control.
   it("keeps the sentence for a refused through chain", () => {
@@ -32,8 +32,8 @@ describe("issues the server writes a sentence for", () => {
     ]);
   });
 
-  it("keeps the sentence for the other two", () => {
-    for (const reason of ["empty", "unproduced"]) {
+  it("keeps the sentence for the others", () => {
+    for (const reason of ["empty", "unproduced", "products"]) {
       const found = issueFindings([issue({ reason, message: `about ${reason}` })]);
       expect(found[0].message, reason).toBe(`about ${reason}`);
     }

@@ -12,10 +12,12 @@ using Accessors: @set
 using Base.ScopedValues: @with
 using Test
 
+include("twofold.jl")
 include("groups.jl")
 include("evaluation.jl")
 include("schemas.jl")
 include("cards.jl")
+include("products.jl")
 include("parametric_cards.jl")
 include("metadata.jl")
 include("utils.jl")

@@ -26,7 +26,8 @@ public register_wild_card, WildCardSettings
 public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
 
 public get_source_vars, get_output_vars, unproduced_references, get_id, issue_report,
-    card_issues, ThroughError, through_options, OutputGroup
+    card_issues, ThroughError, through_options, OutputGroup,
+    products, selected_products, product_groups, select_IR
 
 public train!, evaljoin, train_evaljoin!
 
@@ -185,6 +186,7 @@ include("cards/streamliner.jl")
 include("cards/wild.jl")
 
 include("node.jl")
+include("products.jl")
 include("dag.jl")
 include("pipeline.jl")
 

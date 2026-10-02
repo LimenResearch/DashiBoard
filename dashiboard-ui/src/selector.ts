@@ -17,6 +17,9 @@
 /** A chain step as the document writes it: a node id, or the node with the products wanted. */
 export type ThroughStep = string | { node: string; groups: string[] };
 
+/** The node a step passes through, whichever way it is written. */
+export const nodeOfStep = (step: ThroughStep) => (typeof step === "string" ? step : step.node);
+
 export type SelectorItem = {
   through?: ThroughStep[];
   [kind: string]: unknown;

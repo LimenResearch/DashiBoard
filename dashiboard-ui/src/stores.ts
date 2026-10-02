@@ -3,6 +3,7 @@ import {
   type Store, type StoreSetter,
 } from "solid-js";
 import { persisted, persistedSignal } from "./persist";
+import { nodeOfStep, type ThroughStep } from "./selector";
 import type { PresetStore } from "./presets";
 import type { Incompleteness } from "./completeness";
 import { issueFindings } from "./findings";
@@ -127,7 +128,7 @@ export type Selector = {
   nodes?: string | string[];
   groups?: string | string[];
   cols?: string | string[];
-  through?: string[];
+  through?: ThroughStep[];
 };
 
 export type Card = { type: string } & { [key: string]: unknown };
@@ -514,8 +515,9 @@ export function pruneReferences(columns: readonly string[] | null, target?: Card
       if (!("cols" in out || "groups" in out || "nodes" in out)) return null;
       if (Array.isArray(out.through)) {
         out.through = out.through.filter((step) => {
-          if (!present.nodes!.has(step)) dropped.push({ what: `@${step}`, where });
-          return present.nodes!.has(step);
+          const node = nodeOfStep(step);
+          if (!present.nodes!.has(node)) dropped.push({ what: `@${node}`, where });
+          return present.nodes!.has(node);
         });
         if (out.through.length === 0) delete out.through;
       }
@@ -534,7 +536,7 @@ function dropName(item: Selector, kind: "groups" | "nodes", name: string): Selec
   if (Array.isArray(value) || value === undefined) { if (rest.length === 0) delete out[kind]; else out[kind] = rest; }
   else if (value === name) delete out[kind];
   if (Array.isArray(out.through)) {
-    out.through = out.through.filter((v) => v !== name);
+    out.through = out.through.filter((step) => nodeOfStep(step) !== name);
     if (out.through.length === 0) delete out.through;
   }
   return "cols" in out || "groups" in out || "nodes" in out ? out : null;
@@ -546,7 +548,9 @@ function renameIn(item: Selector, kind: "groups" | "nodes", from: string, to: st
   const value = out[kind];
   if (Array.isArray(value)) out[kind] = value.map((v) => (v === from ? to : v));
   else if (value === from) out[kind] = to;
-  if (Array.isArray(out.through)) out.through = out.through.map((v) => (v === from ? to : v));
+  if (Array.isArray(out.through))
+    out.through = out.through.map((step) =>
+      nodeOfStep(step) !== from ? step : typeof step === "string" ? to : { ...step, node: to });
   return out;
 }
 

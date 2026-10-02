@@ -678,6 +678,29 @@ describe('pruneReferences', () => {
       { what: 'groups:nogroup', where: 'r' }, { what: 'cols:GONE', where: 'group g' },
     ]);
   });
+  // A step that names products is a reference to its node like any other.
+  const named = () => ({
+    nodes: [
+      { id: 'fit', card: { type: 'rescale', inputs: [{ cols: 'TEMP' }] } },
+      { id: 'use', card: { type: 'rescale', inputs: [{ cols: 'TEMP', through: [{ node: 'fit', groups: ['logvar'] }, { node: 'ghost', groups: ['x'] }] }] } },
+    ],
+    groups: {},
+  });
+  it('keeps a step that names products of a node that exists, and drops one whose node is gone', async () => {
+    const s = await import('./stores');
+    s.importCards(named() as never); await flush();
+    const dropped = s.pruneReferences(['TEMP']); await flush();
+    expect(s.exportCards().nodes[1].card.inputs).toEqual([{ cols: 'TEMP', through: [{ node: 'fit', groups: ['logvar'] }] }]);
+    expect(dropped).toEqual([{ what: '@ghost', where: 'use' }]);
+  });
+  it('renames and removes the node of a step that names products', async () => {
+    const s = await import('./stores');
+    s.importCards(named() as never); await flush();
+    s.setNodeId(0, 'model'); await flush();
+    expect((s.exportCards().nodes[1].card.inputs as { through: unknown[] }[])[0].through[0]).toEqual({ node: 'model', groups: ['logvar'] });
+    s.removeNode(0); await flush();
+    expect(s.exportCards().nodes[0].card.inputs).toEqual([{ cols: 'TEMP', through: [{ node: 'ghost', groups: ['x'] }] }]);
+  });
   it('judges no column while no table is loaded', async () => {
     const s = await import('./stores');
     s.importCards(doc()); await flush();

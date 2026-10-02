@@ -138,3 +138,13 @@
         target = StreamlinerCore.Template(Float32, (4,)),
     )
 end
+
+@testset "transforms" begin
+    @test StreamlinerCore.transform_names() == ["asinh", "log", "log1p", "sqrt"]
+    @test !haskey(StreamlinerCore.PARSER[].transforms, "")
+    x = Float32[1, 4, 9]
+    @test StreamlinerCore.RichColumn("a", "sqrt").transform(x) == Float32[1, 2, 3]
+    @test StreamlinerCore.RichColumn("a", "log").transform(x) ≈ log.(x)
+    @test StreamlinerCore.RichColumn("a").transform === identity
+    @test_throws KeyError StreamlinerCore.RichColumn("a", "")
+end

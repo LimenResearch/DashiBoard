@@ -10,9 +10,15 @@ get_metadata(r::RichColumn) = Dict("colname" => r.colname, "transform" => r.tran
 
 RichColumn(r::RichColumn) = r
 
-function RichColumn(s::Union{AbstractString, AbstractDict})
-    column_name::String, transform_name::String =
-        s isa AbstractDict ? (s["colname"], s["transform"]) : (s, "")
-    transform = PARSER[].transforms[transform_name]
-    return RichColumn(column_name, transform_name, transform)
+# A column with the transform registered under `transform_name`; identity when none is named.
+function RichColumn(name::AbstractString, transform_name::AbstractString = "identity")
+    return RichColumn(name, transform_name, PARSER[].transforms[transform_name])
 end
+
+"""
+    transform_names()
+
+The transforms an author may name for a column. Identity is not among them: it is what a column
+gets when nothing is said.
+"""
+transform_names() = sort!(String[name for name in keys(PARSER[].transforms) if name != "identity"])

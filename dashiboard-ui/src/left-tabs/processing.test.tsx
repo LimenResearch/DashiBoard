@@ -981,3 +981,56 @@ describe('a transform row per column the server resolved', () => {
     LOADER_STORE[1](reconcile([]));
   });
 });
+
+// The whole point of describing the funnel: a streamliner card can be filled in by hand, and
+// what the form writes is the document the server reads.
+describe('a streamliner card built from an empty form', () => {
+  it('writes the model, the training and the funnel\'s columns', async () => {
+    importCards({ nodes: [], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-presets]')).not.toBeNull());
+    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Add card')!);
+    await flush();
+    fireEvent.click(container.querySelector('[data-card-type="streamliner"]')!); await flush();
+
+    const choose = async (id: string, value: string) => {
+      const control = container.querySelector(`#${id}`) as HTMLSelectElement;
+      control.value = value; fireEvent.change(control); await flush();
+    };
+    const fill = async (id: string, value: string) => {
+      const control = container.querySelector(`#${id}`) as HTMLInputElement;
+      control.value = value; fireEvent.change(control); await flush();
+    };
+    /** Type a column into the selector labelled `label`, the way an author would. */
+    const column = async (label: string, name: string) => {
+      const box = container.querySelector(`[aria-label="${label}, type a selection"]`) as HTMLInputElement;
+      fireEvent.input(box, { target: { value: 'c' } }); await flush();
+      fireEvent.keyDown(box, { key: 'Tab' }); await flush();
+      fireEvent.input(box, { target: { value: name } }); await flush();
+      fireEvent.keyDown(box, { key: 'Enter' }); await flush();
+    };
+
+    await choose('node-0-streamliner-model-variant', 'dense');
+    await fill('node-0-streamliner-model-model-features', '5');
+    // One training configuration is not a question: it is taken, and named in the document.
+    expect(container.querySelector('#node-0-streamliner-training-variant')).toBeNull();
+    await fill('node-0-streamliner-training-training-iterations', '2');
+    // The funnel has one type, so there is nothing to choose before its fields.
+    expect(container.querySelector('#node-0-streamliner-funnel-variant')).toBeNull();
+    await column('order_by', 'No');
+    await column('inputs', 'TEMP');
+    await column('targets', 'Iws');
+
+    expect(exportCards().nodes[0].card).toEqual({
+      type: 'streamliner', suffix: 'hat',
+      model: { type: 'dense', features: 5 }, training: { type: 'batched', iterations: 2 },
+      funnel: { order_by: [{ cols: 'No' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'Iws' }] },
+    });
+    const card = container.querySelector('[data-selector]')!.closest('details')!.parentElement!;
+    expect(container.textContent).not.toMatch(/not described by the schema yet/);
+    expect(card).not.toBeNull();
+    // With a column named, its transform can be chosen, and it is written beside the list.
+    await choose('node-0-streamliner-funnel-funnel-input_transforms select', 'log');
+    expect((exportCards().nodes[0].card.funnel as Record<string, unknown>).input_transforms).toEqual({ TEMP: 'log' });
+  });
+});

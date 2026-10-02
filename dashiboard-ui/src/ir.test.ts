@@ -333,6 +333,13 @@ describe('the streamliner funnel, as served', () => {
     expect(JSON.stringify(defaults)).not.toContain('"type":""');
     expect('funnel' in defaults).toBe(false);
   });
+  // A lone option is not a question, so a new card starts with it taken — and named, since
+  // the server has no default to fall back on.
+  it('starts a card with a lone option that is not the default already chosen', () => {
+    const defaults = defaultsFor(payload.cards.streamliner as IRNode, payload.defs as Defs) as Record<string, unknown>;
+    expect(defaults.training).toEqual({ type: 'batched' });
+    expect('model' in defaults).toBe(false);           // two models: the author's to choose
+  });
   // "With the default loader, name the columns": the rule is the schema's, read here so the
   // form can mark the fields before the server is asked.
   it('says which fields a sibling makes required', () => {

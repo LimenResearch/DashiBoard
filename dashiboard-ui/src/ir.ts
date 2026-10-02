@@ -314,13 +314,15 @@ export function defaultsFor(node: IRNode, defs: Defs): unknown {
     }
 
     case "variant": {
-      if (w.default === undefined) return undefined;
-      const branch = w.objects[w.default];
+      // A lone option is taken without asking, as the form draws it.
+      const option = w.default ?? (w.options.length === 1 ? w.options[0] : undefined);
+      if (option === undefined) return undefined;
+      const branch = w.objects[option];
       const inner = branch === undefined ? undefined : defaultsFor(branch, defs);
       // The blank option is the one meant when none is named, so it is not named: what is left
       // is the branch's own defaults, or nothing.
-      if (w.default === "") return inner;
-      return { type: w.default, ...(inner !== undefined ? (inner as object) : {}) };
+      if (option === "") return inner;
+      return { type: option, ...(inner !== undefined ? (inner as object) : {}) };
     }
 
     case "select":

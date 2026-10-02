@@ -134,6 +134,40 @@ The card itself decides what is written at all. When the model chosen yields mor
 the card shows a `select` field listing them, all taken to begin with; untick one and its column
 is never written. A model that yields one thing has nothing to choose, and the field is not shown.
 
+### Building a streamliner card
+
+A streamliner card trains a model and writes its predictions. It has three parts.
+
+**model** and **training** each list the configurations the server was launched with. Choosing
+one shows the settings that configuration leaves open — the number of features, the number of
+iterations. When there is only one configuration there is nothing to choose, and its settings are
+shown straight away.
+
+**funnel** says which rows and columns the model is fed:
+
+- `order_by` — the columns that put the rows in order. Required.
+- `inputs` — the columns the model reads.
+- `targets` — the columns it learns to predict.
+
+All three are the same picker every other card uses, so an input can be a column, a group, or
+what another card produced.
+
+Under `inputs` and under `targets` there is one row per column with a **transform**: `identity`,
+which leaves the column as it is, or `log`, `log1p`, `sqrt`, `asinh`. Two things to know:
+
+- A transformed *target* is predicted in transformed units. Nothing converts the predictions
+  back.
+- A transform is applied as written. `log` of a value that is not positive is not caught.
+
+A row marked *not among the inputs* is a transform left over for a column the list no longer
+reaches — after an upstream card was renamed, say. The server refuses it; `remove` clears it.
+A categorical column has no transform to choose.
+
+`Presets` fill `order_by` here as they do on any other card.
+
+When the server is launched with an extension that adds another kind of funnel, `funnel` gains a
+`type` to choose, where `default` is the one described above.
+
 The field shows what it holds as chips beside its name, and offers two ways to add to it.
 
 ### By typing

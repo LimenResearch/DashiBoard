@@ -182,6 +182,11 @@ const METRIC_METHODS = OrderedDict{String, Type}(
     "hellingerdist" => HellingerDistMethod
 )
 
+const NONMETRIC_METHODS = OrderedDict{String, Type}(
+    "sqeuclidean" => SqEuclideanMethod,
+    "weighted_sqeuclidean" => WeightedSqEuclideanMethod,
+)
+
 """
     DISSIMILARITY_METHODS
 
@@ -189,13 +194,9 @@ Registry of every [`DissimilarityMethod`](@ref) type by JSON `"type"` name:
 the semimetrics plus all of [`METRIC_METHODS`](@ref). This is the set an
 unrestricted dissimilarity field (e.g. k-means') accepts.
 """
-const DISSIMILARITY_METHODS = merge(
-    OrderedDict{String, Type}(
-        "sqeuclidean" => SqEuclideanMethod,
-        "weighted_sqeuclidean" => WeightedSqEuclideanMethod,
-    ),
-    METRIC_METHODS,
-)
+function DISSIMILARITY_METHODS()
+    return merge(NONMETRIC_METHODS, METRIC_METHODS)
+end
 
 # The macro gives automatically
 # construct(DissimilarityMethod, d::AbstractDict)

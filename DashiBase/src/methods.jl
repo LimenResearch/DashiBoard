@@ -23,19 +23,25 @@ end
 
 # Method machinery
 
+to_method_dict(d::AbstractDict) = d
+to_method_dict(f::Function) = f()
+
 macro options(T, methods, default = nothing)
     return quote
         function StructUtils.make(::DashiStyle, ::Type{$(esc(T))}, c)
-            S = choose_method(c, $(esc(methods)), default = $(esc(default)))
+            local m = to_method_dict($(esc(methods)))
+            local S = choose_method(c, m, default = $(esc(default)))
             return StructUtils.make(DashiStyle(), S, c)
         end
 
         function StructUtils.make(::DashiStyle, ::Type{$(esc(T))}, c, tags)
-            S = choose_method(c, $(esc(methods)), default = $(esc(default)))
+            local m = to_method_dict($(esc(methods)))
+            local S = choose_method(c, m, default = $(esc(default)))
             return StructUtils.make(DashiStyle(), S, c, tags)
         end
 
         function DashiBase.IR_from_type(::Type{$(esc(T))}, _default)
+            local m = to_method_dict($(esc(methods)))
             local default_option = if isnothing(_default)
                 $(esc(default))
             elseif isnothing($(esc(default)))
@@ -44,18 +50,21 @@ macro options(T, methods, default = nothing)
                 # could tell "no default" from "a default we failed to name" — a form rendering a
                 # defaulted variant left the field blank and a confirmation step then called it
                 # unfinished.
-                findfirst(T -> _default isa T, $(esc(methods)))
-            elseif _default isa $(esc(methods))[$(esc(default))]
+                findfirst(T -> _default isa T, m)
+            elseif _default isa m[$(esc(default))]
                 $(esc(default))
             else
                 throw(ArgumentError("Inconsistent defaults"))
             end
-            local objects = Dict{String, ObjectIR}(k => ObjectIR(m) for (k, m) in pairs($(esc(methods))))
+            local objects = Dict{String, ObjectIR}(k => ObjectIR(m) for (k, m) in pairs(m))
 
             return TaggedObjectIR(; objects, default_option)
         end
-
-        StructUtils.lower(::DashiStyle, c::$(esc(T))) = get_metadata(c, $(esc(methods)))
+        
+        function StructUtils.lower(::DashiStyle, c::$(esc(T))) 
+            local m = to_method_dict($(esc(methods)))
+            return get_metadata(c, m)
+        end
     end
 end
 

@@ -11,13 +11,36 @@
 // same value may legitimately appear twice under different qualifications (case E). So rows carry
 // the chain, and only consecutive runs sharing a kind and a chain are merged back together.
 //
-// There is deliberately no resolver here. `through` names a column by concatenating node
-// suffixes, and that rule belongs to the server: a copy of it in TypeScript would be a second
-// source of truth for a naming law. The UI writes the document, the server resolves it.
+// There is no resolver here: what a chain's columns come out as is `through.ts`' business, and
+// why any of that rule lives in the browser at all is said there.
+
+/** A chain step as the document writes it: a node id, or the node with the products wanted. */
+export type ThroughStep = string | { node: string; groups: string[] };
 
 export type SelectorItem = {
-  through?: string[];
+  through?: ThroughStep[];
   [kind: string]: unknown;
+};
+
+// A step is edited as one token — `fit`, or `fit|logvar|prediction` — which is how it is typed
+// and shown. The document keeps the structure; the two meet only in `expand` and `collapse`.
+// `|` therefore cannot appear in a node's name, which the name check enforces.
+export const STEP_SEPARATOR = "|";
+
+export function parseStep(token: string): { node: string; groups: string[] } {
+  const [node, ...groups] = token.split(STEP_SEPARATOR);
+  return { node, groups };
+}
+
+export const formatStep = (node: string, groups: readonly string[]) =>
+  [node, ...groups].join(STEP_SEPARATOR);
+
+const toToken = (step: ThroughStep) =>
+  typeof step === "string" ? step : formatStep(String(step.node), (step.groups ?? []).map(String));
+
+const fromToken = (token: string): ThroughStep => {
+  const { node, groups } = parseStep(token);
+  return groups.length === 0 ? node : { node, groups };
 };
 
 /** One value with its qualification — what the control actually manipulates. */
@@ -44,7 +67,7 @@ export const chainKey = (chain: string[]) => JSON.stringify(chain);
 /** Items to rows: one row per value, each carrying the item's chain. */
 export function expand(items: SelectorItem[], kinds: readonly string[]): SelectorRow[] {
   return items.flatMap((item) => {
-    const chain = Array.isArray(item.through) ? item.through.map(String) : [];
+    const chain = Array.isArray(item.through) ? item.through.map(toToken) : [];
     return kinds.flatMap((kind) =>
       asList(item[kind]).map((value) => ({ kind, value, chain })),
     );
@@ -70,7 +93,7 @@ export function collapse(rows: SelectorRow[]): SelectorItem[] {
   }
   return runs.map((run) => {
     const item: SelectorItem = { [run.kind]: run.values.length === 1 ? run.values[0] : run.values };
-    if (run.chain.length > 0) item.through = run.chain;
+    if (run.chain.length > 0) item.through = run.chain.map(fromToken);
     return item;
   });
 }
@@ -92,7 +115,7 @@ export function documentText(rows: SelectorRow[]): string {
       const kind = Object.keys(item).find((k) => k !== 'through');
       if (kind === undefined) return '{}';
       const values = list(asList(item[kind]));
-      const through = item.through?.length ? `, through = ${list(item.through)}` : '';
+      const through = item.through?.length ? `, through = ${list(item.through.map(toToken))}` : '';
       return `{${kind} = ${values}${through}}`;
     })
     .join(', ');

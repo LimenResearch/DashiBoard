@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { asItems, collapse, expand, documentText, type SelectorItem } from './selector';
+import { asItems, collapse, expand, documentText, formatStep, parseStep, type SelectorItem } from './selector';
 
 const KINDS = ['cols', 'groups', 'nodes'];
 
@@ -115,5 +115,32 @@ describe('asItems', () => {
     expect(asItems(undefined)).toEqual([]);
     expect(asItems('PRES')).toEqual([]);
     expect(asItems({ cols: 'PRES' })).toEqual([]);
+  });
+});
+
+describe('a chain step that names products', () => {
+  it('reads as a token and is written back as the same object', () => {
+    const items = [{ cols: 'Iws', through: ['rescale', { node: 'fit', groups: ['logvar', 'prediction'] }] }];
+    const rows = expand(items, KINDS);
+    expect(rows[0].chain).toEqual(['rescale', 'fit|logvar|prediction']);
+    expect(collapse(rows)).toEqual(items);
+  });
+
+  // A document that names no product is written exactly as it was read.
+  it('leaves a chain of bare node ids as bare strings', () => {
+    const items = [{ cols: 'PRES', through: ['rescale'] }];
+    expect(JSON.stringify(collapse(expand(items, KINDS)))).toBe(JSON.stringify(items));
+  });
+
+  it('splits a token into its node and the products asked for', () => {
+    expect(parseStep('fit')).toEqual({ node: 'fit', groups: [] });
+    expect(parseStep('fit|logvar')).toEqual({ node: 'fit', groups: ['logvar'] });
+    expect(formatStep('fit', [])).toBe('fit');
+    expect(formatStep('fit', ['a', 'b'])).toBe('fit|a|b');
+  });
+
+  it('shows the step in the written form as it is typed', () => {
+    const rows = expand([{ cols: 'Iws', through: [{ node: 'fit', groups: ['logvar'] }] }], KINDS);
+    expect(documentText(rows)).toBe('{cols = "Iws", through = "fit|logvar"}');
   });
 });

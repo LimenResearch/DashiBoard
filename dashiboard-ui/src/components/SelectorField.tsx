@@ -13,7 +13,7 @@ import {
   type SelectorItem,
   type SelectorRow,
 } from "../selector";
-import { widgetFor, type Defs, type IRNode } from "../ir";
+import { resolveRef, widgetFor, type Defs, type IRNode } from "../ir";
 import { emptyEntry, engaged, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
 import * as _ from "lodash";
 
@@ -97,12 +97,16 @@ export function SelectorField(props: SelectorFieldProps) {
   /** The tabs drawn: a kind with nothing to offer has no tab. `kinds()` stays the model's. */
   const tabKinds = createMemo(() => kinds().filter((kind) => optionsOf(kind).length > 0));
 
-  /** The nodes a chain may be built from — the vocabulary `through` itself accepts. */
+  /** The nodes a chain may be built from — the vocabulary a bare `through` step accepts. */
   const chainOptions = () => {
     const w = widget();
     if (w.kind !== "selector") return [] as string[];
-    const through = widgetFor(w.through, props.defs);
-    return through.kind === "multiselect" ? through.options.map(String) : [];
+    const array = resolveRef(w.through, props.defs);
+    const items = resolveRef((array.items ?? {}) as IRNode, props.defs);
+    // A step is a node id or `{node, groups}`; the ids are the enum of the option that has one.
+    const options = items.type === "either" && Array.isArray(items.options) ? (items.options as IRNode[]) : [items];
+    const ids = options.map((option) => resolveRef(option, props.defs)).find((option) => Array.isArray(option.enum));
+    return ids === undefined ? [] : (ids.enum as unknown[]).map(String);
   };
 
   // One item is read as a one-item list; the boundary is `write`, which hands one back.

@@ -16,6 +16,26 @@ function RichColumn(name::AbstractString, transform_name::AbstractString = "iden
 end
 
 """
+    TransformError(message, path, pointer = nothing)
+
+A funnel was asked to transform a column it cannot. `path` leads to the entry at fault from the
+funnel — the map's field, then the column. `pointer` addresses that entry in a document; it is
+filled in by whoever knows where the funnel sits in one.
+"""
+struct TransformError <: Exception
+    message::String
+    path::Vector{String}
+    pointer::Maybe{String}
+end
+
+TransformError(message::AbstractString, path::AbstractVector) = TransformError(message, path, nothing)
+
+Base.showerror(io::IO, err::TransformError) = print(io, err.message)
+
+# The field of a funnel holding the transforms of `list`.
+transform_field(list::AbstractString) = string(chopsuffix(list, "s"), "_transforms")
+
+"""
     transform_names()
 
 The transforms an author may name for a column. Identity is not among them: it is what a column

@@ -109,10 +109,27 @@ end
 
 function get_streamliner_funnel(d::AbstractDict)
     funnel_name::String = get(d, "type", "")
-    return PARSER[].funnels[funnel_name](d)
+    F = PARSER[].funnels[funnel_name]
+    return make_funnel(F, filter(!=("type") ∘ first, d))
 end
 
-StructUtils.structlike(::DashiStyle, ::Type{<:Funnel}) = false
+# The funnels a card may name, as a choice among those registered in the parser in scope, each
+# described by its own fields. The blank one is the default.
+function DashiBase.IR_from_type(::Type{Funnel}, default)
+    if !isnothing(default)
+        throw(ArgumentError("Default not supported here"))
+    end
+    objects = Dict{String, ObjectIR}(name => funnel_IR(F) for (name, F) in pairs(PARSER[].funnels))
+    return TaggedObjectIR(; objects, default_option = "")
+end
+
+# An abstract funnel or loader is chosen by name, so it is read through `lift`; a concrete one
+# is read field by field.
+StructUtils.structlike(::DashiStyle, ::Type{Funnel}) = false
+StructUtils.structlike(::DashiStyle, ::Type{Loader}) = false
+
+StructUtils.lift(::DashiStyle, ::Type{Loader}, d::AbstractDict) = make_loader(d), nothing
+StructUtils.lower(::DashiStyle, loader::Loader) = get_metadata(loader)
 
 function StructUtils.lift(::DashiStyle, ::Type{Funnel}, d::AbstractDict)
     return get_streamliner_funnel(d), nothing

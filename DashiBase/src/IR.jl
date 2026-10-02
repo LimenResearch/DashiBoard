@@ -208,6 +208,24 @@ function json_schema(e::EitherIR)
     )
 end
 
+"""
+    MapIR(; values, keys_from = nothing)
+
+An object whose keys are not known to the schema and whose values are all described by `values`.
+
+The keys of such a map depend on the document — the columns a list resolves to, say — so a schema
+cannot enumerate them. `keys_from` names the sibling field they come from, for a form to draw one
+row per key; whoever owns the map checks the keys.
+"""
+struct MapIR <: AbstractIR
+    type::String
+    values::AbstractIR
+    keys_from::Maybe{String}
+    MapIR(; values::AbstractIR, keys_from::Maybe{AbstractString} = nothing) = new("map", values, keys_from)
+end
+
+json_schema(m::MapIR) = StringDict("type" => "object", "additionalProperties" => json_schema(m.values))
+
 const IR_DICT = Dict{String, Type}(
     "boolean" => IntegerIR,
     "integer" => IntegerIR,

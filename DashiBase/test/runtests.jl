@@ -1,7 +1,7 @@
 using Test, DashiBase
 using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ArrayIR, ObjectIR, OneOrManyIR, Maybe
 using JSON: JSON
-using JSONSchema: Schema
+using JSONSchema: JSONSchema, Schema
 
 module StructTest
     using StructUtils: @kwarg
@@ -196,4 +196,22 @@ end
     @test_throws ArgumentError DashiBase.EitherIR(["string" => StringIR(), "string" => StringIR()])
     # and it announces itself, like every other node
     @test JSON.parse(JSON.json(either; omit_null = true))["type"] == "either"
+end
+
+@testset "a map of names to values of one kind" begin
+    ir = DashiBase.MapIR(values = StringIR(enum = ["log", "sqrt"]), keys_from = "inputs")
+    @test ir.type == "map"
+    schema = DashiBase.json_schema(ir)
+    @test schema == Dict{String, Any}(
+        "type" => "object",
+        "additionalProperties" => Dict{String, Any}("type" => "string", "enum" => ["log", "sqrt"]),
+    )
+    # The form reads the IR, where the list the keys come from is named.
+    parsed = JSON.parse(JSON.json(ir; omit_null = true))
+    @test parsed["keys_from"] == "inputs"
+    @test parsed["values"]["enum"] == ["log", "sqrt"]
+    # A document is checked against it: any key, values of the one kind.
+    s = Schema(schema)
+    @test isnothing(JSONSchema.validate(Dict("TEMP" => "log"), s))
+    @test !isnothing(JSONSchema.validate(Dict("TEMP" => "cube"), s))
 end

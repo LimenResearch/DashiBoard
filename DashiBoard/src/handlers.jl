@@ -276,15 +276,16 @@ A client reads the two the same way and means different things by them: a `pipel
 the author back to the cards, an `execution` failure back to the data.
 """
 function failure_report(kind::AbstractString, exception::Exception)
-    # Three kinds of failure carry a JSON Pointer into the document, so the form can address the
+    # Four kinds of failure carry a JSON Pointer into the document, so the form can address the
     # control and, where it is known, offer a correction: a schema failure, a `through` chain the
-    # pipeline refused to resolve, and a product selection a card cannot write. Anything else — a cyclic graph, a
+    # pipeline refused to resolve, a product selection a card cannot write, and a transform for a
+    # column a funnel does not have. Anything else — a cyclic graph, a
     # duplicate id, a binder error from DuckDB — has only its message.
     # Validation collects, so one schema failure and twenty arrive in the same shape; a chain
     # fails on the first one, so it arrives singular and is wrapped to match.
     issues = if exception isa Pipelines.SchemaValidationErrors
         Pipelines.issue_report(exception)
-    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError}
+    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, Pipelines.SC.TransformError}
         [Pipelines.issue_report(exception)]
     else
         []
@@ -605,6 +606,9 @@ function probe_pipeline(req::HTTP.Request)
             # What a `through` chain may do with this node, so a picker offers only chains the
             # pipeline would accept rather than guessing from which columns the node reads.
             through = Pipelines.through_options(node),
+            # What the card's lists resolved to, where a form has to spell them out — one row
+            # per column to choose a transform for, say. Empty for most cards.
+            lists = Pipelines.resolved_lists(Pipelines.get_card(node)),
         )
     end
 

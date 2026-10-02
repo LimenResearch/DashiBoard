@@ -114,6 +114,26 @@ Wherever a card asks for columns, you get the same control, and it accepts three
 Each choice may also pass **through** one or more cards, which names the column that card made
 from it. A chain is ordered: `→ impute → zscore` is not `→ zscore → impute`.
 
+### Cards that write more than one thing
+
+Most cards write one thing for each column they are given: `rescale` writes `PRES_rescaled`. A
+card can write several, and then each has a name. A streamliner card whose model predicts a value
+*and* how sure it is writes two — `prediction` and `logvar` — so a target `Iws` comes out as
+`Iws_hat` and `Iws_logvar`. The prediction takes the card's `suffix`; everything else is named
+after itself.
+
+Passing through such a card takes everything it writes, unless you say which:
+
+```
+cols:  Iws  →fit                      Iws_hat and Iws_logvar
+cols:  Iws  →fit|logvar               Iws_logvar
+cols:  Iws  →fit|logvar|prediction    Iws_logvar, then Iws_hat
+```
+
+The card itself decides what is written at all. When the model chosen yields more than one thing,
+the card shows a `select` field listing them, all taken to begin with; untick one and its column
+is never written. A model that yields one thing has nothing to choose, and the field is not shown.
+
 The field shows what it holds as chips beside its name, and offers two ways to add to it.
 
 ### By typing
@@ -129,6 +149,7 @@ cols:  bill_length  →impute  →zscore
 | `c`, `g` or `n` then `Tab` | choose cols, groups or nodes |
 | type, then `Tab` | take the top match; `↑` `↓` choose another |
 | a node name after a name | pass through it; repeat for a chain |
+| `|` after a node | keep only some of what it writes |
 | `Enter` | add it, as a chip |
 | `Backspace` | undo the last part |
 | `Esc` | close the list, then clear the box |
@@ -149,6 +170,9 @@ want them, then `add`.
 
 Only nodes that can actually take the value further are offered, and a card is never offered
 itself or anything that depends on it — those would make a loop the server refuses.
+
+A node that writes several things shows them under its pill once it is switched on: `keep only`,
+then one switch per name. None switched on keeps them all.
 
 ## Running
 

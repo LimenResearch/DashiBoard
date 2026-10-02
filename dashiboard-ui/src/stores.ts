@@ -147,10 +147,11 @@ export const emptyCards = (): CardsStore => ({ nodes: [], groups: {} });
 /**
  * One way a value may pass through a node: the columns that way accepts, and how it renames them.
  *
- * A list per node, because a card will be able to write several products — a prediction and its
- * confidence bounds, say — each named by its own rule. None does yet.
+ * A list per node, because a card may write several products — a prediction and its confidence
+ * bounds, say — each named by its own rule. `group` is the product's name, or null when the node
+ * has one unnamed product.
  */
-export type ThroughOption = { cols: string[]; suffix: string | null; number: number | null };
+export type ThroughOption = { group: string | null; cols: string[]; suffix: string | null; number: number | null };
 
 // What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, any
 // reference nothing produces, and what a chain may do with it.

@@ -868,7 +868,7 @@ describe('a chain while the document does not build', () => {
     const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [{ cols: 'TEMP' }] };
     const described = {
       id: 'r', inputs: ['TEMP'], outputs: ['TEMP_rescaled'], unproduced: [],
-      through: [{ cols: ['TEMP'], suffix: 'rescaled', number: null }],
+      through: [{ group: null, cols: ['TEMP'], suffix: 'rescaled', number: null }],
     };
     let valid = true;
     postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) => {

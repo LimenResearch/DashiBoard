@@ -14,7 +14,7 @@ import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
 import { groupsFor, throughOptions } from "../through";
-import { presetFields, presetsFor } from "../presets";
+import { mergePresets, presetFields, presetsFor } from "../presets";
 import {
   CARDS_STORE,
   CARDS_JSON,
@@ -255,10 +255,10 @@ export function Cards() {
   const freshCard = (type: string): Card => {
     const ir = payload()?.cards[type];
     const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
-    const preset = payload() === null
-      ? {}
-      : presetsFor(presetFields(payload()!.cards, payload()!.defs), ir, snapshot(presets));
-    return { type, ...(defaults as object), ...preset } as Card;
+    if (payload() === null) return { type, ...(defaults as object) } as Card;
+    const fields = presetFields(payload()!.cards, payload()!.defs);
+    const preset = presetsFor(fields, ir, snapshot(presets), payload()!.defs);
+    return { type, ...mergePresets((defaults ?? {}) as { [key: string]: unknown }, preset, fields) } as Card;
   };
 
   const add = (type: string) => reach(`node-id-${addNode(freshCard(type))}`);

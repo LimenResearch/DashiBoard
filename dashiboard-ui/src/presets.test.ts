@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { presetFields } from './presets';
+import { mergePresets, presetFields, presetsFor } from './presets';
 import { widgetFor, type Defs, type IRNode } from './ir';
 import payload from './fixtures/card-ir.json';
 
@@ -9,7 +9,7 @@ const cards = payload.cards as unknown as { [type: string]: IRNode };
 describe('presetFields', () => {
   it('offers the selector fields at least two card types share, most shared first', () => {
     expect(presetFields(cards, defs).map((f) => [f.key, f.single]))
-      .toEqual([['partition', true], ['group_by', false], ['order_by', false], ['weights', true]]);
+      .toEqual([['partition', true], ['order_by', false], ['group_by', false], ['weights', true]]);
   });
 
   it('leaves out what a card operates on, however common', () => {
@@ -53,5 +53,36 @@ describe('presetFields', () => {
       }
     }
     for (const [key, kinds] of Object.entries(shapes)) expect([key, kinds.size]).toEqual([key, 1]);
+  });
+});
+
+describe('a shared field inside a variant\'s branch', () => {
+  const order = [{ cols: 'id' }];
+  it('counts as the same field', () => {
+    // Without the streamliner's funnel `order_by` is still shared; with it, by one type more.
+    expect(presetFields(cards, defs).map((f) => f.key)).toContain('order_by');
+    const top = { type: 'object', properties: [{ key: 'order_by', required: false, value: { $ref: '#/$defs/variables' } }] };
+    const inside = { type: 'object', properties: [{ key: 'funnel', required: true, value: {
+      type: 'tagged_object', options: [''], default_option: '', objects: { '': top },
+    } }] };
+    expect(presetFields({ a: top, b: inside }, defs).map((f) => f.key)).toEqual(['order_by']);
+  });
+  it('is filled where the card declares it', () => {
+    const fields = presetFields(cards, defs);
+    expect(presetsFor(fields, cards.split, { order_by: order }, defs)).toEqual({ order_by: order });
+    expect(presetsFor(fields, cards.streamliner, { order_by: order }, defs)).toEqual({ funnel: { order_by: order } });
+  });
+  it('still leaves out what a card operates on, wherever it is', () => {
+    expect(presetFields(cards, defs).map((f) => f.key)).not.toContain('inputs');
+    expect(presetFields(cards, defs).map((f) => f.key)).not.toContain('targets');
+  });
+  it('is laid over the branch\'s own defaults, not in place of them', () => {
+    const fields = presetFields(cards, defs);
+    const preset = presetsFor(fields, cards.streamliner, { order_by: order, partition: { cols: 'p' } }, defs);
+    expect(mergePresets({ suffix: 'hat', funnel: { row_number: '_r' } }, preset, fields))
+      .toEqual({ suffix: 'hat', partition: { cols: 'p' }, funnel: { row_number: '_r', order_by: order } });
+    // A field's own value replaces the default whole, even when it is an object.
+    expect(mergePresets({ partition: { cols: 'old', through: ['r'] } }, { partition: { cols: 'p' } }, fields))
+      .toEqual({ partition: { cols: 'p' } });
   });
 });

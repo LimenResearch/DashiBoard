@@ -199,6 +199,20 @@ end
 
 get_names(vts::VariableTransformSpec) = vts.cols
 
+"""
+    OutputGroup(name, spec)
+
+One product of a card: what it writes, as a specification, under the name a `through` chain uses
+to ask for it. A card with a single product may leave it unnamed; a card with several names every
+one, uniquely.
+"""
+struct OutputGroup
+    name::Maybe{String}
+    spec::AbstractOutputSpec
+end
+
+OutputGroup(spec::AbstractOutputSpec) = OutputGroup(nothing, spec)
+
 function _to_outputs(
         names::AbstractVector{<:AbstractString},
         suffix::Maybe{AbstractString},
@@ -284,7 +298,7 @@ end
 """
     output_spec(card, invert::Bool)
 
-What `card` writes, as an output specification, or `nothing` when it does not declare one.
+What `card` writes, as a list of [`OutputGroup`](@ref)s, or `nothing` when it does not declare one.
 
 Only an invertible card answers differently in the two directions, and only `RescaleCard` is
 invertible, so every other card ignores `invert`.
@@ -296,31 +310,30 @@ output_spec(c::Card, invert::Bool) = invert ? nothing : output_spec(c)
 """
     through_options(node::Node)
 
-How a value may pass through `node`: one entry per way it can, naming the columns that entry
-accepts and the rule that renames them. Empty when nothing can pass through.
-
-A list rather than one entry because a card will be able to write several products — a prediction
-and its confidence bounds, say — each named by its own rule. None does yet, so every list here is
-empty or holds one entry.
+How a value may pass through `node`: one entry per product that renames what it is given, in the
+order the card declares them, naming the columns it accepts and the rule that renames them. Empty
+when nothing can pass through.
 """
 function through_options(node::Node)
-    spec = output_spec(get_card(node), get_invert(node))
-    spec isa VariableTransformSpec || return NamedTuple[]
-    return [(; spec.cols, spec.suffix, spec.number)]
+    groups = output_spec(get_card(node), get_invert(node))
+    isnothing(groups) && return NamedTuple[]
+    return [
+        (; group = g.name, g.spec.cols, g.spec.suffix, g.spec.number)
+            for g in groups if g.spec isa VariableTransformSpec
+    ]
 end
 
 """
-    to_outputs(n::Node, spec)::Vector{String}
+    to_outputs(n::Node, groups)::Vector{String}
 
-What `n` writes. Most specifications answer the same whichever way a node runs, so the node is
-only consulted for the ones that do not.
+Everything `n` writes: each product's outputs, in the order the card declares them.
 """
-to_outputs(::Node, os::AbstractOutputSpec) = to_outputs(os)
+function to_outputs(::Node, groups::AbstractVector{OutputGroup})
+    return reduce(vcat, (to_outputs(g.spec) for g in groups); init = String[])
+end
 
-# A card that has not declared a specification answers the old way. This method is the whole of
-# what is left to migrate: when every card declares one, it goes, and `OutputVariables` stops
-# being reachable from here.
+# Every card declares what it writes. Reaching this is a card that forgot, and saying so here
+# beats its outputs quietly going missing from the pipeline.
 function to_outputs(n::Node, ::Nothing)
-    vars = OutputVariables(get_card(n))
-    return get_invert(n) ? vars.inverse_outputs : vars.outputs
+    return throw(ArgumentError("The card of node `$(n.id)` does not declare what it writes"))
 end

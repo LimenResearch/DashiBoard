@@ -96,7 +96,8 @@ end
 
 SourceVariables(gec::GaussianEncodingCard) = SourceVariables(; inputs = [gec.input])
 
-output_spec(gec::GaussianEncodingCard) = VariableTransformSpec([gec.input], gec.suffix, gec.n_components)
+output_spec(gec::GaussianEncodingCard) =
+    [OutputGroup(VariableTransformSpec([gec.input], gec.suffix, gec.n_components))]
 
 function train(
         ::Repository, gec::GaussianEncodingCard, ::AbstractString, ::AbstractPrimaryKey;

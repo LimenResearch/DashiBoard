@@ -76,7 +76,7 @@ end
 
 # A wild card names its outputs outright rather than deriving them from its inputs, so no value
 # can be traced through one.
-output_spec(wc::WildCard) = OutputSpec(wc.outputs)
+output_spec(wc::WildCard) = [OutputGroup(OutputSpec(wc.outputs))]
 
 ## Card registration
 

@@ -44,11 +44,6 @@ function target_vars(sc::StreamlinerCard)
     )
 end
 
-function output_vars(sc::StreamlinerCard)
-    outputs = join_names.(SC.colname.(SC.get_targets(sc.funnel)), sc.suffix)
-    return vcat(outputs, SC.get_helpers_out(sc.funnel))
-end
-
 function SourceVariables(sc::StreamlinerCard)
     return SourceVariables(;
         order_by = SC.get_order_by(sc.funnel),
@@ -59,13 +54,16 @@ function SourceVariables(sc::StreamlinerCard)
     )
 end
 
-# No `output_spec`: a streamliner writes several products, not one. Today that is the funnel's
-# targets renamed with `suffix` plus whatever `get_helpers_out` invents; once `ingest` accepts a
-# `select` wider than `(:prediction,)` it will also write one product per model output field, and
-# the same target column twice under different suffixes. A collection of specifications is where
-# that belongs, so this card keeps answering through `OutputVariables` until then — and with it,
-# `to_outputs(::Node, ::Nothing)` and `unproduced_references`, which cover nothing else.
-OutputVariables(sc::StreamlinerCard) = OutputVariables(output_vars(sc))
+# The funnel's targets renamed with `suffix` are the prediction; what the funnel writes beside
+# them — row counters for a windowed funnel, nothing for a plain one — is a second product, which
+# invents its names and so carries nothing through.
+function output_spec(sc::StreamlinerCard)
+    funnel = sc.funnel
+    groups = [OutputGroup("prediction", VariableTransformSpec(SC.colname.(SC.get_targets(funnel)), sc.suffix))]
+    helpers = SC.get_helpers_out(funnel)
+    isempty(helpers) || push!(groups, OutputGroup("helpers", OutputSpec(helpers)))
+    return groups
+end
 
 function train(
         repository::Repository,

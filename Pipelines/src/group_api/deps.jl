@@ -102,7 +102,9 @@ end
 function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVector)
     for i in is
         node = nodes[i]
-        x = to_outputs(node, output_spec(get_card(node), get_invert(node)), x)
+        groups = output_spec(get_card(node), get_invert(node))
+        spec = isnothing(groups) ? nothing : first(groups).spec
+        x = to_outputs(node, spec, x)
     end
     return x
 end

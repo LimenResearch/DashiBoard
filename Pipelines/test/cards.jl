@@ -851,31 +851,43 @@ end
 # Which shape of specification each card declares. The three shapes mean different things to a
 # `through` chain, so a change that silently reclassifies a card has to fail here.
 @testset "output specifications" begin
+    only_spec(card, invert = false) = only(Pipelines.output_spec(card, invert)).spec
+
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     gc = Pipelines.Card(d["dayofweek"])
-    gspec = Pipelines.output_spec(gc)
-    @test gspec isa Pipelines.VariableTransformSpec
-    @test gspec.cols == ["date"]
+    groups = Pipelines.output_spec(gc, false)
+    @test groups isa Vector{Pipelines.OutputGroup}
+    # One product, so it needs no name.
+    @test isnothing(only(groups).name)
+    @test only_spec(gc) isa Pipelines.VariableTransformSpec
+    @test only_spec(gc).cols == ["date"]
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
-    sc = Pipelines.Card(d["percentile"])
     # A split invents its column rather than deriving it, so nothing passes through one.
-    @test Pipelines.output_spec(sc) isa Pipelines.OutputSpec
+    @test only_spec(Pipelines.Card(d["percentile"])) isa Pipelines.OutputSpec
 
-    # A wild card names its outputs outright, so it is the same shape as a split.
     wc = Pipelines.Card(Dict("type" => "trivial", "inputs" => ["a", "b"], "outputs" => ["c"]))
-    @test Pipelines.output_spec(wc) isa Pipelines.OutputSpec
+    @test only_spec(wc) isa Pipelines.OutputSpec
     @test Pipelines.get_node_outputs(Node(wc)) == ["c"]
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
     rc = Pipelines.Card(d["zscore2"])
     # Forward it renames every input and target, which is what a chain follows.
-    fwd = Pipelines.output_spec(rc)
-    @test fwd isa Pipelines.VariableTransformSpec
-    @test fwd.cols == ["TEMP", "PRES"]
-    # Inverted it writes a fixed list, which nothing a chain carries can be derived into.
-    @test Pipelines.output_spec(rc, true) isa Pipelines.OutputSpec
+    @test only_spec(rc) isa Pipelines.VariableTransformSpec
+    @test only_spec(rc).cols == ["TEMP", "PRES"]
     @test Pipelines.get_node_outputs(Node(rc)) == ["TEMP_rescaled", "PRES_rescaled"]
-    # Inverted it strips that suffix and applies `target_suffix` instead, which no transform says.
+    # Inverted it writes a fixed list, which nothing a chain carries can be derived into.
+    @test only_spec(rc, true) isa Pipelines.OutputSpec
     @test Pipelines.get_node_outputs(invert(Node(rc))) == ["PRES_hat"]
+
+    # A streamliner names its products even when there is one, and no longer needs a bridge.
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
+    sc = @with(
+        Pipelines.PARSER => Pipelines.default_parser(),
+        Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model"),
+        Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+        Pipelines.Card(d["basic"])
+    )
+    @test [g.name for g in Pipelines.output_spec(sc, false)] == ["prediction"]
+    @test Pipelines.get_node_outputs(Node(sc)) == ["Iws_hat"]
 end

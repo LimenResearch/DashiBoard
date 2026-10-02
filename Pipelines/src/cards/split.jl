@@ -81,7 +81,7 @@ end
 
 SourceVariables(sc::SplitCard) = SourceVariables(; sc.order_by, sc.group_by)
 
-output_spec(sc::SplitCard) = OutputSpec([sc.output])
+output_spec(sc::SplitCard) = [OutputGroup(OutputSpec([sc.output]))]
 
 function train(
         ::Repository, ::SplitCard, ::AbstractString, ::AbstractPrimaryKey;

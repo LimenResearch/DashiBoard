@@ -343,7 +343,7 @@ end
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
     inv = invert(Node(Pipelines.Card(d["zscore2"])))
     @test_throws Pipelines.ThroughError Pipelines.to_outputs(
-        inv, Pipelines.output_spec(get_card(inv), true), ["TEMP"]
+        inv, only(Pipelines.output_spec(get_card(inv), true)).spec, ["TEMP"]
     )
 end
 

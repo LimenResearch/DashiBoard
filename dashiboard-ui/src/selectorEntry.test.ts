@@ -5,6 +5,7 @@ const V: EntryVocabulary = {
   kinds: ['nodes', 'groups', 'cols'],
   options: { nodes: ['zscore', 'impute'], groups: ['bills'], cols: ['bill_length', 'flipper_length', 'with space', 'a@b'] },
   chain: ['zscore', 'impute'],
+  narrow: [],
 };
 /** Feed inputs in order; return the last state and every row emitted on the way. */
 const walk = (inputs: EntryInput[], vocabulary = V, single = false, from: EntryState = emptyEntry) => {
@@ -158,5 +159,41 @@ describe('the typed entry', () => {
 
   it('in single mode ENTER clears the kind too', () => {
     expect(walk([text('c'), TAB, text('bill'), ENTER], V, true).state).toEqual(emptyEntry);
+  });
+});
+
+describe('narrowing a step to a product', () => {
+  const vocabulary = { kinds: ['cols'], options: { cols: ['Iws'] }, chain: ['fit'], narrow: ['prediction', 'logvar'] };
+  const atChain = { ...emptyEntry, kind: 'cols', name: 'Iws', chain: ['fit'] };
+
+  // `|` after a step asks which of its products; it does not start another step.
+  it('offers the products once `|` is typed, and adds the choice to the step', () => {
+    const typed = step(atChain, { type: 'text', value: '|lo' }, vocabulary).state;
+    expect(suggestions(typed, vocabulary)).toEqual(['logvar']);
+    const taken = step(typed, { type: 'tab' }, vocabulary).state;
+    expect(taken.chain).toEqual(['fit|logvar']);
+    expect(taken.text).toBe('');
+  });
+
+  it('keeps adding, in the order chosen', () => {
+    const one = { ...atChain, chain: ['fit|logvar'] };
+    const typed = step(one, { type: 'text', value: '|pre' }, { ...vocabulary, narrow: ['prediction'] }).state;
+    expect(step(typed, { type: 'tab' }, { ...vocabulary, narrow: ['prediction'] }).state.chain).toEqual(['fit|logvar|prediction']);
+  });
+
+  it('has nothing to offer for a step with one product', () => {
+    const typed = step(atChain, { type: 'text', value: '|' }, { ...vocabulary, narrow: [] }).state;
+    expect(suggestions(typed, { ...vocabulary, narrow: [] })).toEqual([]);
+  });
+
+  // A lone `|` is a question already asked: TAB takes the first product instead of leaving.
+  it('takes the first product on TAB after a lone `|`', () => {
+    const typed = step(atChain, { type: 'text', value: '|' }, vocabulary).state;
+    expect(step(typed, { type: 'tab' }, vocabulary).state.chain).toEqual(['fit|prediction']);
+  });
+
+  it('does not narrow before any step is taken', () => {
+    const typed = step({ ...atChain, chain: [] }, { type: 'text', value: '|' }, vocabulary).state;
+    expect(suggestions(typed, vocabulary)).toEqual([]);
   });
 });

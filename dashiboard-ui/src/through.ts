@@ -102,7 +102,10 @@ export function groupsFor(
   const node = nodes.find((n) => n.id === step.node);
   const values = carried(row, nodes, groups);
   if (node === undefined || values === null) return [];
-  return carriers(node, values)
+  const able = carriers(node, values);
+  // A lone carrier is what the bare step already takes.
+  if (able.length < 2) return [];
+  return able
     .map((t) => t.group)
     .filter((group): group is string => group !== null && !step.groups.includes(group));
 }

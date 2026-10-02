@@ -12,6 +12,7 @@ const KEYS: [string, string][] = [
   ["type → Tab", "take the top match; ↑ ↓ choose another"],
   ["Tab, nothing typed", "leave the field"],
   ["a node after a name", "pass through it; repeat for a chain"],
+  ["| after a node", "keep only some of its products"],
   ["Enter", "add what is in the box"],
   ["Backspace", "undo the last part"],
   ["Esc", "close the list, then clear the box"],

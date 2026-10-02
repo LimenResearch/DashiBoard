@@ -32,6 +32,8 @@ type IRFieldProps = {
   idPrefix?: string;
   /** Handed to every selector below: which nodes a chain may pass through next. */
   chainFor?: (row: SelectorRow, all: string[]) => string[];
+  /** Handed to every selector below: which products a chain step may be narrowed to. */
+  groupsFor?: (token: string, row: SelectorRow) => string[];
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -141,6 +143,7 @@ export function IRField(props: IRFieldProps) {
                 {(entry) => (
                   <IRField
                     chainFor={props.chainFor}
+                    groupsFor={props.groupsFor}
                     node={entry().value}
                     defs={props.defs}
                     label={entry().key}
@@ -214,6 +217,7 @@ export function IRField(props: IRFieldProps) {
                 <Show when={w().objects[chosen()]}>
                   <IRField
                     chainFor={props.chainFor}
+                    groupsFor={props.groupsFor}
                     node={w().objects[chosen()]!}
                     defs={props.defs}
                     label={props.label}
@@ -355,6 +359,7 @@ export function IRField(props: IRFieldProps) {
                       {(item, index) => (
                         <IRField
                           chainFor={props.chainFor}
+                          groupsFor={props.groupsFor}
                           node={w().items}
                           defs={props.defs}
                           label={`${props.label}[${index()}]`}
@@ -375,6 +380,7 @@ export function IRField(props: IRFieldProps) {
                     box on screen and folds the rest itself. */}
                 <SelectorField
                   chainFor={props.chainFor}
+                  groupsFor={props.groupsFor}
                   itemNode={w().items}
                   defs={props.defs}
                   label={props.label}
@@ -395,6 +401,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <SelectorField
                 chainFor={props.chainFor}
+                groupsFor={props.groupsFor}
                 single
                 itemNode={props.node}
                 defs={props.defs}

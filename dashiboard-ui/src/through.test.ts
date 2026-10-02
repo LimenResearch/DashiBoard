@@ -115,6 +115,12 @@ describe('a node with several products', () => {
     expect(groupsFor('after', { kind: 'cols', value: 'Iws_logvar', chain: [] }, [fit, after], {})).toEqual([]);
   });
 
+  // A lone product is what the bare step already takes: naming it would be a choice of one.
+  it('offers no narrowing for a node with a single named product', () => {
+    const plain = node('plain', ['Iws_hat'], [carries('prediction', ['Iws'], 'hat')]);
+    expect(groupsFor('plain', row([]), [plain], {})).toEqual([]);
+  });
+
   // A bare `fit` hands on both columns, and `after` accepts only one of them.
   it('carries every product on, so the next step must accept them all', () => {
     expect(throughOptions(row(['fit']), ['fit', 'after'], [fit, after], {})).toEqual([]);

@@ -12,6 +12,8 @@ import {
   expand,
   type SelectorItem,
   type SelectorRow,
+  formatStep,
+  parseStep,
 } from "../selector";
 import { resolveRef, widgetFor, type Defs, type IRNode } from "../ir";
 import { emptyEntry, engaged, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
@@ -49,6 +51,8 @@ type SelectorFieldProps = {
   open?: boolean;
   /** Narrows `all`, the nodes `through` accepts, to those a chain may pass through next after `row`. */
   chainFor?: (row: SelectorRow, all: string[]) => string[];
+  /** The products the step `token` may still be narrowed to, after `row` — the selection before it. */
+  groupsFor?: (token: string, row: SelectorRow) => string[];
   value: unknown;
 } & (
   | { single?: false; onChange: (items: SelectorItem[]) => void }
@@ -164,12 +168,18 @@ export function SelectorField(props: SelectorFieldProps) {
     const narrow = props.chainFor;
     return narrow === undefined ? chainOptions() : narrow(row, chainOptions());
   };
+  /** The products `token` may still be narrowed to after `row`: the host's say, else none. */
+  const groupsFor = (token: string, row: SelectorRow) => props.groupsFor?.(token, row) ?? [];
   const vocabulary = createMemo(() => {
     const e = entry();
+    const named = e.kind !== null && e.name !== null;
     return {
       kinds: tabKinds(),
       options: Object.fromEntries(tabKinds().map((kind) => [kind, optionsOf(kind)])),
-      chain: e.kind !== null && e.name !== null ? chainFor({ kind: e.kind, value: e.name, chain: e.chain }) : chainOptions(),
+      chain: named ? chainFor({ kind: e.kind!, value: e.name!, chain: e.chain }) : chainOptions(),
+      narrow: named && e.chain.length > 0
+        ? groupsFor(e.chain[e.chain.length - 1], { kind: e.kind!, value: e.name!, chain: e.chain.slice(0, -1) })
+        : [],
     };
   });
   const listId = _.uniqueId("selector-list-");
@@ -665,10 +675,17 @@ export function SelectorField(props: SelectorFieldProps) {
                         // the one before it produced, so removing one can leave a later step with
                         // nothing it accepts. Keep the longest run the host still allows and drop
                         // the remainder, so the draft is never a chain that cannot resolve.
+                        const nodeOf = (step: string) => parseStep(step).node;
+                        const taking = (node: string) => chain.some((step) => nodeOf(step) === node);
+                        /** Every product the step at `at` could keep, given what precedes it. */
+                        const productsAt = (steps: string[], at: number) =>
+                          groupsFor(nodeOf(steps[at]), { kind: kind(), value, chain: steps.slice(0, at) });
                         const prune = (steps: string[]) => {
                           const kept: string[] = [];
-                          for (const step of steps) {
-                            if (!chainFor({ kind: kind(), value, chain: kept }).includes(step)) break;
+                          for (const [at, step] of steps.entries()) {
+                            if (!chainFor({ kind: kind(), value, chain: kept }).includes(nodeOf(step))) break;
+                            const wanted = parseStep(step).groups;
+                            if (wanted.length > 0 && !wanted.every((g) => productsAt(steps, at).includes(g))) break;
                             kept.push(step);
                           }
                           return kept;
@@ -677,16 +694,26 @@ export function SelectorField(props: SelectorFieldProps) {
                           setComposing({
                             key: key(),
                             chain: prune(
-                              chain.includes(node) ? chain.filter((n) => n !== node) : [...chain, node]
+                              taking(node) ? chain.filter((step) => nodeOf(step) !== node) : [...chain, node]
                             ),
                           });
+                        // A product switched on is kept alone with the others switched on, in the
+                        // order they were; none on is the bare step, which keeps them all.
+                        const toggleProduct = (at: number, product: string) => {
+                          const { node, groups } = parseStep(chain[at]);
+                          const next = groups.includes(product) ? groups.filter((g) => g !== product) : [...groups, product];
+                          setComposing({
+                            key: key(),
+                            chain: prune(chain.map((step, i) => (i === at ? formatStep(node, next) : step))),
+                          });
+                        };
                         // A chain is a sequence, so what may come next depends on what is already
                         // in it — the same narrowing the typed box does. Steps already taken stay
                         // on offer so they can be taken out again, and the vocabulary's order is
                         // kept so the pills do not move around as they are picked.
                         const offered = () => {
                           const next = chainFor({ kind: kind(), value, chain });
-                          return chainOptions().filter((n) => chain.includes(n) || next.includes(n));
+                          return chainOptions().filter((n) => taking(n) || next.includes(n));
                         };
                         return (
                           <div
@@ -704,11 +731,11 @@ export function SelectorField(props: SelectorFieldProps) {
                                   <button
                                     type="button"
                                     data-node={node}
-                                    aria-pressed={chain.includes(node) ? "true" : "false"}
+                                    aria-pressed={taking(node) ? "true" : "false"}
                                     onClick={() => toggle(node)}
                                     class={[
                                       "inline-flex h-5 items-center rounded-full border px-2 font-mono text-control-xs hover:border-primary hover:text-primary",
-                                      chain.includes(node)
+                                      taking(node)
                                         ? "border-primary bg-primary/15 font-medium text-primary"
                                         : "border-border bg-card",
                                     ]}
@@ -718,6 +745,40 @@ export function SelectorField(props: SelectorFieldProps) {
                                 )}
                               </For>
                             </div>
+
+                            {/* A step through a node with several products may keep only some. */}
+                            <For each={chain}>
+                              {(step, at) => (
+                                <Show when={productsAt(chain, at()).length > 0}>
+                                  <div data-products={nodeOf(step)} class="flex flex-wrap items-center gap-1.5">
+                                    <span class="text-control-xs text-muted-foreground">
+                                      from {nodeOf(step)} keep only
+                                    </span>
+                                    <For each={productsAt(chain, at())}>
+                                      {(product) => {
+                                        const on = () => parseStep(step).groups.includes(product);
+                                        return (
+                                          <button
+                                            type="button"
+                                            data-product={product}
+                                            aria-pressed={on() ? "true" : "false"}
+                                            onClick={() => toggleProduct(at(), product)}
+                                            class={[
+                                              "inline-flex h-5 items-center rounded-full border px-2 font-mono text-control-xs hover:border-primary hover:text-primary",
+                                              on()
+                                                ? "border-primary bg-primary/15 font-medium text-primary"
+                                                : "border-border bg-card",
+                                            ]}
+                                          >
+                                            {product}
+                                          </button>
+                                        );
+                                      }}
+                                    </For>
+                                  </div>
+                                </Show>
+                              )}
+                            </For>
 
                             {/* The chain as it stands, once there is one to read. */}
                             <Show when={chain.length > 0}>

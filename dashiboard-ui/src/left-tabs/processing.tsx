@@ -13,7 +13,7 @@ import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
-import { throughOptions } from "../through";
+import { groupsFor, throughOptions } from "../through";
 import { presetFields, presetsFor } from "../presets";
 import {
   CARDS_STORE,
@@ -572,6 +572,7 @@ export function Cards() {
                 // A chain may only pass through nodes that read what it carries; the probe
                 // says what each node reads.
                 chainFor={(row, all) => throughOptions(row, all, describedNodes(), state.groups)}
+                groupsFor={(token, row) => groupsFor(token, row, describedNodes(), state.groups)}
                 value={node.card}
                 onChange={(card) => setCard(index(), card as Card)}
               />

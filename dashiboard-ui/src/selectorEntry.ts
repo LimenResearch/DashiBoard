@@ -1,10 +1,14 @@
-import type { SelectorRow } from "./selector";
+import { STEP_SEPARATOR, type SelectorRow } from "./selector";
 
 // The typed way into a selector: kind → name → optional chain → finish, the steps the panel of
 // switches takes by mouse. Pure data, so the whole grammar is tested without a DOM, and what it
 // emits is the row a click in the panel emits.
 
-export type EntryVocabulary = { kinds: string[]; options: Record<string, string[]>; chain: string[] };
+export type EntryVocabulary = {
+  kinds: string[]; options: Record<string, string[]>; chain: string[];
+  /** The products the last accepted step may still be narrowed to. */
+  narrow: string[];
+};
 export type EntryState = {
   kind: string | null; name: string | null; chain: string[];
   text: string; open: boolean; highlight: number;
@@ -36,15 +40,19 @@ export function stageOf(state: EntryState): "kind" | "name" | "chain" {
   return "chain";
 }
 
+/** A `|` at the chain stage narrows the step just accepted instead of starting another. */
+const narrowing = (state: EntryState) =>
+  stageOf(state) === "chain" && state.chain.length > 0 && state.text.startsWith(STEP_SEPARATOR);
+
 /** What is typed for the current stage: a chain step may be written with or without its `@`. */
 const queryOf = (state: EntryState) =>
-  stageOf(state) === "chain" && state.text.startsWith("@") ? state.text.slice(1) : state.text;
+  narrowing(state) || (stageOf(state) === "chain" && state.text.startsWith("@")) ? state.text.slice(1) : state.text;
 
 export function suggestions(state: EntryState, vocabulary: EntryVocabulary): string[] {
   switch (stageOf(state)) {
     case "kind": return matches(state.text, vocabulary.kinds);
     case "name": return matches(state.text, vocabulary.options[state.kind!] ?? []);
-    case "chain": return matches(queryOf(state), vocabulary.chain);
+    case "chain": return matches(queryOf(state), narrowing(state) ? vocabulary.narrow : vocabulary.chain);
   }
 }
 
@@ -54,12 +62,15 @@ function accept(state: EntryState, value: string): EntryState {
   switch (stageOf(state)) {
     case "kind": return { ...next, kind: value };
     case "name": return { ...next, name: value };
-    case "chain": return { ...next, chain: [...state.chain, value] };
+    case "chain":
+      return narrowing(state)
+        ? { ...next, chain: [...state.chain.slice(0, -1), `${state.chain.at(-1)}${STEP_SEPARATOR}${value}`] }
+        : { ...next, chain: [...state.chain, value] };
   }
 }
 
 /** Something was typed or chosen: a match is highlighted, and TAB and ENTER may take it. */
-export const engaged = (state: EntryState) => queryOf(state) !== "" || state.moved;
+export const engaged = (state: EntryState) => queryOf(state) !== "" || state.moved || narrowing(state);
 
 const highlighted = (state: EntryState, vocabulary: EntryVocabulary): string | undefined =>
   state.open ? suggestions(state, vocabulary)[state.highlight] : undefined;

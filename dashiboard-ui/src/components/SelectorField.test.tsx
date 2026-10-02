@@ -487,6 +487,73 @@ describe('SelectorField, typed entry', () => {
     expect(builderIn(container, 'PRES').querySelector('[data-chain-preview]')).toBeNull();
   });
 
+  /** `rescale` has two named products here; every other node has one, unnamed. */
+  const products = (token: string) => {
+    const [node, ...taken] = token.split('|');
+    return node === 'rescale' ? ['prediction', 'logvar'].filter((g) => !taken.includes(g)) : [];
+  };
+
+  it('narrows a typed step to a product with `|`, and writes the step with its groups', async () => {
+    let written: SelectorItem[] | null = null;
+    const groupsFor = vi.fn(products);
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={(items) => { written = items; }} groupsFor={groupsFor} />
+    ));
+    await type(container, 'c'); await key(container, 'Tab');
+    await type(container, 'PRES'); await key(container, 'Tab');
+    await type(container, '@resc'); await key(container, 'Tab');
+    await type(container, '|lo');
+    expect([...container.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'))).toEqual(['logvar']);
+    // The products are asked of the step as it stands, after what came before it.
+    expect(groupsFor).toHaveBeenCalledWith('rescale', { kind: 'cols', value: 'PRES', chain: [] });
+    await key(container, 'Tab');
+    expect(tokens(container)).toEqual(['cols:', 'PRES', '@rescale|logvar']);
+    await key(container, 'Enter');
+    expect(written).toEqual([{ cols: 'PRES', through: [{ node: 'rescale', groups: ['logvar'] }] }]);
+  });
+
+  it('offers a taken step\'s products in the chain builder, and rewrites the step', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={(items) => { written = items; }} groupsFor={products} />
+    ));
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();
+    expect(builderIn(container, 'PRES').querySelector('[data-product]')).toBeNull();
+    fireEvent.click(nodeButton(container, 'PRES', 'rescale')); await flush();
+    const toggle = (name: string) =>
+      builderIn(container, 'PRES').querySelector(`[data-products="rescale"] [data-product="${name}"]`) as HTMLButtonElement;
+    const offered = () =>
+      [...builderIn(container, 'PRES').querySelectorAll('[data-product]')].map((e) => e.getAttribute('data-product'));
+    expect(offered()).toEqual(['prediction', 'logvar']);
+    expect(toggle('logvar').getAttribute('aria-pressed')).toBe('false');     // a bare step keeps them all
+
+    fireEvent.click(toggle('logvar')); await flush();
+    expect(toggle('logvar').getAttribute('aria-pressed')).toBe('true');
+    expect(offered()).toEqual(['prediction', 'logvar']);                      // the pills do not move
+    expect(nodeButton(container, 'PRES', 'rescale').getAttribute('aria-pressed')).toBe('true');
+    expect(builderIn(container, 'PRES').querySelector('[data-chain-preview]')!.textContent).toBe('→ rescale|logvar');
+
+    // Off again is the bare step, not a step with no products.
+    fireEvent.click(toggle('logvar')); await flush();
+    expect(builderIn(container, 'PRES').querySelector('[data-chain-preview]')!.textContent).toBe('→ rescale');
+
+    fireEvent.click(toggle('logvar')); await flush();
+    fireEvent.click(toggle('prediction')); await flush();
+    fireEvent.click(builderIn(container, 'PRES').querySelector('[data-chain="commit"]')!); await flush();
+    expect(written).toEqual([{ cols: 'PRES', through: [{ node: 'rescale', groups: ['logvar', 'prediction'] }] }]);
+  });
+
+  it('draws no product toggles for a step with one product', async () => {
+    const { container } = render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} groupsFor={products} />
+    ));
+    open(container); await flush(); await onCols(container);
+    fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();
+    fireEvent.click(nodeButton(container, 'PRES', 'split')); await flush();
+    expect(builderIn(container, 'PRES').querySelector('[data-product]')).toBeNull();
+  });
+
   it('shows no highlight for an untouched list, then the top match once something is typed', async () => {
     const { container } = mount([]);
     fireEvent.focus(box(container)); await flush();

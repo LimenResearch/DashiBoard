@@ -891,3 +891,82 @@ end
     @test [g.name for g in Pipelines.output_spec(sc, false)] == ["prediction"]
     @test Pipelines.get_node_outputs(Node(sc)) == ["Iws_hat"]
 end
+
+# An architecture that yields two fields, standing in for the ones that live in packages this one
+# cannot depend on. `spread` is as wide as the prediction, so it is written the same way.
+struct TwoHeadSpec
+    model::Vector{Any}
+end
+twohead(components::AbstractDict) = TwoHeadSpec(StreamlinerCore.parse_modules(components, (:model,))...)
+function twohead_forward(modules, x)
+    prediction = modules.model(x.input)
+    return merge(x, (; prediction, spread = abs.(prediction)))
+end
+function StreamlinerCore.instantiate(spec::TwoHeadSpec, templates)
+    input, output = StreamlinerCore.Shape(templates.input), StreamlinerCore.Shape(templates.target)
+    model, _ = StreamlinerCore.chain(spec.model, input, output)
+    return StreamlinerCore.Architecture(:TwoHead, twohead_forward, (; model))
+end
+StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
+
+@testset "streamliner, several products" begin
+    parser = Pipelines.default_parser(
+        plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("twohead" => twohead))]
+    )
+    scoped(f) = @with(
+        Pipelines.PARSER => parser,
+        Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model_twohead"),
+        Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+        f()
+    )
+    config(; kwargs...) = merge(
+        Dict{String, Any}(
+            "type" => "streamliner",
+            "funnel" => Dict("order_by" => ["No"], "inputs" => ["TEMP", "PRES"], "targets" => ["Iws"]),
+            "model" => Dict("type" => "twohead", "features" => 5),
+            "training" => Dict("type" => "batched", "iterations" => 2),
+            "partition" => "partition",
+        ),
+        Dict{String, Any}(string(k) => v for (k, v) in kwargs)
+    )
+
+    scoped() do
+        # A model's fields are its card's products, and nothing said means all of them.
+        card = Pipelines.Card(config())
+        @test Pipelines.products(card) == ["prediction", "spread"]
+        @test [g.name for g in Pipelines.output_spec(card, false)] == ["prediction", "spread"]
+        node = Node(card)
+        @test Pipelines.get_node_outputs(node) == ["Iws_hat", "Iws_spread"]
+
+        # Both are written, not only reported.
+        Pipelines.train_evaljoin!(repo, node, "partition" => "twoheaded", "No")
+        result = DBInterface.execute(DataFrame, repo, "FROM twoheaded")
+        @test "Iws_hat" in names(result) && "Iws_spread" in names(result)
+        @test all(>=(0), result.Iws_spread)
+
+        # Narrowed, only the one asked for is written.
+        one = Node(Pipelines.Card(config(select = ["spread"])))
+        @test Pipelines.get_node_outputs(one) == ["Iws_spread"]
+        Pipelines.train_evaljoin!(repo, one, "partition" => "oneheaded", "No")
+        @test !("Iws_hat" in names(DBInterface.execute(DataFrame, repo, "FROM oneheaded")))
+
+        # A field the model does not yield is refused as soon as the card's outputs are asked for,
+        # which building a pipeline does for every node.
+        @test_throws ArgumentError Pipelines.get_node_outputs(Node(Pipelines.Card(config(select = ["logvar"]))))
+
+        # The schema carries the rule per model, so a form offers only what the chosen model has.
+        rule = only(Pipelines.DashiBase.constraints(Pipelines.StreamlinerCard))
+        @test rule["if"]["properties"]["model"]["properties"]["type"]["const"] == "twohead"
+        @test rule["then"]["properties"]["select"]["items"]["enum"] == ["prediction", "spread"]
+    end
+
+    # A single-field model is unchanged by any of this.
+    basic = @with(
+        Pipelines.PARSER => Pipelines.default_parser(),
+        Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model"),
+        Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+        Pipelines.Card(JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))["basic"])
+    )
+    @test Pipelines.products(basic) == ["prediction"]
+    @test Pipelines.get_node_outputs(Node(basic)) == ["Iws_hat"]
+end

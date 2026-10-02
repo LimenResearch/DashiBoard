@@ -250,14 +250,18 @@ end
 
 function ingest(
         data::FunneledData{DBFunnel, 1}, eval_stream, select::Union{AbstractVector, Tuple};
-        suffix::AbstractString, destination::AbstractString
+        suffix::Union{AbstractString, AbstractVector, Tuple}, destination::AbstractString
     )
 
-    select == (:prediction,) || throw(ArgumentError("Custom selection is not supported"))
+    # One suffix per selected field: each is written as its own set of columns, `target_suffix`.
+    suffixes = suffix isa AbstractString ? [suffix] : collect(suffix)
+    length(suffixes) == length(select) ||
+        throw(ArgumentError("There should be as many suffixes as selected fields"))
+    allunique(suffixes) || throw(ArgumentError("Each selected field needs a distinct suffix"))
 
     targets = colname.(get_targets(data.funnel))
-    output_names::Vector{String} = String[join((tgt, suffix), "_") for tgt in targets]
-    output_types::Vector{Type} = Type[column_type(tgt, data.unique_values) for tgt in targets]
+    output_names::Vector{String} = String[join((tgt, s), "_") for s in suffixes for tgt in targets]
+    output_types::Vector{Type} = Type[column_type(tgt, data.unique_values) for _ in suffixes for tgt in targets]
     (; repository, schema, id_var) = data.table_spec
 
     initialize_table(
@@ -270,8 +274,11 @@ function ingest(
 
     with_appender(repository, destination; schema) do appender
         for batch in eval_stream
-            v = collect(batch.prediction)
-            append_batch(appender, batch._id, decode_columns(v, targets, data.unique_values))
+            columns = reduce(
+                vcat,
+                (decode_columns(collect(batch[field]), targets, data.unique_values) for field in select)
+            )
+            append_batch(appender, batch._id, columns)
         end
     end
 

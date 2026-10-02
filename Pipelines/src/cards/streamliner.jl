@@ -7,9 +7,13 @@
         funnel::Funnel
         partition::Union{String, Nothing}
         suffix::String = "hat"
+        select::Union{Vector{String}, Nothing} = nothing
     end
 
 Run a Streamliner model, predicting `targets` from `inputs`.
+
+A model may yield more than a prediction. `select` names the fields to write — every one when it
+is left out. The prediction is written under `suffix`, any other field under its own name.
 """
 @kwarg struct StreamlinerCard{M <: Model, T <: Training, F <: Funnel} <: StreamingCard
     model::M
@@ -24,6 +28,9 @@ Run a Streamliner model, predicting `targets` from `inputs`.
     )
     partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
+    select::Maybe{Vector{String}} = nothing & (
+        dashi = ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1),
+    )
 end
 
 ## StreamingCard interface
@@ -54,15 +61,49 @@ function SourceVariables(sc::StreamlinerCard)
     )
 end
 
-# The funnel's targets renamed with `suffix` are the prediction; what the funnel writes beside
-# them — row counters for a windowed funnel, nothing for a plain one — is a second product, which
-# invents its names and so carries nothing through.
+# A model's output fields are this card's products: which there are depends on the model chosen,
+# which is the one thing a card with fixed products does not have to say.
+products(sc::StreamlinerCard) = String[string(field) for field in SC.output_fields(sc.model)]
+
+# The selected fields renamed over the funnel's targets, plus what the funnel writes beside them —
+# row counters for a windowed funnel, nothing for a plain one — which invents its names and so
+# carries nothing through.
 function output_spec(sc::StreamlinerCard)
     funnel = sc.funnel
-    groups = [OutputGroup("prediction", VariableTransformSpec(SC.colname.(SC.get_targets(funnel)), sc.suffix))]
+    targets = SC.colname.(SC.get_targets(funnel))
+    groups = product_groups(targets, selected_products(sc), products(sc), sc.suffix)
     helpers = SC.get_helpers_out(funnel)
-    isempty(helpers) || push!(groups, OutputGroup("helpers", OutputSpec(helpers)))
+    if !isempty(helpers)
+        any(g -> g.name == "helpers", groups) &&
+            throw(ArgumentError("A model field named `helpers` collides with the funnel's own product"))
+        push!(groups, OutputGroup("helpers", OutputSpec(helpers)))
+    end
     return groups
+end
+
+# One rule per model configuration: "if this is the model, these are the fields `select` may
+# name". The fields are read off the configuration's architecture without building a model, so the
+# schema can be served before any is chosen — and a form can offer exactly these.
+function DashiBase.constraints(::Type{StreamlinerCard})
+    isassigned(SC.MODEL_DIR) || return StringDict[]
+    dir = SC.MODEL_DIR[]
+    return map(SC.available_streamliner_configs(dir)) do config
+        name = get(SC.parse_without_properties(dir, config), "name", nothing)
+        fields = String[string(field) for field in SC.output_fields(get(PARSER[].models, name, nothing))]
+        StringDict(
+            "if" => StringDict(
+                "properties" => StringDict(
+                    "model" => StringDict("properties" => StringDict("type" => StringDict("const" => config)))
+                ),
+                "required" => ["model"],
+            ),
+            "then" => StringDict(
+                "properties" => StringDict(
+                    "select" => StringDict("items" => json_schema(StringIR(enum = fields)))
+                )
+            ),
+        )
+    end
 end
 
 function train(
@@ -113,7 +154,9 @@ function evaluate(
 
     isnothing(state.content) && throw(ArgumentError("Invalid state"))
 
-    (; model, training, funnel, suffix) = sc
+    (; model, training, funnel) = sc
+    select = selected_products(sc)
+    suffixes = product_suffixes(select, products(sc), sc.suffix)
     streaming = Streaming(; training.device, training.batchsize)
     table_spec = SC.TableSpec(; repository, schema, table = source, id_var)
 
@@ -137,7 +180,7 @@ function evaluate(
                     tables = Dict(helper_keys.tables .=> table_names),
                     files = Dict(helper_keys.files .=> get_scratch_file.(file_names))
                 )
-                SC.evaluate(dir, model, data, streaming; destination, suffix)
+                SC.evaluate(dir, model, data, streaming, Tuple(Symbol.(select)); destination, suffix = suffixes)
             end
         end
     end

@@ -20,7 +20,7 @@
 
     @test nds[3]["card"]["inputs"][1].inputs.idxs == [node_idxs["log"]]
     @test nds[3]["card"]["inputs"][2].inputs.idxs == [group_idxs["weather"]]
-    @test nds[3]["card"]["inputs"][2].through == [node_idxs["rescale"]]
+    @test [step.node for step in nds[3]["card"]["inputs"][2].through] == [node_idxs["rescale"]]
 
     @test nds[4]["card"]["order_by"][1].inputs.cols == ["No"]
 
@@ -207,6 +207,10 @@ end
     # and its one-or-many fields are now identifiable by a renderer
     nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
     @test nodes_entry.value.type == "one_or_many"
+    # A chain step is a node id or `{node, groups}`, and the schema tells them apart by type.
+    through = only(p for p in irs["variable"].properties if p.key == "through").value
+    @test through.items.type == "either"
+    @test through.items.types == ["string", "object"]
 end
 
 # What a variable picker must be able to express. Each case below was established by running it,
@@ -343,8 +347,37 @@ end
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
     inv = invert(Node(Pipelines.Card(d["zscore2"])))
     @test_throws Pipelines.ThroughError Pipelines.to_outputs(
-        inv, only(Pipelines.output_spec(get_card(inv), true)).spec, ["TEMP"]
+        inv, Pipelines.output_spec(get_card(inv), true), ["TEMP"], nothing
     )
+
+    # `both` writes two products of PRES — PRES_double and PRES_triple — so a chain through it has
+    # something to choose between.
+    both = Dict("id" => "both", "card" => Dict("type" => "twofold", "inputs" => [Dict("cols" => "PRES")]))
+    through(step) = resolve([Dict("cols" => "PRES", "through" => [step])]; extra = both)
+
+    # A bare step carries the value through every product, in the order the card declares them.
+    @test through("both") == ["PRES_double", "PRES_triple"]
+    # Naming narrows it, and the order written is the order returned.
+    @test through(Dict("node" => "both", "groups" => ["triple"])) == ["PRES_triple"]
+    @test through(Dict("node" => "both", "groups" => ["triple", "double"])) == ["PRES_triple", "PRES_double"]
+
+    # A group the node does not have is refused, with the ones it does.
+    e = @test_throws Pipelines.ThroughError through(Dict("node" => "both", "groups" => ["ghost"]))
+    @test e.value.reason === :no_such_group
+    @test e.value.groups == ["double", "triple"]
+    # … including on a node whose one product has no name to offer.
+    e = @test_throws Pipelines.ThroughError resolve(
+        [Dict("cols" => "PRES", "through" => [Dict("node" => "rescale", "groups" => ["x"])])]
+    )
+    @test e.value.reason === :no_such_group
+    @test isempty(e.value.groups)
+    @test occursin("has no named products", sprint(showerror, e.value))
+
+    # The same product twice would hand the consuming card the same column twice.
+    @test_throws Pipelines.ThroughError through(Dict("node" => "both", "groups" => ["double", "double"]))
+
+    # A step written the old way still means what it meant.
+    @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
 end
 
 @testset "unproduced references" begin

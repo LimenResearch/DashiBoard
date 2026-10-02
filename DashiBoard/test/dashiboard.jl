@@ -438,6 +438,7 @@ mktempdir() do data_dir
         @test issue["pointer"] == "/nodes/1/card"
         @test issue["found"] == ["TEMP_a"]
         @test issue["allowed"] == ["TEMP"]
+        @test issue["groups"] == []
         @test occursin("Node `r` does not read TEMP_a", issue["message"])
         # The vocabularies a picker offers from survive the failure, so a form can still correct
         # the chain rather than going blank.

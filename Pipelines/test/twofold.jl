@@ -1,4 +1,4 @@
-using StructUtils: @kwarg
+using Pipelines: @kwarg
 
 # A card that is not a streamliner, opting in to several products with the same three steps a
 # streamliner uses: declare them, carry `select`, build the groups with `product_groups`.

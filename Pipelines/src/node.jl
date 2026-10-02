@@ -242,17 +242,21 @@ A `through` chain asked node `id` to carry `cols`, and it cannot.
 the set an author should be offered instead, which is the difference between a form that proposes a
 correction and one that can only refuse. `pointer` addresses the card or group whose chain is at
 fault; that is known where the chain is resolved rather than where it fails, so it is filled in
-there.
+there. `groups` is the products the node does name, given when the chain asked for one it does not
+have.
 """
 struct ThroughError <: Exception
     id::String
     cols::Vector{String}
     allowed::Maybe{Vector{String}}
     reason::Symbol
+    groups::Vector{String}
     pointer::Maybe{String}
 end
 
-ThroughError(id, cols, allowed, reason) = ThroughError(id, cols, allowed, reason, nothing)
+function ThroughError(id, cols, allowed, reason; groups = String[], pointer = nothing)
+    return ThroughError(id, cols, allowed, reason, groups, pointer)
+end
 
 function Base.showerror(io::IO, err::ThroughError)
     print(io, "Node `", err.id, "` ")
@@ -263,6 +267,14 @@ function Base.showerror(io::IO, err::ThroughError)
             io, "writes columns of its own rather than renaming what it is given, so ",
             join(err.cols, ", "), " cannot pass through it"
         )
+    elseif err.reason === :no_such_group
+        if isempty(err.groups)
+            print(io, "has no named products, so a chain cannot ask for one")
+        else
+            print(io, "has no such product; it has ", join(err.groups, ", "))
+        end
+    elseif err.reason === :repeated_group
+        print(io, "is asked for the same product more than once")
     else
         print(
             io, "does not describe what it writes, so ",
@@ -272,26 +284,56 @@ function Base.showerror(io::IO, err::ThroughError)
 end
 
 """
-    to_outputs(n::Node, spec, cols)::Vector{String}
+    to_outputs(n::Node, groups, cols, wanted)::Vector{String}
 
 The names `cols` take after passing through `n`.
 
-A chain only means something for a node that derives its outputs from columns it was handed. A node
-that invents its outputs, that undoes a transformation, or that declares nothing refuses: the name
-the chain would build exists nowhere, and letting it through defers the failure to a task that can
-name neither the column nor the node.
+`wanted` is the products the chain asked for by name, or `nothing` for a bare step, which takes
+every product able to carry `cols` — one that renames columns it is given, and is given all of
+these. Each product chosen is applied to the whole of `cols` in turn.
+
+A chain only means something for a product that derives its outputs from columns it was handed.
+One that invents its names refuses, as does a node that declares nothing: the name the chain would
+build exists nowhere, and letting it through defers the failure to a task that can name neither the
+column nor the node.
 """
-function to_outputs(n::Node, v::VariableTransformSpec, cols::AbstractVector{<:AbstractString})
-    extras = setdiff(cols, v.cols)
-    isempty(extras) || throw(ThroughError(n.id, extras, v.cols, :not_carried))
-    return to_outputs(v, cols)
+function to_outputs(
+        n::Node, groups::AbstractVector{OutputGroup},
+        cols::AbstractVector{<:AbstractString}, wanted::Maybe{AbstractVector}
+    )
+    transforms = [g for g in groups if g.spec isa VariableTransformSpec]
+    carries(g) = cols ⊆ g.spec.cols
+    accepted(gs) = unique!(reduce(vcat, (g.spec.cols for g in gs); init = String[]))
+
+    chosen = if isnothing(wanted)
+        isempty(transforms) && throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
+        carriers = filter(carries, transforms)
+        isempty(carriers) && throw(
+            ThroughError(n.id, setdiff(cols, accepted(transforms)), accepted(transforms), :not_carried)
+        )
+        carriers
+    else
+        allunique(wanted) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_group))
+        names = String[g.name for g in groups if !isnothing(g.name)]
+        named = map(wanted) do name
+            i = findfirst(g -> g.name == name, groups)
+            isnothing(i) && throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_group; groups = names))
+            groups[i]
+        end
+        # All or nothing: a step is refused rather than narrowed to the products that can carry it.
+        for g in named
+            g.spec isa VariableTransformSpec ||
+                throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
+        end
+        all(carries, named) || throw(
+            ThroughError(n.id, setdiff(cols, accepted(named)), accepted(named), :not_carried)
+        )
+        named
+    end
+    return reduce(vcat, (to_outputs(g.spec, cols) for g in chosen); init = String[])
 end
 
-function to_outputs(n::Node, ::OutputSpec, cols::AbstractVector{<:AbstractString})
-    return throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
-end
-
-function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString})
+function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString}, ::Maybe{AbstractVector})
     return throw(ThroughError(n.id, collect(String, cols), nothing, :undeclared))
 end
 

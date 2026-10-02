@@ -8,9 +8,16 @@ struct Computed
     idxs::Vector{Int}
 end
 
+# One step of a `through` chain: the node, and the products of it the chain asked for by name —
+# or `nothing` for a bare step, which takes every product that can carry the value.
+struct Step
+    node::Int
+    groups::Maybe{Vector{String}}
+end
+
 struct Deps
     inputs::Union{Source, Computed}
-    through::Vector{Int}
+    through::Vector{Step}
 end
 
 @defaults struct DepsParser
@@ -36,7 +43,10 @@ update!(dp::DepsParser, src::Source, _::Integer) = (union!(dp.cols, src.cols); d
 const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
 
 not_through(s) = !isequal(s, "through")
-get_through(d::AbstractDict)::Vector{String} = get(d, "through", String[])
+get_through(d::AbstractDict)::Vector{Any} = get(d, "through", Any[])
+
+Step(dp::DepsParser, id::AbstractString) = Step(dp.node_idxs[id], nothing)
+Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], collect(String, d["groups"]))
 
 is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(not_through, keys(d)) == 1
 
@@ -45,10 +55,10 @@ function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
     val::Vector{String} = to_stringlist(d[key])
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
     inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
-    through = Int[dp.node_idxs[k] for k in get_through(d)]
+    through = Step[Step(dp, step) for step in get_through(d)]
 
     update!(dp, inputs, i)
-    append_edges!(dp, through, i)
+    append_edges!(dp, Int[step.node for step in through], i)
 
     return Deps(inputs, through)
 end
@@ -97,14 +107,13 @@ struct Context
     outputs::Vector{Vector{String}}
 end
 
-# Fold the chain: each node renames what the one before it handed on, and refuses a value it does
-# not transform. This is what makes a `through` list checkable rather than a name built on hope.
-function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVector)
-    for i in is
-        node = nodes[i]
-        groups = output_spec(get_card(node), get_invert(node))
-        spec = isnothing(groups) ? nothing : first(groups).spec
-        x = to_outputs(node, spec, x)
+# Fold the chain: each node renames what the one before it handed on, through the products the
+# step asked for, and refuses a value they do not transform. This is what makes a `through` list
+# checkable rather than a name built on hope.
+function pass_through(x::AbstractVector, steps::AbstractVector{Step}, nodes::AbstractVector)
+    for step in steps
+        node = nodes[step.node]
+        x = to_outputs(node, output_spec(get_card(node), get_invert(node)), x, step.groups)
     end
     return x
 end
@@ -138,7 +147,7 @@ function at_pointer(f::F, pointer::AbstractString) where {F}
         f()
     catch err
         err isa ThroughError || rethrow()
-        throw(ThroughError(err.id, err.cols, err.allowed, err.reason, pointer))
+        throw(ThroughError(err.id, err.cols, err.allowed, err.reason, err.groups, pointer))
     end
 end
 

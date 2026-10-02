@@ -12,14 +12,27 @@ const COL_DEF = ReferenceIR(raw"#/$defs/col")
     cols::Maybe{Vector{String}} = nothing
 end
 
+# A step of a `through` chain: a node id, or the node with the products of it wanted by name.
+# The names are not enumerable here — they depend on the node — so an unknown one is caught when
+# the chain is resolved, not when the document is validated.
+function through_step_IR()
+    named = ObjectIR(
+        properties = [
+            Property("node" => NODE_DEF),
+            Property("groups" => ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1)),
+        ]
+    )
+    return EitherIR(["string" => NODE_DEF, "object" => named])
+end
+
 # IR for a `{nodes: str | list[str]}`, `{groups: str | list[str]}`, `{cols: str | list[str]}`
-# with a potential `through: list[str]` attribute
+# with a potential `through: list[str | {node, groups}]` attribute
 function variable_item_IR()
     properties = [
         Property("nodes" => OneOrManyIR{String}(; items = NODE_DEF, eltype = "string"), required = false),
         Property("groups" => OneOrManyIR{String}(; items = GROUP_DEF, eltype = "string"), required = false),
         Property("cols" => OneOrManyIR{String}(; items = COL_DEF, eltype = "string"), required = false),
-        Property("through" => ArrayIR{String}(; items = NODE_DEF, default = []), required = false),
+        Property("through" => ArrayIR{Any}(; items = through_step_IR(), default = []), required = false),
     ]
     oneOf = [
         StringDict("required" => ["nodes"]),
@@ -37,7 +50,7 @@ The group dialect's shared `\$defs` entries as IR nodes — what a renderer buil
 for the flat dialect in `card_schema.jl`.
 
 Where the flat dialect's `variable` is a string enum of column names, here it is a *selector
-object*: `{nodes|groups|cols: str | list[str], through: list[str]}`, gated so exactly one of the
+object*: `{nodes|groups|cols: str | list[str], through: list[str | {node, groups}]}`, gated so exactly one of the
 three is present.
 """
 function ir_definitions(variable_config::VariableConfig)
@@ -187,6 +200,8 @@ function issue_report(err::ThroughError)
         allowed = err.allowed,
         missing = String[],
         related = String[],
+        # The products the node does name, when the chain asked for one it does not have.
+        groups = err.groups,
         message = sprint(showerror, err),
     )
 end

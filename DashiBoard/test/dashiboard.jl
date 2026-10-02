@@ -445,6 +445,31 @@ mktempdir() do data_dir
         @test "TEMP" in probe["cols"]
         @test haskey(probe, "referable")
 
+        # Each node says how a value may pass through it, one entry per product. A rescale has one,
+        # unnamed, so a picker offers the node and nothing to choose within it.
+        body = JSON.json((;
+            nodes = [(; id = "r", card = Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
+            ))],
+            groups = Dict{String, Any}(),
+        ))
+        probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
+        product = only(only(probe["nodes"])["through"])
+        @test product["group"] === nothing
+        @test product["cols"] == ["TEMP"]
+        @test product["suffix"] == "a"
+
+        # A step naming a product the node does not have is a pointed issue, with what it has.
+        body = read(joinpath(@__DIR__, "static", "probe-groups.json"), String)
+        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
+        probe = JSON.parse(resp.body)
+        issue = only(probe["issues"])
+        @test issue["reason"] == "through"
+        @test issue["pointer"] == "/nodes/1/card"
+        @test issue["groups"] == []
+        @test occursin("has no named products", issue["message"])
+
         # A probe reports rather than throws — for *every* way a document can be malformed,
         # not only schema failures. Two nodes with no `id` both resolve to "", which the
         # dependency graph rejects as a duplicate; that used to escape as a 500, leaving the

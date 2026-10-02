@@ -178,6 +178,36 @@ function json_schema(o::OneOrManyIR)
     )
 end
 
+"""
+    EitherIR(["string" => ir₁, "object" => ir₂, …])
+
+A value that is one of several JSON types, each with its own description.
+
+The options are told apart by the value's own type, so each needs a distinct one — which is also
+what lets the schema branch with `if`/`then` instead of `anyOf`, and so report a failure inside a
+branch by that branch's keyword rather than as a bare "none of these matched".
+"""
+struct EitherIR <: AbstractIR
+    type::String
+    types::Vector{String}
+    options::Vector{AbstractIR}
+    function EitherIR(options::AbstractVector{<:Pair{<:AbstractString, <:AbstractIR}})
+        types = String[first(option) for option in options]
+        allunique(types) || throw(ArgumentError("each option of an `EitherIR` needs a distinct JSON type"))
+        return new("either", types, AbstractIR[last(option) for option in options])
+    end
+end
+
+function json_schema(e::EitherIR)
+    return StringDict(
+        "type" => e.types,
+        "allOf" => [
+            Dict("if" => Dict("type" => type), "then" => json_schema(option))
+                for (type, option) in zip(e.types, e.options)
+        ]
+    )
+end
+
 const IR_DICT = Dict{String, Type}(
     "boolean" => IntegerIR,
     "integer" => IntegerIR,

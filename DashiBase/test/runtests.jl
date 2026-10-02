@@ -176,3 +176,24 @@ end
     # and the schema projection is unchanged by that: it builds its own dict
     @test DashiBase.json_schema(one_or_many)["type"] == ["string", "array"]
 end
+
+@testset "EitherIR" begin
+    step = ObjectIR(properties = [DashiBase.Property("node" => StringIR(enum = ["a", "b"]))])
+    either = DashiBase.EitherIR(["string" => StringIR(enum = ["a", "b"]), "object" => step])
+    @test either.type == "either"
+    @test either.types == ["string", "object"]
+
+    # The schema branches on the value's own JSON type, the way `OneOrManyIR` does. A failure
+    # inside a branch is then reported by that branch's keyword — `enum` — rather than as a bare
+    # "none of these matched", so a form can still say which values would have been accepted.
+    schema = DashiBase.json_schema(either)
+    @test schema["type"] == ["string", "object"]
+    @test schema["allOf"][1]["if"] == Dict("type" => "string")
+    @test schema["allOf"][1]["then"]["enum"] == ["a", "b"]
+    @test schema["allOf"][2]["then"]["type"] == "object"
+
+    # Two options of one JSON type could not be told apart by the value.
+    @test_throws ArgumentError DashiBase.EitherIR(["string" => StringIR(), "string" => StringIR()])
+    # and it announces itself, like every other node
+    @test JSON.parse(JSON.json(either; omit_null = true))["type"] == "either"
+end

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  conditionalOptions,
   defaultsFor,
   resolveRef,
   widgetFor,
@@ -8,6 +9,7 @@ import {
   type Defs,
   type IRNode,
 } from './ir';
+import payload from './fixtures/card-ir.json';
 
 // Fixtures are the real shapes POST /get-card-ir serves, taken from an enumeration of
 // every node the ten registered cards produce.
@@ -279,5 +281,26 @@ describe('onlyOptions', () => {
     expect(cut.node.enum).toEqual(['a', 'c']);
     expect(cut.col).toBe(defs.col);
     expect(onlyOptions(defs, 'missing', ['a'])).toBe(defs);
+  });
+});
+
+describe('options that depend on a sibling', () => {
+  const rule = (model: string, fields: string[]) => ({
+    if: { properties: { model: { properties: { type: { const: model } } } }, required: ['model'] },
+    then: { properties: { select: { items: { type: 'string', enum: fields } } } },
+  });
+  const card = { type: 'object', constraints: [rule('fuzzy', ['prediction', 'logvar']), rule('dense', ['prediction'])] };
+
+  it('reads the options the chosen sibling allows', () => {
+    expect(conditionalOptions(card, 'select', { model: { type: 'fuzzy' } })).toEqual(['prediction', 'logvar']);
+    expect(conditionalOptions(card, 'select', { model: { type: 'dense' } })).toEqual(['prediction']);
+  });
+  it('says when a rule exists and none applies yet, and when there is no rule at all', () => {
+    expect(conditionalOptions(card, 'select', {})).toBeNull();
+    expect(conditionalOptions(card, 'suffix', { model: { type: 'fuzzy' } })).toBeUndefined();
+  });
+  // The fixture's own streamliner card: every model there yields one field.
+  it('reads the rules the server sends', () => {
+    expect(conditionalOptions(payload.cards.streamliner as IRNode, 'select', { model: { type: 'dense' } })).toEqual(['prediction']);
   });
 });

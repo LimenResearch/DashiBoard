@@ -226,6 +226,29 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
 }
 
 /**
+ * The options a sibling's choice allows for the property `key`, read from the object's `if`/`then`
+ * constraints: "if `model.type` is this, `select`'s items are these".
+ *
+ * `undefined` when no rule mentions `key` — the property is an ordinary one. `null` when rules
+ * exist and none applies, which is a sibling not chosen yet. Nothing here knows which card or
+ * which fields: it is the general case of one field's options depending on another's value.
+ */
+export function conditionalOptions(
+  node: IRNode, key: string, value: Record<string, unknown>,
+): string[] | null | undefined {
+  const constraints = (Array.isArray(node.constraints) ? node.constraints : []) as Record<string, any>[];
+  const rules = constraints.filter((c) => Array.isArray(c?.then?.properties?.[key]?.items?.enum));
+  if (rules.length === 0) return undefined;
+  for (const rule of rules) {
+    const conditions = Object.entries((rule.if?.properties ?? {}) as Record<string, any>);
+    const holds = conditions.every(([sibling, schema]) =>
+      (value[sibling] as Record<string, unknown> | undefined)?.type === schema?.properties?.type?.const);
+    if (holds) return (rule.then.properties[key].items.enum as unknown[]).map(String);
+  }
+  return null;
+}
+
+/**
  * The value an IR node implies when nothing has been entered.
  *
  * A card added to the document used to carry only its `type`, while the form displayed every

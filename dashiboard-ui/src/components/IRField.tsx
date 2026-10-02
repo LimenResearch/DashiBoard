@@ -5,7 +5,7 @@ import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
 import { SelectorField } from "./SelectorField";
 import type { SelectorRow } from "../selector";
-import { defaultsFor, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
+import { conditionalOptions, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
 // `widgetFor` returns — a switch over a closed set rather than an attempt to recover intent from
@@ -138,23 +138,57 @@ export function IRField(props: IRFieldProps) {
             // every time even when no property actually changed — reference-keying (`<For>`'s
             // default) would remount every field in every card on every refetch, which is the
             // same bug this file's outer `Show` was just fixed for, one level down.
+            // A choice that hung on a sibling does not outlive the sibling's change: left in
+            // place it would be refused at a control that may no longer be drawn.
+            const write = (key: string, inner: unknown) => {
+              const next = { ...asRecord(props.value), [key]: inner };
+              for (const other of w().properties) {
+                if (other.key === key) continue;
+                const allowed = conditionalOptions(resolveRef(props.node, props.defs), other.key, next);
+                const held = next[other.key];
+                if (allowed === undefined || !Array.isArray(held)) continue;
+                if (allowed === null || !held.every((v) => allowed.includes(String(v)))) delete next[other.key];
+              }
+              props.onChange(next);
+            };
             const fields = () => (
               <For each={w().properties} keyed={(entry) => entry.key}>
-                {(entry) => (
-                  <IRField
-                    chainFor={props.chainFor}
-                    groupsFor={props.groupsFor}
-                    node={entry().value}
-                    defs={props.defs}
-                    label={entry().key}
-                    required={entry().required}
-                    idPrefix={id()}
-                    value={asRecord(props.value)[entry().key]}
-                    onChange={(inner) =>
-                      props.onChange({ ...asRecord(props.value), [entry().key]: inner })
-                    }
-                  />
-                )}
+                {(entry) => {
+                  // A property whose options hang on a sibling's choice — the fields a
+                  // streamliner may select, given its model.
+                  const allowed = () =>
+                    conditionalOptions(resolveRef(props.node, props.defs), entry().key, asRecord(props.value));
+                  // With one option, or none applying yet, there is nothing to choose.
+                  const hidden = () => {
+                    const a = allowed();
+                    return a === null || (a !== undefined && a.length <= 1);
+                  };
+                  const node = () => {
+                    const a = allowed();
+                    return a ? { ...entry().value, items: { type: "string", enum: a } } : entry().value;
+                  };
+                  // Absent means every option, so that is what an untouched field shows.
+                  const value = () => {
+                    const a = allowed();
+                    const held = asRecord(props.value)[entry().key];
+                    return a && held === undefined ? a : held;
+                  };
+                  return (
+                    <Show when={!hidden()}>
+                      <IRField
+                        chainFor={props.chainFor}
+                        groupsFor={props.groupsFor}
+                        node={node()}
+                        defs={props.defs}
+                        label={entry().key}
+                        required={entry().required}
+                        idPrefix={id()}
+                        value={value()}
+                        onChange={(inner) => write(entry().key, inner)}
+                      />
+                    </Show>
+                  );
+                }}
               </For>
             );
             // Two objects render bare. The card is the outermost one and already sits in a

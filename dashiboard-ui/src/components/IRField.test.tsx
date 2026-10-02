@@ -284,3 +284,70 @@ describe('IRField, a lone selector', () => {
     expect(back.container.querySelector('[data-chip="cols:PRES@rescale"]')).not.toBeNull();
   });
 });
+
+// One field's options depending on another's value: a streamliner's `select` offers the fields of
+// the model chosen, and is not drawn while there is nothing to choose between.
+describe('IRField, options that depend on a sibling', () => {
+  const rule = (model: string, fields: string[]) => ({
+    if: { properties: { model: { properties: { type: { const: model } } } }, required: ['model'] },
+    then: { properties: { select: { items: { type: 'string', enum: fields } } } },
+  });
+  const branch = { type: 'object', properties: [], additionalProperties: false };
+  const node: IRNode = {
+    type: 'object',
+    properties: [
+      { key: 'model', required: true, value: { type: 'tagged_object', options: ['fuzzy', 'dense'], objects: { fuzzy: branch, dense: branch } } },
+      { key: 'select', required: false, value: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1 } },
+    ],
+    constraints: [rule('fuzzy', ['prediction', 'logvar']), rule('dense', ['prediction'])],
+  };
+  const mountWith = (value: unknown, onChange: (v: unknown) => void = () => {}) =>
+    render(() => <IRField node={node} defs={defs} label="fit" idPrefix="n" value={value} onChange={onChange} />);
+  const select = (c: HTMLElement) => c.querySelector('select[multiple]') as HTMLSelectElement | null;
+
+  it('offers the chosen model\'s fields, all taken while none is named', () => {
+    const { container } = mountWith({ model: { type: 'fuzzy' } });
+    const options = [...select(container)!.options];
+    expect(options.map((o) => o.value)).toEqual(['prediction', 'logvar']);
+    expect(options.map((o) => o.selected)).toEqual([true, true]);
+  });
+
+  it('shows what the document names', () => {
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['logvar'] });
+    expect([...select(container)!.options].map((o) => o.selected)).toEqual([false, true]);
+  });
+
+  it('draws nothing for a model with one field, or before a model is chosen', () => {
+    expect(select(mountWith({ model: { type: 'dense' } }).container)).toBeNull();
+    cleanup();
+    expect(select(mountWith({}).container)).toBeNull();
+  });
+
+  // Left in place it would be refused by the server at a control the form no longer draws.
+  it('drops a selection the newly chosen model cannot honour', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['logvar'] }, (v) => { written = v; });
+    const variant = container.querySelector('#n-fit-model-variant') as HTMLSelectElement;
+    variant.value = 'dense';
+    fireEvent.change(variant); await flush();
+    expect(written).toEqual({ model: { type: 'dense' } });
+  });
+
+  it('keeps a selection the newly chosen model still has', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['prediction'] }, (v) => { written = v; });
+    const variant = container.querySelector('#n-fit-model-variant') as HTMLSelectElement;
+    variant.value = 'dense';
+    fireEvent.change(variant); await flush();
+    expect(written).toEqual({ model: { type: 'dense' }, select: ['prediction'] });
+  });
+
+  it('writes an explicit list once the selection changes', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' } }, (v) => { written = v; });
+    const control = select(container)!;
+    control.options[0].selected = false;
+    fireEvent.change(control); await flush();
+    expect(written).toEqual({ model: { type: 'fuzzy' }, select: ['logvar'] });
+  });
+});

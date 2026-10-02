@@ -303,24 +303,25 @@ describe('IRField, options that depend on a sibling', () => {
   };
   const mountWith = (value: unknown, onChange: (v: unknown) => void = () => {}) =>
     render(() => <IRField node={node} defs={defs} label="fit" idPrefix="n" value={value} onChange={onChange} />);
-  const select = (c: HTMLElement) => c.querySelector('select[multiple]') as HTMLSelectElement | null;
+  // Every option is a pill, on or off: nothing to scroll, and what is taken reads at a glance.
+  const pills = (c: HTMLElement) => [...c.querySelectorAll<HTMLButtonElement>('#n-fit-select [data-option]')];
+  const taken = (c: HTMLElement) => pills(c).map((p) => p.getAttribute('aria-pressed') === 'true');
 
   it('offers the chosen model\'s fields, all taken while none is named', () => {
     const { container } = mountWith({ model: { type: 'fuzzy' } });
-    const options = [...select(container)!.options];
-    expect(options.map((o) => o.value)).toEqual(['prediction', 'logvar']);
-    expect(options.map((o) => o.selected)).toEqual([true, true]);
+    expect(pills(container).map((p) => p.getAttribute('data-option'))).toEqual(['prediction', 'logvar']);
+    expect(taken(container)).toEqual([true, true]);
   });
 
   it('shows what the document names', () => {
     const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['logvar'] });
-    expect([...select(container)!.options].map((o) => o.selected)).toEqual([false, true]);
+    expect(taken(container)).toEqual([false, true]);
   });
 
   it('draws nothing for a model with one field, or before a model is chosen', () => {
-    expect(select(mountWith({ model: { type: 'dense' } }).container)).toBeNull();
+    expect(pills(mountWith({ model: { type: 'dense' } }).container)).toEqual([]);
     cleanup();
-    expect(select(mountWith({}).container)).toBeNull();
+    expect(pills(mountWith({}).container)).toEqual([]);
   });
 
   // Left in place it would be refused by the server at a control the form no longer draws.
@@ -345,9 +346,15 @@ describe('IRField, options that depend on a sibling', () => {
   it('writes an explicit list once the selection changes', async () => {
     let written: unknown = null;
     const { container } = mountWith({ model: { type: 'fuzzy' } }, (v) => { written = v; });
-    const control = select(container)!;
-    control.options[0].selected = false;
-    fireEvent.change(control); await flush();
+    fireEvent.click(pills(container)[0]); await flush();
     expect(written).toEqual({ model: { type: 'fuzzy' }, select: ['logvar'] });
+  });
+
+  // The order written is the order offered, whichever pill was pressed last.
+  it('writes what is taken in the order it is offered', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['logvar'] }, (v) => { written = v; });
+    fireEvent.click(pills(container)[0]); await flush();
+    expect(written).toEqual({ model: { type: 'fuzzy' }, select: ['prediction', 'logvar'] });
   });
 });

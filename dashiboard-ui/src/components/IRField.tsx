@@ -289,32 +289,34 @@ export function IRField(props: IRFieldProps) {
           case "multiselect": {
             // Re-narrowed locally — see the comment in `case "object"`.
             const w = () => widget() as Extract<Widget, { kind: "multiselect" }>;
+            const taken = (option: string | number) =>
+              asArray(props.value).some((v) => String(v) === String(option));
+            // Written in the order offered, so pressing pills in another order changes nothing.
+            const toggle = (option: string | number) =>
+              props.onChange(w().options.filter((o) => (o === option ? !taken(o) : taken(o))));
             return (
               <Collapsible label={props.label} required={props.required}>
-                <select
-                  id={id()}
-                  multiple
-                  size={Math.min(w().options.length, 8)}
-                  class="my-1 h-control-xs w-full rounded-sm border border-border px-2 text-control-xs"
-                  onChange={(event) =>
-                    props.onChange(
-                      [...event.currentTarget.selectedOptions].map((option) =>
-                        optionByString(w().options, option.value),
-                      ),
-                    )
-                  }
-                >
+                {/* Every option is a pill, on or off: what is taken reads without scrolling. */}
+                <div id={id()} role="group" aria-label={props.label} class="my-1 flex flex-wrap gap-1.5">
                   <For each={w().options}>
                     {(option) => (
-                      <option
-                        value={String(option)}
-                        selected={asArray(props.value).some((v) => String(v) === String(option))}
+                      <button
+                        type="button"
+                        data-option={String(option)}
+                        aria-pressed={taken(option) ? "true" : "false"}
+                        onClick={() => toggle(option)}
+                        class={[
+                          "inline-flex h-6 items-center rounded-full border px-2.5 font-mono text-control-xs hover:border-primary",
+                          taken(option)
+                            ? "border-primary bg-primary/15 font-medium text-primary"
+                            : "border-border bg-card text-muted-foreground",
+                        ]}
                       >
                         {option}
-                      </option>
+                      </button>
                     )}
                   </For>
-                </select>
+                </div>
               </Collapsible>
             );
           }

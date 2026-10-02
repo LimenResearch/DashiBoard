@@ -53,6 +53,11 @@ export type Widget =
       options: { [kind: string]: (string | number)[] };
       through: IRNode;
     }
+  /**
+   * Names to values of one kind — a transform per column, say. The names are not the schema's to
+   * list: `keysFrom` says which sibling field they come from.
+   */
+  | { kind: "map"; values: (string | number)[]; keysFrom?: string }
   // A node the IR does not constrain. Reachable today: `ArrayIR{Any}()` serialises its items as
   // `{}`, which the glm and mixed_model formula IRs both do.
   | { kind: "unknown" };
@@ -208,6 +213,15 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
       };
     }
 
+    case "map": {
+      const values = resolveRef((n.values ?? {}) as IRNode, defs);
+      return {
+        kind: "map",
+        values: Array.isArray(values.enum) ? values.enum : [],
+        ...(typeof n.keys_from === "string" ? { keysFrom: n.keys_from } : {}),
+      };
+    }
+
     // `nodes: str | list[str]` — one value or several, over one vocabulary. A multiselect covers
     // both, since a single selection is a one-element list.
     case "one_or_many": {
@@ -249,6 +263,26 @@ export function conditionalOptions(
 }
 
 /**
+ * The properties a sibling's choice makes required, read from the object's `if`/`then`
+ * constraints: "with this loader, the columns must be named".
+ *
+ * A condition on a sibling that is absent, or names no type, holds — the schema's own reading,
+ * where a rule about a property says nothing of a document that lacks it.
+ */
+export function conditionallyRequired(node: IRNode, value: Record<string, unknown>): string[] {
+  const constraints = (Array.isArray(node.constraints) ? node.constraints : []) as Record<string, any>[];
+  return constraints.flatMap((rule) => {
+    if (!Array.isArray(rule?.then?.required)) return [];
+    const conditions = Object.entries((rule.if?.properties ?? {}) as Record<string, any>);
+    const holds = conditions.every(([sibling, schema]) => {
+      const held = (value[sibling] as Record<string, unknown> | undefined)?.type;
+      return held === undefined || held === schema?.properties?.type?.const;
+    });
+    return holds ? (rule.then.required as unknown[]).map(String) : [];
+  });
+}
+
+/**
  * The value an IR node implies when nothing has been entered.
  *
  * A card added to the document used to carry only its `type`, while the form displayed every
@@ -283,6 +317,9 @@ export function defaultsFor(node: IRNode, defs: Defs): unknown {
       if (w.default === undefined) return undefined;
       const branch = w.objects[w.default];
       const inner = branch === undefined ? undefined : defaultsFor(branch, defs);
+      // The blank option is the one meant when none is named, so it is not named: what is left
+      // is the branch's own defaults, or nothing.
+      if (w.default === "") return inner;
       return { type: w.default, ...(inner !== undefined ? (inner as object) : {}) };
     }
 
@@ -293,8 +330,9 @@ export function defaultsFor(node: IRNode, defs: Defs): unknown {
     case "multiselect":
       return w.default;
 
-    // A repeater's default is an empty list, which is what an absent key already means; and an
-    // unknown node has nothing honest to offer.
+    // A repeater's default is an empty list and a map's an empty map, which is what an absent
+    // key already means; and an unknown node has nothing honest to offer.
+    case "map":
     case "repeater":
     case "unknown":
       return undefined;

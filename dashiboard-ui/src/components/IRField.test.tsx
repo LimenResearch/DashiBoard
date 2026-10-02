@@ -358,3 +358,81 @@ describe('IRField, options that depend on a sibling', () => {
     expect(written).toEqual({ model: { type: 'fuzzy' }, select: ['prediction', 'logvar'] });
   });
 });
+
+describe('IRField, a variant with one option', () => {
+  const branch = { type: 'object', properties: [{ key: 'width', required: true, value: { type: 'integer' } }], additionalProperties: false };
+  const one: IRNode = { type: 'tagged_object', options: [''], objects: { '': branch }, default_option: '' };
+  const two: IRNode = { type: 'tagged_object', options: ['', 'time'], objects: { '': branch, time: branch }, default_option: '' };
+  const mountVariant = (node: IRNode, value: unknown, onChange: (v: unknown) => void = () => {}) =>
+    render(() => <IRField node={node} defs={defs} label="funnel" idPrefix="n" value={value} onChange={onChange} />);
+
+  it('draws the branch and no chooser', () => {
+    const { container } = mountVariant(one, undefined);
+    expect(container.querySelector('#n-funnel-variant')).toBeNull();
+    expect(container.querySelector('#n-funnel-funnel-width')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/choose/);
+  });
+
+  it('writes the branch\'s fields without a type', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(one, undefined, (v) => { written = v; });
+    const input = container.querySelector('#n-funnel-funnel-width') as HTMLInputElement;
+    input.value = '3'; fireEvent.change(input); await flush();
+    expect(written).toEqual({ width: 3 });
+  });
+
+  it('calls the blank option "default" when there is a choice, and draws its branch unasked', () => {
+    const { container } = mountVariant(two, undefined);
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    expect([...chooser.options].map((o) => [o.value, o.textContent])).toEqual([['', 'default'], ['time', 'time']]);
+    expect(chooser.className).not.toMatch(/border-warning/);
+    expect(container.querySelector('#n-funnel-funnel-width')).not.toBeNull();
+  });
+
+  it('names another option when it is chosen, and the default by leaving the name out', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(two, { width: 2 }, (v) => { written = v; });
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    chooser.value = 'time'; fireEvent.change(chooser); await flush();
+    expect(written).toEqual({ type: 'time' });
+    cleanup();
+    const again = mountVariant(two, { type: 'time', width: 2 }, (v) => { written = v; });
+    const back = again.container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    back.value = ''; fireEvent.change(back); await flush();
+    expect(written).toEqual({});
+  });
+
+  // One option that takes no settings is nothing to show at all.
+  it('draws nothing for a lone option with no fields', () => {
+    const empty: IRNode = { type: 'tagged_object', options: [''], objects: { '': { type: 'object', properties: [], additionalProperties: false } }, default_option: '' };
+    const { container } = render(() => <IRField node={empty} defs={defs} label="loader" idPrefix="n" value={undefined} onChange={() => {}} />);
+    expect(container.textContent).toBe('');
+  });
+
+  it('still asks when there is a choice and no default', () => {
+    const open: IRNode = { type: 'tagged_object', options: ['a', 'b'], objects: { a: branch, b: branch } };
+    const { container } = mountVariant(open, undefined);
+    expect((container.querySelector('#n-funnel-variant') as HTMLSelectElement).className).toMatch(/border-warning/);
+    expect(container.querySelector('#n-funnel-funnel-width')).toBeNull();
+  });
+});
+
+describe('IRField, a field a sibling makes required', () => {
+  const node: IRNode = {
+    type: 'object',
+    properties: [
+      { key: 'inputs', required: false, value: { type: 'string' } },
+      { key: 'loader', required: false, value: { type: 'tagged_object', options: ['', 'file'], objects: { '': { type: 'object', properties: [] }, file: { type: 'object', properties: [] } }, default_option: '' } },
+    ],
+    constraints: [{ if: { properties: { loader: { properties: { type: { const: '' } } } } }, then: { required: ['inputs'] } }],
+  };
+  const starred = (value: unknown) => {
+    const { container } = render(() => <IRField node={node} defs={defs} label="funnel" idPrefix="n" value={value} onChange={() => {}} />);
+    return container.querySelector('label[for="n-funnel-inputs"]')!.textContent!.includes('*');
+  };
+  it('marks it while the rule holds, and not otherwise', () => {
+    expect(starred({})).toBe(true);
+    cleanup();
+    expect(starred({ loader: { type: 'file' } })).toBe(false);
+  });
+});

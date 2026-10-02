@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   conditionalOptions,
+  conditionallyRequired,
   defaultsFor,
   resolveRef,
   widgetFor,
@@ -302,5 +303,42 @@ describe('options that depend on a sibling', () => {
   // The fixture's own streamliner card: every model there yields one field.
   it('reads the rules the server sends', () => {
     expect(conditionalOptions(payload.cards.streamliner as IRNode, 'select', { model: { type: 'dense' } })).toEqual(['prediction']);
+  });
+});
+
+describe('the streamliner funnel, as served', () => {
+  const funnel = (payload.cards.streamliner.properties as { key: string; value: IRNode }[])
+    .find((p) => p.key === 'funnel')!.value;
+  const branch = () => {
+    const w = widgetFor(funnel, {});
+    if (w.kind !== 'variant') throw new Error('not a variant');
+    return w.objects[''];
+  };
+  it('is a choice of one, whose branch names its fields', () => {
+    const w = widgetFor(funnel, {});
+    expect(w.kind).toBe('variant');
+    if (w.kind !== 'variant') return;
+    expect(w.options).toEqual(['']);
+    expect(w.default).toBe('');
+    const keys = (branch().properties as { key: string }[]).map((p) => p.key);
+    expect(keys).toEqual(['order_by', 'inputs', 'input_transforms', 'targets', 'target_transforms', 'loader']);
+  });
+  it('reads a map field with the list its keys come from', () => {
+    const map = (branch().properties as { key: string; value: IRNode }[]).find((p) => p.key === 'input_transforms')!.value;
+    expect(widgetFor(map, {})).toEqual({ kind: 'map', values: ['asinh', 'log', 'log1p', 'sqrt'], keysFrom: 'inputs' });
+  });
+  // The blank name is the default: saying it would be writing `type = ""`.
+  it('starts a card without naming the default funnel', () => {
+    const defaults = defaultsFor(payload.cards.streamliner as IRNode, payload.defs as Defs) as Record<string, unknown>;
+    expect(JSON.stringify(defaults)).not.toContain('"type":""');
+    expect('funnel' in defaults).toBe(false);
+  });
+  // "With the default loader, name the columns": the rule is the schema's, read here so the
+  // form can mark the fields before the server is asked.
+  it('says which fields a sibling makes required', () => {
+    expect(conditionallyRequired(branch(), {})).toEqual(['inputs', 'targets']);
+    expect(conditionallyRequired(branch(), { loader: { type: '' } })).toEqual(['inputs', 'targets']);
+    expect(conditionallyRequired(branch(), { loader: { type: 'PathToArray' } })).toEqual([]);
+    expect(conditionallyRequired({ type: 'object', properties: [] }, {})).toEqual([]);
   });
 });

@@ -5,7 +5,7 @@ import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
 import { SelectorField } from "./SelectorField";
 import type { SelectorRow } from "../selector";
-import { conditionalOptions, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
+import { conditionalOptions, conditionallyRequired, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
 // `widgetFor` returns — a switch over a closed set rather than an attempt to recover intent from
@@ -151,6 +151,8 @@ export function IRField(props: IRFieldProps) {
               }
               props.onChange(next);
             };
+            // What a sibling's choice makes required, on top of what the field always is.
+            const forced = () => conditionallyRequired(resolveRef(props.node, props.defs), asRecord(props.value));
             const fields = () => (
               <For each={w().properties} keyed={(entry) => entry.key}>
                 {(entry) => {
@@ -181,7 +183,7 @@ export function IRField(props: IRFieldProps) {
                         node={node()}
                         defs={props.defs}
                         label={entry().key}
-                        required={entry().required}
+                        required={entry().required || forced().includes(entry().key)}
                         idPrefix={id()}
                         value={value()}
                         onChange={(inner) => write(entry().key, inner)}
@@ -217,16 +219,37 @@ export function IRField(props: IRFieldProps) {
             // No fallback to `options[0]`. That list arrives from a Julia `Dict`, so its order
             // carries no intent — preselecting from it asserts a choice nobody made, and the
             // document then disagrees with the form about whether the question was answered.
-            const chosen = () =>
-              (asRecord(props.value).type as string | undefined) ?? w().default ?? "";
+            // A lone option is not a question, so it counts as chosen whatever the IR's default.
+            const lone = () => w().options.length === 1;
+            const picked = () =>
+              (asRecord(props.value).type as string | undefined) ?? w().default ?? (lone() ? w().options[0] : undefined);
+            const unasked = () => picked() === undefined;
+            const chosen = () => picked() ?? "";
+            // The blank option is the one meant when none is named, so the document does not
+            // name it.
+            const named = (inner: unknown, option: string) => {
+              const { type: _, ...rest } = asRecord(inner);
+              return option === "" ? rest : { ...rest, type: option };
+            };
+            const branchWidget = () => {
+              const branch = w().objects[chosen()];
+              return branch === undefined ? undefined : widgetFor(branch, props.defs);
+            };
+            // One option that takes no settings leaves nothing to show.
+            const nothing = () => {
+              const b = branchWidget();
+              return lone() && b !== undefined && b.kind === "object" && b.properties.length === 0;
+            };
             return (
+              <Show when={!nothing()}>
               <Collapsible label={props.label} required={props.required}>
+                <Show when={!lone()}>
                 <Row for={`${id()}-variant`} label="type">
                   <select
                     id={`${id()}-variant`}
                     class={[
                       "h-control-xs rounded-sm border px-2 text-control-xs",
-                      { "border-border": chosen() !== "", "border-warning": chosen() === "" },
+                      { "border-border": !unasked(), "border-warning": unasked() },
                     ]}
                     value={chosen()}
                     onChange={(event) => {
@@ -237,18 +260,21 @@ export function IRField(props: IRFieldProps) {
                       const option = event.currentTarget.value;
                       const branch = w().objects[option];
                       const inner = branch === undefined ? undefined : defaultsFor(branch, props.defs);
-                      props.onChange({ ...(inner as object), type: option });
+                      props.onChange(named(inner, option));
                     }}
                   >
-                    <Show when={chosen() === ""}>
+                    <Show when={unasked()}>
                       <option value="" disabled>
                         choose…
                       </option>
                     </Show>
-                    <For each={w().options}>{(option) => <option value={option}>{option}</option>}</For>
+                    <For each={w().options}>
+                      {(option) => <option value={option}>{option === "" ? "default" : option}</option>}
+                    </For>
                   </select>
                 </Row>
-                <Show when={w().objects[chosen()]}>
+                </Show>
+                <Show when={!unasked() && w().objects[chosen()]}>
                   <IRField
                     chainFor={props.chainFor}
                     groupsFor={props.groupsFor}
@@ -258,10 +284,11 @@ export function IRField(props: IRFieldProps) {
                     inline
                     idPrefix={id()}
                     value={props.value}
-                    onChange={(inner) => props.onChange({ ...asRecord(inner), type: chosen() })}
+                    onChange={(inner) => props.onChange(named(inner, chosen()))}
                   />
                 </Show>
               </Collapsible>
+              </Show>
             );
           }
 

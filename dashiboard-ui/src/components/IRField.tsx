@@ -41,6 +41,8 @@ type IRFieldProps = {
    * server said — `null` when it has not.
    */
   listsFor?: (name: string) => string[] | null;
+  /** Handed to every map field below: the entries of the card's map `field` the server refused. */
+  refusedFor?: (field: string) => string[];
   /** Handed to every map field below: whether a column is categorical, where that is known. */
   isCategorical?: (column: string) => boolean;
   value: unknown;
@@ -151,6 +153,8 @@ export function IRField(props: IRFieldProps) {
             // place it would be refused at a control that may no longer be drawn.
             const write = (key: string, inner: unknown) => {
               const next = { ...asRecord(props.value), [key]: inner };
+              // Emptied is absent: a key left holding nothing would still read as set.
+              if (inner === undefined) delete next[key];
               for (const other of w().properties) {
                 if (other.key === key) continue;
                 const allowed = conditionalOptions(resolveRef(props.node, props.defs), other.key, next);
@@ -210,6 +214,7 @@ export function IRField(props: IRFieldProps) {
                         chainFor={props.chainFor}
                         groupsFor={props.groupsFor}
                         listsFor={props.listsFor}
+                        refusedFor={props.refusedFor}
                         isCategorical={props.isCategorical}
                         node={node()}
                         defs={props.defs}
@@ -226,6 +231,7 @@ export function IRField(props: IRFieldProps) {
                           const held = () => asRecord(asRecord(props.value)[entry().key]) as Record<string, string>;
                           const rows = () => transformRows(
                             props.listsFor?.(list) ?? null, plainColumns(asRecord(props.value)[list]), held(),
+                            props.refusedFor?.(entry().key) ?? [],
                           );
                           return (
                             <MapField
@@ -273,12 +279,19 @@ export function IRField(props: IRFieldProps) {
             // No fallback to `options[0]`. That list arrives from a Julia `Dict`, so its order
             // carries no intent — preselecting from it asserts a choice nobody made, and the
             // document then disagrees with the form about whether the question was answered.
-            // A lone option is not a question, so it counts as chosen whatever the IR's default.
-            const lone = () => w().options.length === 1;
+            // A lone option is not a question: where nothing has been written yet it counts as
+            // chosen, whatever the IR's default. A value that is there and names no option has
+            // to be asked, since the server will want the name.
+            const sole = () => (w().options.length === 1 ? w().options[0] : undefined);
+            const untouched = () => props.value === undefined || props.value === null;
             const picked = () =>
-              (asRecord(props.value).type as string | undefined) ?? w().default ?? (lone() ? w().options[0] : undefined);
+              (asRecord(props.value).type as string | undefined) ?? w().default ?? (untouched() ? sole() : undefined);
             const unasked = () => picked() === undefined;
             const chosen = () => picked() ?? "";
+            // The chooser is left out only when the one option is the one in hand — a document
+            // naming an option this server does not have still needs somewhere to be put right.
+            const lone = () => sole() !== undefined && picked() === sole();
+            const foreign = () => !unasked() && !w().options.includes(chosen());
             // The blank option is the one meant when none is named, so the document does not
             // name it.
             const named = (inner: unknown, option: string) => {
@@ -303,7 +316,7 @@ export function IRField(props: IRFieldProps) {
                     id={`${id()}-variant`}
                     class={[
                       "h-control-xs rounded-sm border px-2 text-control-xs",
-                      { "border-border": !unasked(), "border-warning": unasked() },
+                      { "border-border": !unasked() && !foreign(), "border-warning": unasked() || foreign() },
                     ]}
                     value={chosen()}
                     onChange={(event) => {
@@ -322,6 +335,11 @@ export function IRField(props: IRFieldProps) {
                         choose…
                       </option>
                     </Show>
+                    <Show when={foreign()}>
+                      <option value={chosen()} disabled>
+                        {chosen()} — not available
+                      </option>
+                    </Show>
                     <For each={w().options}>
                       {(option) => <option value={option}>{option === "" ? "default" : option}</option>}
                     </For>
@@ -333,6 +351,7 @@ export function IRField(props: IRFieldProps) {
                     chainFor={props.chainFor}
                     groupsFor={props.groupsFor}
                     listsFor={props.listsFor}
+                    refusedFor={props.refusedFor}
                     isCategorical={props.isCategorical}
                     node={w().objects[chosen()]!}
                     defs={props.defs}
@@ -480,6 +499,7 @@ export function IRField(props: IRFieldProps) {
                           chainFor={props.chainFor}
                           groupsFor={props.groupsFor}
                           listsFor={props.listsFor}
+                          refusedFor={props.refusedFor}
                           isCategorical={props.isCategorical}
                           node={w().items}
                           defs={props.defs}

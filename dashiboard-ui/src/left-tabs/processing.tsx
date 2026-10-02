@@ -15,6 +15,7 @@ import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
 import { groupsFor, throughOptions } from "../through";
 import { mergePresets, presetFields, presetsFor } from "../presets";
+import { refusedKeys } from "../transformRows";
 import {
   CARDS_STORE,
   CARDS_JSON,
@@ -410,6 +411,7 @@ export function Cards() {
   // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
   const probeNodes = createMemo(() => probe.nodes);
   const probeIssues = createMemo(() => probe.issues);
+  const probeValid = createMemo(() => probe.valid);
   // What the continuous probe says live about a card is only its *warnings* (a column about to be
   // overwritten). Its errors are not shown here: red is reserved for what Confirm or a Run found,
   // and until then the card is amber.
@@ -575,7 +577,10 @@ export function Cards() {
                 groupsFor={(token, row) => groupsFor(token, row, describedNodes(), state.groups)}
                 // A list's columns are the server's to resolve; what kind a column is, the
                 // loaded table's to say.
-                listsFor={(name) => describedNodes().find((described) => described.id === node.id)?.lists?.[name] ?? null}
+                // Only an answer about this document says so: one remembered from an earlier
+                // build would list columns the lists no longer have.
+                listsFor={(name) => (probeValid() ? probeNodes().find((described) => described.id === node.id)?.lists?.[name] ?? null : null)}
+                refusedFor={(field) => refusedKeys(probeIssues(), index(), field)}
                 isCategorical={(column) => metadata.find((entry) => entry.name === column)?.type === "categorical"}
                 value={node.card}
                 onChange={(card) => setCard(index(), card as Card)}

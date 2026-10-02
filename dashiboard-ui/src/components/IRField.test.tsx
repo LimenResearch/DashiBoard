@@ -409,6 +409,29 @@ describe('IRField, a variant with one option', () => {
     expect(container.textContent).toBe('');
   });
 
+  // A document may name an option this server does not have. Hiding the chooser would hide the
+  // only place that can be put right.
+  it('shows the chooser, and the name, when the document names something else', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(one, { type: 'time', width: 2 }, (v) => { written = v; });
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    expect(chooser).not.toBeNull();
+    expect(chooser.className).toMatch(/border-warning/);
+    expect(chooser.selectedOptions[0].textContent).toMatch(/time/);
+    expect(container.querySelector('#n-funnel-funnel-width')).toBeNull();
+    chooser.value = ''; fireEvent.change(chooser); await flush();
+    expect(written).toEqual({});
+  });
+
+  // A lone option that has to be named is asked for when a loaded value does not name it.
+  it('asks for a lone option a loaded value does not name', () => {
+    const named: IRNode = { type: 'tagged_object', options: ['batched'], objects: { batched: branch } };
+    expect(mountVariant(named, undefined).container.querySelector('#n-funnel-variant')).toBeNull();
+    cleanup();
+    const { container } = mountVariant(named, { width: 1 });
+    expect((container.querySelector('#n-funnel-variant') as HTMLSelectElement).className).toMatch(/border-warning/);
+  });
+
   it('still asks when there is a choice and no default', () => {
     const open: IRNode = { type: 'tagged_object', options: ['a', 'b'], objects: { a: branch, b: branch } };
     const { container } = mountVariant(open, undefined);

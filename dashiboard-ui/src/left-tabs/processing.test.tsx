@@ -982,6 +982,53 @@ describe('a transform row per column the server resolved', () => {
   });
 });
 
+// A document the server refuses is not described, so what the form shows then cannot come from
+// an earlier answer: the rows are what is written, and the refusal says which entry is stale.
+describe('transform rows while the document does not build', () => {
+  const fit = (funnel: Record<string, unknown>) => ({
+    type: 'streamliner', model: { type: 'dense', features: 2 }, training: { type: 'batched', iterations: 1 },
+    funnel: { order_by: [{ cols: 'No' }], targets: [{ cols: 'TEMP' }], ...funnel },
+  });
+  const serve = (probe: () => unknown) =>
+    postRequest.mockImplementation((page: string, body: { include?: string[] }) => {
+      if (page === 'get-card-ir') {
+        const full = structuredClone(payload) as Record<string, unknown>;
+        return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, full[k]])));
+      }
+      return Promise.resolve(page === 'probe-pipeline' ? probe() : []);
+    });
+  const rows = (c: HTMLElement) => [...c.querySelectorAll('#node-0-streamliner-funnel-funnel-input_transforms [data-row]')];
+
+  it('marks the entry the server refused, and removes it', async () => {
+    const refusal = {
+      valid: false, cols: [], nodes: [], errors: ['x'],
+      issues: [{ pointer: '/nodes/0/card/funnel/input_transforms/TEMP_z', reason: 'transforms', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'no' }],
+    };
+    serve(() => refusal);
+    importCards({ nodes: [{ id: 'fit', card: fit({ inputs: [{ cols: 'PRES' }], input_transforms: { TEMP_z: 'log' } }) }], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(PROBE_STORE[0].issues.length).toBe(1));
+    await waitFor(() => expect(rows(container).map((r) => r.getAttribute('data-row'))).toEqual(['PRES', 'TEMP_z']));
+    const stale = rows(container)[1];
+    expect(stale.hasAttribute('data-stale')).toBe(true);
+    fireEvent.click(stale.querySelector('button')!); await flush();
+    expect('input_transforms' in (exportCards().nodes[0].card.funnel as object)).toBe(false);
+  });
+
+  it('does not keep the rows of an answer about an earlier document', async () => {
+    let valid = true;
+    const described = { id: 'fit', inputs: [], outputs: [], unproduced: [], through: [], lists: { inputs: ['A1', 'A2'], targets: ['TEMP'] } };
+    serve(() => (valid ? { ...CLEAN_PROBE, nodes: [described] } : { valid: false, cols: [], nodes: [], errors: ['x'], issues: [] }));
+    importCards({ nodes: [{ id: 'fit', card: fit({ inputs: [{ groups: 'g' }, { cols: 'PRES' }] }) }], groups: { g: [] } });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(rows(container).map((r) => r.getAttribute('data-row'))).toEqual(['A1', 'A2', 'PRES']));
+    valid = false;
+    addNode({ type: 'rescale' }, 'half');                       // the document no longer builds
+    await waitFor(() => expect(PROBE_STORE[0].valid).toBe(false));
+    await waitFor(() => expect(rows(container).map((r) => r.getAttribute('data-row'))).toEqual(['PRES']));
+  });
+});
+
 // The whole point of describing the funnel: a streamliner card can be filled in by hand, and
 // what the form writes is the document the server reads.
 describe('a streamliner card built from an empty form', () => {

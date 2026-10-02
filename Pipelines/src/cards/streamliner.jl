@@ -18,14 +18,7 @@ is left out. The prediction is written under `suffix`, any other field under its
 @kwarg struct StreamlinerCard{M <: Model, T <: Training, F <: Funnel} <: StreamingCard
     model::M
     training::T
-    funnel::F & (
-        # TODO: make schema more specific
-        dashi = EmptyTaggedObjectIR(
-            objects = PARSER[].funnels,
-            default_option = "",
-            additionalProperties = true
-        ),
-    )
+    funnel::F
     partition::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
     suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
     select::Maybe{Vector{String}} = nothing & (
@@ -58,6 +51,15 @@ function SourceVariables(sc::StreamlinerCard)
         inputs = input_vars(sc),
         targets = target_vars(sc),
         sc.partition
+    )
+end
+
+# What the funnel's lists come to once their selectors are resolved, so a form can offer a
+# transform for each column without resolving anything itself.
+function resolved_lists(sc::StreamlinerCard)
+    return StringDict(
+        "inputs" => SC.colname.(SC.get_inputs(sc.funnel)),
+        "targets" => SC.colname.(SC.get_targets(sc.funnel)),
     )
 end
 

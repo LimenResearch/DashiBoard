@@ -224,6 +224,24 @@ function issue_report(err::ProductError)
     )
 end
 
+"""
+    issue_report(err::StreamlinerCore.TransformError)
+
+A refused column transform in the shape every other issue uses, addressed at the entry at fault.
+"""
+function issue_report(err::SC.TransformError)
+    return (;
+        pointer = something(err.pointer, ""),
+        reason = "transforms",
+        severity = "error",
+        found = nothing,
+        allowed = nothing,
+        missing = String[],
+        related = String[],
+        message = sprint(showerror, err),
+    )
+end
+
 function issue_report(err::SchemaValidationError)
     issue = err.issue
     pointer = err.pointer_base * err.pointer_tail

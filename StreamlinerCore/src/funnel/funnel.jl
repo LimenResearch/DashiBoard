@@ -181,6 +181,8 @@ funnel_IR(::Type{F}) where {F <: Funnel} = ObjectIR(F)
 The funnel of type `F` a document describes. A funnel that wraps another splits the document here,
 with [`split_config`](@ref).
 """
+make_funnel(::Type{F}, d::AbstractDict) where {F <: Funnel} = DashiBase.construct(F, d)
+
 function make_funnel(::Type{DBFunnel}, d::AbstractDict)
     haskey(d, "order_by") || throw(ArgumentError("User must define sorting variable(s)"))
     return validate(DashiBase.construct(DBFunnel, d))

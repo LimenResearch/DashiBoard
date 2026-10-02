@@ -394,32 +394,55 @@ end
     # A chain that names something a node actually emits.
     @test isempty(issues([Dict("cols" => "PRES", "through" => ["rescale"])]))
 
-    # Still caught here: the one part of a card no schema describes. A streamliner's funnel is an
-    # open object, so the columns it names are never checked against the document — while every
-    # other card takes selector items, and a chain is refused while the pipeline is built.
-    d = deepcopy(base)
-    push!(
-        d["nodes"],
-        Dict(
-            "id" => "fit",
-            "card" => Dict(
-                "type" => "streamliner",
-                "funnel" => Dict(
-                    "order_by" => ["No"], "inputs" => ["NOSUCHCOL"], "targets" => ["PRES"],
+    # A streamliner's funnel takes selector items like every other card, so a column nothing
+    # produces is refused by the schema, at the entry, before the pipeline is built.
+    fit(funnel) = begin
+        d = deepcopy(base)
+        push!(
+            d["nodes"],
+            Dict(
+                "id" => "fit",
+                "card" => Dict(
+                    "type" => "streamliner",
+                    "funnel" => merge(
+                        Dict{String, Any}(
+                            "order_by" => [Dict("cols" => "No")],
+                            "inputs" => [Dict("groups" => "weather")],
+                            "targets" => [Dict("cols" => "PRES", "through" => ["rescale"])],
+                        ),
+                        funnel
+                    ),
+                    "model" => Dict("type" => "dense", "features" => 5),
+                    "training" => Dict("type" => "batched", "iterations" => 4),
+                    "suffix" => "hat",
                 ),
-                "model" => Dict("type" => "dense", "features" => 5),
-                "training" => Dict("type" => "batched", "iterations" => 4),
-                "suffix" => "hat",
             ),
-        ),
-    )
-    p = @with(
-        Pipelines.PARSER => Pipelines.default_parser(),
-        Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model"),
-        Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
-        Pipelines.Pipeline(d["nodes"], d["groups"], available)
-    )
-    @test only(Pipelines.unproduced_references(p, available)) == (5 => ["NOSUCHCOL"])
+        )
+        @with(
+            Pipelines.PARSER => Pipelines.default_parser(),
+            Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model"),
+            Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+            Pipelines.Pipeline(d["nodes"], d["groups"], available)
+        )
+    end
+    err = @test_throws Pipelines.SchemaValidationErrors fit(Dict("inputs" => [Dict("cols" => "NOSUCHCOL")]))
+    @test startswith(only(Pipelines.issue_report(err.value)).pointer, "/nodes/4/card/funnel/inputs")
+
+    # The lists resolve through groups and chains like any card's, and a transform is keyed by
+    # what they resolve to — here a column the list reaches only through a group.
+    p = fit(Dict{String, Any}())
+    lists = Pipelines.resolved_lists(Pipelines.get_card(p.nodes[5]))
+    @test lists["targets"] == ["PRES_rescaled"]
+    reached = first(lists["inputs"])
+    p = fit(Dict("input_transforms" => Dict(reached => "log")))
+    @test isempty(Pipelines.unproduced_references(p, available))
+
+    # A key the list does not resolve to is refused, and the refusal says which entry.
+    e = @test_throws StreamlinerCore.TransformError fit(Dict("input_transforms" => Dict("GONE" => "log")))
+    @test e.value.pointer == "/nodes/4/card/funnel/input_transforms/GONE"
+    report = Pipelines.issue_report(e.value)
+    @test report.reason == "transforms" && report.pointer == e.value.pointer
+    @test occursin("GONE", report.message)
 
     # The untouched fixture is clean, so this does not fire on well-formed documents.
     p = Pipelines.Pipeline(base["nodes"], base["groups"], available)

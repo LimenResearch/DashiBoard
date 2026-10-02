@@ -922,7 +922,7 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
     config(; kwargs...) = merge(
         Dict{String, Any}(
             "type" => "streamliner",
-            "funnel" => Dict("order_by" => ["No"], "inputs" => ["TEMP", "PRES"], "targets" => ["Iws"]),
+            "funnel" => Dict{String, Any}("order_by" => ["No"], "inputs" => ["TEMP", "PRES"], "targets" => ["Iws"]),
             "model" => Dict("type" => "twohead", "features" => 5),
             "training" => Dict("type" => "batched", "iterations" => 2),
             "partition" => "partition",
@@ -953,6 +953,30 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
         # A field the model does not yield is refused as soon as the card's outputs are asked for,
         # which building a pipeline does for every node.
         @test_throws Pipelines.ProductError Pipelines.get_node_outputs(Node(Pipelines.Card(config(select = ["logvar"]))))
+
+        # The funnel is described by its own fields, so a form can draw it and a schema can check it.
+        ir = Pipelines.card_ir("streamliner")
+        funnel = only(p for p in ir.properties if p.key == "funnel").value
+        @test funnel.options == [""] && funnel.default_option == ""
+        @test [p.key for p in funnel.objects[""].properties] ==
+            ["order_by", "inputs", "input_transforms", "targets", "target_transforms", "loader"]
+        schema = JSONSchema.Schema(Pipelines.card_schema("streamliner", ["No", "TEMP", "PRES", "Iws", "partition"]))
+        good = config()
+        @test isnothing(JSONSchema.validate(good, schema))
+        # A funnel is closed: a misspelt key is a failure, not an ignored setting.
+        bad = deepcopy(good); bad["funnel"]["inptus"] = ["TEMP"]
+        @test !isnothing(JSONSchema.validate(bad, schema))
+        bad = deepcopy(good); bad["funnel"]["input_transforms"] = Dict("TEMP" => "nosuch")
+        @test !isnothing(JSONSchema.validate(bad, schema))
+        bad = deepcopy(good); delete!(bad["funnel"], "inputs")
+        @test !isnothing(JSONSchema.validate(bad, schema))
+
+        # What the lists come to, for a form to offer a transform per column.
+        transformed = deepcopy(good); transformed["funnel"]["input_transforms"] = Dict("TEMP" => "log")
+        @test isnothing(JSONSchema.validate(transformed, schema))
+        card = Pipelines.Card(transformed)
+        @test Pipelines.resolved_lists(card) == Dict{String, Any}("inputs" => ["TEMP", "PRES"], "targets" => ["Iws"])
+        @test isempty(Pipelines.resolved_lists(Pipelines.Card(Dict("type" => "trivial", "inputs" => ["a"], "outputs" => ["c"]))))
 
         # The schema carries the rule per model, so a form offers only what the chosen model has.
         rule = only(Pipelines.DashiBase.constraints(Pipelines.StreamlinerCard))

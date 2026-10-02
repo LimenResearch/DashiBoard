@@ -145,6 +145,12 @@ with_pointer(err::ThroughError, pointer::AbstractString) =
 with_pointer(err::ProductError, pointer::AbstractString) =
     ProductError(err.message, err.field, string(pointer, '/', err.field))
 
+# A transform refusal is raised by the funnel, which knows the entry but not the card it sits in.
+function with_pointer(err::SC.TransformError, pointer::AbstractString)
+    entry = join(Iterators.map(escape_pointer, err.path), '/')
+    return SC.TransformError(err.message, err.path, string(pointer, "/funnel/", entry))
+end
+
 # A `through` failure knows which node refused but not which card or group asked it to, since it is
 # raised where the chain is walked; a product refusal knows the field but not the card. This is
 # the frame that knows. Everything else passes untouched, backtrace included.
@@ -152,7 +158,7 @@ function at_pointer(f::F, pointer::AbstractString) where {F}
     return try
         f()
     catch err
-        err isa Union{ThroughError, ProductError} || rethrow()
+        err isa Union{ThroughError, ProductError, SC.TransformError} || rethrow()
         throw(with_pointer(err, pointer))
     end
 end

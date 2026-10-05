@@ -145,6 +145,16 @@ function train(
     end
 end
 
+function no_model_message(sc::StreamlinerCard, state::CardState)
+    get(state.metadata, "trained", false) === true || return "this card has not been trained."
+    cause = isnothing(sc.partition) ?
+        "the card has no `partition`, so no rows were set aside to validate on. Set `partition` to a " *
+        "column that is 1 for the rows to train on and 2 for the rows to validate on, such as a split card writes" :
+        "the loss on the rows `$(sc.partition)` marks 2 never improved. Check that such rows exist " *
+        "and that the inputs are on comparable scales"
+    return "training kept no model to predict with: $(cause)."
+end
+
 function evaluate(
         repository::Repository,
         sc::StreamlinerCard,
@@ -154,7 +164,10 @@ function evaluate(
         schema::Maybe{AbstractString} = nothing
     )
 
-    isnothing(state.content) && throw(ArgumentError("Invalid state"))
+    # No model means either the card was never trained, or it was and training kept none: a model
+    # is kept only if its loss on the validation rows improved. The training metadata tells the two
+    # apart, and the second has a cause the author can act on.
+    isnothing(state.content) && throw(ArgumentError(no_model_message(sc, state)))
 
     (; model, training, funnel) = sc
     select = selected_products(sc)

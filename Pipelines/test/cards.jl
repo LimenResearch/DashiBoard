@@ -944,6 +944,24 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
         @test "Iws_hat" in names(result) && "Iws_spread" in names(result)
         @test all(>=(0), result.Iws_spread)
 
+        # A card with no model is refused at prediction, saying which of two cases it is.
+        refusal(card, state) = try
+            Pipelines.evaluate(repo, card, state, "partition" => "unsplit", "No"); nothing
+        catch e
+            e
+        end
+        # Never trained.
+        untrained = refusal(card, Pipelines.CardState())
+        @test untrained isa ArgumentError && occursin("not been trained", untrained.msg)
+        # Trained without a partition: no row is set aside to validate on, so training succeeds
+        # but keeps no model, and the refusal names `partition`.
+        unsplit = Pipelines.Card(delete!(config(), "partition"))
+        weightless = Pipelines.train(repo, unsplit, "partition", "No")
+        @test isnothing(weightless.content)
+        kept_none = refusal(unsplit, weightless)
+        @test kept_none isa ArgumentError
+        @test occursin("kept no model", kept_none.msg) && occursin("`partition`", kept_none.msg)
+
         # Narrowed, only the one asked for is written.
         one = Node(Pipelines.Card(config(select = ["spread"])))
         @test Pipelines.get_node_outputs(one) == ["Iws_spread"]

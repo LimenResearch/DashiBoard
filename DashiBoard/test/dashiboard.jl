@@ -897,6 +897,38 @@ mktempdir() do data_dir
                 Dict("path" => "f.json", "kind" => "pipeline", "found" => "filters"),
                 Dict("path" => "t2.csv", "kind" => "pipeline", "found" => "table"),
             ]
+
+            # The routes the form saves with: a path is relative to the kind's own folder, so
+            # one path saved as a pipeline and as a filters document lands in twin subfolders.
+            laid_url = "http://127.0.0.1:$(laid_port)/"
+            lpost(route, body) = JSON.parse(HTTP.post(laid_url * route, body = JSON.json(body), status_exception = false).body)
+            filters_doc = Dict("numerical" => Dict(), "categorical" => Dict())
+            @test lpost("write-pipeline", Dict("path" => "sub/mine.json", "document" => cards_doc))["valid"] == true
+            @test isfile(joinpath(ws, "pipeline", "sub", "mine.json"))
+            @test lpost("write-filters", Dict("path" => "sub/mine.json", "document" => filters_doc))["valid"] == true
+            @test isfile(joinpath(ws, "filter", "sub", "mine.json"))
+            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in lpost("list-files", Dict())["files"]]
+            @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["document"] == cards_doc
+            @test lpost("read-filters", Dict("path" => "sub/mine.json"))["document"] == filters_doc
+            # The folder is implied, so a path that spells it is turned away rather than nested.
+            implied = lpost("write-pipeline", Dict("path" => "pipeline/mine.json", "document" => cards_doc))
+            @test implied["valid"] == false && occursin("implied", only(implied["errors"]))
+            escaped = lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))
+            @test escaped["valid"] == false && occursin("pipeline", only(escaped["errors"]))
+            @test !isfile(joinpath(ws, "x.json"))
+            # A configuration the same way, into the model and training folders — here outside
+            # the workspace, which a kind route may reach and the general route may not.
+            elsewhere = mktempdir()
+            model_text = read(joinpath(model_dir, "dense.toml"), String)
+            aside_port = first_free_port(8481:8580)
+            aside = DashiBoard.launch(ws; port = aside_port, async = true, model_dir = elsewhere, training_dir)
+            apost(route, body) = JSON.parse(HTTP.post("http://127.0.0.1:$(aside_port)/" * route, body = JSON.json(body), status_exception = false).body)
+            @test apost("write-model", Dict("path" => "m.toml", "text" => model_text))["valid"] == true
+            @test isfile(joinpath(elsewhere, "m.toml"))
+            @test apost("read-model", Dict("path" => "m.toml"))["parsed"]["name"] == "basic"
+            @test apost("write-configuration", Dict("path" => joinpath(elsewhere, "n.toml"), "kind" => "model", "text" => model_text))["valid"] == false
+            @test apost("write-training", Dict("path" => "t.toml", "text" => model_text))["valid"] == false
+            close(aside)
             close(laid)
         end
     end

@@ -259,6 +259,56 @@ function write_document(req::HTTP.Request, base::AbstractString; what = "the wor
     return json_response(answer)
 end
 
+# The routes the form saves and reads with: one per kind, a path relative to that kind's own
+# directory. They are the general routes with the directory fixed, which is what enforces the
+# layout — the form never calls the general ones. The kind itself is implied, so a request
+# carries no `kind`, and a path that spells the folder is turned away rather than nested.
+
+const KIND_ROUTES = (
+    ("pipeline", :pipeline, "cards", :document),
+    ("filters", :filter, "filters", :document),
+    ("model", :model, "model", :configuration),
+    ("training", :training, "training", :configuration),
+)
+
+"""
+    kind_path(kind::Symbol, path) -> String
+
+`path` under the directory of `kind`, refusing one that leaves it or starts with a folder of the
+layout's own: the folder is implied, and `pipeline/mine.json` would otherwise nest.
+"""
+function kind_path(kind::Symbol, path::AbstractString)
+    first_segment = first(splitpath(path))
+    first_segment in RESERVED && throw(
+        ArgumentError("`$(path)`: the folder is implied — save `$(relpath(path, first_segment))` instead")
+    )
+    return resolve_in(pointer(kind), path; what = "the $(kind) directory")
+end
+
+# A request for a kind route, rewritten as one for the general route it stands on: the kind
+# filled in, the path resolved under the kind's directory and handed on as absolute-safe
+# relative to it.
+function with_kind(req::HTTP.Request, kind::Symbol, content::AbstractString)
+    spec = json_read(req)
+    path = spec["path"]
+    base = pointer(kind)
+    full = kind_path(kind, path)
+    spec["kind"] = content
+    spec["path"] = relpath(full, base)
+    return HTTP.Request(req.method, req.target, req.headers, JSON.json(spec)), base, "the $(kind) directory"
+end
+
+function kind_handler(handler, kind::Symbol, content::AbstractString)
+    return function (req::HTTP.Request)
+        rewritten, base, what = try
+            with_kind(req, kind, content)
+        catch exception
+            return json_response(failure_report("document", exception))
+        end
+        return handler(rewritten, base; what)
+    end
+end
+
 """
     read_configuration(req)
 

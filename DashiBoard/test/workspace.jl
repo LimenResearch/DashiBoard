@@ -40,6 +40,23 @@ using TOML: TOML
         file = DashiBoard.read_workspace_file(ws)
         @test DashiBoard.server_defaults(file) == (host = nothing, port = 9000)
         @test DashiBoard.extension_sources(file, Dict()) == Dict("X" => Dict{String, Any}("path" => "/opt/X"))
+        # The addresses a git remote goes by, with or without a revision; an `@` that is part of
+        # the address is not one.
+        parsed = DashiBoard.extension_sources(Dict(), Dict("extensions" => "A=ssh://git@github.com/Org/A.jl@v2,B=git@github.com:Org/B.jl,C=https://h/C.jl"))
+        @test parsed["A"] == Dict{String, Any}("url" => "ssh://git@github.com/Org/A.jl", "rev" => "v2")
+        @test parsed["B"] == Dict{String, Any}("url" => "git@github.com:Org/B.jl")
+        @test parsed["C"] == Dict{String, Any}("url" => "https://h/C.jl")
+        @test_throws ArgumentError DashiBoard.extension_sources(Dict(), Dict("extensions" => "JustAName"))
+
+        # A workspace file that says something the launcher cannot read is refused by name,
+        # rather than half-used: a misspelt table, a value of the wrong kind.
+        bad(text) = (write(joinpath(ws, "dashiboard.toml"), text); DashiBoard.read_workspace_file(ws))
+        @test_throws ArgumentError bad("[extentions]\nX = { path = \"/x\" }\n")
+        @test_throws ArgumentError bad("[server]\nport = \"8080\"\n")
+        @test_throws ArgumentError bad("[extensions]\nX = \"/opt/X\"\n")
+        @test_throws ArgumentError bad("[extensions]\nX = { branch = \"main\" }\n")
+        @test_throws ArgumentError bad("[directories]\ndata = 3\n")
+        rm(joinpath(ws, "dashiboard.toml"))
         # A path is kept as written, and made absolute for whoever has to find it from elsewhere
         # — a downloaded pipeline names its extensions for another folder.
         relative = Dict("X" => Dict{String, Any}("path" => "../X"), "U" => Dict{String, Any}("url" => "https://h/U.jl", "rev" => "main"))
@@ -128,9 +145,34 @@ const PROJECT = normpath(joinpath(@__DIR__, ".."))
         DashiBoard.extension_environment(ws, Dict{String, Dict{String, Any}}(); io = devnull)
         @test !haskey(TOML.parsefile(joinpath(env, "Project.toml"))["deps"], "TestExtension")
         DashiBoard.extension_environment(ws, sources; io = devnull)
-        modules = DashiBoard.load_extensions(sources; env)
+        # Loaded from the environment that holds them, and the one that was active put back.
+        previous = Base.active_project()
+        modules = try
+            DashiBoard.Pkg.activate(env; io = devnull)
+            DashiBoard.load_extensions(sources)
+        finally
+            DashiBoard.Pkg.activate(previous; io = devnull)
+        end
+        @test Base.active_project() == previous
         @test length(modules) == 1 && nameof(only(modules)) == :TestExtension
         @test DashiBoard.provenance(modules) == Dict("transform:double" => "TestExtension", "funnel:test" => "TestExtension")
+    end
+end
+
+@testset "sorting: the awkward cases" begin
+    mktempdir() do dir
+        # A file named like the quarantine itself, a pipeline written as TOML, and a link.
+        write(joinpath(dir, "quarantine"), "a file in the quarantine's place")
+        write(joinpath(dir, "p.toml"), "groups = {}\nnodes = []\n")
+        write(joinpath(dir, "note.md"), "x")
+        symlink("somewhere/else", joinpath(dir, "link"))
+        io = IOBuffer()
+        report = DashiBoard.init_workspace(dir; io)
+        @test isdir(joinpath(dir, "quarantine")) && isfile(joinpath(dir, "quarantine", "quarantine"))
+        @test isfile(joinpath(dir, "pipeline", "p.toml"))                 # the Load tab would offer it
+        @test islink(joinpath(dir, "link"))                               # moving it would break it
+        @test ("link", "a link, left where it is") in report.left
+        @test occursin("link", String(take!(io)))
     end
 end
 
@@ -201,12 +243,27 @@ launcher(args...) = addenv(
                 end
             end
             @test answered
+            # The server runs in the environment its extensions were resolved in, so what is
+            # loaded is what was resolved.
             text = read(log, String)
+            @test occursin(joinpath(".dashiboard", "env"), text)
             @test occursin("DashiBoard is listening", text)
             @test occursin("no directory for some kinds", text) && occursin(":pipeline", text)   # the warning names what fell back
         finally
             kill(proc); wait(proc)
         end
+        # Stopping the launcher stops the server it started.
+        gone = false
+        for _ in 1:40
+            gone = try
+                HTTP.post("http://127.0.0.1:$(port)/list-files", body = "{}"; connect_timeout = 1, readtimeout = 1, retry = false); false
+            catch
+                true
+            end
+            gone && break
+            sleep(0.5)
+        end
+        @test gone
     end
     # An extension that cannot be found stops the launch before it listens, naming it.
     mktempdir() do ws

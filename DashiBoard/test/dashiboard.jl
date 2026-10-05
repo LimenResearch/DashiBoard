@@ -268,6 +268,8 @@ mktempdir() do data_dir
             # hidden and what is neither table nor document are not listed.
             listed = post("list-files", Dict())
             @test listed["misplaced"] == []
+            # With everything at the root, there is no folder to name.
+            @test listed["folders"] == Dict("table" => "", "cards" => "", "filters" => "")
             @test [(f["path"], f["kind"]) for f in listed["files"]] == [
                 ("cards.json", "cards"),
                 ("cards.toml", "cards"),
@@ -281,7 +283,7 @@ mktempdir() do data_dir
             escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
             @test escaped["valid"] == false
             @test occursin("outside the data directory", only(escaped["errors"]))
-            # A table is read under the data directory, which may differ from the workspace.
+
 
             # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
             # found; nothing outside the directory, nothing that is not there.
@@ -380,6 +382,9 @@ mktempdir() do data_dir
             resp = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc, filters)))
             @test HTTP.header(resp, "Content-Type") == "application/zip"
             @test occursin("mine.zip", HTTP.header(resp, "Content-Disposition"))
+            # A name outside ASCII travels in the form a header can carry.
+            accented = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "prova è", cards = doc)))
+            @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", HTTP.header(accented, "Content-Disposition"))
             zip = ZipReader(Vector{UInt8}(resp.body))
             @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
             @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
@@ -968,7 +973,8 @@ mktempdir() do data_dir
         )
         resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
         @test resp.status == 200
-        @test JSON.parse(resp.body) == Dict("files" => [], "misplaced" => [])
+        listed = JSON.parse(resp.body)
+        @test listed["files"] == [] && listed["misplaced"] == []
         close(nowhere)
     end
 
@@ -1033,9 +1039,27 @@ mktempdir() do data_dir
             @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in lpost("list-files", Dict())["files"]]
             @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["document"] == cards_doc
             @test lpost("read-filters", Dict("path" => "sub/mine.json"))["document"] == filters_doc
-            # The folder is implied, so a path that spells it is turned away rather than nested.
-            implied = lpost("write-pipeline", Dict("path" => "pipeline/mine.json", "document" => cards_doc))
-            @test implied["valid"] == false && occursin("implied", only(implied["errors"]))
+            # The folder is implied, so a path that spells it is turned away rather than nested —
+            # however it is spelt.
+            for path in ("pipeline/mine.json", "./pipeline/mine.json")
+                implied = lpost("write-pipeline", Dict("path" => path, "document" => cards_doc))
+                @test implied["valid"] == false && occursin("implied", only(implied["errors"]))
+            end
+            # The layout's folder names are not subfolder names: such a subfolder is neither
+            # written to nor listed, and a read of it says why in a reader's words.
+            other = lpost("write-pipeline", Dict("path" => "training/x.json", "document" => cards_doc))
+            @test other["valid"] == false && occursin("layout", only(other["errors"]))
+            mkpath(joinpath(ws, "pipeline", "model")); write(joinpath(ws, "pipeline", "model", "p.json"), JSON.json(cards_doc))
+            @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["files"]])
+            unread = lpost("read-pipeline", Dict("path" => "model/p.json"))
+            @test unread["valid"] == false && occursin("layout", only(unread["errors"])) && !occursin("save", only(unread["errors"]))
+            @test lpost("read-pipeline", Dict("path" => "pipeline"))["valid"] == false
+
+            # Each kind's folder, as the workspace sees it, for the form to say where it lists
+            # and saves; and a table is loaded from the data folder, not the workspace root.
+            @test lpost("list-files", Dict())["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
+            loaded = HTTP.post(laid_url * "load-files", body = JSON.json(Dict("name" => "t", "files" => ["t.csv"])))
+            @test [c["name"] for c in JSON.parse(loaded.body)] == ["a", "b"]
             escaped = lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))
             @test escaped["valid"] == false && occursin("pipeline", only(escaped["errors"]))
             @test !isfile(joinpath(ws, "x.json"))

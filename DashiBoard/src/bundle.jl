@@ -163,9 +163,10 @@ function bundle_pipeline(req::HTTP.Request)
         exception isa BundleError || return json_response(failure_report("bundle", exception))
         return json_response((; valid = false, kind = "bundle", errors = [sprint(showerror, exception)], issues = exception.issues))
     end
-    headers = vcat(
-        CORS_RES_HEADERS,
-        ["Content-Type" => "application/zip", "Content-Disposition" => "attachment; filename=\"$(name).zip\""],
-    )
+    # The plain form for a name a header can carry as it is; the encoded one, which every current
+    # browser prefers, for the rest.
+    plain = all(isascii, name) ? name : "pipeline"
+    disposition = "attachment; filename=\"$(plain).zip\"; filename*=UTF-8''$(HTTP.escapeuri(name)).zip"
+    headers = vcat(CORS_RES_HEADERS, ["Content-Type" => "application/zip", "Content-Disposition" => disposition])
     return HTTP.Response(200, headers = headers, body = bytes)
 end

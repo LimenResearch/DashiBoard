@@ -46,14 +46,13 @@ function resolve_in(base::AbstractString, path::AbstractString; what::AbstractSt
     isabspath(path) && outside()
     full = normpath(joinpath(base, path))
     rel = relpath(full, base)
-    (rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)) && outside()
+    # Across drives there is no relative path, and `relpath` answers an absolute one.
+    (isabspath(rel) || rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)) && outside()
     return full
 end
-
-resolve_in_workspace(path::AbstractString) = resolve_in(workspace_directory(), path)
 resolve_in_data_dir(path::AbstractString) = resolve_in(data_directory(), path; what = "the data directory")
 
-const configuration_kind = Pipelines.SC.configuration_kind
+const configuration_kind = StreamlinerCore.configuration_kind
 
 """
     writable(path) -> path
@@ -138,15 +137,18 @@ const EXPECTED_KIND = Dict(:data => "table", :pipeline => "cards", :filter => "f
 """
     files_under(base; except) -> Vector{String}
 
-Every file under `base`, as paths relative to it, sorted. Hidden entries, `quarantine` and the
-directories in `except` — the other kinds' own, when they sit inside this one — are skipped.
+Every file under `base`, as paths relative to it, sorted. Hidden entries, folders named like
+the layout's own and the directories in `except` — the other kinds' own, when they sit inside
+this one — are skipped.
 """
 function files_under(base::AbstractString; except = String[])
     found = String[]
     for (root, dirs, names) in walkdir(base)
         # `walkdir` is top-down, so pruning `dirs` in place keeps it out of them.
+        # The layout's folder names are not subfolder names: what sits in one is either
+        # another kind's or set aside, and the kind routes would not read it.
         filter!(dirs) do dir
-            !startswith(dir, ".") && dir != "quarantine" && !(normpath(joinpath(root, dir)) in except)
+            !startswith(dir, ".") && !(dir in RESERVED) && !(normpath(joinpath(root, dir)) in except)
         end
         for name in names
             startswith(name, ".") && continue
@@ -156,10 +158,21 @@ function files_under(base::AbstractString; except = String[])
     return sort!(found)
 end
 
+# How a kind's directory reads from the workspace: `data`, a longer path when it is nested, the
+# whole path when it is elsewhere, and nothing when it is the workspace itself.
+function folder_label(kind::Symbol)
+    base, root = pointer(kind), workspace_directory()
+    base == root && return ""
+    rel = relpath(base, root)
+    return isabspath(rel) || startswith(rel, "..") ? base : rel
+end
+
 """
     list_files(req)
 
-Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}]}`.
+Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}],
+folders: {table, cards, filters}}` — `folders` being where each kind is listed from and saved
+to, as the workspace sees it, for a form to say so.
 
 Where a file sits says what it is offered as: a table under the data directory, a cards document
 under the pipeline directory, a filters document under the filter directory, subfolders included,
@@ -169,9 +182,7 @@ under `misplaced` rather than offered, so the Load tab can say why it is not the
 sharing one directory (a flat workspace) list each file once, under the kind its content says.
 
 What does not parse, is hidden, or is neither table nor document is not listed. A directory that
-does not exist answers nothing for its kind and warns: `walkdir` throws on it, which reached the
-client as a 500 with an empty body and the log as a 200 (`LoggingMiddleware` records the status
-set *before* a throw).
+does not exist answers nothing for its kind and warns, rather than fail the whole listing.
 """
 function list_files(req::HTTP.Request)
     _ = json_read(req)
@@ -199,13 +210,14 @@ function list_files(req::HTTP.Request)
     end
     sort!(files, by = file -> (file.kind, file.path))
     sort!(misplaced, by = file -> (file.kind, file.path))
-    return json_response((; files, misplaced))
+    folders = (; table = folder_label(:data), cards = folder_label(:pipeline), filters = folder_label(:filter))
+    return json_response((; files, misplaced, folders))
 end
 
 """
     read_document(req)
 
-A cards or filters document from the data directory: `{valid: true, document}`, or the failure
+A cards or filters document from the workspace: `{valid: true, document}`, or the failure
 envelope every other route uses, with the server's sentence. Wrapped rather than returned bare,
 so a client tells a reply from a failure by `valid` alone, never by guessing at a document's keys.
 
@@ -236,7 +248,7 @@ end
 """
     write_document(req)
 
-Save a cards or filters document into the data directory, as indented JSON: `{valid: true, path}`
+Save a cards or filters document into the workspace, as indented JSON: `{valid: true, path}`
 or the failure envelope. What makes a document round-trip where it can be loaded again — the
 browser's Download puts the file in a folder `list-files` never sees.
 
@@ -280,14 +292,24 @@ const KIND_ROUTES = (
 """
     kind_path(kind::Symbol, path) -> String
 
-`path` under the directory of `kind`, refusing one that leaves it or starts with a folder of the
-layout's own: the folder is implied, and `pipeline/mine.json` would otherwise nest.
+`path` under the directory of `kind`, refusing one that leaves it or passes through a folder
+named like the layout's own. The kind's folder is implied, so `pipeline/mine.json` would nest;
+and another kind's name inside it would read as that kind's folder to anyone looking.
 """
 function kind_path(kind::Symbol, path::AbstractString)
-    first_segment = first(splitpath(path))
-    first_segment in RESERVED && throw(
-        ArgumentError("`$(path)`: the folder is implied — save `$(relpath(path, first_segment))` instead")
+    segments = splitpath(normpath(path))
+    folders = segments[1:(end - 1)]
+    own = string(kind)
+    if !isempty(folders) && first(folders) == own
+        rest = joinpath(segments[2:end]...)
+        throw(ArgumentError("`$(path)`: the `$(own)` folder is implied — name it `$(rest)`"))
+    end
+    reserved = findfirst(in(RESERVED), folders)
+    isnothing(reserved) || throw(
+        ArgumentError("`$(path)`: `$(folders[reserved])` is one of the layout's folder names, and cannot be a subfolder's")
     )
+    length(segments) == 1 && first(segments) in RESERVED &&
+        throw(ArgumentError("`$(path)` is one of the layout's folder names, not a file"))
     return resolve_in(pointer(kind), path; what = "the $(kind) directory")
 end
 
@@ -325,7 +347,7 @@ a form to show beside the name rather than make the author open it.
 """
 function list_configurations(req::HTTP.Request)
     _ = json_read(req)
-    describe(kind) = map(Pipelines.SC.available_streamliner_configs(pointer(kind), string(kind))) do name
+    describe(kind) = map(StreamlinerCore.available_streamliner_configs(pointer(kind), string(kind))) do name
         path = string(name, ".toml")
         full = joinpath(pointer(kind), path)
         parsed = TOML.parsefile(full)
@@ -499,7 +521,7 @@ function failure_report(kind::AbstractString, exception::Exception)
     # fails on the first one, so it arrives singular and is wrapped to match.
     issues = if exception isa Pipelines.SchemaValidationErrors
         Pipelines.issue_report(exception)
-    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, Pipelines.SC.TransformError}
+    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, StreamlinerCore.TransformError}
         [Pipelines.issue_report(exception)]
     else
         []

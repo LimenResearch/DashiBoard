@@ -4,10 +4,11 @@
 Serve DashiBoard for `workspace`, the directory every file route is confined to.
 
 Five directories say where each kind of file is: `data_dir` the tables, `pipeline_dir` and
-`filter_dir` the documents, `model_dir` and `training_dir` the configurations. `extensions` and
-`extension_of` are what the launcher learned registering extensions, for a download to name them. Each defaults to
+`filter_dir` the documents, `model_dir` and `training_dir` the configurations. Each defaults to
 the workspace itself, which is a flat folder with everything in it; `bin/launch.jl` is where the
-layout, a `dashiboard.toml` and the flags turn into these keywords.
+layout, a `dashiboard.toml` and the flags turn into these keywords. `extensions` and
+`extension_of` are what the launcher learned registering extensions, for a download to name
+them.
 """
 function launch(
         workspace::AbstractString;
@@ -65,7 +66,7 @@ function launch(
         EXTENSION_OF => extension_of,
         begin
             # Said out loud, so whoever launched from a terminal knows the warm-up is over.
-            @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir
+            @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()
             async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
         end
     )

@@ -22,7 +22,8 @@ julia --project=DashiBoard bin/launch.jl <workspace>
 ```
 
 Each folder is where the server lists, reads and saves files of that kind. A folder may hold
-subfolders. A workspace need not be laid out: a plain folder with everything in it is served as it
+subfolders, under any name but the layout's own (`data`, `pipeline`, `filter`, `model`,
+`training`, `quarantine`). A workspace need not be laid out: a plain folder with everything in it is served as it
 is, with a warning naming the kinds that are read from the root. The workspace has to exist and
 be writable: saved documents and the extensions' environment go into it.
 
@@ -41,12 +42,13 @@ serving.
 
 It moves everything at the top of the folder, so it refuses a folder that is plainly something
 else: a home directory, or one holding a `Project.toml`, `Manifest.toml`, `package.json`,
-`Cargo.toml` or `pyproject.toml`.
+`Cargo.toml` or `pyproject.toml`. Hidden files and links are left where they are.
 
 ### `dashiboard.toml`
 
-Every entry is optional; a flag overrides the file. The server never writes this file, and
-refuses a request to: it names packages the launcher installs and loads.
+Every entry is optional; a flag overrides the file. A table or an entry the launcher does not
+know, or a value of the wrong kind, stops the launch by name. The server never writes this file,
+and refuses a request to: it names packages the launcher installs and loads.
 
 ```toml
 [directories]            # relative to this file, or absolute; absent = the folder, else the root
@@ -68,16 +70,22 @@ port = 8080
 ### Extensions
 
 The server registers nothing beyond DashiBoard's own cards, funnels and transforms unless the
-workspace names extensions. The launcher keeps one Julia environment for them under
-`<workspace>/.dashiboard/env/`, holding this checkout's own packages and each extension from the
-source given, and loads the extensions from it. It is built when the sources change — the table,
-or the project file of anything taken by path — which takes minutes; a launch with unchanged
-sources reuses it. An extension that cannot be resolved stops the launch, naming it. Deleting
-`.dashiboard/env/` forces a rebuild.
+workspace names extensions. With extensions the launch has two stages. The first builds one Julia
+environment under `<workspace>/.dashiboard/env/`, holding this checkout's own packages and each
+extension from the source given, resolved together. The second is the server itself, started
+inside that environment, so every package it loads is the version that was resolved with the
+extensions; stopping the launcher stops it.
+
+The environment is built when the sources change — the table, or the project file of anything
+taken by path — which takes minutes; a launch with unchanged sources reuses it. An extension that
+cannot be resolved stops the launch, naming it. Deleting `.dashiboard/env/` forces a rebuild.
+
+An extension is a package that exposes `DEFAULT_PARSER`, a `StreamlinerCore.Parser` holding what
+it registers. A source is a `path`, or a `url` with an optional `rev`.
 
 A `path` in the table is relative to the workspace. On the command line:
 `--extensions Name=/path/to/Package,Other=https://host/Other.jl@main`, which replaces the file's
-table; a relative path there is relative to where the command is run.
+table; a relative path there is relative to where the command is run, and `@rev` may be left out.
 
 Options (`julia --project=DashiBoard bin/launch.jl --help`):
 

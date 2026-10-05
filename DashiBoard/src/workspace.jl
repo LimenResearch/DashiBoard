@@ -1,117 +1,13 @@
-# A workspace: the directory the server is launched against, and where each kind of file is.
-#
-# The layout is the default answer to the directories Pipelines' `@with` block already takes —
-# `MODEL_DIR`, `TRAINING_DIR` — and DataIngestion's `DATA_DIR`; nothing here replaces them. A
-# `dashiboard.toml` at the root can say otherwise, and a flag can say otherwise again. In that
-# order: flag, file, the conventional folder when it exists, the root.
+# The parts of a workspace that need the server's own packages: sorting a plain folder into the
+# layout, which has to tell a table from a document from a configuration, and loading the
+# extensions a workspace names. Reading a workspace and building its environment are in
+# `Workspace.jl`, which needs neither.
 
-const KINDS = (:data, :pipeline, :filter, :model, :training)
+include("Workspace.jl")
 
-# Folder names no path under a kind's directory may start with: they are the layout's own.
-const RESERVED = (string.(KINDS)..., "quarantine")
-
-const WORKSPACE_FILE = "dashiboard.toml"
-
-# A path with no trailing separator, so that one folder written two ways is one folder.
-function tidy_path(path::AbstractString)
-    tidy = normpath(path)
-    return length(tidy) > 1 && endswith(tidy, Base.Filesystem.path_separator) ? chop(tidy) : tidy
-end
-
-"""
-    read_workspace_file(workspace) -> Dict
-
-The parsed `dashiboard.toml` at the root of `workspace`, or an empty `Dict` when there is none.
-"""
-function read_workspace_file(workspace::AbstractString)
-    path = joinpath(workspace, WORKSPACE_FILE)
-    return isfile(path) ? TOML.parsefile(path) : Dict{String, Any}()
-end
-
-"""
-    resolve_pointers(workspace, file, flags) -> (; dirs, fell_back)
-
-Where each kind of file is, as absolute paths keyed by kind: a `<kind>_dir` entry of `flags`
-first, then the `[directories]` entry of `file`, then `<workspace>/<kind>` when that folder
-exists, then the workspace itself. A relative flag is read from the working directory — it is
-what the user typed where they stand — and a relative entry of the file from the workspace. `fell_back` lists the kinds that landed on the root, for the
-launcher to warn about. A `[directories]` key that is not a kind is refused rather than ignored,
-so a misspelt one does not silently fall back.
-"""
-function resolve_pointers(workspace::AbstractString, file::AbstractDict, flags::AbstractDict)
-    root = tidy_path(abspath(workspace))
-    directories = get(file, "directories", Dict{String, Any}())
-    for key in keys(directories)
-        Symbol(key) in KINDS || throw(ArgumentError("`[directories]` has no `$(key)`: the kinds are $(join(KINDS, ", "))"))
-    end
-    from_file(path) = tidy_path(isabspath(path) ? path : joinpath(root, path))
-    from_flag(path) = tidy_path(abspath(path))
-    dirs = Dict{Symbol, String}()
-    fell_back = Symbol[]
-    for kind in KINDS
-        flag = get(flags, string(kind, "_dir"), nothing)
-        entry = get(directories, string(kind), nothing)
-        conventional = joinpath(root, string(kind))
-        dirs[kind] = if !isnothing(flag)
-            from_flag(flag)
-        elseif !isnothing(entry)
-            from_file(entry)
-        elseif isdir(conventional)
-            tidy_path(conventional)
-        else
-            push!(fell_back, kind)
-            root
-        end
-    end
-    return (; dirs, fell_back)
-end
-
-"""
-    missing_directories(dirs) -> Vector{Pair{Symbol, String}}
-
-The kinds whose directory is not there, with the path. Only a directory that was named — by a
-flag or by the file — can be missing, and a server on it would fail on its first question, so
-the launcher says so instead.
-"""
-missing_directories(dirs::AbstractDict) = Pair{Symbol, String}[kind => dirs[kind] for kind in KINDS if !isdir(dirs[kind])]
-
-"""
-    server_defaults(file) -> (; host, port)
-
-What `[server]` in a workspace file says, `nothing` where it says nothing.
-"""
-function server_defaults(file::AbstractDict)
-    server = get(file, "server", Dict{String, Any}())
-    return (; host = get(server, "host", nothing), port = get(server, "port", nothing))
-end
-
-"""
-    extension_sources(file, flags) -> Dict{String, Dict{String, Any}}
-
-The extensions to register and where each is, in the forms Julia's `[sources]` takes: the
-`[extensions]` table of the workspace file, or the `--extensions` flag when given, written
-`Name=path` or `Name=url@rev`, comma-separated. The flag replaces the table rather than adding to
-it, so a command line says all of what is loaded.
-"""
-function extension_sources(file::AbstractDict, flags::AbstractDict)
-    flag = get(flags, "extensions", nothing)
-    if isnothing(flag)
-        table = get(file, "extensions", Dict{String, Any}())
-        return Dict{String, Dict{String, Any}}(name => Dict{String, Any}(source) for (name, source) in pairs(table))
-    end
-    sources = Dict{String, Dict{String, Any}}()
-    for entry in split(flag, ','; keepempty = false)
-        name, source = split(entry, '='; limit = 2)
-        sources[String(name)] = if occursin("://", source)
-            url, rev = occursin('@', source) ? split(source, '@'; limit = 2) : (source, "main")
-            Dict{String, Any}("url" => String(url), "rev" => String(rev))
-        else
-            # Typed where the user stands, like a directory flag.
-            Dict{String, Any}("path" => abspath(String(source)))
-        end
-    end
-    return sources
-end
+using .Workspace: Workspace, KINDS, RESERVED, WORKSPACE_FILE, tidy_path, read_workspace_file,
+    resolve_pointers, missing_directories, server_defaults, extension_sources, locate_sources,
+    extension_environment, environment_path
 
 # Sorting a plain folder into the layout.
 
@@ -126,9 +22,9 @@ function destination_of(full::AbstractString)
             return nothing
         end
         kind = configuration_kind(parsed)
-        isnothing(kind) && return nothing
-        return kind
+        isnothing(kind) || return kind
     end
+    # A document may be written as TOML too, and is listed as one.
     kind = file_kind(full)
     kind == "table" && return "data"
     kind == "cards" && return "pipeline"
@@ -169,8 +65,9 @@ lost or overwritten. Hidden entries and the workspace file stay. The folders are
 A folder that is plainly something else — a home directory, a code project — is refused: the
 sorter moves everything it finds. Each move is reported as it is made.
 
-`placed` and `quarantined` are `(name, where)` pairs; `quarantined`'s `where` is the reason.
-Running it again on a laid-out folder sorts whatever is loose and otherwise does nothing.
+`placed`, `quarantined` and `left` are `(name, where)` pairs; for the last two `where` is the
+reason. A link is left where it is: moved, a relative one would point nowhere. Running it again
+on a laid-out folder sorts whatever is loose and otherwise does nothing.
 """
 function init_workspace(dir::AbstractString; io::IO = stdout)
     root = tidy_path(abspath(dir))
@@ -190,8 +87,17 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
     own = Set{String}(first(splitpath(folder)) for folder in values(folder_of) if !isabspath(folder))
     push!(own, "quarantine")
 
-    placed, quarantined = Tuple{String, String}[], Tuple{String, String}[]
+    placed, quarantined, left = Tuple{String, String}[], Tuple{String, String}[], Tuple{String, String}[]
     quarantine = joinpath(root, "quarantine")
+    # A file standing where the quarantine itself goes is the first thing to set aside.
+    if isfile(quarantine)
+        held = joinpath(root, free_name(root, "quarantine.file"))
+        mv(quarantine, held)
+        mkpath(quarantine)
+        mv(held, joinpath(quarantine, "quarantine"))
+        push!(quarantined, ("quarantine", "a file where the `quarantine` folder goes"))
+        println(io, "quarantine → quarantine/quarantine (a file where the `quarantine` folder goes)")
+    end
     function put_aside(name, reason)
         mkpath(quarantine)
         target = free_name(quarantine, name)
@@ -199,10 +105,17 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
         push!(quarantined, (name, reason))
         println(io, name, " → quarantine/", target == name ? "" : target, " (", reason, ")")
     end
-    loose(name) = !(startswith(name, ".") || name == WORKSPACE_FILE)
+    function loose(name)
+        (startswith(name, ".") || name == WORKSPACE_FILE) && return false
+        islink(joinpath(root, name)) || return true
+        push!(left, (name, "a link, left where it is"))
+        println(io, name, " (a link, left where it is)")
+        return false
+    end
     # What stands in the layout's way goes first: a file named like one of its folders, and a
     # folder that is not one of them. Only then can a file be placed where the folders go.
-    for name in sort!(filter(loose, readdir(root)))
+    entries = sort!(filter(loose, readdir(root)))
+    for name in entries
         full = joinpath(root, name)
         if isdir(full)
             name in own || put_aside(name, "a folder that is not the layout's")
@@ -210,9 +123,9 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
             put_aside(name, "a file where the `$(name)` folder goes")
         end
     end
-    for name in sort!(filter(loose, readdir(root)))
+    for name in entries
         full = joinpath(root, name)
-        isdir(full) && continue
+        isfile(full) || continue
         kind = destination_of(full)
         if isnothing(kind)
             put_aside(name, "neither a table, a document nor a configuration")
@@ -238,104 +151,19 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
         end
     end
     isempty(placed) && isempty(quarantined) && println(io, "nothing loose in ", root)
-    return (; placed, quarantined)
+    return (; placed, quarantined, left)
 end
 
-# Extensions: the packages a workspace names, where they are, and what they contributed.
+# Extensions: loading what a workspace names, and what each contributed.
 
 """
-    locate_sources(workspace, sources) -> Dict
+    load_extensions(sources) -> Vector{Module}
 
-`sources` with every `path` made absolute: one written relative is relative to the workspace, as
-a `[directories]` entry is. What the launcher resolves and loads from, and what a downloaded
-pipeline names, since its folder will be somewhere else.
+The named extensions, loaded from the active environment — the one `extension_environment`
+built, which the server is started in. Each must be a package exposing
+`DEFAULT_PARSER::StreamlinerCore.Parser`, which is what it contributes.
 """
-function locate_sources(workspace::AbstractString, sources::AbstractDict)
-    root = normpath(abspath(workspace))
-    return Dict{String, Dict{String, Any}}(
-        name => haskey(source, "path") ?
-            merge(Dict{String, Any}(source), Dict{String, Any}("path" => normpath(joinpath(root, expanduser(source["path"]))))) :
-            Dict{String, Any}(source)
-            for (name, source) in pairs(sources)
-    )
-end
-
-# The hash of a sources table, kept beside the environment so that unchanged sources do not
-# resolve again.
-# What an environment was built from: the sources, and the project files of everything taken by
-# path — an extension's and this checkout's own — since a dependency added to one of them asks
-# for a new resolution as much as a new source does.
-function sources_stamp(sources::AbstractDict)
-    paths = vcat(pkgdir(DashiBoard), own_packages(), String[source["path"] for source in values(sources) if haskey(source, "path")])
-    projects = [path => (isfile(joinpath(path, "Project.toml")) ? hash(read(joinpath(path, "Project.toml"))) : UInt(0)) for path in sort!(paths)]
-    return string("3:", hash((sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first), projects)))
-end
-
-# DashiBoard's own packages, where this checkout keeps them: the dependencies its project
-# names by path.
-function own_packages()
-    root = pkgdir(DashiBoard)
-    sources = get(TOML.parsefile(joinpath(root, "Project.toml")), "sources", Dict{String, Any}())
-    return String[normpath(joinpath(root, source["path"])) for source in values(sources) if haskey(source, "path")]
-end
-
-"""
-    extension_environment(workspace, sources; io = stderr) -> String
-
-The Julia project the server runs in when `workspace` names extensions:
-`<workspace>/.dashiboard/env/`, holding DashiBoard itself, developed from where this one is, and
-each extension from the source given — `path`, or `url` with `rev`, the forms Julia's `[sources]`
-takes. Resolved and instantiated when the sources differ from the last launch, left alone
-otherwise. An extension that cannot be resolved stops here with an error naming it.
-"""
-function extension_environment(workspace::AbstractString, sources::AbstractDict; io::IO = stderr)
-    env = joinpath(normpath(abspath(workspace)), ".dashiboard", "env")
-    sources = locate_sources(workspace, sources)
-    stamp_file = joinpath(env, "sources.stamp")
-    stamp = sources_stamp(sources)
-    isfile(stamp_file) && read(stamp_file, String) == stamp && isfile(joinpath(env, "Manifest.toml")) && return env
-    # Built afresh rather than amended: what the sources no longer name must not be carried
-    # along, and a half-made environment must not be taken for a finished one.
-    rm(env; recursive = true, force = true)
-    mkpath(env)
-    previous = Base.active_project()
-    try
-        Pkg.activate(env; io)
-        # The server's own packages first, each from where this one is: an extension names
-        # whatever version it was written against, and two versions of one package cannot
-        # both be the one the server runs.
-        Pkg.develop([Pkg.PackageSpec(path = path) for path in vcat(pkgdir(DashiBoard), own_packages())]; io)
-        for (name, source) in sort!(collect(pairs(sources)); by = first)
-            spec = if haskey(source, "path")
-                Pkg.PackageSpec(path = source["path"])
-            elseif haskey(source, "url")
-                Pkg.PackageSpec(url = source["url"], rev = get(source, "rev", "main"))
-            else
-                throw(ArgumentError("extension `$(name)` needs a `path` or a `url`"))
-            end
-            try
-                haskey(source, "path") ? Pkg.develop(spec; io) : Pkg.add(spec; io)
-            catch err
-                throw(ArgumentError("extension `$(name)` could not be resolved from $(source): $(sprint(showerror, err))"))
-            end
-        end
-        Pkg.instantiate(; io)
-        write(stamp_file, stamp)
-    finally
-        isnothing(previous) || Pkg.activate(previous; io = devnull)
-    end
-    return env
-end
-
-"""
-    load_extensions(sources; env) -> Vector{Module}
-
-The named extensions, loaded from `env` — the environment `extension_environment` built, made
-the active one — or from the active environment when none is given. Each must be a package
-exposing `DEFAULT_PARSER::StreamlinerCore.Parser`, which is what it contributes.
-"""
-function load_extensions(sources::AbstractDict; env::Union{AbstractString, Nothing} = nothing)
-    isnothing(env) || Pkg.activate(env; io = devnull)
+function load_extensions(sources::AbstractDict)
     return map(sort!(collect(String, keys(sources)))) do name
         mod = Base.require(Main, Symbol(name))
         isdefined(mod, :DEFAULT_PARSER) || throw(ArgumentError("extension `$(name)` has no `DEFAULT_PARSER`"))

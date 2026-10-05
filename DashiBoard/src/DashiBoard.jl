@@ -56,6 +56,8 @@ using DataIngestion: Filter, DataIngestion
 
 using Pipelines: Card, get_state, Pipelines
 
+using StreamlinerCore: StreamlinerCore
+
 # load the PipelinesMakie extension
 import AlgebraOfGraphics, CairoMakie
 

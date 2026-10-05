@@ -230,3 +230,14 @@ end
     @test StreamlinerCore.RichColumn("a").transform === identity
     @test_throws KeyError StreamlinerCore.RichColumn("a", "")
 end
+
+@testset "configurations in subfolders" begin
+    mktempdir() do dir
+        mkpath(joinpath(dir, "sub")); mkpath(joinpath(dir, ".hidden"))
+        for p in ("a.toml", joinpath("sub", "b.toml"), joinpath(".hidden", "c.toml"), "note.txt")
+            write(joinpath(dir, p), "name = \"x\"\n")
+        end
+        @test StreamlinerCore.available_streamliner_configs(dir) == ["a", "sub/b"]
+        @test StreamlinerCore.parse_without_properties(dir, "sub/b")["name"] == "x"
+    end
+end

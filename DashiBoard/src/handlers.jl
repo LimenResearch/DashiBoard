@@ -310,6 +310,25 @@ function kind_handler(handler, kind::Symbol, content::AbstractString)
 end
 
 """
+    list_configurations(req)
+
+The model and training configurations a card may name, each with what it holds:
+`{model: [{name, path, text, properties}], training: [...]}`. `name` is what a card's `type`
+says — a path from the directory without the extension — and `text` is the file as written, for
+a form to show beside the name rather than make the author open it.
+"""
+function list_configurations(req::HTTP.Request)
+    _ = json_read(req)
+    describe(kind) = map(Pipelines.SC.available_streamliner_configs(pointer(kind))) do name
+        path = string(name, ".toml")
+        full = joinpath(pointer(kind), path)
+        parsed = TOML.parsefile(full)
+        return (; name, path, text = read(full, String), properties = get(parsed, "properties", Any[]))
+    end
+    return json_response((; model = describe(:model), training = describe(:training)))
+end
+
+"""
     read_configuration(req)
 
 A model or a training configuration: `{valid: true, text, parsed}` — the TOML as written, for

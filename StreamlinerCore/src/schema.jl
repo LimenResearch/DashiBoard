@@ -25,10 +25,19 @@ end
 const MODEL_DIR = ScopedValue{String}()
 const TRAINING_DIR = ScopedValue{String}()
 
+# A configuration may be filed in a subfolder like any other file; its name is then the path
+# from `dir` without the extension, `sub/x`, which is also how a card names it.
 function available_streamliner_configs(dir)
-    return String[
-        fn for (fn, ext) in Iterators.map(splitext, readdir(dir)) if ext == ".toml"
-    ]
+    names = String[]
+    for (root, dirs, files) in walkdir(dir)
+        filter!(d -> !startswith(d, "."), dirs)
+        for file in files
+            stem, ext = splitext(file)
+            ext == ".toml" || continue
+            push!(names, replace(normpath(relpath(joinpath(root, stem), dir)), '\\' => '/'))
+        end
+    end
+    return sort!(names)
 end
 
 function parse_without_properties(dir, x)

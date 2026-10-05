@@ -341,6 +341,17 @@ mktempdir() do data_dir
             @test occursin("already exists", only(config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["errors"]))
         end
 
+        # What each configuration name means, for a form to show beside the name.
+        @testset "configurations" begin
+            listed = JSON.parse(HTTP.post(url * "list-configurations", body = "{}").body)
+            @test [m["name"] for m in listed["model"]] == ["classifier", "dense"]
+            dense = only(m for m in listed["model"] if m["name"] == "dense")
+            @test dense["path"] == "dense.toml"
+            @test dense["text"] == read(joinpath(model_dir, "dense.toml"), String)
+            @test dense["properties"][1]["key"] == "features"
+            @test [t["name"] for t in listed["training"]] == ["batched"]
+        end
+
         body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)
         resp = HTTP.post(url * "get-card-ir", body = body)
         payload = JSON.parse(resp.body)

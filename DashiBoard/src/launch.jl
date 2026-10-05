@@ -29,6 +29,7 @@ function launch(
     HTTP.register!(router, "POST", "/list-files", HTTP.streamhandler(list_files))
     HTTP.register!(router, "POST", "/read-document", HTTP.streamhandler(read_document))
     HTTP.register!(router, "POST", "/write-document", HTTP.streamhandler(write_document))
+    HTTP.register!(router, "POST", "/list-configurations", HTTP.streamhandler(list_configurations))
     HTTP.register!(router, "POST", "/read-configuration", HTTP.streamhandler(read_configuration))
     HTTP.register!(router, "POST", "/write-configuration", HTTP.streamhandler(write_configuration))
     for (name, kind, content, shape) in KIND_ROUTES

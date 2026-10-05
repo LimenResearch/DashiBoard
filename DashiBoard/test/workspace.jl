@@ -22,6 +22,13 @@ using TOML: TOML
         file = DashiBoard.read_workspace_file(ws)
         @test DashiBoard.server_defaults(file) == (host = nothing, port = 9000)
         @test DashiBoard.extension_sources(file, Dict()) == Dict("X" => Dict{String, Any}("path" => "/opt/X"))
+        # A path is kept as written, and made absolute for whoever has to find it from elsewhere
+        # — a downloaded pipeline names its extensions for another folder.
+        relative = Dict("X" => Dict{String, Any}("path" => "../X"), "U" => Dict{String, Any}("url" => "https://h/U.jl", "rev" => "main"))
+        located = DashiBoard.locate_sources(ws, relative)
+        @test located["X"]["path"] == normpath(joinpath(ws, "..", "X")) && isabspath(located["X"]["path"])
+        @test located["U"] == relative["U"]
+        @test relative["X"]["path"] == "../X"
         # the command line names an extension as Name=path or Name=url@rev
         @test DashiBoard.extension_sources(file, Dict("extensions" => "Y=/opt/Y,Z=https://h/Z.jl@main")) ==
             Dict("Y" => Dict{String, Any}("path" => "/opt/Y"), "Z" => Dict{String, Any}("url" => "https://h/Z.jl", "rev" => "main"))
@@ -87,6 +94,10 @@ const PROJECT = normpath(joinpath(@__DIR__, ".."))
         @test env == joinpath(ws, ".dashiboard", "env")
         project = TOML.parsefile(joinpath(env, "Project.toml"))
         @test haskey(project["deps"], "TestExtension") && haskey(project["deps"], "DashiBoard")
+        # The server's own packages are the launcher's, whatever version an extension names.
+        manifest = TOML.parsefile(joinpath(env, "Manifest.toml"))
+        core = only(manifest["deps"]["StreamlinerCore"])
+        @test haskey(core, "path") && !haskey(core, "repo-url")
         stamp = mtime(joinpath(env, "Manifest.toml"))
         # The same sources again: nothing to redo.
         sleep(1.1)
@@ -95,7 +106,7 @@ const PROJECT = normpath(joinpath(@__DIR__, ".."))
 
         modules = DashiBoard.load_extensions(sources; env)
         @test length(modules) == 1 && nameof(only(modules)) == :TestExtension
-        @test DashiBoard.provenance(modules) == Dict("transform:double" => "TestExtension")
+        @test DashiBoard.provenance(modules) == Dict("transform:double" => "TestExtension", "funnel:test" => "TestExtension")
     end
 end
 
@@ -134,6 +145,8 @@ launcher(args...) = addenv(
                     funnel = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "funnel")
                     transforms = only(p for p in funnel["value"]["objects"][""]["properties"] if p["key"] == "input_transforms")
                     @test "double" in transforms["value"]["values"]["enum"]
+                    # A method the extension defined is seen by the running server.
+                    @test [p["key"] for p in funnel["value"]["objects"]["test"]["properties"]] == ["marker"]
                     answered = true
                     break
                 catch

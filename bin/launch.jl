@@ -67,7 +67,7 @@ function (@main)(ARGS)
     host = something(d["host"], defaults.host, "127.0.0.1")
     port = something(d["port"], defaults.port, 8080)
 
-    sources = DashiBoard.extension_sources(file, flags)
+    sources = DashiBoard.locate_sources(workspace, DashiBoard.extension_sources(file, flags))
     extension_of = Dict{String, String}()
     plugins = Pipelines.SC.Parser[]
     if !isempty(sources)
@@ -77,7 +77,10 @@ function (@main)(ARGS)
         plugins = [getfield(mod, :DEFAULT_PARSER) for mod in modules]
     end
 
-    return launch(
+    # Called in the latest world: an extension loaded a moment ago defines methods — how its
+    # funnel describes itself, say — that the server's handlers have to see.
+    return Base.invokelatest(
+        launch,
         workspace;
         host, port,
         data_dir = dirs[:data], pipeline_dir = dirs[:pipeline], filter_dir = dirs[:filter],

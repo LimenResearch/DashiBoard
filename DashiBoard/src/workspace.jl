@@ -204,9 +204,34 @@ end
 
 # Extensions: the packages a workspace names, where they are, and what they contributed.
 
+"""
+    locate_sources(workspace, sources) -> Dict
+
+`sources` with every `path` made absolute: one written relative is relative to the workspace, as
+a `[directories]` entry is. What the launcher resolves and loads from, and what a downloaded
+pipeline names, since its folder will be somewhere else.
+"""
+function locate_sources(workspace::AbstractString, sources::AbstractDict)
+    root = normpath(abspath(workspace))
+    return Dict{String, Dict{String, Any}}(
+        name => haskey(source, "path") ?
+            merge(Dict{String, Any}(source), Dict{String, Any}("path" => normpath(joinpath(root, expanduser(source["path"]))))) :
+            Dict{String, Any}(source)
+            for (name, source) in pairs(sources)
+    )
+end
+
 # The hash of a sources table, kept beside the environment so that unchanged sources do not
 # resolve again.
-sources_stamp(sources::AbstractDict) = string(hash(sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first)))
+sources_stamp(sources::AbstractDict) = string("2:", hash(sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first)))
+
+# DashiBoard's own packages, where this checkout keeps them: the dependencies its project
+# names by path.
+function own_packages()
+    root = pkgdir(DashiBoard)
+    sources = get(TOML.parsefile(joinpath(root, "Project.toml")), "sources", Dict{String, Any}())
+    return String[normpath(joinpath(root, source["path"])) for source in values(sources) if haskey(source, "path")]
+end
 
 """
     extension_environment(workspace, sources; io = stderr) -> String
@@ -219,6 +244,7 @@ otherwise. An extension that cannot be resolved stops here with an error naming 
 """
 function extension_environment(workspace::AbstractString, sources::AbstractDict; io::IO = stderr)
     env = joinpath(normpath(abspath(workspace)), ".dashiboard", "env")
+    sources = locate_sources(workspace, sources)
     stamp_file = joinpath(env, "sources.stamp")
     stamp = sources_stamp(sources)
     isfile(stamp_file) && read(stamp_file, String) == stamp && isfile(joinpath(env, "Manifest.toml")) && return env
@@ -226,12 +252,13 @@ function extension_environment(workspace::AbstractString, sources::AbstractDict;
     previous = Base.active_project()
     try
         Pkg.activate(env; io)
-        Pkg.develop(Pkg.PackageSpec(path = pkgdir(DashiBoard)); io)
+        # The server's own packages first, each from where this one is: an extension names
+        # whatever version it was written against, and two versions of one package cannot
+        # both be the one the server runs.
+        Pkg.develop([Pkg.PackageSpec(path = path) for path in vcat(pkgdir(DashiBoard), own_packages())]; io)
         for (name, source) in sort!(collect(pairs(sources)); by = first)
-            # A relative path is relative to the workspace, as a `[directories]` entry is.
-            located(p) = isabspath(expanduser(p)) ? expanduser(p) : normpath(joinpath(workspace, p))
             spec = if haskey(source, "path")
-                Pkg.PackageSpec(path = located(source["path"]))
+                Pkg.PackageSpec(path = source["path"])
             elseif haskey(source, "url")
                 Pkg.PackageSpec(url = source["url"], rev = get(source, "rev", "main"))
             else

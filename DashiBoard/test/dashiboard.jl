@@ -279,6 +279,7 @@ mktempdir() do data_dir
             escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
             @test escaped["valid"] == false
             @test occursin("outside the data directory", only(escaped["errors"]))
+            # A table is read under the data directory, which may differ from the workspace.
 
             # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
             # found; nothing outside the directory, nothing that is not there.
@@ -297,7 +298,7 @@ mktempdir() do data_dir
             for path in ("../cards.json", joinpath(data_dir, "cards.json"))
                 outside = post("read-document", Dict("path" => path, "kind" => "cards"))
                 @test outside["valid"] == false
-                @test occursin("outside the data directory", only(outside["errors"]))
+                @test occursin("outside the workspace", only(outside["errors"]))
             end
             missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
             @test occursin("does not exist", only(missing_file["errors"]))
@@ -318,10 +319,26 @@ mktempdir() do data_dir
             @test save("sub/mine.json", "cards", true)["valid"] == true
 
             @test occursin("not a filters document", only(save("f.json", "filters", false)["errors"]))
-            @test occursin("outside the data directory", only(save("../x.json", "cards", false)["errors"]))
+            @test occursin("outside the workspace", only(save("../x.json", "cards", false)["errors"]))
             @test occursin(".json", only(save("x.toml", "cards", false)["errors"]))
-            @test occursin("folder", only(save("nowhere/x.json", "cards", false)["errors"]))
+            # A folder named on the way is made: a client that says where a file goes means it.
+            @test save("new/folder/x.json", "cards", false)["valid"] == true
+            @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
             @test !isfile(joinpath(data_dir, "f.json"))
+
+            # A model or a training configuration goes the same way, as TOML, checked for the
+            # kind it is said to be.
+            model_text = read(joinpath(model_dir, "dense.toml"), String)
+            config(route, body) = post(route, body)
+            written = config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))
+            @test written["valid"] == true && written["path"] == "anywhere/m.toml"
+            back = config("read-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model"))
+            @test back["valid"] == true && back["text"] == model_text && back["parsed"]["name"] == "basic"
+            @test occursin("not a training", only(config("write-configuration", Dict("path" => "t.toml", "kind" => "training", "text" => model_text))["errors"]))
+            @test occursin(".toml", only(config("write-configuration", Dict("path" => "m.json", "kind" => "model", "text" => model_text))["errors"]))
+            @test occursin("TOML", only(config("write-configuration", Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml"))["errors"]))
+            @test occursin("outside the workspace", only(config("write-configuration", Dict("path" => "../m.toml", "kind" => "model", "text" => model_text))["errors"]))
+            @test occursin("already exists", only(config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["errors"]))
         end
 
         body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)

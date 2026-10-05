@@ -31,9 +31,9 @@ end
 data_directory() = pointer(:data)
 
 """
-    resolve_in_data_dir(path) -> String
+    resolve_in(base, path; what = "the workspace") -> String
 
-`path`, read relative to the data directory, as an absolute path — or an `ArgumentError` if it
+`path`, read relative to `base`, as an absolute path — or an `ArgumentError` naming `what` if it
 leaves that directory.
 
 The one path function of the file routes. A client names files by the relative paths
@@ -41,14 +41,29 @@ The one path function of the file routes. A client names files by the relative p
 `load-files` used to join such a path without looking. Compared through `relpath` rather than
 `startswith`, which would let `/data-evil` pass for `/data`.
 """
-function resolve_in_data_dir(path::AbstractString)
-    outside() = throw(ArgumentError("`$(path)` is outside the data directory"))
+function resolve_in(base::AbstractString, path::AbstractString; what::AbstractString = "the workspace")
+    outside() = throw(ArgumentError("`$(path)` is outside $(what)"))
     isabspath(path) && outside()
-    base = data_directory()
     full = normpath(joinpath(base, path))
     rel = relpath(full, base)
     (rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)) && outside()
     return full
+end
+
+resolve_in_workspace(path::AbstractString) = resolve_in(workspace_directory(), path)
+resolve_in_data_dir(path::AbstractString) = resolve_in(data_directory(), path; what = "the data directory")
+
+# What makes a parsed TOML a model or a training configuration: the tables each is built from.
+"""
+    configuration_kind(parsed) -> Union{String, Nothing}
+
+`"model"`, `"training"`, or `nothing` when `parsed` is neither.
+"""
+function configuration_kind(parsed)
+    parsed isa AbstractDict || return nothing
+    (haskey(parsed, "components") || haskey(parsed, "loss")) && return "model"
+    (haskey(parsed, "optimizer") || haskey(parsed, "iterations")) && return "training"
+    return nothing
 end
 
 # What makes a parsed file a document of the UI rather than a table: the keys `Download cards`
@@ -192,11 +207,16 @@ The counterpart of the browser's file dialog, which read a local file the server
 showed the whole disk. `kind` is what the client expects: a filters file picked where cards
 were asked for is refused here, with a sentence, rather than loaded into the wrong store.
 """
-function read_document(req::HTTP.Request)
+# The document routes, with the directory a path is read against as an argument: the general
+# routes resolve against the workspace, so a client that says where a file goes decides; the
+# kind routes resolve against one kind's directory.
+read_document(req::HTTP.Request) = read_document(req, workspace_directory())
+
+function read_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
     spec = json_read(req)
     answer = try
         path, kind = spec["path"], spec["kind"]
-        full = resolve_in_data_dir(path)
+        full = resolve_in(base, path; what)
         isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
         document = parse_document(full)
         document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
@@ -215,24 +235,87 @@ or the failure envelope. What makes a document round-trip where it can be loaded
 browser's Download puts the file in a folder `list-files` never sees.
 
 Refuses: a path outside the directory; a name that does not end in `.json` (TOML is read, not
-written); a document whose shape is not `kind`'s; a folder that does not exist (no folders are
-created on a client's word); an existing file, unless `overwrite` is `true`.
+written); a document whose shape is not `kind`'s; an existing file, unless `overwrite` is `true`.
+A folder named on the way is made: a client that says where a file goes means it.
 """
-function write_document(req::HTTP.Request)
+write_document(req::HTTP.Request) = write_document(req, workspace_directory())
+
+function write_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
     spec = json_read(req)
     answer = try
         path, kind, document = spec["path"], spec["kind"], spec["document"]
-        full = resolve_in_data_dir(path)
+        full = resolve_in(base, path; what)
         lowercase(last(splitext(full))) == ".json" ||
             throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
         document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
-        isdir(dirname(full)) || throw(ArgumentError("the folder of `$(path)` does not exist"))
         (isfile(full) && get(spec, "overwrite", false) !== true) &&
             throw(ArgumentError("`$(path)` already exists"))
+        mkpath(dirname(full))
         write(full, JSON.json(document; pretty = true))
         (; valid = true, path)
     catch exception
         failure_report("document", exception)
+    end
+    return json_response(answer)
+end
+
+"""
+    read_configuration(req)
+
+A model or a training configuration: `{valid: true, text, parsed}` — the TOML as written, for
+a form to show, and parsed, for it to read — or the failure envelope. `kind` is `model` or
+`training` and must be what the file is.
+"""
+read_configuration(req::HTTP.Request) = read_configuration(req, workspace_directory())
+
+function read_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
+    spec = json_read(req)
+    answer = try
+        path, kind = spec["path"], spec["kind"]
+        full = resolve_in(base, path; what)
+        isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
+        text = read(full, String)
+        parsed = TOML.parse(text)
+        configuration_kind(parsed) == kind || throw(ArgumentError("`$(path)` is not a $(kind) configuration"))
+        (; valid = true, text, parsed)
+    catch exception
+        failure_report("configuration", exception)
+    end
+    return json_response(answer)
+end
+
+"""
+    write_configuration(req)
+
+Save a model or a training configuration as the TOML text given: `{valid: true, path}` or the
+failure envelope. The text is parsed to check it is TOML and is the `kind` it is said to be;
+it is written as sent, comments and all, since the file is what an author reads back.
+
+Refuses as `write_document` does: a path outside the directory, a name not ending in `.toml`,
+an existing file unless `overwrite` is `true`.
+"""
+write_configuration(req::HTTP.Request) = write_configuration(req, workspace_directory())
+
+function write_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
+    spec = json_read(req)
+    answer = try
+        path, kind, text = spec["path"], spec["kind"], spec["text"]
+        full = resolve_in(base, path; what)
+        lowercase(last(splitext(full))) == ".toml" ||
+            throw(ArgumentError("configurations are saved as TOML: `$(path)` does not end in .toml"))
+        parsed = try
+            TOML.parse(text)
+        catch err
+            throw(ArgumentError("this is not TOML: $(sprint(showerror, err))"))
+        end
+        configuration_kind(parsed) == kind || throw(ArgumentError("this is not a $(kind) configuration"))
+        (isfile(full) && get(spec, "overwrite", false) !== true) &&
+            throw(ArgumentError("`$(path)` already exists"))
+        mkpath(dirname(full))
+        write(full, text)
+        (; valid = true, path)
+    catch exception
+        failure_report("configuration", exception)
     end
     return json_response(answer)
 end

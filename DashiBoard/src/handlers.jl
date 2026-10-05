@@ -111,38 +111,74 @@ function file_kind(full::AbstractString)
     return DataIngestion.is_supported(full) ? "table" : nothing
 end
 
+# What a file under a kind's directory is expected to be.
+const EXPECTED_KIND = Dict(:data => "table", :pipeline => "cards", :filter => "filters")
+
+"""
+    files_under(base; except) -> Vector{String}
+
+Every file under `base`, as paths relative to it, sorted. Hidden entries, `quarantine` and the
+directories in `except` — the other kinds' own, when they sit inside this one — are skipped.
+"""
+function files_under(base::AbstractString; except = String[])
+    found = String[]
+    for (root, dirs, names) in walkdir(base)
+        # `walkdir` is top-down, so pruning `dirs` in place keeps it out of them.
+        filter!(dirs) do dir
+            !startswith(dir, ".") && dir != "quarantine" && !(normpath(joinpath(root, dir)) in except)
+        end
+        for name in names
+            startswith(name, ".") && continue
+            push!(found, normpath(relpath(joinpath(root, name), base)))
+        end
+    end
+    return sort!(found)
+end
+
 """
     list_files(req)
 
-Every file under the data directory the UI may pick, as `[{path, kind}]` — relative paths,
-subfolders included, sorted. Supersedes `get-acceptable-paths`, which listed tables only: cards
-and filters documents used to come in through the browser's own file dialog, which shows the
-whole disk, while tables were confined to this directory. One listing, one visibility.
+Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}]}`.
 
-Hidden files and folders are skipped. A data directory that does not exist answers `[]` and
-warns: `walkdir` throws on it, which reached the client as a 500 with an empty body and the log
-as a 200 (`LoggingMiddleware` records the status set *before* a throw).
+Where a file sits says what it is offered as: a table under the data directory, a cards document
+under the pipeline directory, a filters document under the filter directory, subfolders included,
+each path relative to its own directory. Content still has to agree — a JSON is parsed to find
+out, so a renamed document keeps its kind — and a file whose content says otherwise is reported
+under `misplaced` rather than offered, so the Load tab can say why it is not there. Two kinds
+sharing one directory (a flat workspace) list each file once, under the kind its content says.
+
+What does not parse, is hidden, or is neither table nor document is not listed. A directory that
+does not exist answers nothing for its kind and warns: `walkdir` throws on it, which reached the
+client as a 500 with an empty body and the log as a 200 (`LoggingMiddleware` records the status
+set *before* a throw).
 """
 function list_files(req::HTTP.Request)
     _ = json_read(req)
-    base = data_directory()
-    if !isdir(base)
-        @warn "the data directory does not exist" base
-        return json_response([])
-    end
     files = @NamedTuple{path::String, kind::String}[]
-    for (root, dirs, names) in walkdir(base)
-        # `walkdir` is top-down, so pruning `dirs` in place keeps it out of hidden folders.
-        filter!(dir -> !startswith(dir, "."), dirs)
-        for name in names
-            startswith(name, ".") && continue
-            kind = file_kind(joinpath(root, name))
-            isnothing(kind) && continue
-            push!(files, (; path = normpath(relpath(root, base), name), kind))
+    misplaced = @NamedTuple{path::String, kind::String, found::String}[]
+    bases = Dict{String, Vector{Symbol}}()
+    for kind in (:data, :pipeline, :filter)
+        push!(get!(bases, pointer(kind), Symbol[]), kind)
+    end
+    for (base, kinds) in bases
+        if !isdir(base)
+            @warn "a directory of the workspace does not exist" base kinds
+            continue
+        end
+        expected = [EXPECTED_KIND[kind] for kind in kinds]
+        for path in files_under(base; except = collect(keys(bases)))
+            found = file_kind(joinpath(base, path))
+            isnothing(found) && continue
+            if found in expected
+                push!(files, (; path, kind = found))
+            elseif length(kinds) < length(EXPECTED_KIND)
+                push!(misplaced, (; path, kind = string(first(kinds)), found))
+            end
         end
     end
-    sort!(files, by = file -> file.path)
-    return json_response(files)
+    sort!(files, by = file -> (file.kind, file.path))
+    sort!(misplaced, by = file -> (file.kind, file.path))
+    return json_response((; files, misplaced))
 end
 
 """

@@ -265,7 +265,8 @@ mktempdir() do data_dir
             # a table by content, so the kind survives a rename; what does not parse, what is
             # hidden and what is neither table nor document are not listed.
             listed = post("list-files", Dict())
-            @test [(f["path"], f["kind"]) for f in listed] == [
+            @test listed["misplaced"] == []
+            @test [(f["path"], f["kind"]) for f in listed["files"]] == [
                 ("cards.json", "cards"),
                 ("cards.toml", "cards"),
                 ("filters.json", "filters"),
@@ -310,7 +311,7 @@ mktempdir() do data_dir
             saved = save("sub/mine.json", "cards", false)
             @test saved["valid"] == true
             @test saved["path"] == "sub/mine.json"
-            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())]
+            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["files"]]
             @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["document"] == doc
 
             @test occursin("already exists", only(save("sub/mine.json", "cards", false)["errors"]))
@@ -848,7 +849,38 @@ mktempdir() do data_dir
         )
         resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
         @test resp.status == 200
-        @test JSON.parse(resp.body) == []
+        @test JSON.parse(resp.body) == Dict("files" => [], "misplaced" => [])
         close(nowhere)
+    end
+
+    # With a layout, a file is offered for what its folder says it is, as long as its content
+    # agrees; one whose content says otherwise is reported, not offered.
+    @testset "files by folder" begin
+        mktempdir() do ws
+            for d in ("data", "pipeline/sub", "filter"), p in (joinpath(ws, d),)
+                mkpath(p)
+            end
+            write(joinpath(ws, "data", "t.csv"), "a,b\n1,2\n")
+            write(joinpath(ws, "pipeline", "sub", "p.json"), JSON.json(cards_doc))
+            write(joinpath(ws, "pipeline", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
+            write(joinpath(ws, "pipeline", "note.md"), "neither a document nor a table")
+            write(joinpath(ws, "pipeline", "t2.csv"), "a,b\n1,2\n")
+            write(joinpath(ws, "filter", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
+            laid_port = first_free_port(8381:8480)
+            laid = DashiBoard.launch(
+                ws; port = laid_port, async = true, model_dir, training_dir,
+                data_dir = joinpath(ws, "data"), pipeline_dir = joinpath(ws, "pipeline"), filter_dir = joinpath(ws, "filter"),
+            )
+            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(laid_port)/list-files", body = "{}").body)
+            # Grouped by kind, then by path; what is neither table nor document is not mentioned.
+            @test [(f["path"], f["kind"]) for f in listed["files"]] == [
+                ("sub/p.json", "cards"), ("f.json", "filters"), ("t.csv", "table"),
+            ]
+            @test listed["misplaced"] == [
+                Dict("path" => "f.json", "kind" => "pipeline", "found" => "filters"),
+                Dict("path" => "t2.csv", "kind" => "pipeline", "found" => "table"),
+            ]
+            close(laid)
+        end
     end
 end

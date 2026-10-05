@@ -1,4 +1,6 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
+using ZipArchives: ZipReader, zip_names, zip_readentry
+using TOML: TOML
 using Sockets: Sockets
 using Base.ScopedValues: @with
 using DashiBoard
@@ -350,6 +352,62 @@ mktempdir() do data_dir
             @test dense["text"] == read(joinpath(model_dir, "dense.toml"), String)
             @test dense["properties"][1]["key"] == "features"
             @test [t["name"] for t in listed["training"]] == ["batched"]
+        end
+
+        # A pipeline downloads as a workspace: the document, the configurations it names, and
+        # which extensions it needs.
+        @testset "bundle" begin
+            fit = Dict(
+                "id" => "fit", "card" => Dict(
+                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                )
+            )
+            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+            filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
+            resp = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc, filters)))
+            @test HTTP.header(resp, "Content-Type") == "application/zip"
+            @test occursin("mine.zip", HTTP.header(resp, "Content-Disposition"))
+            zip = ZipReader(Vector{UInt8}(resp.body))
+            @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
+            @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
+            @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
+            # Nothing here came from an extension, so none is named.
+            @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
+            without = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc)))
+            @test !("filter/mine.json" in zip_names(ZipReader(Vector{UInt8}(without.body))))
+            # A configuration the document names but the directory lacks is a pointed issue.
+            missing = deepcopy(doc); missing["nodes"][1]["card"]["model"]["type"] = "nosuch"
+            refused = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = missing)), status_exception = false)
+            @test HTTP.header(refused, "Content-Type") == "application/json"
+            report = JSON.parse(refused.body)
+            @test report["valid"] == false
+            @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
+        end
+
+        # With a provenance table, the bundle names exactly the extensions the document uses.
+        @testset "bundle names its extensions" begin
+            fit = Dict(
+                "id" => "fit", "card" => Dict(
+                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
+                                     "input_transforms" => Dict("TEMP" => "log")),
+                )
+            )
+            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+            @with(
+                DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
+                DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
+                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+                begin
+                    @test DashiBoard.needed_extensions(doc) == ["Fake"]
+                    bytes = DashiBoard.bundle_pipeline(doc, nothing, "x")
+                    toml = TOML.parse(zip_readentry(ZipReader(bytes), "dashiboard.toml", String))
+                    @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
+                end
+            )
         end
 
         body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)

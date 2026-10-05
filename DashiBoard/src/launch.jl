@@ -4,7 +4,8 @@
 Serve DashiBoard for `workspace`, the directory every file route is confined to.
 
 Five directories say where each kind of file is: `data_dir` the tables, `pipeline_dir` and
-`filter_dir` the documents, `model_dir` and `training_dir` the configurations. Each defaults to
+`filter_dir` the documents, `model_dir` and `training_dir` the configurations. `extensions` and
+`extension_of` are what the launcher learned registering extensions, for a download to name them. Each defaults to
 the workspace itself, which is a flat folder with everything in it; `bin/launch.jl` is where the
 layout, a `dashiboard.toml` and the flags turn into these keywords.
 """
@@ -18,7 +19,9 @@ function launch(
         filter_dir::AbstractString = workspace,
         model_dir::AbstractString = workspace,
         training_dir::AbstractString = workspace,
-        parser::Pipelines.Parser = Pipelines.default_parser()
+        parser::Pipelines.Parser = Pipelines.default_parser(),
+        extensions::AbstractDict = Dict{String, Any}(),
+        extension_of::AbstractDict = Dict{String, String}()
     )
 
     router = HTTP.Router(
@@ -30,6 +33,7 @@ function launch(
     HTTP.register!(router, "POST", "/read-document", HTTP.streamhandler(read_document))
     HTTP.register!(router, "POST", "/write-document", HTTP.streamhandler(write_document))
     HTTP.register!(router, "POST", "/list-configurations", HTTP.streamhandler(list_configurations))
+    HTTP.register!(router, "POST", "/bundle-pipeline", HTTP.streamhandler(bundle_pipeline))
     HTTP.register!(router, "POST", "/read-configuration", HTTP.streamhandler(read_configuration))
     HTTP.register!(router, "POST", "/write-configuration", HTTP.streamhandler(write_configuration))
     for (name, kind, content, shape) in KIND_ROUTES
@@ -57,6 +61,8 @@ function launch(
         WORKSPACE => workspace,
         PIPELINE_DIR => pipeline_dir,
         FILTER_DIR => filter_dir,
+        EXTENSIONS => extensions,
+        EXTENSION_OF => extension_of,
         begin
             # Said out loud, so whoever launched from a terminal knows the warm-up is over.
             @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace

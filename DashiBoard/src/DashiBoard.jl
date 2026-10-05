@@ -70,8 +70,16 @@ const WORKSPACE = ScopedValue("")
 const PIPELINE_DIR = ScopedValue("")
 const FILTER_DIR = ScopedValue("")
 
+# The extensions the server was launched with — each name and where it is, as the workspace
+# file says — and which of them contributed each registry entry (`"model:fuzzy"`,
+# `"funnel:time"`, `"loader:x"`, `"transform:y"`). Filled by the launcher; what lets a pipeline's
+# download name exactly the extensions it needs.
+const EXTENSIONS = ScopedValue(Dict{String, Any}())
+const EXTENSION_OF = ScopedValue(Dict{String, String}())
+
 include("workspace.jl")
 include("handlers.jl")
+include("bundle.jl")
 include("middleware.jl")
 include("launch.jl")
 

@@ -12,11 +12,15 @@ Two processes. In one terminal, at the top of the repository, the Julia server �
 and answers every question the page asks:
 
 ```
-julia --project=DashiBoard bin/launch.jl path/to/data
+julia --project=DashiBoard bin/launch.jl path/to/workspace
 ```
 
-`path/to/data` is the only folder the page can reach: tables, pipelines and filter documents are
-read from and written to it, and nothing outside it is ever listed.
+`path/to/workspace` is the only folder the page can reach. Laid out, it has a folder per kind of
+file — `data/` for tables, `pipeline/` and `filter/` for the documents, `model/` and `training/`
+for the configurations — and the page lists, loads and saves each kind in its own folder. A plain
+folder works too, with everything read from the root. `bin/README.md` has the layout, the
+`dashiboard.toml` that can name the folders and the extensions to load, and `--init`, which sorts
+a plain folder into the layout.
 
 In a second terminal, the UI:
 
@@ -49,8 +53,12 @@ the graph of how the cards relate, and each card's report.
 
 ## Loading data
 
-Pick files in the **Load** tab and press `Load`. Only the data folder is listed, and only files
-DashiBoard can read.
+Pick files in the **Load** tab and press `Load`. Only the workspace's `data/` folder is listed,
+subfolders included, and only files DashiBoard can read.
+
+A file that sits in a folder but is not what that folder holds — a filters document saved under
+`pipeline/`, say — is not offered; the picker says so in amber under its list, so you know where
+it is and what it was taken for.
 
 ![choosing a file](assets/load.png)
 
@@ -138,10 +146,12 @@ is never written. A model that yields one thing has nothing to choose, and the f
 
 A streamliner card trains a model and writes its predictions. It has three parts.
 
-**model** and **training** each list the configurations the server was launched with. Choosing
-one shows the settings that configuration leaves open — the number of features, the number of
-iterations. When there is only one configuration there is nothing to choose, and its settings are
-shown straight away.
+**model** and **training** each list the configurations in the workspace's `model/` and
+`training/` folders. Choosing one shows the file itself, folded under the name, so what the
+configuration fixes — layers, loss, optimizer — can be read without opening it, and the settings
+it leaves open — the number of features, the number of iterations — as controls. The `↻` beside
+the name lists the folders again, for a file added while the server runs. When there is only one
+configuration there is nothing to choose, and its file and settings are shown straight away.
 
 **funnel** says which rows and columns the model is fed:
 
@@ -216,9 +226,16 @@ where to look, it does not stop you.
 
 ## Saving
 
-At the foot of the Process tab, `Load pipeline`, `Save pipeline` and `Download pipeline` work on
-the whole document — its groups and its cards — in the server's data folder. Presets are yours,
-not the pipeline's, and are not saved with it.
+At the foot of the Process tab, `Load pipeline` and `Save pipeline` work on the whole document —
+its groups and its cards — in the workspace's `pipeline/` folder; the name you type is relative to
+it, and may name a subfolder (`experiments/first`). Filters are saved the same way in `filter/`.
+Presets are yours, not the pipeline's, and are not saved with it.
+
+`Download pipeline` gives you a zip laid out as a workspace: the document under `pipeline/`, the
+model and training configurations it names under `model/` and `training/`, the filters under
+`filter/` when the Filters tab holds some, and a `dashiboard.toml` naming the extensions the
+document needs. Unpacked beside the table, it is a workspace that launches and runs the same
+pipeline. The data is not in it.
 
 ---
 

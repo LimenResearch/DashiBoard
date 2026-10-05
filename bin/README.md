@@ -9,17 +9,80 @@ Two processes: the Julia server (`bin/launch.jl`) and the Vite dev server for th
 julia --project=DashiBoard bin/launch.jl <workspace>
 ```
 
-`<workspace>` is the folder whose files the **Load** tab lists, e.g.
-`~/Documents/Limen/agentgraph/.dashi`.
+`<workspace>` is the directory the server works in. Laid out, it looks like this:
+
+```
+<workspace>/
+├── dashiboard.toml     optional
+├── data/               tables: parquet, csv, json tables
+├── pipeline/           pipeline documents
+├── filter/             filters documents
+├── model/              model configuration TOMLs
+└── training/           training configuration TOMLs
+```
+
+Each folder is where the server lists, reads and saves files of that kind. A folder may hold
+subfolders. A workspace need not be laid out: a plain folder with everything in it is served as it
+is, with a warning naming the kinds that are read from the root.
+
+### Sorting a plain folder
+
+```sh
+julia --project=DashiBoard bin/launch.jl <folder> --init
+```
+
+moves each loose file into its folder by what it is — a table, a pipeline or filters document, a
+model or training configuration — and writes `dashiboard.toml`. What it cannot place (a file of no
+known kind, a folder that is not the layout's, a name already taken where the file belongs) goes
+to `quarantine/`, which the server ignores, and the report says why. It exits without serving.
+
+### `dashiboard.toml`
+
+Every entry is optional; a flag overrides the file.
+
+```toml
+[directories]            # relative to this file, or absolute; absent = the folder, else the root
+data = "data"
+pipeline = "pipeline"
+filter = "filter"
+model = "model"
+training = "training"
+
+[extensions]             # each installed extension and where it is, as Julia's [sources] says it
+StreamlinerExtras = { path = "/opt/limen/StreamlinerExtras.jl" }
+TimeFunnels = { url = "https://github.com/LimenResearch/TimeFunnels.jl", rev = "main" }
+
+[server]
+host = "127.0.0.1"
+port = 8080
+```
+
+### Extensions
+
+The server registers nothing beyond DashiBoard's own cards, funnels and transforms unless the
+workspace names extensions. For each one the launcher keeps a Julia environment under
+`<workspace>/.dashiboard/env/`, built from the sources given and instantiated when they change
+— the first launch with a new extension takes minutes; later ones do not — and loads the package
+from it. An extension that cannot be resolved stops the launch, naming it. On the command line:
+`--extensions Name=/path/to/Package,Other=https://host/Other.jl@main`, which replaces the file's
+table.
 
 Options (`julia --project=DashiBoard bin/launch.jl --help`):
 
 | flag | default | meaning |
 |---|---|---|
-| `--host` | `127.0.0.1` | address to bind |
-| `--port` | `8080` | port to bind |
-| `--model_dir` | `static/model` | model configuration TOMLs |
-| `--training_dir` | `static/training` | training configuration TOMLs |
+| `--host` | the file's, else `127.0.0.1` | address to bind |
+| `--port` | the file's, else `8080` | port to bind |
+| `--data_dir` | `<workspace>/data` | tables |
+| `--pipeline_dir` | `<workspace>/pipeline` | pipeline documents |
+| `--filter_dir` | `<workspace>/filter` | filters documents |
+| `--model_dir` | `<workspace>/model` | model configuration TOMLs |
+| `--training_dir` | `<workspace>/training` | training configuration TOMLs |
+| `--extensions` | the file's | extensions to register |
+| `--init` | | sort the folder into the layout and exit |
+
+The repository's own `static/model` and `static/training` are not defaults any more: name them
+with `--model_dir static/model --training_dir static/training` when serving a folder that has none.
 
 ### Debug: the access log
 

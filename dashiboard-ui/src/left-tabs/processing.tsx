@@ -50,6 +50,7 @@ import {
   type ProbeNode,
   type ProbeStore,
   type ProbeIssue,
+  FILTERS_STORE, filtersCodec,
 } from "../stores";
 import { defaultsFor, onlyOptions, withoutOption, type Defs, type IRNode } from "../ir";
 import { checkNames, checkNode, type Incompleteness } from "../completeness";
@@ -80,6 +81,7 @@ const sameVocabulary = (a: Vocabulary, b: Vocabulary) =>
 export function Cards() {
   const [state] = CARDS_STORE;
   const [metadata] = LOADER_STORE;
+  const [filters] = FILTERS_STORE;
   const [probe, setProbe] = PROBE_STORE;
   const [presets] = PRESETS_STORE;
 
@@ -731,6 +733,12 @@ export function Cards() {
         kind="cards"
         noun="pipeline"
         document={() => JSON.parse(CARDS_JSON()) as CardsStore}
+        // The filters travel with the pipeline when there are any to travel.
+        filters={() => {
+          const encoded = filtersCodec.encode(filters);
+          const held = Object.keys(encoded.numerical).length + Object.keys(encoded.categorical).length;
+          return held > 0 ? encoded : null;
+        }}
         onLoad={loadCards}
       />
     </div>

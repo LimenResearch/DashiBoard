@@ -3,11 +3,15 @@ import { render, cleanup, waitFor, fireEvent } from '@solidjs/testing-library';
 import { createSignal, flush, untrack } from 'solid-js';
 
 const postRequest = vi.fn();
+const postBlob = vi.fn();
 const downloadJSON = vi.fn();
+const saveBlob = vi.fn();
 const refreshed = vi.fn();
 vi.mock('../requests', () => ({
   postRequest: (...args: unknown[]) => postRequest(...args),
+  postBlob: (...args: unknown[]) => postBlob(...args),
   downloadJSON: (...args: unknown[]) => downloadJSON(...args),
+  saveBlob: (...args: unknown[]) => saveBlob(...args),
   getURL: (page: string) => `/${page}`,
   setApiBase: vi.fn(), apiBase: () => '',
 }));
@@ -25,7 +29,7 @@ const CARDS = { nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: {} };
 const serve = (replies: Record<string, unknown>) =>
   postRequest.mockImplementation((page: string) => Promise.resolve(replies[page] ?? null));
 
-beforeEach(() => { postRequest.mockReset(); downloadJSON.mockReset(); refreshed.mockReset(); });
+beforeEach(() => { postRequest.mockReset(); postBlob.mockReset(); downloadJSON.mockReset(); saveBlob.mockReset(); refreshed.mockReset(); });
 afterEach(cleanup);
 
 describe('Documents', () => {
@@ -151,5 +155,56 @@ describe('Documents', () => {
     expect(postRequest).toHaveBeenCalledWith('read-filters', { path: 'sub/filters.json' }, null);
     // and it says which folder the name is relative to
     expect(container.textContent).toMatch(/filter\//);
+  });
+
+  // A pipeline downloads as a workspace zip: the document, what it names, and the filters when
+  // the Filters tab holds some — made by the server, which knows what the document names.
+  describe('downloading a pipeline', () => {
+    const FILTERS = { numerical: { TEMP: { min: 0, max: 1 } }, categorical: {} };
+    const zip = new Blob(['zip bytes'], { type: 'application/zip' });
+
+    it('asks the server for the bundle, under the name given, and saves the zip', async () => {
+      postBlob.mockImplementation(() => Promise.resolve({ blob: zip, filename: 'mine.zip' }));
+      const { container, getByText } = render(() => (
+        <Documents kind="cards" noun="pipeline" document={() => CARDS} filters={() => FILTERS} onLoad={() => []} />
+      ));
+      const name = container.querySelector('input[aria-label="file name"]') as HTMLInputElement;
+      name.value = 'mine.json'; fireEvent.change(name); await flush();
+      fireEvent.click(getByText('Download pipeline'));
+      await waitFor(() => expect(saveBlob).toHaveBeenCalledWith(zip, 'mine.zip'));
+      expect(postBlob).toHaveBeenCalledWith('bundle-pipeline', { name: 'mine', cards: CARDS, filters: FILTERS });
+      expect(downloadJSON).not.toHaveBeenCalled();
+    });
+
+    it('leaves the filters out when the tab holds none', async () => {
+      postBlob.mockImplementation(() => Promise.resolve({ blob: zip, filename: 'pipeline.zip' }));
+      const { getByText } = render(() => (
+        <Documents kind="cards" noun="pipeline" document={() => CARDS} filters={() => null} onLoad={() => []} />
+      ));
+      fireEvent.click(getByText('Download pipeline'));
+      await waitFor(() => expect(postBlob).toHaveBeenCalled());
+      expect(postBlob.mock.calls[0][1]).toEqual({ name: 'pipeline', cards: CARDS });
+    });
+
+    it('shows the server\'s sentence when it refuses, and saves nothing', async () => {
+      postBlob.mockImplementation(() => Promise.resolve({ json: { valid: false, errors: ['no model configuration is called `nosuch`'], issues: [] } }));
+      const { container, getByText } = render(() => (
+        <Documents kind="cards" noun="pipeline" document={() => CARDS} filters={() => null} onLoad={() => []} />
+      ));
+      fireEvent.click(getByText('Download pipeline'));
+      await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
+      expect(container.querySelector('[data-document-error]')!.textContent).toContain('nosuch');
+      expect(saveBlob).not.toHaveBeenCalled();
+    });
+
+    it('says so when the server cannot be reached', async () => {
+      postBlob.mockImplementation(() => Promise.resolve(null));
+      const { container, getByText } = render(() => (
+        <Documents kind="cards" noun="pipeline" document={() => CARDS} filters={() => null} onLoad={() => []} />
+      ));
+      fireEvent.click(getByText('Download pipeline'));
+      await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
+      expect(container.querySelector('[data-document-error]')!.textContent).toMatch(/reach/);
+    });
   });
 });

@@ -56,6 +56,38 @@ export function downloadJSON(obj: any, ref: HTMLAnchorElement) {
   window.URL.revokeObjectURL(href);
 }
 
+/**
+ * A POST whose answer is a file — a zip — or, when the server refused, its JSON envelope.
+ * `null` when the server could not be reached at all, as `postRequest` answers.
+ */
+export async function postBlob(
+  page: string, body: unknown,
+): Promise<{ blob: Blob; filename: string } | { json: unknown } | null> {
+  try {
+    const response = await fetch(getURL(page), {
+      method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" },
+    });
+    const type = response.headers.get("Content-Type") ?? "";
+    if (type.includes("application/json")) return { json: await response.json() };
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? `${page}.zip`;
+    return { blob: await response.blob(), filename };
+  } catch {
+    console.log("Request to " + page + " failed");
+    return null;
+  }
+}
+
+/** Hand the browser a file to save, under `filename`. */
+export function saveBlob(blob: Blob, filename: string) {
+  const href = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
+  anchor.click();
+  window.URL.revokeObjectURL(href);
+}
+
 export function getURL(page: string) {
   const base = apiBase();
   const path = page.replace(LEADING_SLASHES, "");

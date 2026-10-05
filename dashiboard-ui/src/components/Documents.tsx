@@ -6,7 +6,7 @@ import { DownloadJSONButton } from "./JSON";
 import { FilePicker, type FileKind } from "./FilePicker";
 import { folderOf } from "../folders";
 import { Input } from "./Input";
-import { postRequest } from "../requests";
+import { postBlob, postRequest, saveBlob } from "../requests";
 
 // The document row of a tab: load one from the data directory, save this one into it, download
 // it. One component for cards and for filters, because the three actions are the same and only
@@ -34,6 +34,12 @@ type DocumentsProps = {
   /** Put a loaded document in place. Resolves to the sentences nobody could place on an item
    *  (a loop; an unreachable server); empty when there is nothing to say. */
   onLoad: (document: unknown) => Promise<string[]> | string[];
+  /**
+   * For a cards document: the filters document to bundle with it, `null` when the Filters tab
+   * holds none. Given, Download asks the server for the workspace zip instead of saving the
+   * bare JSON.
+   */
+  filters?: () => unknown | null;
 };
 
 type Reply = { valid?: boolean; document?: unknown; errors?: string[] } | null;
@@ -104,6 +110,27 @@ export function Documents(props: DocumentsProps) {
     }
   }
 
+  /** The name as the author typed it, without the extension a document carries. */
+  const stem = () => name().replace(/\.json$/i, "") || noun();
+
+  // A pipeline downloads as a workspace: the document, the configurations it names, the
+  // filters — which the server assembles, since it is the one that knows what is named.
+  async function bundle() {
+    setBusy(true);
+    try {
+      const filters = props.filters?.() ?? null;
+      const answer = await postBlob("bundle-pipeline", {
+        name: stem(), cards: props.document(), ...(filters === null ? {} : { filters }),
+      });
+      if (answer === null) return say([UNREACHABLE]);
+      if ("json" in answer) return say(sentences(answer.json as Reply));
+      say([]);
+      saveBlob(answer.blob, answer.filename);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div data-documents={props.kind} class="flex flex-col gap-2 p-3">
       <FilePicker
@@ -126,9 +153,18 @@ export function Documents(props: DocumentsProps) {
         <Button disabled={busy() || name() === ""} onClick={() => void save()}>
           Save {noun()}
         </Button>
-        <DownloadJSONButton data={props.document()} name={name() || `${noun()}.json`}>
-          Download {noun()}
-        </DownloadJSONButton>
+        <Show
+          when={props.filters !== undefined}
+          fallback={
+            <DownloadJSONButton data={props.document()} name={name() || `${noun()}.json`}>
+              Download {noun()}
+            </DownloadJSONButton>
+          }
+        >
+          <Button disabled={busy()} onClick={() => void bundle()}>
+            Download {noun()}
+          </Button>
+        </Show>
       </div>
       {/* Same dress as a failed run's text under Run: the server's own sentence about the
           document. Gone on the next load or save, and on the next edit. */}

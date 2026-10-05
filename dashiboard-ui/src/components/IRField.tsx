@@ -309,10 +309,11 @@ export function IRField(props: IRFieldProps) {
               const branch = w().objects[chosen()];
               return branch === undefined ? undefined : widgetFor(branch, props.defs);
             };
-            // One option that takes no settings leaves nothing to show.
+            // One option that takes no settings leaves nothing to show — unless the option is a
+            // file, which is itself worth showing.
             const nothing = () => {
               const b = branchWidget();
-              return lone() && b !== undefined && b.kind === "object" && b.properties.length === 0;
+              return w().optionsFrom === undefined && lone() && b !== undefined && b.kind === "object" && b.properties.length === 0;
             };
             return (
               <Show when={!nothing()}>

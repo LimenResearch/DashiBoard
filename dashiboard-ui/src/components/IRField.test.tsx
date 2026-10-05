@@ -528,6 +528,19 @@ describe('IRField, a variant whose options are files', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  // A configuration that leaves nothing open still has a file worth reading, and a list worth
+  // refreshing: it is not "nothing to show" the way a lone option with no settings is.
+  it('shows the lone file even when it leaves no setting open', () => {
+    const bare = { type: 'object', properties: [], additionalProperties: false };
+    const lone: IRNode = { type: 'tagged_object', options: ['fuzzy'], objects: { fuzzy: bare }, options_from: 'model' };
+    const { container } = render(() => (
+      <IRField node={lone} defs={defs} label="model" idPrefix="n" value={{ type: 'fuzzy' }} onChange={() => {}}
+        configurationText={() => 'name = "fuzzy"\n'} />
+    ));
+    expect(container.querySelector('details[data-configuration] pre')!.textContent).toBe('name = "fuzzy"\n');
+    expect(container.querySelector('button[aria-label="refresh the model list"]')).not.toBeNull();
+  });
+
   it('shows the lone file without a chooser', () => {
     const lone: IRNode = { ...node, options: ['dense'], objects: { dense: branch } };
     const { container } = render(() => (

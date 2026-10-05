@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { fileRoutes } from 'filesystem-routing/vite';
 import { defineConfig } from 'vitest/config';
 import solid from '@solidjs/vite-plugin';
+import { API_ROUTES } from './src/apiRoutes';
 
 export default defineConfig({
   // Turnkey client mode: no index.html and no mount file — the plugin
@@ -25,24 +26,11 @@ export default defineConfig({
     // path returns Vite's 404 HTML, which reads as "the server is down".
     // Point it elsewhere with DASHI_API=http://127.0.0.1:8090 pnpm dev
     //
-    // This list must name every route the UI posts to. A route left off falls through to Vite's
-    // own dev server, which answers a POST with its 404 HTML — not JSON, so `postRequest` can't
-    // parse it, swallows the parse failure, and resolves to its `def`. `/probe-pipeline` was
-    // missing this way until 2026-09-16: every probe silently came back as "no answer" in the
-    // browser, which `usableProbe(null)` used to read as a clean bill of health (see probe.ts).
+    // The list names every route the UI posts to (`src/apiRoutes.ts`, checked by a test). A route
+    // left off falls through to Vite's own dev server, which answers a POST with its 404 HTML —
+    // not JSON, so `postRequest` can't parse it and resolves to its `def`: "no answer".
     proxy: Object.fromEntries(
-      [
-        '/list-files',
-        '/read-document',
-        '/write-document',
-        '/load-files',
-        '/get-card-ir',
-        '/validate-card',
-        '/probe-pipeline',
-        '/evaluate-pipeline',
-        '/fetch-data',
-        '/get-processed-data',
-      ].map((route) => [
+      API_ROUTES.map((route) => [
         route,
         { target: process.env.DASHI_API ?? 'http://127.0.0.1:8080', changeOrigin: true },
       ]),

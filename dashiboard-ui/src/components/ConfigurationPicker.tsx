@@ -21,8 +21,9 @@ type ConfigurationPickerProps = {
 export function ConfigurationPicker(props: ConfigurationPickerProps) {
   const unasked = () => props.chosen === undefined;
   const foreign = () => props.chosen !== undefined && !props.options.includes(props.chosen);
-  // One name is not a question; it is still worth seeing what it holds.
-  const lone = () => props.options.length === 1 && !foreign();
+  // One name is not a question once it is the one in hand; it is still worth seeing what it
+  // holds. A document that names none is asked, even with one name on offer.
+  const lone = () => props.options.length === 1 && props.chosen === props.options[0];
   const shown = () => (props.chosen === undefined ? null : props.text(props.chosen));
   return (
     <div class="flex flex-col gap-1">

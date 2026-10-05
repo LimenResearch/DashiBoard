@@ -56,6 +56,15 @@ describe('ConfigurationPicker', () => {
     expect(select.selectedOptions[0].textContent).toMatch(/gone/);
   });
 
+  // A loaded card may hold a model with no name: one name on offer does not make it chosen.
+  it('asks for the lone name when the document names none', async () => {
+    const { container, onChoose } = mount({ options: ['dense'], chosen: undefined });
+    const select = container.querySelector('select') as HTMLSelectElement;
+    expect(select.className).toMatch(/border-warning/);
+    select.value = 'dense'; fireEvent.change(select); await flush();
+    expect(onChoose).toHaveBeenCalledWith('dense');
+  });
+
   it('asks when nothing is chosen and there is a choice', () => {
     const { container } = mount({ chosen: undefined });
     const select = container.querySelector('select') as HTMLSelectElement;

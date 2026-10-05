@@ -1081,3 +1081,32 @@ describe('a streamliner card built from an empty form', () => {
     expect((exportCards().nodes[0].card.funnel as Record<string, unknown>).input_transforms).toEqual({ TEMP: 'log' });
   });
 });
+
+// The picker's refresh is for a configuration file added while the server runs: the names come
+// with the card descriptions, so those have to be asked for again, not served from the cache.
+describe('refreshing the configurations', () => {
+  it('asks for the card descriptions again, and for what the files hold', async () => {
+    const fit = {
+      type: 'streamliner', model: { type: 'dense', features: 2 }, training: { type: 'batched', iterations: 1 },
+      funnel: { order_by: [{ cols: 'No' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'Iws' }] },
+    };
+    postRequest.mockImplementation((page: string, body: { include?: string[] }) => {
+      if (page === 'get-card-ir') {
+        const full = structuredClone(payload) as Record<string, unknown>;
+        return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, full[k]])));
+      }
+      if (page === 'list-configurations') return Promise.resolve({ model: [{ name: 'dense', text: 'name = "basic"' }], training: [] });
+      return Promise.resolve(page === 'probe-pipeline' ? CLEAN_PROBE : []);
+    });
+    importCards({ nodes: [{ id: 'fit', card: fit }], groups: {} });
+    const { container } = render(() => <Cards />);
+    const asked = (page: string, withCards = false) => postRequest.mock.calls.filter((c) =>
+      c[0] === page && (!withCards || ((c[1] as { include?: string[] }).include ?? []).includes('cards'))).length;
+    await waitFor(() => expect(container.querySelector('button[aria-label="refresh the model list"]')).not.toBeNull());
+    expect(asked('get-card-ir', true)).toBe(1);
+    const before = asked('list-configurations');
+    fireEvent.click(container.querySelector('button[aria-label="refresh the model list"]')!);
+    await waitFor(() => expect(asked('get-card-ir', true)).toBe(2));
+    await waitFor(() => expect(asked('list-configurations')).toBeGreaterThan(before));
+  });
+});

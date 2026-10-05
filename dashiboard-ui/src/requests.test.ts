@@ -63,6 +63,14 @@ describe('postBlob', () => {
     const got = await postBlob('bundle-pipeline', {});
     expect(got).toEqual({ json: { valid: false, errors: ['no'] } });
   });
+  // An answer that is neither the file nor the server's own JSON — a proxy's 404 page, a bare
+  // 500 — is no answer: saving it as a zip would hand the author a broken file.
+  it('is null when what came back is not the server\'s answer', async () => {
+    fetchMock.mockResolvedValue(new Response('<html>404</html>', { status: 404, headers: { 'Content-Type': 'text/html' } }));
+    expect(await postBlob('bundle-pipeline', {})).toBeNull();
+    fetchMock.mockResolvedValue(new Response('', { status: 500 }));
+    expect(await postBlob('bundle-pipeline', {})).toBeNull();
+  });
   it('is null when the server cannot be reached', async () => {
     fetchMock.mockRejectedValue(new Error('down'));
     expect(await postBlob('bundle-pipeline', {})).toBeNull();

@@ -130,14 +130,11 @@ export function Cards() {
   }
   const configurationText = (kind: string, name: string) => configurations()[kind]?.[name] ?? null;
   // The names come with the card descriptions, so a refresh asks for both.
-  const refreshConfigurations = () => {
-    setCardIRs(null);
-    void loadIR(untrack(vocabulary));
-    void loadConfigurations();
-  };
+  const refreshConfigurations = () => void loadIR(untrack(vocabulary), true);
 
   let irSeq = 0;
-  async function loadIR(vocabulary: Vocabulary) {
+  /** `force` asks for the card descriptions again, where the cache would otherwise serve them. */
+  async function loadIR(vocabulary: Vocabulary, force = false) {
     const seq = ++irSeq;
     // Captured before the request, not re-read from the signal after `setCardIRs` below: a
     // signal write stages into `_pendingValue` and an untracked read from this plain async
@@ -145,7 +142,7 @@ export function Cards() {
     // model, unlike Solid 1's immediate same-tick reads). `untrack` says that is deliberate:
     // this is a cache lookup, not something the fetch should re-run for.
     const previousCards = untrack(cardIRs);
-    const include = previousCards === null ? ["defs", "cards"] : ["defs"];
+    const include = previousCards === null || force ? ["defs", "cards"] : ["defs"];
     const received = (await postRequest(
       "get-card-ir",
       { ...vocabulary, include },

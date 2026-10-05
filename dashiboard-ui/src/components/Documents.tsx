@@ -5,6 +5,7 @@ import { Checkbox } from "./Checkbox";
 import { DownloadJSONButton } from "./JSON";
 import { FilePicker, type FileKind } from "./FilePicker";
 import { folderOf } from "../folders";
+import { DOCUMENT_ROUTES } from "../apiRoutes";
 import { Input } from "./Input";
 import { postBlob, postRequest, saveBlob } from "../requests";
 
@@ -22,7 +23,7 @@ type DocumentKind = Exclude<FileKind, "table">;
 // The routes the form saves and reads with: one per kind, a path relative to that kind's own
 // folder. The general `write-document` takes any path in the workspace and is for other
 // clients; the form never calls it, which is what keeps the layout.
-const ROUTE_OF: Record<DocumentKind, string> = { cards: "pipeline", filters: "filters" };
+const ROUTE_OF: Record<DocumentKind, string> = DOCUMENT_ROUTES;
 
 type DocumentsProps = {
   kind: DocumentKind;

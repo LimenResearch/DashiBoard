@@ -69,6 +69,9 @@ export async function postBlob(
     });
     const type = response.headers.get("Content-Type") ?? "";
     if (type.includes("application/json")) return { json: await response.json() };
+    // Neither the file nor the server's own JSON — a proxy's 404 page, a bare 500 — is no
+    // answer, and must not be saved as if it were the file.
+    if (!response.ok || !type.includes("application/zip")) return null;
     const disposition = response.headers.get("Content-Disposition") ?? "";
     const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? `${page}.zip`;
     return { blob: await response.blob(), filename };

@@ -33,6 +33,10 @@ function launch(
         Pipelines.MODEL_DIR => model_directory,
         Pipelines.TRAINING_DIR => training_directory,
         DataIngestion.DATA_DIR => data_directory,
-        async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
+        begin
+            # Said out loud, so whoever launched from a terminal knows the warm-up is over.
+            @info "DashiBoard is listening" url = "http://$(host):$(port)" data_directory
+            async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
+        end
     )
 end

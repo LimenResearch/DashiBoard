@@ -94,3 +94,110 @@ function extension_sources(file::AbstractDict, flags::AbstractDict)
     end
     return sources
 end
+
+# Sorting a plain folder into the layout.
+
+# Where a loose file belongs, by what it is: the folder's name, or `nothing` for a file that is
+# none of the kinds.
+function destination_of(full::AbstractString)
+    ext = lowercase(last(splitext(full)))
+    if ext == ".toml"
+        parsed = try
+            TOML.parsefile(full)
+        catch
+            return nothing
+        end
+        kind = configuration_kind(parsed)
+        isnothing(kind) && return nothing
+        return kind
+    end
+    kind = file_kind(full)
+    kind == "table" && return "data"
+    kind == "cards" && return "pipeline"
+    kind == "filters" && return "filter"
+    return nothing
+end
+
+# A free name in `folder` for `name`: the name itself, else `name-2`, `name-3`, …
+function free_name(folder::AbstractString, name::AbstractString)
+    ispath(joinpath(folder, name)) || return name
+    stem, ext = splitext(name)
+    n = 2
+    while ispath(joinpath(folder, "$(stem)-$(n)$(ext)"))
+        n += 1
+    end
+    return "$(stem)-$(n)$(ext)"
+end
+
+"""
+    init_workspace(dir; io = stdout) -> (; placed, quarantined)
+
+Sort the loose files at the root of `dir` into the layout, once, and say what went where.
+
+A table goes to `data/`, a cards document to `pipeline/`, a filters document to `filter/`, a
+model configuration to `model/`, a training one to `training/`. Anything else — a file of no
+known kind, a folder that is not the layout's, a file whose name is already taken where it
+belongs, a file standing where a folder must go — goes to `quarantine/` under its own name
+(suffixed on a clash there too), so the root ends up holding only the layout and nothing is
+lost or overwritten. Hidden entries and the workspace file stay. The folders are made, and a
+`dashiboard.toml` with `[directories]` is written when there is none.
+
+`placed` and `quarantined` are `(name, where)` pairs; `quarantined`'s `where` is the reason.
+Running it again on a laid-out folder sorts whatever is loose and otherwise does nothing.
+"""
+function init_workspace(dir::AbstractString; io::IO = stdout)
+    root = normpath(abspath(dir))
+    placed, quarantined = Tuple{String, String}[], Tuple{String, String}[]
+    quarantine = joinpath(root, "quarantine")
+    function put_aside(name, reason)
+        mkpath(quarantine)
+        target = free_name(quarantine, name)
+        mv(joinpath(root, name), joinpath(quarantine, target))
+        push!(quarantined, (name, reason))
+    end
+    loose(name) = !(startswith(name, ".") || name == WORKSPACE_FILE)
+    # What stands in the layout's way goes first: a file named like one of its folders, and a
+    # folder that is not one of them. Only then can a file be placed where the folders go.
+    for name in sort!(filter(loose, readdir(root)))
+        full = joinpath(root, name)
+        if isdir(full)
+            name in RESERVED || put_aside(name, "a folder that is not the layout's")
+        elseif name in RESERVED
+            put_aside(name, "a file where the `$(name)` folder goes")
+        end
+    end
+    for name in sort!(filter(loose, readdir(root)))
+        full = joinpath(root, name)
+        isdir(full) && continue
+        destination = destination_of(full)
+        if isnothing(destination)
+            put_aside(name, "neither a table, a document nor a configuration")
+            continue
+        end
+        folder = joinpath(root, destination)
+        if ispath(joinpath(folder, name))
+            put_aside(name, "`$(destination)/$(name)` already exists")
+            continue
+        end
+        mkpath(folder)
+        mv(full, joinpath(folder, name))
+        push!(placed, (name, destination))
+    end
+    for kind in KINDS
+        mkpath(joinpath(root, string(kind)))
+    end
+    file = joinpath(root, WORKSPACE_FILE)
+    if !isfile(file)
+        open(file, "w") do f
+            TOML.print(f, Dict("directories" => Dict(string(kind) => string(kind) for kind in KINDS)))
+        end
+    end
+    for (name, where) in placed
+        println(io, name, " → ", where, "/")
+    end
+    for (name, reason) in quarantined
+        println(io, name, " → quarantine/ (", reason, ")")
+    end
+    isempty(placed) && isempty(quarantined) && println(io, "nothing loose in ", root)
+    return (; placed, quarantined)
+end

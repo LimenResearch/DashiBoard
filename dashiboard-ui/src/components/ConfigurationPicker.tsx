@@ -26,7 +26,9 @@ export function ConfigurationPicker(props: ConfigurationPickerProps) {
   const lone = () => props.options.length === 1 && props.chosen === props.options[0];
   const shown = () => (props.chosen === undefined ? null : props.text(props.chosen));
   return (
-    <div class="flex flex-col gap-1">
+    // The picker takes what is left of its row and may shrink with it; without that the file,
+    // which does not wrap, would set the width and push the form out of its card.
+    <div class="flex min-w-0 flex-1 flex-col gap-1">
       <div class="flex items-center gap-2">
         <Show when={!lone()} fallback={<span class="font-mono text-control-xs">{props.options[0]}</span>}>
           <select
@@ -53,11 +55,12 @@ export function ConfigurationPicker(props: ConfigurationPickerProps) {
       </div>
       <Show when={shown()} keyed>
         {(text: string) => (
-          <details data-configuration class="rounded-sm border border-border">
+          <details data-configuration class="min-w-0 max-w-full rounded-sm border border-border">
             <summary class="cursor-pointer px-2 py-1 font-mono text-control-xs text-muted-foreground">
               {props.chosen}.toml
             </summary>
-            <pre class="overflow-x-auto px-2 py-1 font-mono text-control-xs whitespace-pre">{text}</pre>
+            {/* Bounded both ways: a long or wide file scrolls inside its box. */}
+            <pre class="max-h-64 overflow-auto px-2 py-1 font-mono text-control-xs whitespace-pre">{text}</pre>
           </details>
         )}
       </Show>

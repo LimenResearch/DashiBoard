@@ -29,6 +29,20 @@ describe('ConfigurationPicker', () => {
     expect(details.querySelector('summary')!.textContent).toMatch(/dense\.toml/);
   });
 
+  // A configuration may be long and wide. It stays inside the card: the picker may shrink with
+  // its row, and the file scrolls within a bounded box rather than push the form out.
+  it('keeps the file inside its row, scrolling when it is larger', () => {
+    const { container } = mount();
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toMatch(/\bmin-w-0\b/);
+    expect(root.className).toMatch(/\bflex-1\b/);
+    const details = container.querySelector('details[data-configuration]') as HTMLElement;
+    expect(details.className).toMatch(/\bmin-w-0\b/);
+    const pre = details.querySelector('pre')!;
+    expect(pre.className).toMatch(/\boverflow-auto\b/);
+    expect(pre.className).toMatch(/\bmax-h-\S+/);
+  });
+
   it('hands over the name chosen, and asks again on the refresh button', async () => {
     const { container, onChoose, onRefresh } = mount();
     const select = container.querySelector('#n-model-variant') as HTMLSelectElement;

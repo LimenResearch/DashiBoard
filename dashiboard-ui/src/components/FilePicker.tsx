@@ -3,7 +3,7 @@ import { Button } from "./Button";
 
 import { createSignal, For, untrack } from "solid-js";
 import { postRequest } from "../requests";
-import { folderOf } from "../folders";
+import { folderLabel, folderOf, setFolders } from "../folders";
 import * as _ from "lodash";
 
 /** What `list-files` says a file is. A JSON is told from a table by content, server-side. */
@@ -11,7 +11,9 @@ export type FileKind = "table" | "cards" | "filters";
 type Listed = { path: string; kind: FileKind };
 /** A file whose content disagrees with the folder it sits in: not offered, but said. */
 type Misplaced = { path: string; kind: string; found: string };
-type Listing = { files: Listed[]; misplaced: Misplaced[] };
+/** The server's name for the kind of folder a picker lists, as a misplaced file reports it. */
+const SERVER_KIND: Record<FileKind, string> = { table: "data", cards: "pipeline", filters: "filter" };
+type Listing = { files: Listed[]; misplaced: Misplaced[]; folders?: Partial<Record<FileKind, string>> };
 
 type FilePickerProps = {
   /** Which files of the data directory this picker offers. */
@@ -46,6 +48,7 @@ export function FilePicker(props: FilePickerProps) {
         const listing = (answer ?? {}) as Partial<Listing>;
         setFiles(Array.isArray(listing.files) ? listing.files : []);
         setMisplaced(Array.isArray(listing.misplaced) ? listing.misplaced : []);
+        if (listing.folders) setFolders(listing.folders);
       })
       .finally(() => setAsking(false));
   void request();
@@ -60,13 +63,13 @@ export function FilePicker(props: FilePickerProps) {
       .filter((file) => file.kind === props.kind)
       .map((file) => ({ label: file.path, value: file.path }));
   // The misplaced files that would have been this picker's, had they been what their folder says.
-  const ownMisplaced = () => misplaced().filter((file) => file.kind === folderOf(props.kind));
+  const ownMisplaced = () => misplaced().filter((file) => file.kind === SERVER_KIND[props.kind]);
   const selectClass = "text-primary font-semibold py-2 w-full text-left";
   const id = _.uniqueId("load_");
   return (
     <>
       <label for={id} class={selectClass}>
-        {props.label ?? "Choose files"} <span class="font-normal text-muted-foreground">— {folderOf(props.kind)}/</span>
+        {props.label ?? "Choose files"} <span class="font-normal text-muted-foreground">— {folderLabel(props.kind)}</span>
       </label>
       <div class="flex items-start gap-2">
         <div class="min-w-0 grow">
@@ -92,7 +95,7 @@ export function FilePicker(props: FilePickerProps) {
       <For each={ownMisplaced()}>
         {(file) => (
           <p data-misplaced class="text-control-xs text-warning">
-            {file.path} is a {file.found === "table" ? "table" : `${file.found} document`}, found under {file.kind}/ — not offered
+            {file.path} is a {file.found === "table" ? "table" : `${file.found} document`}, found under {folderLabel(props.kind)} — not offered
           </p>
         )}
       </For>

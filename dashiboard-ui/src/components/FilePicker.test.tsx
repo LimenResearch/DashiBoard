@@ -11,6 +11,7 @@ vi.mock('../requests', () => ({
 }));
 
 import { FilePicker } from './FilePicker';
+import { setFolders } from '../folders';
 
 // What `list-files` answers: every file the UI may pick, with what it is. One listing serves
 // three pickers, so each test says which kind it is looking through.
@@ -108,6 +109,16 @@ describe('FilePicker', () => {
     expect(notes[0]).toMatch(/filters/);
     expect(notes[0]).toMatch(/pipeline\//);
     expect(container.textContent).not.toMatch(/p\.json/);
+  });
+
+  it('names the folder the server says it lists, when that is not the layout\'s', async () => {
+    postRequest.mockImplementation(() => Promise.resolve({ files: FILES, misplaced: [], folders: { table: 'tables', cards: '', filters: 'filter' } }));
+    const { container } = render(() => <FilePicker kind="table" multiple />);
+    await waitFor(() => expect(container.querySelector('label')!.textContent).toMatch(/tables\//));
+    cleanup();
+    const cards = render(() => <FilePicker kind="cards" />);
+    await waitFor(() => expect(cards.container.querySelector('label')!.textContent).toMatch(/the workspace/));
+    setFolders(null);
   });
 
   it('names the folder it lists in its label', async () => {

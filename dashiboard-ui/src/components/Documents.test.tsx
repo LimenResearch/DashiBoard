@@ -176,6 +176,18 @@ describe('Documents', () => {
       expect(downloadJSON).not.toHaveBeenCalled();
     });
 
+    // The file is named by what the author typed, whatever a header made of it on the way.
+    it('names the zip itself, from the name in the box', async () => {
+      postBlob.mockImplementation(() => Promise.resolve({ blob: zip, filename: 'prova_Ã¨.zip' }));
+      const { container, getByText } = render(() => (
+        <Documents kind="cards" noun="pipeline" document={() => CARDS} filters={() => null} onLoad={() => []} />
+      ));
+      const name = container.querySelector('input[aria-label="file name"]') as HTMLInputElement;
+      name.value = 'prova è.json'; fireEvent.change(name); await flush();
+      fireEvent.click(getByText('Download pipeline'));
+      await waitFor(() => expect(saveBlob).toHaveBeenCalledWith(zip, 'prova è.zip'));
+    });
+
     it('leaves the filters out when the tab holds none', async () => {
       postBlob.mockImplementation(() => Promise.resolve({ blob: zip, filename: 'pipeline.zip' }));
       const { getByText } = render(() => (

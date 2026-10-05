@@ -4,7 +4,7 @@ import { Button } from "./Button";
 import { Checkbox } from "./Checkbox";
 import { DownloadJSONButton } from "./JSON";
 import { FilePicker, type FileKind } from "./FilePicker";
-import { folderOf } from "../folders";
+import { folderLabel } from "../folders";
 import { DOCUMENT_ROUTES } from "../apiRoutes";
 import { Input } from "./Input";
 import { postBlob, postRequest, saveBlob } from "../requests";
@@ -126,7 +126,8 @@ export function Documents(props: DocumentsProps) {
       if (answer === null) return say([UNREACHABLE]);
       if ("json" in answer) return say(sentences(answer.json as Reply));
       say([]);
-      saveBlob(answer.blob, answer.filename);
+      // Named here, from what the author typed: a header cannot be trusted with every name.
+      saveBlob(answer.blob, `${stem()}.zip`);
     } finally {
       setBusy(false);
     }
@@ -144,7 +145,7 @@ export function Documents(props: DocumentsProps) {
         <Button disabled={busy() || picked() === null} onClick={() => void load()}>
           Load {noun()}
         </Button>
-        <span class="text-control-xs text-muted-foreground">{folderOf(props.kind)}/</span>
+        <span class="text-control-xs text-muted-foreground">{folderLabel(props.kind)}</span>
         <Input
           aria-label="file name"
           value={name()}

@@ -37,7 +37,7 @@ describe('loading filters', () => {
     // whichever way it is written — measured — and nothing reads it as more than `min`/`max`.)
     const saved = { numerical: { TEMP: { min: 0, max: 10 } }, categorical: { cbwd: ['NW', 'SE'] } };
     postRequest.mockImplementation((page: string) =>
-      Promise.resolve(page === 'read-document' ? { valid: true, document: saved } : []));
+      Promise.resolve(page === 'read-filters' ? { valid: true, document: saved } : []));
     const { container, getByText } = render(() => <Filters />);
     fireEvent.click(container.querySelector('[data-pick]')!);
     await flush();
@@ -53,11 +53,11 @@ describe('loading filters', () => {
     setFilters(() => ({ numerical: { TEMP: new Interval(0, 10) }, categorical: { cbwd: new Set(['NW']) } }));
     await flush();
     postRequest.mockImplementation((page: string) =>
-      Promise.resolve(page === 'write-document' ? { valid: true, path: 'filters.json' } : []));
+      Promise.resolve(page === 'write-filters' ? { valid: true, path: 'filters.json' } : []));
     const { getByText } = render(() => <Filters />);
     fireEvent.click(getByText('Save filters'));
-    await waitFor(() => expect(postRequest.mock.calls.some((c) => c[0] === 'write-document')).toBe(true));
-    const sent = postRequest.mock.calls.find((c) => c[0] === 'write-document')![1] as { document: unknown };
+    await waitFor(() => expect(postRequest.mock.calls.some((c) => c[0] === 'write-filters')).toBe(true));
+    const sent = postRequest.mock.calls.find((c) => c[0] === 'write-filters')![1] as { document: unknown };
     expect(sent.document).toEqual({ numerical: { TEMP: { min: 0, max: 10 } }, categorical: { cbwd: ['NW'] } });
   });
 });

@@ -607,7 +607,7 @@ describe('loading a cards document asks', () => {
   // loading one is an act of asking: what the server rejects is red on the items, what the UI
   // can place itself (a taken name) is red on the later card, and what nobody can place is said
   // under the document row. Nothing is confirmed green: nobody looked at it. The document comes
-  // from the server's data directory (`read-document`), not from a file dialog.
+  // from the server's pipeline folder (`read-pipeline`), not from a file dialog.
   const dots = (c: HTMLElement) =>
     [...c.querySelectorAll('details')]
       .filter((d) => d.querySelector('[data-card-title]'))
@@ -621,7 +621,7 @@ describe('loading a cards document asks', () => {
                      return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
         : page === 'probe-pipeline' ? probe
         : page === 'validate-card' ? { valid: true, issues: [] }
-        : page === 'read-document' ? { valid: true, document: doc }
+        : page === 'read-pipeline' ? { valid: true, document: doc }
         : [],
       ),
     );
@@ -702,7 +702,7 @@ describe('loading a cards document that names what it does not have', () => {
                      const full = structuredClone(payload) as Record<string, unknown>;
                      return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
         : page === 'probe-pipeline' ? CLEAN_PROBE
-        : page === 'read-document' ? { valid: true, document: doc }
+        : page === 'read-pipeline' ? { valid: true, document: doc }
         : [],
       ),
     );

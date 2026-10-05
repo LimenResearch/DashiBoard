@@ -1,13 +1,17 @@
 import { Combobox } from "./Combobox";
 import { Button } from "./Button";
 
-import { createSignal, untrack } from "solid-js";
+import { createSignal, For, untrack } from "solid-js";
 import { postRequest } from "../requests";
+import { folderOf } from "../folders";
 import * as _ from "lodash";
 
 /** What `list-files` says a file is. A JSON is told from a table by content, server-side. */
 export type FileKind = "table" | "cards" | "filters";
 type Listed = { path: string; kind: FileKind };
+/** A file whose content disagrees with the folder it sits in: not offered, but said. */
+type Misplaced = { path: string; kind: string; found: string };
+type Listing = { files: Listed[]; misplaced: Misplaced[] };
 
 type FilePickerProps = {
   /** Which files of the data directory this picker offers. */
@@ -31,13 +35,18 @@ export function FilePicker(props: FilePickerProps) {
   // One listing for every picker: `list-files` names each file's kind, and tables, cards and
   // filters documents are confined to the same directory through the same control.
   const [files, setFiles] = createSignal<Listed[]>([]);
+  const [misplaced, setMisplaced] = createSignal<Misplaced[]>([]);
   // `true` from the start rather than set on the way in: Solid 2 refuses a signal write during a
   // component's own setup (`REACTIVE_WRITE_IN_OWNED_SCOPE`), and the first request goes out
   // from exactly there. The replies write from a microtask, which is fine.
   const [asking, setAsking] = createSignal(true);
   const request = () =>
     postRequest("list-files", {}, null)
-      .then((answer: unknown) => setFiles(Array.isArray(answer) ? (answer as Listed[]) : []))
+      .then((answer: unknown) => {
+        const listing = (answer ?? {}) as Partial<Listing>;
+        setFiles(Array.isArray(listing.files) ? listing.files : []);
+        setMisplaced(Array.isArray(listing.misplaced) ? listing.misplaced : []);
+      })
       .finally(() => setAsking(false));
   void request();
   function ask() {
@@ -50,12 +59,14 @@ export function FilePicker(props: FilePickerProps) {
     files()
       .filter((file) => file.kind === props.kind)
       .map((file) => ({ label: file.path, value: file.path }));
+  // The misplaced files that would have been this picker's, had they been what their folder says.
+  const ownMisplaced = () => misplaced().filter((file) => file.kind === folderOf(props.kind));
   const selectClass = "text-primary font-semibold py-2 w-full text-left";
   const id = _.uniqueId("load_");
   return (
     <>
       <label for={id} class={selectClass}>
-        {props.label ?? "Choose files"}
+        {props.label ?? "Choose files"} <span class="font-normal text-muted-foreground">— {folderOf(props.kind)}/</span>
       </label>
       <div class="flex items-start gap-2">
         <div class="min-w-0 grow">
@@ -76,6 +87,15 @@ export function FilePicker(props: FilePickerProps) {
           ↻
         </Button>
       </div>
+      {/* Why a file the author expects is not on offer: it is where this kind lives, but it is
+          something else. */}
+      <For each={ownMisplaced()}>
+        {(file) => (
+          <p data-misplaced class="text-control-xs text-warning">
+            {file.path} is a {file.found === "table" ? "table" : `${file.found} document`}, found under {file.kind}/ — not offered
+          </p>
+        )}
+      </For>
     </>
   );
 }

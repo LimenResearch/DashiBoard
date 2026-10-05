@@ -4,6 +4,7 @@ import { Button } from "./Button";
 import { Checkbox } from "./Checkbox";
 import { DownloadJSONButton } from "./JSON";
 import { FilePicker, type FileKind } from "./FilePicker";
+import { folderOf } from "../folders";
 import { Input } from "./Input";
 import { postRequest } from "../requests";
 
@@ -17,6 +18,11 @@ import { postRequest } from "../requests";
 // writes documents inside that directory, through the same picker.
 
 type DocumentKind = Exclude<FileKind, "table">;
+
+// The routes the form saves and reads with: one per kind, a path relative to that kind's own
+// folder. The general `write-document` takes any path in the workspace and is for other
+// clients; the form never calls it, which is what keeps the layout.
+const ROUTE_OF: Record<DocumentKind, string> = { cards: "pipeline", filters: "filters" };
 
 type DocumentsProps = {
   kind: DocumentKind;
@@ -70,7 +76,7 @@ export function Documents(props: DocumentsProps) {
     if (path === null) return;
     setBusy(true);
     try {
-      const reply = (await postRequest("read-document", { path, kind: props.kind }, null)) as Reply;
+      const reply = (await postRequest(`read-${ROUTE_OF[props.kind]}`, { path }, null)) as Reply;
       if (reply === null || reply.valid !== true) return say(sentences(reply));
       const loose = await props.onLoad(reply.document);
       // Said about the document as loaded, which is only in place once the owner's write has
@@ -86,8 +92,8 @@ export function Documents(props: DocumentsProps) {
     setBusy(true);
     try {
       const reply = (await postRequest(
-        "write-document",
-        { path: name(), kind: props.kind, document: props.document(), overwrite: overwrite() },
+        `write-${ROUTE_OF[props.kind]}`,
+        { path: name(), document: props.document(), overwrite: overwrite() },
         null,
       )) as Reply;
       if (reply === null || reply.valid !== true) return say(sentences(reply));
@@ -102,7 +108,7 @@ export function Documents(props: DocumentsProps) {
     <div data-documents={props.kind} class="flex flex-col gap-2 p-3">
       <FilePicker
         kind={props.kind}
-        label={`A ${noun()} file in the data directory`}
+        label={`A ${noun()} file`}
         onChange={(value) => setPicked(Array.isArray(value) ? (value[0] ?? null) : value || null)}
         refreshRef={(f) => { refresh = f; }}
       />
@@ -110,6 +116,7 @@ export function Documents(props: DocumentsProps) {
         <Button disabled={busy() || picked() === null} onClick={() => void load()}>
           Load {noun()}
         </Button>
+        <span class="text-control-xs text-muted-foreground">{folderOf(props.kind)}/</span>
         <Input
           aria-label="file name"
           value={name()}

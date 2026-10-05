@@ -30,19 +30,19 @@ afterEach(cleanup);
 
 describe('Documents', () => {
   it('loads the picked file through the server and hands the document to its owner', async () => {
-    serve({ 'read-document': { valid: true, document: CARDS } });
+    serve({ 'read-pipeline': { valid: true, document: CARDS } });
     const onLoad = vi.fn(() => Promise.resolve([]));
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={onLoad} />);
     fireEvent.click(container.querySelector('[data-pick]')!);
     await flush();            // two actions by a user are two ticks; Solid 2 stages a write until then
     fireEvent.click(getByText('Load cards'));
     await waitFor(() => expect(onLoad).toHaveBeenCalledWith(CARDS));
-    expect(postRequest).toHaveBeenCalledWith('read-document', { path: 'sub/cards.json', kind: 'cards' }, null);
+    expect(postRequest).toHaveBeenCalledWith('read-pipeline', { path: 'sub/cards.json' }, null);
     expect(container.querySelector('[data-document-error]')).toBeNull();
   });
 
   it("calls the document by another name on its buttons, and keeps the server's kind on the wire", async () => {
-    serve({ 'read-document': { valid: true, document: CARDS } });
+    serve({ 'read-pipeline': { valid: true, document: CARDS } });
     const { container, getByText } = render(() => (
       <Documents kind="cards" noun="pipeline" document={() => CARDS} onLoad={() => Promise.resolve([])} />
     ));
@@ -52,7 +52,7 @@ describe('Documents', () => {
     fireEvent.click(container.querySelector('[data-pick]')!);
     await flush();
     fireEvent.click(getByText('Load pipeline'));
-    await waitFor(() => expect(postRequest).toHaveBeenCalledWith('read-document', { path: 'sub/cards.json', kind: 'cards' }, null));
+    await waitFor(() => expect(postRequest).toHaveBeenCalledWith('read-pipeline', { path: 'sub/cards.json' }, null));
   });
 
   it('cannot load before a file is picked', () => {
@@ -61,7 +61,7 @@ describe('Documents', () => {
   });
 
   it('shows the server\'s sentence when a load fails, and loads nothing', async () => {
-    serve({ 'read-document': { valid: false, kind: 'document', errors: ['`x.json` is not a cards document'], issues: [] } });
+    serve({ 'read-pipeline': { valid: false, kind: 'document', errors: ['`x.json` is not a cards document'], issues: [] } });
     const onLoad = vi.fn(() => []);
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={onLoad} />);
     fireEvent.click(container.querySelector('[data-pick]')!);
@@ -83,7 +83,7 @@ describe('Documents', () => {
   });
 
   it('shows what the loader could not place, and clears it when the document is edited', async () => {
-    serve({ 'read-document': { valid: true, document: CARDS } });
+    serve({ 'read-pipeline': { valid: true, document: CARDS } });
     const [doc, setDoc] = createSignal<unknown>(CARDS);
     const { container, getByText } = render(() => (
       <Documents kind="cards" document={doc} onLoad={() => Promise.resolve(['The input graph contains at least one loop.'])} />
@@ -99,7 +99,7 @@ describe('Documents', () => {
   });
 
   it('saves the document under the name given, and re-lists', async () => {
-    serve({ 'write-document': { valid: true, path: 'mine.json' } });
+    serve({ 'write-pipeline': { valid: true, path: 'mine.json' } });
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={() => []} />);
     const name = container.querySelector('input[aria-label="file name"]') as HTMLInputElement;
     expect(name.value).toBe('cards.json');
@@ -109,19 +109,19 @@ describe('Documents', () => {
     fireEvent.click(getByText('Save cards'));
     await waitFor(() => expect(refreshed).toHaveBeenCalled());
     expect(postRequest).toHaveBeenCalledWith(
-      'write-document', { path: 'mine.json', kind: 'cards', document: CARDS, overwrite: false }, null,
+      'write-pipeline', { path: 'mine.json', document: CARDS, overwrite: false }, null,
     );
   });
 
   it('replaces an existing file only when the author says so', async () => {
-    serve({ 'write-document': { valid: false, kind: 'document', errors: ['`cards.json` already exists'], issues: [] } });
+    serve({ 'write-pipeline': { valid: false, kind: 'document', errors: ['`cards.json` already exists'], issues: [] } });
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={() => []} />);
     fireEvent.click(getByText('Save cards'));
     await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
     expect(container.querySelector('[data-document-error]')!.textContent).toContain('already exists');
     expect(refreshed).not.toHaveBeenCalled();
 
-    serve({ 'write-document': { valid: true, path: 'cards.json' } });
+    serve({ 'write-pipeline': { valid: true, path: 'cards.json' } });
     fireEvent.click(container.querySelector('input[type="checkbox"]')!);
     await flush();
     fireEvent.click(getByText('Save cards'));
@@ -134,5 +134,22 @@ describe('Documents', () => {
     const { getByText } = render(() => <Documents kind="filters" document={() => ({ numerical: {}, categorical: { cbwd: ['NW'] } })} onLoad={() => []} />);
     fireEvent.click(getByText('Download filters'));
     expect(downloadJSON.mock.calls[0][0]).toEqual({ numerical: {}, categorical: { cbwd: ['NW'] } });
+  });
+
+  // A filters document goes through its own route, into its own folder.
+  it('saves and loads a filters document through the filters routes', async () => {
+    const FILTERS = { numerical: {}, categorical: {} };
+    serve({ 'write-filters': { valid: true, path: 'filters.json' }, 'read-filters': { valid: true, document: FILTERS } });
+    const onLoad = vi.fn(() => []);
+    const { container, getByText } = render(() => <Documents kind="filters" document={() => FILTERS} onLoad={onLoad} />);
+    fireEvent.click(getByText('Save filters'));
+    await waitFor(() => expect(postRequest).toHaveBeenCalledWith('write-filters', { path: 'filters.json', document: FILTERS, overwrite: false }, null));
+    fireEvent.click(container.querySelector('[data-pick]')!);
+    await flush();
+    fireEvent.click(getByText('Load filters'));
+    await waitFor(() => expect(onLoad).toHaveBeenCalledWith(FILTERS));
+    expect(postRequest).toHaveBeenCalledWith('read-filters', { path: 'sub/filters.json' }, null);
+    // and it says which folder the name is relative to
+    expect(container.textContent).toMatch(/filter\//);
   });
 });

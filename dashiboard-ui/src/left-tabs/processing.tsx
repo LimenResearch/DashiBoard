@@ -55,6 +55,7 @@ import {
 import { defaultsFor, onlyOptions, withoutOption, type Defs, type IRNode } from "../ir";
 import { checkNames, checkNode, type Incompleteness } from "../completeness";
 import { askProbe } from "../probe";
+import { lacksPartition, trainingScript } from "../streamliner";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -572,6 +573,21 @@ export function Cards() {
                 </p>
               )}
             </For>
+            {/* Confirmed and legal, yet a Run cannot finish it: without a partition there are no
+                rows to validate on, so training keeps no model to predict with. */}
+            <Show when={nodeState() === "confirmed" && lacksPartition(node.card)}>
+              <div
+                data-no-partition
+                class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+              >
+                <p>
+                  A streamliner card without a partition can't be evaluated in the UI. It can be
+                  trained from a script run in the workspace folder, but with no validation
+                  partition training returns its statistics and saves no weights:
+                </p>
+                <pre class="mt-1 max-h-64 overflow-auto font-mono whitespace-pre">{trainingScript(node.id ?? "")}</pre>
+              </div>
+            </Show>
             <Show when={probeNodes()[index()]} keyed>
               {(reported: ProbeNode) => (
                 <div class="mb-2 text-control-xs">

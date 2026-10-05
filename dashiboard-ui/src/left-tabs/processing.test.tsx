@@ -293,6 +293,44 @@ describe('a card is amber until asked', () => {
     expect(cardDot(container).className).toMatch(/bg-success/);
   });
 
+  describe('a streamliner card without a partition', () => {
+    const streamliner = (extra: Record<string, unknown>) => ({
+      type: 'streamliner', model: 'dense', training: 'batched',
+      funnel: { order_by: [{ cols: 'id' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'PRES' }] },
+      suffix: 'hat', ...extra,
+    });
+    const note = (container: HTMLElement) => container.querySelector('[data-no-partition]');
+
+    it('says, once confirmed, that the UI cannot evaluate it and how to train it from a script', async () => {
+      importCards({ nodes: [{ id: 'fit', card: streamliner({}) }], groups: {} });
+      mock(CLEAN_PROBE, { valid: true, issues: [] });
+      const { container } = render(() => <Cards />);
+      await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+      // Nothing to say before Confirm.
+      expect(note(container)).toBeNull();
+      fireEvent.click(cardConfirm(container));
+      await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('confirmed'));
+      const shown = note(container)!;
+      expect(shown.className).toMatch(/border-warning/);
+      expect(shown.textContent).toMatch(/without a partition can't be evaluated in the UI/);
+      // Training from the script is not a way around it: no validation rows, no weights.
+      expect(shown.textContent).toMatch(/returns its statistics and saves no weights/);
+      // The script names this card, so it can be pasted with only the placeholders to fill.
+      expect(shown.querySelector('pre')!.textContent).toMatch(/n\.id == "fit"/);
+      expect(shown.querySelector('pre')!.textContent).toMatch(/Pipelines\.train!/);
+    });
+
+    it('says nothing when the card has a partition', async () => {
+      importCards({ nodes: [{ id: 'fit', card: streamliner({ partition: { cols: 'part' } }) }], groups: {} });
+      mock(CLEAN_PROBE, { valid: true, issues: [] });
+      const { container } = render(() => <Cards />);
+      await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+      fireEvent.click(cardConfirm(container));
+      await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('confirmed'));
+      expect(note(container)).toBeNull();
+    });
+  });
+
   it('binds the verdict to the card as it was checked, not as it is when the reply lands', async () => {
     // Press Confirm, edit while `validate-card` is in flight, then let it answer clean: the verdict
     // is green on the content the server saw, and the edited card reads as unasked.

@@ -112,6 +112,28 @@ export function Cards() {
     return typeof title === "string" && title !== "" ? title : readableType(type);
   };
 
+  // What each model and training configuration holds, by kind and name, for the picker to show
+  // the file behind a name. Asked once with the card descriptions, and again on the picker's
+  // refresh — a file added by hand while the server runs.
+  const [configurations, setConfigurations] = createSignal<Record<string, Record<string, string>>>({});
+  async function loadConfigurations() {
+    const received = (await postRequest("list-configurations", {}, null)) as
+      Record<string, { name: string; text: string }[]> | null;
+    if (!received) return;
+    const texts: Record<string, Record<string, string>> = {};
+    for (const [kind, entries] of Object.entries(received)) {
+      texts[kind] = Object.fromEntries((entries ?? []).map((entry) => [entry.name, entry.text]));
+    }
+    setConfigurations(texts);
+  }
+  const configurationText = (kind: string, name: string) => configurations()[kind]?.[name] ?? null;
+  // The names come with the card descriptions, so a refresh asks for both.
+  const refreshConfigurations = () => {
+    setCardIRs(null);
+    void loadIR(untrack(vocabulary));
+    void loadConfigurations();
+  };
+
   let irSeq = 0;
   async function loadIR(vocabulary: Vocabulary) {
     const seq = ++irSeq;
@@ -137,6 +159,7 @@ export function Cards() {
     if (cards === null) return;                       // cannot happen on the first call
     setCardIRs(cards);
     setPayload({ defs: received.defs, cards });
+    if (include.includes("cards")) void loadConfigurations();
   }
 
   // Refetch whenever the *vocabulary* changes — columns, node ids, group names — not only on
@@ -582,6 +605,8 @@ export function Cards() {
                 listsFor={(name) => (probeValid() ? probeNodes().find((described) => described.id === node.id)?.lists?.[name] ?? null : null)}
                 refusedFor={(field) => refusedKeys(probeIssues(), index(), field)}
                 isCategorical={(column) => metadata.find((entry) => entry.name === column)?.type === "categorical"}
+                configurationText={configurationText}
+                refreshConfigurations={refreshConfigurations}
                 value={node.card}
                 onChange={(card) => setCard(index(), card as Card)}
               />

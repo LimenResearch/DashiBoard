@@ -3,6 +3,7 @@ import type { Element as JSXElement } from "solid-js";
 
 import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
+import { ConfigurationPicker } from "./ConfigurationPicker";
 import { MapField } from "./MapField";
 import { plainColumns, pruneMap, transformRows } from "../transformRows";
 import { SelectorField } from "./SelectorField";
@@ -45,6 +46,10 @@ type IRFieldProps = {
   refusedFor?: (field: string) => string[];
   /** Handed to every map field below: whether a column is categorical, where that is known. */
   isCategorical?: (column: string) => boolean;
+  /** Handed to every variant below whose options are files: the text of the file behind a name. */
+  configurationText?: (kind: string, name: string) => string | null;
+  /** Handed to the same: ask the server for the files again. */
+  refreshConfigurations?: () => void;
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -216,6 +221,8 @@ export function IRField(props: IRFieldProps) {
                         listsFor={props.listsFor}
                         refusedFor={props.refusedFor}
                         isCategorical={props.isCategorical}
+                        configurationText={props.configurationText}
+                        refreshConfigurations={props.refreshConfigurations}
                         node={node()}
                         defs={props.defs}
                         label={entry().key}
@@ -310,7 +317,24 @@ export function IRField(props: IRFieldProps) {
             return (
               <Show when={!nothing()}>
               <Collapsible label={props.label} required={props.required}>
-                <Show when={!lone()}>
+                <Show when={w().optionsFrom !== undefined}>
+                  <Row for={`${id()}-variant`} label="type">
+                    <ConfigurationPicker
+                      id={`${id()}-variant`}
+                      kind={w().optionsFrom!}
+                      options={w().options}
+                      chosen={unasked() ? undefined : chosen()}
+                      text={(name) => props.configurationText?.(w().optionsFrom!, name) ?? null}
+                      onChoose={(option) => {
+                        const branch = w().objects[option];
+                        const inner = branch === undefined ? undefined : defaultsFor(branch, props.defs);
+                        props.onChange(named(inner, option));
+                      }}
+                      onRefresh={() => props.refreshConfigurations?.()}
+                    />
+                  </Row>
+                </Show>
+                <Show when={!lone() && w().optionsFrom === undefined}>
                 <Row for={`${id()}-variant`} label="type">
                   <select
                     id={`${id()}-variant`}
@@ -353,6 +377,8 @@ export function IRField(props: IRFieldProps) {
                     listsFor={props.listsFor}
                     refusedFor={props.refusedFor}
                     isCategorical={props.isCategorical}
+                    configurationText={props.configurationText}
+                    refreshConfigurations={props.refreshConfigurations}
                     node={w().objects[chosen()]!}
                     defs={props.defs}
                     label={props.label}
@@ -501,6 +527,8 @@ export function IRField(props: IRFieldProps) {
                           listsFor={props.listsFor}
                           refusedFor={props.refusedFor}
                           isCategorical={props.isCategorical}
+                          configurationText={props.configurationText}
+                          refreshConfigurations={props.refreshConfigurations}
                           node={w().items}
                           defs={props.defs}
                           label={`${props.label}[${index()}]`}

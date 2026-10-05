@@ -14,10 +14,12 @@ end
 
 # Compute schemas used for model or training in Streamliner,
 # e.g., `TaggedStreamlinerIR(model_dir)`
-function TaggedStreamlinerIR(dir)
+# `kind` names the directory the options are the files of, so a form can show the file behind
+# a name rather than the name alone.
+function TaggedStreamlinerIR(dir, kind::AbstractString)
     vals = available_streamliner_configs(dir)
     objects = OrderedDict{String, ObjectIR}(x => StreamlinerIR(parse_properties(dir, x)) for x in vals)
-    return TaggedObjectIR(; objects)
+    return TaggedObjectIR(; objects, options_from = kind)
 end
 
 ## Parsing
@@ -81,7 +83,7 @@ function DashiBase.IR_from_type(::Type{Model}, default)
     #  how to distinguish between the two cases
     # Same for the lifting method
     return if isassigned(MODEL_DIR)
-        vals = TaggedStreamlinerIR(MODEL_DIR[])
+        vals = TaggedStreamlinerIR(MODEL_DIR[], "model")
     else
         ObjectIR(additionalProperties = true)
     end
@@ -110,7 +112,7 @@ function DashiBase.IR_from_type(::Type{Training}, default)
         throw(ArgumentError("Default not supported here"))
     end
     return if isassigned(TRAINING_DIR)
-        TaggedStreamlinerIR(TRAINING_DIR[])
+        TaggedStreamlinerIR(TRAINING_DIR[], "training")
     else
         ObjectIR(additionalProperties = true)
     end

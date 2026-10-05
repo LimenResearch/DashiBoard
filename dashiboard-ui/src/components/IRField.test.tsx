@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
 import { IRField } from './IRField';
@@ -500,5 +500,41 @@ describe('IRField, a map beside its list', () => {
     );
     expect(container.querySelector('[data-row="cbwd"] select')).toBeNull();
     expect(container.querySelector('[data-row="GONE"]')!.hasAttribute('data-stale')).toBe(true);
+  });
+});
+
+// A variant whose options are files — a model, a training — is picked like a file, with the
+// chosen file shown; its branch, the settings the file leaves open, is drawn as for any variant.
+describe('IRField, a variant whose options are files', () => {
+  const branch = { type: 'object', properties: [{ key: 'features', required: true, value: { type: 'integer' } }], additionalProperties: false };
+  const node: IRNode = { type: 'tagged_object', options: ['dense', 'fuzzy'], objects: { dense: branch, fuzzy: branch }, options_from: 'model' };
+  const texts = { dense: 'name = "basic"\n' };
+
+  it('draws the picker with the file, and still writes the type and the branch', async () => {
+    let written: unknown = null;
+    const refresh = vi.fn();
+    const { container } = render(() => (
+      <IRField node={node} defs={defs} label="model" idPrefix="n" value={{ type: 'dense', features: 2 }} onChange={(v) => { written = v; }}
+        configurationText={(kind, name) => (kind === 'model' ? texts[name as keyof typeof texts] ?? null : null)} refreshConfigurations={refresh} />
+    ));
+    expect(container.querySelector('details[data-configuration] pre')!.textContent).toBe(texts.dense);
+    const features = container.querySelector('#n-model-model-features') as HTMLInputElement;
+    features.value = '3'; fireEvent.change(features); await flush();
+    expect(written).toEqual({ type: 'dense', features: 3 });
+    const select = container.querySelector('#n-model-variant') as HTMLSelectElement;
+    select.value = 'fuzzy'; fireEvent.change(select); await flush();
+    expect(written).toEqual({ type: 'fuzzy' });
+    fireEvent.click(container.querySelector('button[aria-label="refresh the model list"]')!);
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('shows the lone file without a chooser', () => {
+    const lone: IRNode = { ...node, options: ['dense'], objects: { dense: branch } };
+    const { container } = render(() => (
+      <IRField node={lone} defs={defs} label="model" idPrefix="n" value={{ type: 'dense' }} onChange={() => {}}
+        configurationText={() => texts.dense} />
+    ));
+    expect(container.querySelector('#n-model-variant')).toBeNull();
+    expect(container.querySelector('details[data-configuration] pre')!.textContent).toBe(texts.dense);
   });
 });

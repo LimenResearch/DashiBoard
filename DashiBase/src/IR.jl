@@ -121,6 +121,10 @@ end
     objects::Dict{String, ObjectIR} = Dict{String, ObjectIR}()
     options::Vector{String} = collect(String, keys(objects))
     default_option::Maybe{String} = nothing
+    # Where the options come from, when they are more than names — the files of a directory,
+    # say — so a form can show what an option holds. The schema does not carry it: the options
+    # are the same either way.
+    options_from::Maybe{String} = nothing
 end
 
 function json_schema(to::TaggedObjectIR)

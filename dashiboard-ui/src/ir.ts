@@ -39,6 +39,8 @@ export type Widget =
       options: string[];
       objects: { [option: string]: IRNode };
       default?: string;
+      /** Where the options come from when they are files — `model`, `training` — so a form can show them. */
+      optionsFrom?: string;
     }
   | { kind: "object"; title?: string; properties: PropertyEntry[] }
   /**
@@ -182,6 +184,7 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
         options: (Array.isArray(n.options) ? n.options : []) as string[],
         objects: (n.objects ?? {}) as { [option: string]: IRNode },
         default: n.default_option as string | undefined,
+        ...(typeof n.options_from === "string" ? { optionsFrom: n.options_from } : {}),
       };
 
     case "object": {

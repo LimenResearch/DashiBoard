@@ -349,3 +349,15 @@ describe('the streamliner funnel, as served', () => {
     expect(conditionallyRequired({ type: 'object', properties: [] }, {})).toEqual([]);
   });
 });
+
+describe('a variant whose options are files', () => {
+  it('says where they come from, so a form can show the file behind a name', () => {
+    const model = (payload.cards.streamliner.properties as { key: string; value: IRNode }[]).find((p) => p.key === 'model')!.value;
+    const w = widgetFor(model, {});
+    expect(w.kind).toBe('variant');
+    if (w.kind !== 'variant') return;
+    expect(w.optionsFrom).toBe('model');
+    const plain = widgetFor({ type: 'tagged_object', options: ['a'], objects: { a: { type: 'object', properties: [] } } }, {});
+    expect(plain.kind === 'variant' && plain.optionsFrom).toBeUndefined();
+  });
+});

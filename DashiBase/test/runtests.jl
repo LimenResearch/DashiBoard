@@ -215,3 +215,13 @@ end
     @test isnothing(JSONSchema.validate(Dict("TEMP" => "log"), s))
     @test !isnothing(JSONSchema.validate(Dict("TEMP" => "cube"), s))
 end
+
+@testset "a tagged object that says where its options come from" begin
+    branch = ObjectIR(properties = [DashiBase.Property("features" => IntegerIR())])
+    tagged = DashiBase.TaggedObjectIR(objects = Dict("dense" => branch), options_from = "model")
+    @test tagged.options_from == "model"
+    @test JSON.parse(JSON.json(tagged; omit_null = true))["options_from"] == "model"
+    # The schema is unchanged by it: it checks the same documents.
+    @test !haskey(DashiBase.json_schema(tagged), "options_from")
+    @test DashiBase.json_schema(tagged) == DashiBase.json_schema(DashiBase.TaggedObjectIR(objects = Dict("dense" => branch)))
+end

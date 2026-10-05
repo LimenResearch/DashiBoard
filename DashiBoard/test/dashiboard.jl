@@ -1,5 +1,6 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
 using Sockets: Sockets
+using Base.ScopedValues: @with
 using DashiBoard
 using Test
 using Downloads
@@ -202,8 +203,8 @@ mktempdir() do data_dir
     end
 
     static_directory = joinpath(@__DIR__, "..", "..", "static")
-    model_directory = joinpath(static_directory, "model")
-    training_directory = joinpath(static_directory, "training")
+    model_dir = joinpath(static_directory, "model")
+    training_dir = joinpath(static_directory, "training")
 
     # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
     # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
@@ -228,11 +229,33 @@ mktempdir() do data_dir
         data_dir;
         port = port,
         async = true,
-        model_directory,
-        training_directory
+        model_dir,
+        training_dir
     )
 
     @testset "request" begin
+        # Every file route confines itself to a pointer: the scoped value `launch` sets for its
+        # kind, or the working directory where nothing was set. Read here the way a handler
+        # reads them, inside the scope.
+        @testset "pointers" begin
+            @with(
+                DataIngestion.DATA_DIR => data_dir, DashiBoard.WORKSPACE => data_dir,
+                DashiBoard.PIPELINE_DIR => data_dir, DashiBoard.FILTER_DIR => "",
+                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+                begin
+                    @test DashiBoard.pointer(:data) == normpath(abspath(data_dir))
+                    @test DashiBoard.pointer(:pipeline) == normpath(abspath(data_dir))
+                    @test DashiBoard.pointer(:filter) == pwd()
+                    @test DashiBoard.pointer(:model) == normpath(abspath(model_dir))
+                    @test DashiBoard.pointer(:training) == normpath(abspath(training_dir))
+                    @test DashiBoard.workspace_directory() == normpath(abspath(data_dir))
+                end
+            )
+            # Pipelines' directories have no default: unset, they read as the working directory too.
+            @test DashiBoard.pointer(:model) == pwd()
+            @test_throws ArgumentError DashiBoard.pointer(:nowhere)
+        end
+
         url = "http://127.0.0.1:$(port)/"
 
         @testset "files" begin
@@ -821,7 +844,7 @@ mktempdir() do data_dir
         nowhere_port = first_free_port(8281:8380)
         nowhere = DashiBoard.launch(
             joinpath(data_dir, "does-not-exist");
-            port = nowhere_port, async = true, model_directory, training_directory
+            port = nowhere_port, async = true, model_dir, training_dir
         )
         resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
         @test resp.status == 200

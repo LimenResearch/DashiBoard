@@ -1,10 +1,23 @@
+"""
+    launch(workspace; host, port, async, data_dir, pipeline_dir, filter_dir, model_dir, training_dir, parser)
+
+Serve DashiBoard for `workspace`, the directory every file route is confined to.
+
+Five directories say where each kind of file is: `data_dir` the tables, `pipeline_dir` and
+`filter_dir` the documents, `model_dir` and `training_dir` the configurations. Each defaults to
+the workspace itself, which is a flat folder with everything in it; `bin/launch.jl` is where the
+layout, a `dashiboard.toml` and the flags turn into these keywords.
+"""
 function launch(
-        data_directory::AbstractString;
+        workspace::AbstractString;
         host::AbstractString = "127.0.0.1",
         port::Integer = 8080,
         async::Bool = false,
-        training_directory::AbstractString,
-        model_directory::AbstractString,
+        data_dir::AbstractString = workspace,
+        pipeline_dir::AbstractString = workspace,
+        filter_dir::AbstractString = workspace,
+        model_dir::AbstractString = workspace,
+        training_dir::AbstractString = workspace,
         parser::Pipelines.Parser = Pipelines.default_parser()
     )
 
@@ -30,12 +43,15 @@ function launch(
 
     return @with(
         Pipelines.PARSER => parser,
-        Pipelines.MODEL_DIR => model_directory,
-        Pipelines.TRAINING_DIR => training_directory,
-        DataIngestion.DATA_DIR => data_directory,
+        Pipelines.MODEL_DIR => model_dir,
+        Pipelines.TRAINING_DIR => training_dir,
+        DataIngestion.DATA_DIR => data_dir,
+        WORKSPACE => workspace,
+        PIPELINE_DIR => pipeline_dir,
+        FILTER_DIR => filter_dir,
         begin
             # Said out loud, so whoever launched from a terminal knows the warm-up is over.
-            @info "DashiBoard is listening" url = "http://$(host):$(port)" data_directory
+            @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace
             async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
         end
     )

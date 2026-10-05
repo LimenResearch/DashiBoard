@@ -63,6 +63,14 @@ const REPOSITORY = Ref{Repository}()
 
 const ID_VAR = ScopedValue("_id")
 
+# The directory every file route is confined to, and the two kinds of file Pipelines has no
+# directory for. The tables' and the configurations' directories are DataIngestion's and
+# Pipelines' own scoped values; these complete the set.
+const WORKSPACE = ScopedValue("")
+const PIPELINE_DIR = ScopedValue("")
+const FILTER_DIR = ScopedValue("")
+
+include("workspace.jl")
 include("handlers.jl")
 include("middleware.jl")
 include("launch.jl")

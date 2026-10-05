@@ -6,10 +6,10 @@ Two processes: the Julia server (`bin/launch.jl`) and the Vite dev server for th
 ## 1. The server
 
 ```sh
-julia --project=DashiBoard bin/launch.jl <data_directory>
+julia --project=DashiBoard bin/launch.jl <workspace>
 ```
 
-`<data_directory>` is the folder whose files the **Load** tab lists, e.g.
+`<workspace>` is the folder whose files the **Load** tab lists, e.g.
 `~/Documents/Limen/agentgraph/.dashi`.
 
 Options (`julia --project=DashiBoard bin/launch.jl --help`):
@@ -18,8 +18,8 @@ Options (`julia --project=DashiBoard bin/launch.jl --help`):
 |---|---|---|
 | `--host` | `127.0.0.1` | address to bind |
 | `--port` | `8080` | port to bind |
-| `--model_directory` | `static/model` | model configuration TOMLs |
-| `--training_directory` | `static/training` | training configuration TOMLs |
+| `--model_dir` | `static/model` | model configuration TOMLs |
+| `--training_dir` | `static/training` | training configuration TOMLs |
 
 ### Debug: the access log
 
@@ -27,7 +27,7 @@ The server logs one line per request — method, route, status, elapsed time —
 level, so it is silent unless asked for:
 
 ```sh
-JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 <data_directory>
+JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 <workspace>
 ```
 
 ### Printing to a file
@@ -36,7 +36,7 @@ Redirect both streams; the log goes to stderr. The middleware flushes after ever
 so the file is current even though Julia block-buffers stderr when it is not a terminal:
 
 ```sh
-JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 <data_directory> > /tmp/dashi.log 2>&1
+JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 <workspace> > /tmp/dashi.log 2>&1
 ```
 
 Then watch it from another shell: `tail -f /tmp/dashi.log`.
@@ -47,7 +47,7 @@ The server keeps a DuckDB cache, and DuckDB allows one writer per database. To r
 server (or the test suite) while one is already up, give it its own cache:
 
 ```sh
-DASHIBOARD_CACHE=/tmp/dashi-cache-2 julia --project=DashiBoard bin/launch.jl --port 8091 <data_directory>
+DASHIBOARD_CACHE=/tmp/dashi-cache-2 julia --project=DashiBoard bin/launch.jl --port 8091 <workspace>
 ```
 
 ## 2. The UI

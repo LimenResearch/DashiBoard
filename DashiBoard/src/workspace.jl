@@ -201,3 +201,96 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
     isempty(placed) && isempty(quarantined) && println(io, "nothing loose in ", root)
     return (; placed, quarantined)
 end
+
+# Extensions: the packages a workspace names, where they are, and what they contributed.
+
+# The hash of a sources table, kept beside the environment so that unchanged sources do not
+# resolve again.
+sources_stamp(sources::AbstractDict) = string(hash(sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first)))
+
+"""
+    extension_environment(workspace, sources; io = stderr) -> String
+
+The Julia project the server runs in when `workspace` names extensions:
+`<workspace>/.dashiboard/env/`, holding DashiBoard itself, developed from where this one is, and
+each extension from the source given — `path`, or `url` with `rev`, the forms Julia's `[sources]`
+takes. Resolved and instantiated when the sources differ from the last launch, left alone
+otherwise. An extension that cannot be resolved stops here with an error naming it.
+"""
+function extension_environment(workspace::AbstractString, sources::AbstractDict; io::IO = stderr)
+    env = joinpath(normpath(abspath(workspace)), ".dashiboard", "env")
+    stamp_file = joinpath(env, "sources.stamp")
+    stamp = sources_stamp(sources)
+    isfile(stamp_file) && read(stamp_file, String) == stamp && isfile(joinpath(env, "Manifest.toml")) && return env
+    mkpath(env)
+    previous = Base.active_project()
+    try
+        Pkg.activate(env; io)
+        Pkg.develop(Pkg.PackageSpec(path = pkgdir(DashiBoard)); io)
+        for (name, source) in sort!(collect(pairs(sources)); by = first)
+            # A relative path is relative to the workspace, as a `[directories]` entry is.
+            located(p) = isabspath(expanduser(p)) ? expanduser(p) : normpath(joinpath(workspace, p))
+            spec = if haskey(source, "path")
+                Pkg.PackageSpec(path = located(source["path"]))
+            elseif haskey(source, "url")
+                Pkg.PackageSpec(url = source["url"], rev = get(source, "rev", "main"))
+            else
+                throw(ArgumentError("extension `$(name)` needs a `path` or a `url`"))
+            end
+            try
+                haskey(source, "path") ? Pkg.develop(spec; io) : Pkg.add(spec; io)
+            catch err
+                throw(ArgumentError("extension `$(name)` could not be resolved from $(source): $(sprint(showerror, err))"))
+            end
+        end
+        Pkg.instantiate(; io)
+        write(stamp_file, stamp)
+    finally
+        isnothing(previous) || Pkg.activate(previous; io = devnull)
+    end
+    return env
+end
+
+"""
+    load_extensions(sources; env) -> Vector{Module}
+
+The named extensions, loaded from `env` — the environment `extension_environment` built, made
+the active one — or from the active environment when none is given. Each must be a package
+exposing `DEFAULT_PARSER::StreamlinerCore.Parser`, which is what it contributes.
+"""
+function load_extensions(sources::AbstractDict; env::Union{AbstractString, Nothing} = nothing)
+    isnothing(env) || Pkg.activate(env; io = devnull)
+    return map(sort!(collect(String, keys(sources)))) do name
+        mod = Base.require(Main, Symbol(name))
+        isdefined(mod, :DEFAULT_PARSER) || throw(ArgumentError("extension `$(name)` has no `DEFAULT_PARSER`"))
+        return mod
+    end
+end
+
+# The registries of a parser, named in the singular as the provenance table keys them.
+const REGISTRY_NAMES = (
+    models = "model", layers = "layer", sigmas = "sigma", aggregators = "aggregator",
+    metrics = "metric", regularizations = "regularization", optimizers = "optimizer",
+    schedules = "schedule", stoppers = "stopper", devices = "device", funnels = "funnel",
+    loaders = "loader", transforms = "transform",
+)
+
+"""
+    provenance(modules) -> Dict{String, String}
+
+Which extension contributed each registry entry: `"transform:double" => "TestExtension"`. What
+lets a pipeline's download name exactly the extensions it needs.
+"""
+function provenance(modules::AbstractVector)
+    table = Dict{String, String}()
+    for mod in modules
+        parser = getfield(mod, :DEFAULT_PARSER)
+        for (field, registry) in pairs(REGISTRY_NAMES)
+            hasproperty(parser, field) || continue
+            for key in keys(getproperty(parser, field))
+                table[string(registry, ':', key)] = string(nameof(mod))
+            end
+        end
+    end
+    return table
+end

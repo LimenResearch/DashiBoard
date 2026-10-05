@@ -1,0 +1,9 @@
+name = "TestExtension"
+uuid = "7b1f0c3e-5d2a-4f6b-9e8c-1a2b3c4d5e6f"
+version = "0.1.0"
+
+[deps]
+StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
+
+[sources]
+StreamlinerCore = {path = "../../../../../StreamlinerCore"}

@@ -1,4 +1,6 @@
-using DashiBoard, Test
+using DashiBoard, Test, HTTP
+using Sockets: Sockets
+using TOML: TOML
 
 @testset "resolving a workspace" begin
     mktempdir() do ws
@@ -70,5 +72,101 @@ using JSON: JSON
         write(joinpath(dir, "odd.toml"), "again = 2\n")
         DashiBoard.init_workspace(dir; io = devnull)
         @test isfile(at("quarantine", "odd-2.toml"))
+    end
+end
+
+const TEST_EXTENSION = normpath(joinpath(@__DIR__, "static", "extension", "TestExtension"))
+const LAUNCHER = normpath(joinpath(@__DIR__, "..", "..", "bin", "launch.jl"))
+const PROJECT = normpath(joinpath(@__DIR__, ".."))
+
+@testset "an environment from the extensions table" begin
+    mktempdir() do ws
+        # Named relative to the workspace, as a folder in `[directories]` is.
+        sources = Dict("TestExtension" => Dict{String, Any}("path" => relpath(TEST_EXTENSION, ws)))
+        env = DashiBoard.extension_environment(ws, sources; io = devnull)
+        @test env == joinpath(ws, ".dashiboard", "env")
+        project = TOML.parsefile(joinpath(env, "Project.toml"))
+        @test haskey(project["deps"], "TestExtension") && haskey(project["deps"], "DashiBoard")
+        stamp = mtime(joinpath(env, "Manifest.toml"))
+        # The same sources again: nothing to redo.
+        sleep(1.1)
+        DashiBoard.extension_environment(ws, sources; io = devnull)
+        @test mtime(joinpath(env, "Manifest.toml")) == stamp
+
+        modules = DashiBoard.load_extensions(sources; env)
+        @test length(modules) == 1 && nameof(only(modules)) == :TestExtension
+        @test DashiBoard.provenance(modules) == Dict("transform:double" => "TestExtension")
+    end
+end
+
+# The launcher, as a user runs it: from the workspace file alone, and from the command line.
+# Each launch gets its own DuckDB cache: a second process on this suite's would wait on its
+# lock. No startup file: the server must not depend on what a user's `startup.jl` loads.
+launcher(args...) = addenv(
+    `$(Base.julia_cmd()) --startup-file=no --project=$(PROJECT) $(LAUNCHER) $(collect(String, args))`,
+    "DASHIBOARD_CACHE" => mktempdir(),
+)
+
+@testset "launching from a workspace" begin
+    first_free(range) = for p in range
+        s = try Sockets.listen(Sockets.localhost, p) catch; continue end
+        close(s); return p
+    end
+    mktempdir() do ws
+        mkpath(joinpath(ws, "model")); cp(joinpath(PROJECT, "..", "static", "model", "dense.toml"), joinpath(ws, "model", "dense.toml"))
+        mkpath(joinpath(ws, "training")); cp(joinpath(PROJECT, "..", "static", "training", "batched.toml"), joinpath(ws, "training", "batched.toml"))
+        port = first_free(8581:8680)
+        write(joinpath(ws, "dashiboard.toml"), """
+        [server]
+        port = $(port)
+        [extensions]
+        TestExtension = { path = "$(TEST_EXTENSION)" }
+        """)
+        log = joinpath(ws, "launch.log")
+        proc = run(pipeline(launcher(ws); stdout = log, stderr = log); wait = false)
+        try
+            answered = false
+            for _ in 1:600
+                process_exited(proc) && break
+                try
+                    r = HTTP.post("http://127.0.0.1:$(port)/get-card-ir", body = JSON.json((; cols = ["a"], nodes = String[], groups = String[], include = ["cards"])))
+                    ir = JSON.parse(r.body)
+                    funnel = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "funnel")
+                    transforms = only(p for p in funnel["value"]["objects"][""]["properties"] if p["key"] == "input_transforms")
+                    @test "double" in transforms["value"]["values"]["enum"]
+                    answered = true
+                    break
+                catch
+                    sleep(1)
+                end
+            end
+            @test answered
+            text = read(log, String)
+            @test occursin("DashiBoard is listening", text) && occursin("pipeline", text)   # the warning names what fell back
+        finally
+            kill(proc); wait(proc)
+        end
+    end
+    # An extension that cannot be found stops the launch before it listens, naming it.
+    mktempdir() do ws
+        log = joinpath(ws, "launch.log")
+        proc = run(pipeline(launcher(ws, "--extensions", "Nope=/nowhere/Nope"); stdout = log, stderr = log); wait = false)
+        wait(proc)
+        @test proc.exitcode != 0
+        @test occursin("Nope", read(log, String))
+    end
+    # A workspace that is not there is a mistake in the command, not a folder to serve.
+    mktempdir() do ws
+        log = joinpath(ws, "launch.log")
+        proc = run(pipeline(launcher(joinpath(ws, "nowhere")); stdout = log, stderr = log); wait = false)
+        wait(proc)
+        @test proc.exitcode != 0
+        @test occursin("does not exist", read(log, String))
+    end
+    # `--init` sorts and leaves.
+    mktempdir() do ws
+        write(joinpath(ws, "t.csv"), "a\n1\n")
+        run(launcher(ws, "--init"))
+        @test isfile(joinpath(ws, "data", "t.csv")) && isfile(joinpath(ws, "dashiboard.toml"))
     end
 end

@@ -65,7 +65,7 @@ function launch(
         EXTENSION_OF => extension_of,
         begin
             # Said out loud, so whoever launched from a terminal knows the warm-up is over.
-            @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace
+            @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir
             async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
         end
     )

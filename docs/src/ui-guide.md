@@ -15,10 +15,11 @@ and answers every question the page asks:
 julia --project=DashiBoard bin/launch.jl path/to/workspace
 ```
 
-`path/to/workspace` is the only folder the page can reach. Laid out, it has a folder per kind of
+`path/to/workspace` is the folder the page works in. Laid out, it has a folder per kind of
 file — `data/` for tables, `pipeline/` and `filter/` for the documents, `model/` and `training/`
-for the configurations — and the page lists, loads and saves each kind in its own folder. A plain
-folder works too, with everything read from the root. `bin/README.md` has the layout, the
+for the configurations — and the page lists, loads and saves each kind in its own folder; nothing
+outside those folders is ever listed. A plain folder works too, with everything read from the
+root. `bin/README.md` has the layout, the
 `dashiboard.toml` that can name the folders and the extensions to load, and `--init`, which sorts
 a plain folder into the layout.
 
@@ -228,14 +229,16 @@ where to look, it does not stop you.
 
 At the foot of the Process tab, `Load pipeline` and `Save pipeline` work on the whole document —
 its groups and its cards — in the workspace's `pipeline/` folder; the name you type is relative to
-it, and may name a subfolder (`experiments/first`). Filters are saved the same way in `filter/`.
+it, ends in `.json`, and may name a subfolder (`experiments/first.json`). Filters are saved the same way in `filter/`.
 Presets are yours, not the pipeline's, and are not saved with it.
 
-`Download pipeline` gives you a zip laid out as a workspace: the document under `pipeline/`, the
+`Download pipeline` gives you a zip, named after the file name without its `.json`, laid out as a
+workspace: the document under `pipeline/`, the
 model and training configurations it names under `model/` and `training/`, the filters under
 `filter/` when the Filters tab holds some, and a `dashiboard.toml` naming the extensions the
-document needs. Unpacked beside the table, it is a workspace that launches and runs the same
-pipeline. The data is not in it.
+document needs, each with the path it was loaded from on this machine. Unpacked beside the table,
+it is a workspace that launches and runs the same pipeline; on another machine, the paths in its
+`dashiboard.toml` are the one thing to edit. The data is not in it.
 
 ---
 

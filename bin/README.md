@@ -23,7 +23,8 @@ julia --project=DashiBoard bin/launch.jl <workspace>
 
 Each folder is where the server lists, reads and saves files of that kind. A folder may hold
 subfolders. A workspace need not be laid out: a plain folder with everything in it is served as it
-is, with a warning naming the kinds that are read from the root.
+is, with a warning naming the kinds that are read from the root. The workspace has to exist and
+be writable: saved documents and the extensions' environment go into it.
 
 ### Sorting a plain folder
 
@@ -32,13 +33,20 @@ julia --project=DashiBoard bin/launch.jl <folder> --init
 ```
 
 moves each loose file into its folder by what it is — a table, a pipeline or filters document, a
-model or training configuration — and writes `dashiboard.toml`. What it cannot place (a file of no
-known kind, a folder that is not the layout's, a name already taken where the file belongs) goes
-to `quarantine/`, which the server ignores, and the report says why. It exits without serving.
+model or training configuration — and writes `dashiboard.toml` when there is none. When there is
+one, the folders it names under `[directories]` are the ones used. What cannot be placed (a file
+of no known kind, a folder that is not the layout's, a name already taken where the file belongs)
+goes to `quarantine/`, which the server ignores, and the report says why. It exits without
+serving.
+
+It moves everything at the top of the folder, so it refuses a folder that is plainly something
+else: a home directory, or one holding a `Project.toml`, `Manifest.toml`, `package.json`,
+`Cargo.toml` or `pyproject.toml`.
 
 ### `dashiboard.toml`
 
-Every entry is optional; a flag overrides the file.
+Every entry is optional; a flag overrides the file. The server never writes this file, and
+refuses a request to: it names packages the launcher installs and loads.
 
 ```toml
 [directories]            # relative to this file, or absolute; absent = the folder, else the root
@@ -60,12 +68,16 @@ port = 8080
 ### Extensions
 
 The server registers nothing beyond DashiBoard's own cards, funnels and transforms unless the
-workspace names extensions. For each one the launcher keeps a Julia environment under
-`<workspace>/.dashiboard/env/`, built from the sources given and instantiated when they change
-— the first launch with a new extension takes minutes; later ones do not — and loads the package
-from it. An extension that cannot be resolved stops the launch, naming it. On the command line:
+workspace names extensions. The launcher keeps one Julia environment for them under
+`<workspace>/.dashiboard/env/`, holding this checkout's own packages and each extension from the
+source given, and loads the extensions from it. It is built when the sources change — the table,
+or the project file of anything taken by path — which takes minutes; a launch with unchanged
+sources reuses it. An extension that cannot be resolved stops the launch, naming it. Deleting
+`.dashiboard/env/` forces a rebuild.
+
+A `path` in the table is relative to the workspace. On the command line:
 `--extensions Name=/path/to/Package,Other=https://host/Other.jl@main`, which replaces the file's
-table.
+table; a relative path there is relative to where the command is run.
 
 Options (`julia --project=DashiBoard bin/launch.jl --help`):
 
@@ -73,16 +85,26 @@ Options (`julia --project=DashiBoard bin/launch.jl --help`):
 |---|---|---|
 | `--host` | the file's, else `127.0.0.1` | address to bind |
 | `--port` | the file's, else `8080` | port to bind |
-| `--data_dir` | `<workspace>/data` | tables |
-| `--pipeline_dir` | `<workspace>/pipeline` | pipeline documents |
-| `--filter_dir` | `<workspace>/filter` | filters documents |
-| `--model_dir` | `<workspace>/model` | model configuration TOMLs |
-| `--training_dir` | `<workspace>/training` | training configuration TOMLs |
+| `--data_dir` | see below | tables |
+| `--pipeline_dir` | see below | pipeline documents |
+| `--filter_dir` | see below | filters documents |
+| `--model_dir` | see below | model configuration TOMLs |
+| `--training_dir` | see below | training configuration TOMLs |
 | `--extensions` | the file's | extensions to register |
 | `--init` | | sort the folder into the layout and exit |
 
-The repository's own `static/model` and `static/training` are not defaults any more: name them
-with `--model_dir static/model --training_dir static/training` when serving a folder that has none.
+Each directory is, in this order: the flag; the file's `[directories]` entry; the folder of that
+name in the workspace (`data`, `pipeline`, `filter`, `model`, `training`) when it exists; the
+workspace itself. A relative flag is relative to where the command is run, a relative entry of the
+file to the workspace. A directory that a flag or the file names and that does not exist stops the
+launch.
+
+The repository keeps sample configurations in `static/model` and `static/training`. To use them
+with a workspace that has none of its own, from the repository root:
+
+```sh
+julia --project=DashiBoard bin/launch.jl <workspace> --model_dir static/model --training_dir static/training
+```
 
 ### Debug: the access log
 

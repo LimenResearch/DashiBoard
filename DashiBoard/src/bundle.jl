@@ -4,18 +4,50 @@
 
 using ZipArchives: ZipWriter, zip_newfile
 
-# The registry entries a document uses, each keyed as the launcher records provenance:
-# `"<registry>:<name>"`. A streamliner card names a model configuration, whose `name` is the
-# architecture; a funnel type; a loader type; and the transforms of its columns.
+# Where the configuration a card names is, confined to its kind's directory: a name is a path
+# under it, never out of it.
+configuration_path(kind::Symbol, name::AbstractString) =
+    resolve_in(pointer(kind), string(name, ".toml"); what = "the $(kind) directory")
+
+# The registry entries a configuration names, each keyed as the launcher records provenance:
+# `"<registry>:<name>"`. A value written as a placeholder for a setting is not a name.
+function configuration_entries(config::AbstractDict)
+    entries = String[]
+    name(registry, value) = value isa AbstractString && push!(entries, string(registry, ':', value))
+    named(registry, items) = foreach(item -> item isa AbstractDict && name(registry, get(item, "name", nothing)), items)
+    name("model", get(config, "name", nothing))
+    for layers in values(get(config, "components", Dict{String, Any}()))
+        layers isa AbstractVector || continue
+        named("layer", layers)
+        foreach(layer -> layer isa AbstractDict && name("sigma", get(layer, "sigma", nothing)), layers)
+    end
+    for metric in vcat(Any[get(config, "loss", nothing)], get(config, "metrics", Any[]))
+        metric isa AbstractDict || continue
+        name("metric", get(metric, "name", nothing))
+        name("aggregator", get(metric, "agg", nothing))
+    end
+    named("regularization", get(config, "regularizations", Any[]))
+    optimizer = get(config, "optimizer", nothing)
+    optimizer isa AbstractDict && name("optimizer", get(optimizer, "name", nothing))
+    name("device", get(config, "device", nothing))
+    named("schedule", values(get(config, "schedules", Dict{String, Any}())))
+    named("stopper", get(config, "stoppers", Any[]))
+    return entries
+end
+
+# The registry entries a document uses. A streamliner card names a model and a training
+# configuration — whose architecture, layers, losses, optimizer may each come from an extension
+# — a funnel type, a loader type, and the transforms of its columns.
 function registry_entries(cards::AbstractDict)
     entries = String[]
     for node in get(cards, "nodes", Any[])
         card = get(node, "card", Dict{String, Any}())
         get(card, "type", nothing) == "streamliner" || continue
-        model = get(card, "model", Dict{String, Any}())
-        if haskey(model, "type")
-            config = Pipelines.SC.parse_without_properties(pointer(:model), model["type"])
-            haskey(config, "name") && push!(entries, "model:" * config["name"])
+        for (kind, field) in ((:model, "model"), (:training, "training"))
+            name = get(get(card, field, Dict{String, Any}()), "type", nothing)
+            name isa AbstractString || continue
+            path = configuration_path(kind, name)
+            isfile(path) && append!(entries, configuration_entries(TOML.parsefile(path)))
         end
         funnel = get(card, "funnel", Dict{String, Any}())
         push!(entries, "funnel:" * get(funnel, "type", ""))
@@ -60,12 +92,29 @@ function named_configurations(cards::AbstractDict)
         get(card, "type", nothing) == "streamliner" || continue
         for (kind, field) in ((:model, "model"), (:training, "training"))
             name = get(get(card, field, Dict{String, Any}()), "type", nothing)
-            isnothing(name) && continue
-            path = joinpath(pointer(kind), string(name, ".toml"))
+            name isa AbstractString || continue
+            path = configuration_path(kind, name)
             isfile(path) ? push!(found, (kind, String(name), path)) : push!(issues, missing_configuration(i, field, name))
         end
     end
     return unique!(found), issues
+end
+
+# A document that cannot be bundled, with the issues to report: one per configuration it names
+# and the directory lacks.
+struct BundleError <: Exception
+    issues::Vector{Any}
+end
+
+Base.showerror(io::IO, err::BundleError) = print(io, join((issue.message for issue in err.issues), "; "))
+
+# The name a download is filed under becomes file names in the zip and the name of the zip: it
+# has to be one plain name.
+function file_stem(name)
+    plain = name isa AbstractString && !isempty(strip(name)) && name != "." && name != ".." &&
+        !any(c -> c in "/\\<>:\"|?*" || iscntrl(c), name)
+    plain || throw(ArgumentError("`$(name)` cannot name the downloaded files: use a plain name, without folders or any of < > : \" | ? *"))
+    return String(name)
 end
 
 """
@@ -76,13 +125,8 @@ configuration named under `model/` and `training/`, and a `dashiboard.toml` whos
 `[extensions]` is the launched table narrowed to what the document needs. Throws
 `BundleError` when a configuration is missing, with the issues to report.
 """
-struct BundleError <: Exception
-    issues::Vector{Any}
-end
-
-Base.showerror(io::IO, err::BundleError) = print(io, join((issue.message for issue in err.issues), "; "))
-
 function bundle_pipeline(cards::AbstractDict, filters::Union{AbstractDict, Nothing}, name::AbstractString)
+    name = file_stem(name)
     configurations, issues = named_configurations(cards)
     isempty(issues) || throw(BundleError(issues))
     extensions = Dict{String, Any}(ext => EXTENSIONS[][ext] for ext in needed_extensions(cards) if haskey(EXTENSIONS[], ext))
@@ -111,10 +155,12 @@ directory lacks, so the form can mark the card rather than show a half zip.
 function bundle_pipeline(req::HTTP.Request)
     spec = json_read(req)
     name = get(spec, "name", "pipeline")
+    # Every way this can fail is said in the envelope: a download that answers with nothing
+    # readable leaves the form saving an empty file or blaming the connection.
     bytes = try
-        bundle_pipeline(spec["cards"], get(spec, "filters", nothing), name)
+        bundle_pipeline(spec["cards"], get(spec, "filters", nothing), file_stem(name))
     catch exception
-        exception isa BundleError || rethrow()
+        exception isa BundleError || return json_response(failure_report("bundle", exception))
         return json_response((; valid = false, kind = "bundle", errors = [sprint(showerror, exception)], issues = exception.issues))
     end
     headers = vcat(

@@ -12,6 +12,24 @@ using TOML: TOML
         @test r.dirs[:training] == "/abs/trainings"                               # the flag wins over everything
         @test r.dirs[:pipeline] == normpath(ws) && r.dirs[:filter] == normpath(ws) # nothing said: the root
         @test Set(r.fell_back) == Set([:pipeline, :filter])
+        # A flag is what the user typed where they stand, so a relative one is read from there;
+        # an entry of the file is read from the file. Neither keeps a trailing separator, which
+        # would make one folder look like two.
+        cd(ws) do
+            r = DashiBoard.resolve_pointers(ws, Dict("directories" => Dict("data" => "data/")), Dict("model_dir" => "model/"))
+            @test r.dirs[:model] == joinpath(realpath(ws), "model") || r.dirs[:model] == normpath(joinpath(pwd(), "model"))
+            @test r.dirs[:data] == normpath(joinpath(ws, "data"))
+            @test !endswith(r.dirs[:model], "/") && !endswith(r.dirs[:data], "/")
+        end
+        mktempdir() do elsewhere
+            cd(elsewhere) do
+                r = DashiBoard.resolve_pointers(ws, Dict(), Dict("model_dir" => "static/model"))
+                @test r.dirs[:model] == normpath(joinpath(pwd(), "static", "model"))
+                # A directory that was named and is not there is said at launch, by name.
+                @test DashiBoard.missing_directories(r.dirs) == [:model => r.dirs[:model]]
+            end
+        end
+        @test isempty(DashiBoard.missing_directories(DashiBoard.resolve_pointers(ws, Dict(), Dict()).dirs))
         # an absolute entry in the file is taken as it is
         r = DashiBoard.resolve_pointers(ws, Dict("directories" => Dict("data" => "/mnt/tables")), Dict())
         @test r.dirs[:data] == "/mnt/tables"
@@ -73,6 +91,7 @@ using JSON: JSON
         @test occursin("p.json", text) && occursin("quarantine", text) && occursin("odd.toml", text)
 
         # A second run finds nothing loose and moves nothing.
+        @test occursin("odd.toml → quarantine/", text)
         again = DashiBoard.init_workspace(dir; io = devnull)
         @test isempty(again.placed) && isempty(again.quarantined)
         # A clash inside quarantine keeps both.
@@ -104,10 +123,38 @@ const PROJECT = normpath(joinpath(@__DIR__, ".."))
         DashiBoard.extension_environment(ws, sources; io = devnull)
         @test mtime(joinpath(env, "Manifest.toml")) == stamp
 
+        # Different sources are a different environment, built afresh: what the table no longer
+        # names is not carried along.
+        DashiBoard.extension_environment(ws, Dict{String, Dict{String, Any}}(); io = devnull)
+        @test !haskey(TOML.parsefile(joinpath(env, "Project.toml"))["deps"], "TestExtension")
+        DashiBoard.extension_environment(ws, sources; io = devnull)
         modules = DashiBoard.load_extensions(sources; env)
         @test length(modules) == 1 && nameof(only(modules)) == :TestExtension
         @test DashiBoard.provenance(modules) == Dict("transform:double" => "TestExtension", "funnel:test" => "TestExtension")
     end
+end
+
+@testset "sorting a workspace that names its own folders" begin
+    mktempdir() do dir
+        # The workspace file already says where the tables are: that folder is the layout's, and
+        # a loose table goes there.
+        write(joinpath(dir, "dashiboard.toml"), "[directories]\ndata = \"tables\"\n")
+        mkpath(joinpath(dir, "tables")); write(joinpath(dir, "tables", "old.csv"), "a\n1\n")
+        write(joinpath(dir, "new.csv"), "a\n2\n")
+        report = DashiBoard.init_workspace(dir; io = devnull)
+        @test isfile(joinpath(dir, "tables", "old.csv")) && isfile(joinpath(dir, "tables", "new.csv"))
+        @test !ispath(joinpath(dir, "quarantine")) && !ispath(joinpath(dir, "data"))
+        @test DashiBoard.read_workspace_file(dir)["directories"]["data"] == "tables"
+        @test report.placed == [("new.csv", "tables")]
+    end
+    # A folder that is plainly something else — a code project, a home — is not sorted.
+    mktempdir() do dir
+        write(joinpath(dir, "Project.toml"), "name = \"X\"\n")
+        mkpath(joinpath(dir, "src")); write(joinpath(dir, "t.csv"), "a\n1\n")
+        @test_throws ArgumentError DashiBoard.init_workspace(dir; io = devnull)
+        @test isdir(joinpath(dir, "src")) && isfile(joinpath(dir, "t.csv"))
+    end
+    @test_throws ArgumentError DashiBoard.init_workspace(homedir(); io = devnull)
 end
 
 # The launcher, as a user runs it: from the workspace file alone, and from the command line.
@@ -155,7 +202,8 @@ launcher(args...) = addenv(
             end
             @test answered
             text = read(log, String)
-            @test occursin("DashiBoard is listening", text) && occursin("pipeline", text)   # the warning names what fell back
+            @test occursin("DashiBoard is listening", text)
+            @test occursin("no directory for some kinds", text) && occursin(":pipeline", text)   # the warning names what fell back
         finally
             kill(proc); wait(proc)
         end
@@ -167,6 +215,14 @@ launcher(args...) = addenv(
         wait(proc)
         @test proc.exitcode != 0
         @test occursin("Nope", read(log, String))
+    end
+    # A directory named on the command line and not there stops the launch, by name.
+    mktempdir() do ws
+        log = joinpath(ws, "launch.log")
+        proc = run(pipeline(launcher(ws, "--model_dir", joinpath(ws, "no-models")); stdout = log, stderr = log); wait = false)
+        wait(proc)
+        @test proc.exitcode != 0
+        @test occursin("no-models", read(log, String)) && occursin("model", read(log, String))
     end
     # A workspace that is not there is a mistake in the command, not a folder to serve.
     mktempdir() do ws

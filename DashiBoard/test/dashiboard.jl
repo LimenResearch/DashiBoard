@@ -341,6 +341,17 @@ mktempdir() do data_dir
             @test occursin("TOML", only(config("write-configuration", Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml"))["errors"]))
             @test occursin("outside the workspace", only(config("write-configuration", Dict("path" => "../m.toml", "kind" => "model", "text" => model_text))["errors"]))
             @test occursin("already exists", only(config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["errors"]))
+
+            # What the launcher reads and runs is not a client's to write: the workspace file names
+            # packages the next launch installs and loads, and hidden folders hold its environment.
+            planted = "[loss]\n[extensions]\nX = { url = \"https://example.org/X.jl\" }\n"
+            for path in ("dashiboard.toml", "sub/dashiboard.toml", ".dashiboard/x.toml", "sub/.hidden/x.toml")
+                refused = config("write-configuration", Dict("path" => path, "kind" => "model", "text" => planted, "overwrite" => true))
+                @test refused["valid"] == false
+                @test !ispath(joinpath(data_dir, path))
+            end
+            @test save(".hidden/x.json", "cards", true)["valid"] == false
+            @test !ispath(joinpath(data_dir, ".hidden"))
         end
 
         # What each configuration name means, for a form to show beside the name.
@@ -384,6 +395,21 @@ mktempdir() do data_dir
             report = JSON.parse(refused.body)
             @test report["valid"] == false
             @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
+
+            # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
+            # that cannot be a file's, a configuration named outside its folder, a request with
+            # no document.
+            bundle(body) = HTTP.post(url * "bundle-pipeline", body = JSON.json(body), status_exception = false)
+            for name in ("run:2", "../up", "a/b", "", "quo\"te")
+                bad = bundle((; name, cards = doc))
+                @test bad.status == 200 && HTTP.header(bad, "Content-Type") == "application/json"
+                @test JSON.parse(bad.body)["valid"] == false
+            end
+            outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
+            bad = bundle((; name = "mine", cards = outside))
+            @test HTTP.header(bad, "Content-Type") == "application/json" && JSON.parse(bad.body)["valid"] == false
+            bad = bundle((; name = "mine"))
+            @test bad.status == 200 && JSON.parse(bad.body)["valid"] == false
         end
 
         # With a provenance table, the bundle names exactly the extensions the document uses.
@@ -403,6 +429,13 @@ mktempdir() do data_dir
                 Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
                 begin
                     @test DashiBoard.needed_extensions(doc) == ["Fake"]
+                    # Not only the architecture: a layer, a loss or an optimizer a configuration
+                    # names may come from an extension too, and the pipeline needs it as much.
+                    for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
+                        @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
+                            @test DashiBoard.needed_extensions(doc) == ["Other"]
+                        end
+                    end
                     bytes = DashiBoard.bundle_pipeline(doc, nothing, "x")
                     toml = TOML.parse(zip_readentry(ZipReader(bytes), "dashiboard.toml", String))
                     @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
@@ -937,6 +970,27 @@ mktempdir() do data_dir
         @test resp.status == 200
         @test JSON.parse(resp.body) == Dict("files" => [], "misplaced" => [])
         close(nowhere)
+    end
+
+    # A workspace with no folder for its configurations reads them from the root: only what is a
+    # configuration of the kind asked for counts, wherever else TOML files lie.
+    @testset "configurations in a flat workspace" begin
+        mktempdir() do ws
+            cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "m.toml"))
+            cp(joinpath(training_dir, "batched.toml"), joinpath(ws, "tr.toml"))
+            write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 1\n")
+            write(joinpath(ws, "broken.toml"), "= not toml")
+            mkpath(joinpath(ws, "quarantine")); cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "quarantine", "old.toml"))
+            flat_port = first_free_port(8581:8680)
+            flat = DashiBoard.launch(ws; port = flat_port, async = true)
+            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/list-configurations", body = "{}").body)
+            @test [m["name"] for m in listed["model"]] == ["m"]
+            @test [t["name"] for t in listed["training"]] == ["tr"]
+            ir = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/get-card-ir", body = JSON.json((; cols = ["a"], nodes = String[], groups = String[], include = ["cards"]))).body)
+            model = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "model")
+            @test model["value"]["options"] == ["m"]
+            close(flat)
+        end
     end
 
     # With a layout, a file is offered for what its folder says it is, as long as its content

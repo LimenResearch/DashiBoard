@@ -12,6 +12,12 @@ const RESERVED = (string.(KINDS)..., "quarantine")
 
 const WORKSPACE_FILE = "dashiboard.toml"
 
+# A path with no trailing separator, so that one folder written two ways is one folder.
+function tidy_path(path::AbstractString)
+    tidy = normpath(path)
+    return length(tidy) > 1 && endswith(tidy, Base.Filesystem.path_separator) ? chop(tidy) : tidy
+end
+
 """
     read_workspace_file(workspace) -> Dict
 
@@ -27,17 +33,19 @@ end
 
 Where each kind of file is, as absolute paths keyed by kind: a `<kind>_dir` entry of `flags`
 first, then the `[directories]` entry of `file`, then `<workspace>/<kind>` when that folder
-exists, then the workspace itself. `fell_back` lists the kinds that landed on the root, for the
+exists, then the workspace itself. A relative flag is read from the working directory — it is
+what the user typed where they stand — and a relative entry of the file from the workspace. `fell_back` lists the kinds that landed on the root, for the
 launcher to warn about. A `[directories]` key that is not a kind is refused rather than ignored,
 so a misspelt one does not silently fall back.
 """
 function resolve_pointers(workspace::AbstractString, file::AbstractDict, flags::AbstractDict)
-    root = normpath(abspath(workspace))
+    root = tidy_path(abspath(workspace))
     directories = get(file, "directories", Dict{String, Any}())
     for key in keys(directories)
         Symbol(key) in KINDS || throw(ArgumentError("`[directories]` has no `$(key)`: the kinds are $(join(KINDS, ", "))"))
     end
-    resolve(path) = isabspath(path) ? normpath(path) : normpath(joinpath(root, path))
+    from_file(path) = tidy_path(isabspath(path) ? path : joinpath(root, path))
+    from_flag(path) = tidy_path(abspath(path))
     dirs = Dict{Symbol, String}()
     fell_back = Symbol[]
     for kind in KINDS
@@ -45,11 +53,11 @@ function resolve_pointers(workspace::AbstractString, file::AbstractDict, flags::
         entry = get(directories, string(kind), nothing)
         conventional = joinpath(root, string(kind))
         dirs[kind] = if !isnothing(flag)
-            resolve(flag)
+            from_flag(flag)
         elseif !isnothing(entry)
-            resolve(entry)
+            from_file(entry)
         elseif isdir(conventional)
-            normpath(conventional)
+            tidy_path(conventional)
         else
             push!(fell_back, kind)
             root
@@ -57,6 +65,15 @@ function resolve_pointers(workspace::AbstractString, file::AbstractDict, flags::
     end
     return (; dirs, fell_back)
 end
+
+"""
+    missing_directories(dirs) -> Vector{Pair{Symbol, String}}
+
+The kinds whose directory is not there, with the path. Only a directory that was named — by a
+flag or by the file — can be missing, and a server on it would fail on its first question, so
+the launcher says so instead.
+"""
+missing_directories(dirs::AbstractDict) = Pair{Symbol, String}[kind => dirs[kind] for kind in KINDS if !isdir(dirs[kind])]
 
 """
     server_defaults(file) -> (; host, port)
@@ -89,7 +106,8 @@ function extension_sources(file::AbstractDict, flags::AbstractDict)
             url, rev = occursin('@', source) ? split(source, '@'; limit = 2) : (source, "main")
             Dict{String, Any}("url" => String(url), "rev" => String(rev))
         else
-            Dict{String, Any}("path" => String(source))
+            # Typed where the user stands, like a directory flag.
+            Dict{String, Any}("path" => abspath(String(source)))
         end
     end
     return sources
@@ -97,8 +115,8 @@ end
 
 # Sorting a plain folder into the layout.
 
-# Where a loose file belongs, by what it is: the folder's name, or `nothing` for a file that is
-# none of the kinds.
+# Which kind a loose file is — `"data"`, `"pipeline"`, `"filter"`, `"model"`, `"training"` — or
+# `nothing` for a file that is none of them.
 function destination_of(full::AbstractString)
     ext = lowercase(last(splitext(full)))
     if ext == ".toml"
@@ -129,24 +147,49 @@ function free_name(folder::AbstractString, name::AbstractString)
     return "$(stem)-$(n)$(ext)"
 end
 
+# What marks a folder as something other than a workspace: sorting one of these would scatter
+# a project.
+const NOT_A_WORKSPACE = ("Project.toml", "Manifest.toml", "package.json", "Cargo.toml", "pyproject.toml")
+
 """
     init_workspace(dir; io = stdout) -> (; placed, quarantined)
 
 Sort the loose files at the root of `dir` into the layout, once, and say what went where.
 
-A table goes to `data/`, a cards document to `pipeline/`, a filters document to `filter/`, a
-model configuration to `model/`, a training one to `training/`. Anything else — a file of no
-known kind, a folder that is not the layout's, a file whose name is already taken where it
+A table goes to the data folder, a cards document to the pipeline folder, a filters document to
+the filter folder, a model configuration to the model folder, a training one to the training
+folder. The folders are the ones the workspace file names under `[directories]` when there is
+one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise. Anything else — a file of
+no known kind, a folder that is not the layout's, a file whose name is already taken where it
 belongs, a file standing where a folder must go — goes to `quarantine/` under its own name
 (suffixed on a clash there too), so the root ends up holding only the layout and nothing is
 lost or overwritten. Hidden entries and the workspace file stay. The folders are made, and a
 `dashiboard.toml` with `[directories]` is written when there is none.
 
+A folder that is plainly something else — a home directory, a code project — is refused: the
+sorter moves everything it finds. Each move is reported as it is made.
+
 `placed` and `quarantined` are `(name, where)` pairs; `quarantined`'s `where` is the reason.
 Running it again on a laid-out folder sorts whatever is loose and otherwise does nothing.
 """
 function init_workspace(dir::AbstractString; io::IO = stdout)
-    root = normpath(abspath(dir))
+    root = tidy_path(abspath(dir))
+    isdir(root) || throw(ArgumentError("`$(dir)` is not a folder"))
+    (root == tidy_path(homedir()) || dirname(root) == root) &&
+        throw(ArgumentError("`$(root)` is not a workspace to sort: it is a home or a root directory"))
+    marker = findfirst(name -> isfile(joinpath(root, name)), NOT_A_WORKSPACE)
+    isnothing(marker) || throw(
+        ArgumentError("`$(root)` holds a `$(NOT_A_WORKSPACE[marker])`: it looks like a project, not a workspace to sort")
+    )
+
+    # Where each kind goes: the folder the workspace file names, as written, else the kind's own.
+    directories = get(read_workspace_file(root), "directories", Dict{String, Any}())
+    folder_of = Dict(string(kind) => String(get(directories, string(kind), string(kind))) for kind in KINDS)
+    folder_path(kind) = isabspath(folder_of[kind]) ? folder_of[kind] : joinpath(root, folder_of[kind])
+    # The top-level names that are the layout's own, and so neither loose nor in its way.
+    own = Set{String}(first(splitpath(folder)) for folder in values(folder_of) if !isabspath(folder))
+    push!(own, "quarantine")
+
     placed, quarantined = Tuple{String, String}[], Tuple{String, String}[]
     quarantine = joinpath(root, "quarantine")
     function put_aside(name, reason)
@@ -154,6 +197,7 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
         target = free_name(quarantine, name)
         mv(joinpath(root, name), joinpath(quarantine, target))
         push!(quarantined, (name, reason))
+        println(io, name, " → quarantine/", target == name ? "" : target, " (", reason, ")")
     end
     loose(name) = !(startswith(name, ".") || name == WORKSPACE_FILE)
     # What stands in the layout's way goes first: a file named like one of its folders, and a
@@ -161,42 +205,37 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
     for name in sort!(filter(loose, readdir(root)))
         full = joinpath(root, name)
         if isdir(full)
-            name in RESERVED || put_aside(name, "a folder that is not the layout's")
-        elseif name in RESERVED
+            name in own || put_aside(name, "a folder that is not the layout's")
+        elseif name in own
             put_aside(name, "a file where the `$(name)` folder goes")
         end
     end
     for name in sort!(filter(loose, readdir(root)))
         full = joinpath(root, name)
         isdir(full) && continue
-        destination = destination_of(full)
-        if isnothing(destination)
+        kind = destination_of(full)
+        if isnothing(kind)
             put_aside(name, "neither a table, a document nor a configuration")
             continue
         end
-        folder = joinpath(root, destination)
+        folder = folder_path(kind)
         if ispath(joinpath(folder, name))
-            put_aside(name, "`$(destination)/$(name)` already exists")
+            put_aside(name, "`$(folder_of[kind])/$(name)` already exists")
             continue
         end
         mkpath(folder)
         mv(full, joinpath(folder, name))
-        push!(placed, (name, destination))
+        push!(placed, (name, folder_of[kind]))
+        println(io, name, " → ", folder_of[kind], "/")
     end
     for kind in KINDS
-        mkpath(joinpath(root, string(kind)))
+        mkpath(folder_path(string(kind)))
     end
     file = joinpath(root, WORKSPACE_FILE)
     if !isfile(file)
         open(file, "w") do f
-            TOML.print(f, Dict("directories" => Dict(string(kind) => string(kind) for kind in KINDS)))
+            TOML.print(f, Dict("directories" => folder_of))
         end
-    end
-    for (name, where) in placed
-        println(io, name, " → ", where, "/")
-    end
-    for (name, reason) in quarantined
-        println(io, name, " → quarantine/ (", reason, ")")
     end
     isempty(placed) && isempty(quarantined) && println(io, "nothing loose in ", root)
     return (; placed, quarantined)
@@ -223,7 +262,14 @@ end
 
 # The hash of a sources table, kept beside the environment so that unchanged sources do not
 # resolve again.
-sources_stamp(sources::AbstractDict) = string("2:", hash(sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first)))
+# What an environment was built from: the sources, and the project files of everything taken by
+# path — an extension's and this checkout's own — since a dependency added to one of them asks
+# for a new resolution as much as a new source does.
+function sources_stamp(sources::AbstractDict)
+    paths = vcat(pkgdir(DashiBoard), own_packages(), String[source["path"] for source in values(sources) if haskey(source, "path")])
+    projects = [path => (isfile(joinpath(path, "Project.toml")) ? hash(read(joinpath(path, "Project.toml"))) : UInt(0)) for path in sort!(paths)]
+    return string("3:", hash((sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first), projects)))
+end
 
 # DashiBoard's own packages, where this checkout keeps them: the dependencies its project
 # names by path.
@@ -248,6 +294,9 @@ function extension_environment(workspace::AbstractString, sources::AbstractDict;
     stamp_file = joinpath(env, "sources.stamp")
     stamp = sources_stamp(sources)
     isfile(stamp_file) && read(stamp_file, String) == stamp && isfile(joinpath(env, "Manifest.toml")) && return env
+    # Built afresh rather than amended: what the sources no longer name must not be carried
+    # along, and a half-made environment must not be taken for a finished one.
+    rm(env; recursive = true, force = true)
     mkpath(env)
     previous = Base.active_project()
     try

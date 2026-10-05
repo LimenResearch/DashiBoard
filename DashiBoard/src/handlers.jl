@@ -1,6 +1,6 @@
 # An absent directory is `pwd()`, which is `DataIngestion.acceptable_paths`'s own rule — so the
 # listing here and the loader there agree on where "here" is.
-absolute_or_here(dir::AbstractString) = normpath(abspath(isempty(dir) ? pwd() : dir))
+absolute_or_here(dir::AbstractString) = tidy_path(abspath(isempty(dir) ? pwd() : dir))
 
 """
     workspace_directory() -> String
@@ -53,17 +53,23 @@ end
 resolve_in_workspace(path::AbstractString) = resolve_in(workspace_directory(), path)
 resolve_in_data_dir(path::AbstractString) = resolve_in(data_directory(), path; what = "the data directory")
 
-# What makes a parsed TOML a model or a training configuration: the tables each is built from.
-"""
-    configuration_kind(parsed) -> Union{String, Nothing}
+const configuration_kind = Pipelines.SC.configuration_kind
 
-`"model"`, `"training"`, or `nothing` when `parsed` is neither.
 """
-function configuration_kind(parsed)
-    parsed isa AbstractDict || return nothing
-    (haskey(parsed, "components") || haskey(parsed, "loss")) && return "model"
-    (haskey(parsed, "optimizer") || haskey(parsed, "iterations")) && return "training"
-    return nothing
+    writable(path) -> path
+
+`path` if a client may write there, an `ArgumentError` otherwise. Two things are the launcher's
+alone: the workspace file, which names packages the next launch installs and loads, and hidden
+folders, where its environment lives. A route that could write either would let whoever reaches
+the server choose the code it runs next.
+"""
+function writable(path::AbstractString)
+    segments = splitpath(path)
+    # `.` and `..` are steps, not names: whether they lead outside is the resolver's to say.
+    hidden(segment) = startswith(segment, ".") && segment != "." && segment != ".."
+    any(hidden, segments) && throw(ArgumentError("`$(path)` is hidden, and hidden files and folders are not written to"))
+    lowercase(last(segments)) == WORKSPACE_FILE && throw(ArgumentError("`$(path)`: the workspace file is not written through the server"))
+    return path
 end
 
 # What makes a parsed file a document of the UI rather than a table: the keys `Download cards`
@@ -244,7 +250,7 @@ function write_document(req::HTTP.Request, base::AbstractString; what = "the wor
     spec = json_read(req)
     answer = try
         path, kind, document = spec["path"], spec["kind"], spec["document"]
-        full = resolve_in(base, path; what)
+        full = resolve_in(base, writable(path); what)
         lowercase(last(splitext(full))) == ".json" ||
             throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
         document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
@@ -319,7 +325,7 @@ a form to show beside the name rather than make the author open it.
 """
 function list_configurations(req::HTTP.Request)
     _ = json_read(req)
-    describe(kind) = map(Pipelines.SC.available_streamliner_configs(pointer(kind))) do name
+    describe(kind) = map(Pipelines.SC.available_streamliner_configs(pointer(kind), string(kind))) do name
         path = string(name, ".toml")
         full = joinpath(pointer(kind), path)
         parsed = TOML.parsefile(full)
@@ -369,7 +375,7 @@ function write_configuration(req::HTTP.Request, base::AbstractString; what = "th
     spec = json_read(req)
     answer = try
         path, kind, text = spec["path"], spec["kind"], spec["text"]
-        full = resolve_in(base, path; what)
+        full = resolve_in(base, writable(path); what)
         lowercase(last(splitext(full))) == ".toml" ||
             throw(ArgumentError("configurations are saved as TOML: `$(path)` does not end in .toml"))
         parsed = try

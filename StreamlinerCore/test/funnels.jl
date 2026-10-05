@@ -239,5 +239,16 @@ end
         end
         @test StreamlinerCore.available_streamliner_configs(dir) == ["a", "sub/b"]
         @test StreamlinerCore.parse_without_properties(dir, "sub/b")["name"] == "x"
+
+        # Asked for a kind, only the files that are configurations of that kind count: a folder
+        # may hold other TOML files, set-aside ones, and ones that do not parse.
+        write(joinpath(dir, "m.toml"), "name = \"basic\"\n[components]\nmodel = []\n[loss]\nname = \"mse\"\n")
+        write(joinpath(dir, "t.toml"), "iterations = 3\n[optimizer]\nname = \"Adam\"\n")
+        write(joinpath(dir, "broken.toml"), "= not toml")
+        mkpath(joinpath(dir, "quarantine")); cp(joinpath(dir, "m.toml"), joinpath(dir, "quarantine", "old.toml"))
+        @test StreamlinerCore.available_streamliner_configs(dir, "model") == ["m"]
+        @test StreamlinerCore.available_streamliner_configs(dir, "training") == ["t"]
+        @test StreamlinerCore.configuration_kind(Dict("loss" => 1)) == "model"
+        @test isnothing(StreamlinerCore.configuration_kind(Dict("name" => "x")))
     end
 end

@@ -60,6 +60,10 @@ function (@main)(ARGS)
     file = DashiBoard.read_workspace_file(workspace)
     flags = Dict{String, Any}(k => v for (k, v) in d if !isnothing(v))
     (; dirs, fell_back) = DashiBoard.resolve_pointers(workspace, file, flags)
+    missing_dirs = DashiBoard.missing_directories(dirs)
+    isempty(missing_dirs) || error(
+        "no such directory: " * join(("the $(kind) directory `$(path)`" for (kind, path) in missing_dirs), ", ")
+    )
     if !isempty(fell_back)
         @warn "no directory for some kinds of file: they are read from the workspace itself; `--init` lays the folder out" kinds = fell_back
     end

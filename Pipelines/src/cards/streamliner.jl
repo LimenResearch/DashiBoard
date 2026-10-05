@@ -89,7 +89,7 @@ end
 function DashiBase.constraints(::Type{StreamlinerCard})
     isassigned(SC.MODEL_DIR) || return StringDict[]
     dir = SC.MODEL_DIR[]
-    return map(SC.available_streamliner_configs(dir)) do config
+    return map(SC.available_streamliner_configs(dir, "model")) do config
         name = get(SC.parse_without_properties(dir, config), "name", nothing)
         fields = String[string(field) for field in SC.output_fields(get(PARSER[].models, name, nothing))]
         StringDict(

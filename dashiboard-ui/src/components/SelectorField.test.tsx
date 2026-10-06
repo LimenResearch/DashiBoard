@@ -554,6 +554,87 @@ describe('SelectorField, typed entry', () => {
     expect(builderIn(container, 'PRES').querySelector('[data-product]')).toBeNull();
   });
 
+  // `select…` is to `|` what `through…` is to `@`, wherever a node with several products is offered.
+  describe('select…', () => {
+    const productsOf = (id: string) => (id === 'rescale' ? ['prediction', 'logvar'] : []);
+    const field = (onChange: (items: SelectorItem[]) => void = () => {}) => render(() => (
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={onChange}
+        productsFor={products} productsOf={productsOf} />
+    ));
+    const offered = (c: HTMLElement) =>
+      [...c.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'));
+    const pills = (c: HTMLElement, value: string) =>
+      [...c.querySelector(`[data-suggestion="${value}"]`)!.querySelectorAll('[data-pick]')].map((e) => e.getAttribute('data-pick'));
+    const pick = async (c: HTMLElement, value: string, how: string) => {
+      fireEvent.click(c.querySelector(`[data-suggestion="${value}"] [data-pick="${how}"]`)!); await flush();
+    };
+    const finish = (c: HTMLElement) => c.querySelector('[data-finish]') as HTMLButtonElement | null;
+
+    it('sits beside through… on a node name that has several products', async () => {
+      const { container } = field();
+      await type(container, 'n'); await key(container, 'Tab');
+      expect(pills(container, 'rescale')).toEqual(['select', 'through']);
+      expect(pills(container, 'split')).toEqual(['through']);
+    });
+
+    it('lists the products as typing `|` does, then the ones left, and writes one item', async () => {
+      let written: SelectorItem[] | null = null;
+      const { container } = field((items) => { written = items; });
+      await type(container, 'n'); await key(container, 'Tab');
+      await pick(container, 'rescale', 'select');
+      expect(tokens(container)).toEqual(['nodes:', 'rescale']);
+      expect(offered(container)).toEqual(['prediction', 'logvar']);
+      expect(pills(container, 'logvar')).toEqual(['through']);
+      expect(finish(container)!.textContent).toMatch(/add rescale · all products/);
+      fireEvent.click(container.querySelector('[data-suggestion="logvar"]')!); await flush();
+      expect(tokens(container)).toEqual(['nodes:', 'rescale|logvar']);
+      expect(offered(container)).toEqual(['prediction']);
+      expect(finish(container)!.textContent).toMatch(/^add rescale\|logvar$/);
+      fireEvent.click(finish(container)!); await flush();
+      expect(written).toEqual([{ nodes: 'rescale', products: ['logvar'] }]);
+    });
+
+    it('typing `|` after the name reaches the same list', async () => {
+      const { container } = field();
+      await type(container, 'n'); await key(container, 'Tab');
+      await type(container, 'resc'); await key(container, 'Tab');
+      await type(container, '|');
+      expect(offered(container)).toEqual(['prediction', 'logvar']);
+    });
+
+    it('sits on a step with several products, and narrows it', async () => {
+      const { container } = field();
+      await type(container, 'c'); await key(container, 'Tab');
+      await type(container, 'PRES'); await key(container, 'Tab');
+      expect(pills(container, 'rescale')).toEqual(['select']);
+      await pick(container, 'rescale', 'select');
+      expect(tokens(container)).toEqual(['cols:', 'PRES', '@rescale']);
+      expect(offered(container)).toEqual(['prediction', 'logvar']);
+    });
+
+    it('beside add, narrows the step already taken; an empty list says why', async () => {
+      const { container } = field();
+      await type(container, 'c'); await key(container, 'Tab');
+      await type(container, 'PRES'); await key(container, 'Tab');
+      await type(container, '@resc'); await key(container, 'Tab');
+      expect(finish(container)!.textContent).toMatch(/add PRES → rescale · all products/);
+      expect(container.querySelector('[data-select-taken]')).not.toBeNull();
+      fireEvent.click(container.querySelector('[data-select-taken]')!); await flush();
+      expect(offered(container)).toEqual(['prediction', 'logvar']);
+    });
+
+    it('says no node can take it further when nothing follows', async () => {
+      const { container } = render(() => (
+        <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}}
+          chainFor={(row) => (row.chain.length > 0 ? [] : ['rescale'])} />
+      ));
+      await type(container, 'c'); await key(container, 'Tab');
+      await type(container, 'PRES'); await key(container, 'Tab');
+      await type(container, '@resc'); await key(container, 'Tab');
+      expect(container.textContent).toMatch(/no node can take this further/);
+    });
+  });
+
   it('shows no highlight for an untouched list, then the top match once something is typed', async () => {
     const { container } = mount([]);
     fireEvent.focus(box(container)); await flush();

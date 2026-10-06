@@ -6,7 +6,8 @@ import { STEP_SEPARATOR, type SelectorRow } from "./selector";
 
 export type EntryVocabulary = {
   kinds: string[]; options: Record<string, string[]>; chain: string[];
-  /** The products the last accepted step may still be narrowed to. */
+  /** The products the last node taken — the last step, or the name of a `nodes` selection — may
+   *  still be narrowed to. */
   narrow: string[];
 };
 export type EntryState = {
@@ -14,15 +15,22 @@ export type EntryState = {
   text: string; open: boolean; highlight: number;
   /** The highlight was moved by hand: the list is engaged even with nothing typed. */
   moved: boolean;
+  /** The list offers the products of the last node taken rather than nodes to pass through:
+   *  `select…` or `|` turns it on, `through…` or `@` off. */
+  selecting: boolean;
 };
 export type EntryInput =
   | { type: "text"; value: string } | { type: "focus" } | { type: "tab" } | { type: "enter" }
   | { type: "backspace" } | { type: "escape" } | { type: "down" } | { type: "up" }
-  | { type: "pick"; value: string; how: "continue" | "direct" | "through" };
+  | { type: "pick"; value: string; how: "continue" | "direct" | "through" | "select" }
+  /** The `select…` beside `add`: choose products of what is already taken. */
+  | { type: "select" };
 export type EntryStep = { state: EntryState; emit?: SelectorRow; leave?: true };
 
 /** The list shows whenever the box is in hand; Esc or leaving closes it. */
-export const emptyEntry: EntryState = { kind: null, name: null, chain: [], text: "", open: true, highlight: 0, moved: false };
+export const emptyEntry: EntryState = {
+  kind: null, name: null, chain: [], text: "", open: true, highlight: 0, moved: false, selecting: false,
+};
 
 /** Names starting with the text, then names containing it; each in the order given. */
 export function matches(query: string, options: readonly string[]): string[] {
@@ -40,13 +48,19 @@ export function stageOf(state: EntryState): "kind" | "name" | "chain" {
   return "chain";
 }
 
-/** A `|` at the chain stage narrows the step just accepted instead of starting another. */
-const narrowing = (state: EntryState) =>
-  stageOf(state) === "chain" && state.chain.length > 0 && state.text.startsWith(STEP_SEPARATOR);
+/** A node is there to narrow: the last step, or the name of a `nodes` selection. */
+const narrowable = (state: EntryState) => state.chain.length > 0 || state.kind === "nodes";
+
+/** At the chain stage, `|` or `select…` narrows the node just taken instead of adding a step;
+ *  `@` goes back to the steps. */
+export const narrowing = (state: EntryState) =>
+  stageOf(state) === "chain" && narrowable(state) && !state.text.startsWith("@") &&
+  (state.selecting || state.text.startsWith(STEP_SEPARATOR));
 
 /** What is typed for the current stage: a chain step may be written with or without its `@`. */
 const queryOf = (state: EntryState) =>
-  narrowing(state) || (stageOf(state) === "chain" && state.text.startsWith("@")) ? state.text.slice(1) : state.text;
+  (narrowing(state) && state.text.startsWith(STEP_SEPARATOR)) || (stageOf(state) === "chain" && state.text.startsWith("@"))
+    ? state.text.slice(1) : state.text;
 
 export function suggestions(state: EntryState, vocabulary: EntryVocabulary): string[] {
   switch (stageOf(state)) {
@@ -56,21 +70,29 @@ export function suggestions(state: EntryState, vocabulary: EntryVocabulary): str
   }
 }
 
-/** The state after `value` is accepted for the current stage; the next stage's list shows. */
-function accept(state: EntryState, value: string): EntryState {
-  const next = { ...state, text: "", open: true, highlight: 0, moved: false };
+/**
+ * The state after `value` is accepted for the current stage; the next stage's list shows. A product
+ * joins the node it narrows, and the products left stay on offer while there are any — `left` is
+ * how many the list held, the one taken included.
+ */
+function accept(state: EntryState, value: string, left = 0): EntryState {
+  const next = { ...state, text: "", open: true, highlight: 0, moved: false, selecting: false };
   switch (stageOf(state)) {
     case "kind": return { ...next, kind: value };
     case "name": return { ...next, name: value };
-    case "chain":
-      return narrowing(state)
-        ? { ...next, chain: [...state.chain.slice(0, -1), `${state.chain.at(-1)}${STEP_SEPARATOR}${value}`] }
-        : { ...next, chain: [...state.chain, value] };
+    case "chain": {
+      if (!narrowing(state)) return { ...next, chain: [...state.chain, value] };
+      const more = left > 1;
+      return state.chain.length > 0
+        ? { ...next, selecting: more, chain: [...state.chain.slice(0, -1), `${state.chain.at(-1)}${STEP_SEPARATOR}${value}`] }
+        : { ...next, selecting: more, name: `${state.name}${STEP_SEPARATOR}${value}` };
+    }
   }
 }
 
 /** Something was typed or chosen: a match is highlighted, and TAB and ENTER may take it. */
-export const engaged = (state: EntryState) => queryOf(state) !== "" || state.moved || narrowing(state);
+export const engaged = (state: EntryState) =>
+  queryOf(state) !== "" || state.moved || (narrowing(state) && state.text.startsWith(STEP_SEPARATOR));
 
 const highlighted = (state: EntryState, vocabulary: EntryVocabulary): string | undefined =>
   state.open ? suggestions(state, vocabulary)[state.highlight] : undefined;
@@ -99,7 +121,12 @@ export function step(state: EntryState, input: EntryInput, vocabulary: EntryVoca
         const top = matches(value.slice(0, -1), vocabulary.options[state.kind!] ?? [])[0];
         if (top !== undefined) return { state: accept({ ...state, text: value.slice(0, -1) }, top) };
       }
-      return { state: { ...state, text: value, open: true, highlight: 0, moved: false } };
+      return {
+        state: {
+          ...state, text: value, open: true, highlight: 0, moved: false,
+          selecting: state.selecting && !value.startsWith("@"),
+        },
+      };
     }
     case "down":
     case "up": {
@@ -114,17 +141,18 @@ export function step(state: EntryState, input: EntryInput, vocabulary: EntryVoca
       // TAB completes only what was typed or chosen; otherwise it leaves the field, as TAB does.
       if (!state.open || !engaged(state)) return { state, leave: true };
       const value = highlighted(state, vocabulary);
-      return { state: value === undefined ? state : accept(state, value) };
+      return { state: value === undefined ? state : accept(state, value, vocabulary.narrow.length) };
     }
     case "enter": {
       // ENTER takes the highlighted match only for something typed or chosen: otherwise it
       // finishes what is already accepted, and never picks the first name off a list by itself.
       if (stageOf(state) === "kind" || !engaged(state)) return finish({ ...state, text: "" }, single);
       const value = highlighted(state, vocabulary);
-      return value === undefined ? { state } : finish(accept(state, value), single);
+      return value === undefined ? { state } : finish(accept(state, value, vocabulary.narrow.length), single);
     }
     case "backspace": {
       if (state.text !== "") return { state };
+      if (state.selecting) return { state: { ...state, selecting: false, highlight: 0, moved: false } };
       if (state.chain.length > 0) return { state: { ...state, chain: state.chain.slice(0, -1), highlight: 0, moved: false } };
       if (state.name !== null) return { state: { ...state, name: null, highlight: 0, moved: false } };
       return { state: { ...emptyEntry } };
@@ -132,10 +160,15 @@ export function step(state: EntryState, input: EntryInput, vocabulary: EntryVoca
     case "escape":
       return { state: state.open ? { ...state, open: false } : { ...emptyEntry, open: false } };
     case "pick": {
-      const accepted = accept({ ...state, open: true }, input.value);
+      const accepted = accept({ ...state, open: true }, input.value, vocabulary.narrow.length);
       if (input.how === "direct") return finish(accepted, single);
-      if (input.how === "through") return { state: accepted };
+      // From a product, `through…` goes on to the nodes; on a name or a step, `select…` asks for
+      // its products — what `@` and `|` do typed.
+      if (input.how === "through") return { state: { ...accepted, selecting: false } };
+      if (input.how === "select") return { state: { ...accepted, selecting: true } };
       return { state: accepted };
     }
+    case "select":
+      return { state: { ...state, text: "", open: true, highlight: 0, moved: false, selecting: narrowable(state) } };
   }
 }

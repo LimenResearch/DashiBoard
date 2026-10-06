@@ -37,6 +37,8 @@ type IRFieldProps = {
   chainFor?: (row: SelectorRow, all: string[]) => string[];
   /** Handed to every selector below: which products a chain step may be narrowed to. */
   productsFor?: (token: string, row: SelectorRow) => string[];
+  /** Handed to every selector below: the products a node writes by name. */
+  productsOf?: (id: string) => string[];
   /**
    * Handed to every map field below: the columns the card's list `name` resolved to, as the
    * server said — `null` when it has not.
@@ -218,6 +220,7 @@ export function IRField(props: IRFieldProps) {
                       <IRField
                         chainFor={props.chainFor}
                         productsFor={props.productsFor}
+                        productsOf={props.productsOf}
                         listsFor={props.listsFor}
                         refusedFor={props.refusedFor}
                         isCategorical={props.isCategorical}
@@ -375,6 +378,7 @@ export function IRField(props: IRFieldProps) {
                   <IRField
                     chainFor={props.chainFor}
                     productsFor={props.productsFor}
+                    productsOf={props.productsOf}
                     listsFor={props.listsFor}
                     refusedFor={props.refusedFor}
                     isCategorical={props.isCategorical}
@@ -525,6 +529,7 @@ export function IRField(props: IRFieldProps) {
                         <IRField
                           chainFor={props.chainFor}
                           productsFor={props.productsFor}
+                          productsOf={props.productsOf}
                           listsFor={props.listsFor}
                           refusedFor={props.refusedFor}
                           isCategorical={props.isCategorical}
@@ -551,6 +556,7 @@ export function IRField(props: IRFieldProps) {
                 <SelectorField
                   chainFor={props.chainFor}
                   productsFor={props.productsFor}
+                  productsOf={props.productsOf}
                   itemNode={w().items}
                   defs={props.defs}
                   label={props.label}
@@ -572,6 +578,7 @@ export function IRField(props: IRFieldProps) {
               <SelectorField
                 chainFor={props.chainFor}
                 productsFor={props.productsFor}
+                productsOf={props.productsOf}
                 single
                 itemNode={props.node}
                 defs={props.defs}

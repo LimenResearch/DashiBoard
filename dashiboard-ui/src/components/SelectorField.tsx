@@ -16,7 +16,7 @@ import {
   parseStep,
 } from "../selector";
 import { resolveRef, widgetFor, type Defs, type IRNode } from "../ir";
-import { emptyEntry, engaged, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
+import { emptyEntry, engaged, narrowing, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
 import * as _ from "lodash";
 
 // The variable picker.
@@ -53,6 +53,8 @@ type SelectorFieldProps = {
   chainFor?: (row: SelectorRow, all: string[]) => string[];
   /** The products the step `token` may still be narrowed to, after `row` — the selection before it. */
   productsFor?: (token: string, row: SelectorRow) => string[];
+  /** The products node `id` writes by name — what a `nodes` selection of it may keep. */
+  productsOf?: (id: string) => string[];
   value: unknown;
 } & (
   | { single?: false; onChange: (items: SelectorItem[]) => void }
@@ -170,6 +172,12 @@ export function SelectorField(props: SelectorFieldProps) {
   };
   /** The products `token` may still be narrowed to after `row`: the host's say, else none. */
   const productsFor = (token: string, row: SelectorRow) => props.productsFor?.(token, row) ?? [];
+  /** What a `nodes` selection of `token` may still keep: nothing to choose below two products. */
+  const productsLeft = (token: string) => {
+    const { node, products } = parseStep(token);
+    const all = props.productsOf?.(node) ?? [];
+    return all.length < 2 ? [] : all.filter((p) => !products.includes(p));
+  };
   const vocabulary = createMemo(() => {
     const e = entry();
     const named = e.kind !== null && e.name !== null;
@@ -177,9 +185,10 @@ export function SelectorField(props: SelectorFieldProps) {
       kinds: tabKinds(),
       options: Object.fromEntries(tabKinds().map((kind) => [kind, optionsOf(kind)])),
       chain: named ? chainFor({ kind: e.kind!, value: e.name!, chain: e.chain }) : chainOptions(),
-      narrow: named && e.chain.length > 0
-        ? productsFor(e.chain[e.chain.length - 1], { kind: e.kind!, value: e.name!, chain: e.chain.slice(0, -1) })
-        : [],
+      narrow: !named ? []
+        : e.chain.length > 0
+          ? productsFor(e.chain[e.chain.length - 1], { kind: e.kind!, value: e.name!, chain: e.chain.slice(0, -1) })
+          : e.kind === "nodes" ? productsLeft(e.name!) : [],
     };
   });
   const listId = _.uniqueId("selector-list-");
@@ -295,7 +304,26 @@ export function SelectorField(props: SelectorFieldProps) {
       : optionsOf(openKind());
   };
 
-  /** The matches for the part being typed; each carries the panel's two words for the mouse. */
+  /** The list holds products of the node just taken, not names or nodes. */
+  const choosing = () => narrowing(entry());
+  /** A name or a step on offer that writes several products, so it can be narrowed. */
+  const selectable = (value: string) => {
+    const e = entry();
+    if (choosing()) return false;
+    if (stageOf(e) === "name") return e.kind === "nodes" && productsLeft(value).length > 0;
+    if (stageOf(e) === "chain") return productsFor(value, { kind: e.kind!, value: e.name!, chain: e.chain }).length > 0;
+    return false;
+  };
+  /** The last node taken has products to choose from and none is chosen: it takes them all. */
+  const allProducts = () => {
+    const e = entry();
+    const last = e.chain.length > 0 ? e.chain[e.chain.length - 1] : e.name ?? "";
+    return parseStep(last).products.length === 0 && vocabulary().narrow.length >= 2;
+  };
+  const pickClass =
+    "inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary disabled:opacity-40";
+
+  /** The matches for the part being typed; each carries the panel's words for the mouse. */
   const SuggestionList = () => (
     <ul
       id={listId}
@@ -311,9 +339,10 @@ export function SelectorField(props: SelectorFieldProps) {
         ? "flex flex-col p-1"
         : "absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm"}
     >
-      {/* A chain with a step can be finished by mouse here; by keyboard it is ENTER. */}
-      <Show when={stageOf(entry()) === "chain" && entry().chain.length > 0}>
-        <li role="option" aria-selected="false" class="px-1.5 py-0.5">
+      {/* What is taken can be finished by mouse here — by keyboard it is ENTER — once there is a
+          step or a node to narrow. It names the selection, so it does not read as "add the node". */}
+      <Show when={stageOf(entry()) === "chain" && (entry().chain.length > 0 || entry().kind === "nodes")}>
+        <li role="option" aria-selected="false" class="flex items-center gap-2 px-1.5 py-0.5">
           <button
             type="button"
             tabindex={-1}
@@ -321,12 +350,29 @@ export function SelectorField(props: SelectorFieldProps) {
             onClick={() => apply({ type: "enter" })}
             class="inline-flex h-5 items-center rounded-sm bg-accent px-2.5 text-control-xs font-semibold text-accent-foreground"
           >
-            add {entry().chain.map((node) => `@${node}`).join("")}
+            add {[entry().name, ...entry().chain].join(" → ")}
+            {allProducts() ? " · all products" : ""}
           </button>
+          {/* Choose products of what is already taken — `|` typed. */}
+          <Show when={!narrowing(entry()) && vocabulary().narrow.length > 0}>
+            <button
+              type="button"
+              tabindex={-1}
+              data-select-taken
+              onClick={() => apply({ type: "select" })}
+              class={pickClass}
+            >
+              select…
+            </button>
+          </Show>
         </li>
       </Show>
       <For each={suggestions(entry(), vocabulary())} fallback={
-        <li class="p-1 text-control-xs text-muted-foreground italic">nothing matches</li>
+        <li class="p-1 text-control-xs text-muted-foreground italic">
+          {stageOf(entry()) === "chain" && !narrowing(entry()) && entry().text === ""
+            ? "no node can take this further"
+            : "nothing matches"}
+        </li>
       }>
         {(value, i) => {
           const stage = () => stageOf(entry());
@@ -348,7 +394,23 @@ export function SelectorField(props: SelectorFieldProps) {
               ]}
             >
               <span class="min-w-0 grow truncate">{stage() === "kind" ? `${value}:` : value}</span>
-              <Show when={stage() === "name"}>
+              {/* `select…` is `|` and `through…` is `@`: a node with several products may be
+                  narrowed wherever it is offered, and a product may be passed on. */}
+              <Show when={selectable(value)}>
+                <button
+                  type="button"
+                  tabindex={-1}
+                  data-pick="select"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    apply({ type: "pick", value, how: "select" });
+                  }}
+                  class={pickClass}
+                >
+                  select…
+                </button>
+              </Show>
+              <Show when={stage() === "name" || choosing()}>
                 <button
                   type="button"
                   tabindex={-1}
@@ -358,7 +420,7 @@ export function SelectorField(props: SelectorFieldProps) {
                     event.stopPropagation();
                     apply({ type: "pick", value, how: "through" });
                   }}
-                  class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary disabled:opacity-40"
+                  class={pickClass}
                 >
                   through…
                 </button>

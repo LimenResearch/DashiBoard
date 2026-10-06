@@ -13,7 +13,7 @@ import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
-import { productsFor, throughOptions } from "../through";
+import { productsFor, productsOf, throughOptions } from "../through";
 import { mergePresets, presetFields, presetsFor } from "../presets";
 import { refusedKeys } from "../transformRows";
 import {
@@ -618,6 +618,7 @@ export function Cards() {
                 // says what each node reads.
                 chainFor={(row, all) => throughOptions(row, all, describedNodes(), state.groups)}
                 productsFor={(token, row) => productsFor(token, row, describedNodes(), state.groups)}
+                productsOf={(id) => productsOf(id, describedNodes())}
                 // A list's columns are the server's to resolve; what kind a column is, the
                 // loaded table's to say.
                 // Only an answer about this document says so: one remembered from an earlier

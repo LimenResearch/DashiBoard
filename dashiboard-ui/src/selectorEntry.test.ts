@@ -252,7 +252,7 @@ describe('choosing products, by mark or by click', () => {
     const through = step(selecting, { type: 'pick', value: 'one', how: 'through' }, v(['one', 'two'])).state;
     expect(through.name).toBe('fit|one');
     expect(through.selecting).toBe(false);
-    expect(suggestions(through, v(['two']))).toEqual(['scale']);
+    expect(suggestions(through, v(['two']))).toEqual(['scale', '|two']);   // nodes, then the product left
     const typed = walk([text('@sc')], v(['one', 'two']), false, selecting).state;
     expect(typed.selecting).toBe(false);
     expect(suggestions(typed, v(['one', 'two']))).toEqual(['scale']);
@@ -280,5 +280,39 @@ describe('choosing products, by mark or by click', () => {
   it('does not narrow a column or a group by name', () => {
     const atName = { ...emptyEntry, kind: 'cols', name: 'Iws' };
     expect(suggestions(step(atName, text('|'), v(['a'])).state, v(['a']))).toEqual([]);
+  });
+});
+
+// After a node with products is taken, the list offers two ways on: the next nodes, then its
+// products. Both are rows the arrows reach; a product row is marked `|` as it is typed.
+describe('the next nodes and the products, in one list', () => {
+  const v = (narrow: string[]): EntryVocabulary =>
+    ({ kinds: ['nodes', 'cols'], options: { nodes: ['fit', 'scale'], cols: ['Iws'] }, chain: ['scale'], narrow });
+  const atStep = { ...emptyEntry, kind: 'cols', name: 'Iws', chain: ['fit'] };
+  const DOWN: EntryInput = { type: 'down' };
+
+  it('lists the next nodes, then the products of the step just taken', () => {
+    expect(suggestions(atStep, v(['prediction', 'logvar']))).toEqual(['scale', '|prediction', '|logvar']);
+  });
+
+  it('keeps a product reached with the arrows on TAB, then lists what is left and the nodes', () => {
+    const s = walk([DOWN, DOWN, TAB], v(['prediction', 'logvar']), false, atStep).state;
+    expect(s.chain).toEqual(['fit|prediction']);
+    expect(s.selecting).toBe(false);
+    expect(suggestions(s, v(['logvar']))).toEqual(['scale', '|logvar']);
+  });
+
+  it('does the same for the name of a nodes selection', () => {
+    const atName = { ...emptyEntry, kind: 'nodes', name: 'fit' };
+    expect(suggestions(atName, v(['one', 'two']))).toEqual(['scale', '|one', '|two']);
+    const s = walk([DOWN, DOWN, ENTER], v(['one', 'two']), false, atName);
+    expect(s.emitted).toEqual([{ kind: 'nodes', value: 'fit|one', chain: [] }]);
+  });
+
+  it('filters both by what is typed; `@` keeps the nodes, `|` the products', () => {
+    const typed = (t: string) => suggestions(step(atStep, text(t), v(['prediction', 'logvar'])).state, v(['prediction', 'logvar']));
+    expect(typed('lo')).toEqual(['|logvar']);
+    expect(typed('@')).toEqual(['scale']);
+    expect(typed('|')).toEqual(['prediction', 'logvar']);
   });
 });

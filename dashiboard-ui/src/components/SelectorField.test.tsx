@@ -612,15 +612,29 @@ describe('SelectorField, typed entry', () => {
       expect(offered(container)).toEqual(['prediction', 'logvar']);
     });
 
-    it('beside add, narrows the step already taken; an empty list says why', async () => {
+    it('offers the next nodes and the products of the step taken, under two headings, all reachable by arrows', async () => {
       const { container } = field();
       await type(container, 'c'); await key(container, 'Tab');
       await type(container, 'PRES'); await key(container, 'Tab');
       await type(container, '@resc'); await key(container, 'Tab');
       expect(finish(container)!.textContent).toMatch(/add PRES → rescale · all products/);
-      expect(container.querySelector('[data-select-taken]')).not.toBeNull();
-      fireEvent.click(container.querySelector('[data-select-taken]')!); await flush();
-      expect(offered(container)).toEqual(['prediction', 'logvar']);
+      expect(container.querySelector('[data-select-taken]')).toBeNull();
+      // This host says nothing about which nodes may follow, so every node is offered.
+      expect(offered(container)).toEqual(['rescale', 'split', '|prediction', '|logvar']);
+      expect([...container.querySelectorAll('[data-list-heading]')].map((e) => e.textContent)).toEqual(['nodes', 'products']);
+      expect(container.querySelector('[data-suggestion="|logvar"]')!.textContent).toMatch(/^logvar/);
+      expect(pills(container, '|logvar')).toEqual(['through']);
+      for (let n = 0; n < 4; n++) await key(container, 'ArrowDown');
+      await key(container, 'Tab');
+      expect(tokens(container)).toEqual(['cols:', 'PRES', '@rescale|logvar']);
+      expect(offered(container)).toEqual(['rescale', 'split', '|prediction']);
+    });
+
+    it('draws no headings when there are only nodes', async () => {
+      const { container } = field();
+      await type(container, 'c'); await key(container, 'Tab');
+      await type(container, 'PRES'); await key(container, 'Tab');
+      expect(container.querySelector('[data-list-heading]')).toBeNull();
     });
 
     it('says no node can take it further when nothing follows', async () => {

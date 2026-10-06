@@ -66,7 +66,14 @@ export function suggestions(state: EntryState, vocabulary: EntryVocabulary): str
   switch (stageOf(state)) {
     case "kind": return matches(state.text, vocabulary.kinds);
     case "name": return matches(state.text, vocabulary.options[state.kind!] ?? []);
-    case "chain": return matches(queryOf(state), narrowing(state) ? vocabulary.narrow : vocabulary.chain);
+    case "chain": {
+      if (narrowing(state)) return matches(queryOf(state), vocabulary.narrow);
+      // Two ways on: the next nodes, then the products of the node just taken, each marked `|`
+      // as it would be typed. `@` asks for the nodes alone.
+      const nodes = matches(queryOf(state), vocabulary.chain);
+      if (state.text.startsWith("@") || !narrowable(state)) return nodes;
+      return [...nodes, ...matches(queryOf(state), vocabulary.narrow).map((p) => `${STEP_SEPARATOR}${p}`)];
+    }
   }
 }
 
@@ -81,6 +88,10 @@ function accept(state: EntryState, value: string, left = 0): EntryState {
     case "kind": return { ...next, kind: value };
     case "name": return { ...next, name: value };
     case "chain": {
+      // A product row of the two-part list: kept as `|` typed would keep it, and the list goes
+      // back to both ways on.
+      if (value.startsWith(STEP_SEPARATOR))
+        return accept({ ...state, text: STEP_SEPARATOR, selecting: false }, value.slice(1), 0);
       if (!narrowing(state)) return { ...next, chain: [...state.chain, value] };
       const more = left > 1;
       return state.chain.length > 0

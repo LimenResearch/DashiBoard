@@ -14,6 +14,7 @@ import {
   type SelectorRow,
   formatStep,
   parseStep,
+  STEP_SEPARATOR,
 } from "../selector";
 import { resolveRef, widgetFor, type Defs, type IRNode } from "../ir";
 import { emptyEntry, engaged, narrowing, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
@@ -343,7 +344,8 @@ export function SelectorField(props: SelectorFieldProps) {
         : "absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm"}
     >
       {/* What is taken can be finished by mouse here — by keyboard it is ENTER — once there is a
-          step or a node to narrow. It names the selection, so it does not read as "add the node". */}
+          step or a node to narrow. It names the selection, so it does not read as "add the node".
+          Its products, if it has some, are the list's second part below. */}
       <Show when={stageOf(entry()) === "chain" && (entry().chain.length > 0 || entry().kind === "nodes")}>
         <li role="option" aria-selected="false" class="flex items-center gap-2 px-1.5 py-0.5">
           <button
@@ -356,18 +358,6 @@ export function SelectorField(props: SelectorFieldProps) {
             add {[entry().name, ...entry().chain].join(" → ")}
             {allProducts() ? " · all products" : ""}
           </button>
-          {/* Choose products of what is already taken — `|` typed. */}
-          <Show when={!narrowing(entry()) && vocabulary().narrow.length > 0}>
-            <button
-              type="button"
-              tabindex={-1}
-              data-select-taken
-              onClick={() => apply({ type: "select" })}
-              class={pickClass}
-            >
-              select…
-            </button>
-          </Show>
         </li>
       </Show>
       <For each={suggestions(entry(), vocabulary())} fallback={
@@ -379,11 +369,30 @@ export function SelectorField(props: SelectorFieldProps) {
       }>
         {(value, i) => {
           const stage = () => stageOf(entry());
+          // The two ways on after a node is taken, under their headings once there are both kinds:
+          // the next nodes, then that node's products, marked `|` in the list's own values.
+          const product = value.startsWith(STEP_SEPARATOR);
+          const listed = () => suggestions(entry(), vocabulary());
+          const twoParts = () => listed().some((v) => v.startsWith(STEP_SEPARATOR));
+          const heading = () => {
+            if (!twoParts()) return null;
+            const firstProduct = listed().findIndex((v) => v.startsWith(STEP_SEPARATOR));
+            if (i() === firstProduct) return "products";
+            return i() === 0 ? "nodes" : null;
+          };
           // A click on the row is the plain choice: the kind, the name as direct, or the next
           // step of a chain. Only `through…` needs a button of its own.
           const pick = () =>
             apply({ type: "pick", value, how: stage() === "name" ? "direct" : "continue" });
           return (
+            <>
+            <Show when={heading()}>
+              {(title) => (
+                <li data-list-heading role="presentation" class="px-1.5 pt-1 font-sans text-detail tracking-wider text-muted-foreground uppercase">
+                  {title()}
+                </li>
+              )}
+            </Show>
             <li
               data-suggestion={value}
               data-highlighted={highlightedId(i())}
@@ -396,7 +405,7 @@ export function SelectorField(props: SelectorFieldProps) {
                 { "bg-accent/60": highlightedId(i()) === true },
               ]}
             >
-              <span class="min-w-0 grow truncate">{stage() === "kind" ? `${value}:` : value}</span>
+              <span class="min-w-0 grow truncate">{stage() === "kind" ? `${value}:` : product ? value.slice(1) : value}</span>
               {/* `select…` is `|` and `through…` is `@`: a node with several products may be
                   narrowed wherever it is offered, and a product may be passed on. */}
               <Show when={selectable(value)}>
@@ -413,7 +422,7 @@ export function SelectorField(props: SelectorFieldProps) {
                   select…
                 </button>
               </Show>
-              <Show when={stage() === "name" || choosing()}>
+              <Show when={stage() === "name" || choosing() || product}>
                 <button
                   type="button"
                   tabindex={-1}
@@ -429,6 +438,7 @@ export function SelectorField(props: SelectorFieldProps) {
                 </button>
               </Show>
             </li>
+            </>
           );
         }}
       </For>

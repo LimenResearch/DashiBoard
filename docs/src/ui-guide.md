@@ -142,10 +142,11 @@ nodes: fit                            Iws_hat and Iws_logvar
 nodes: fit|logvar                     Iws_logvar
 ```
 
-Wherever such a card is offered — as a name under `nodes`, or as a step to pass through — it has
-a `select…` beside `through…`. `select…` lists what the card writes, one row each; choosing one
-keeps it and lists the rest, and `add` finishes. It does what typing `|` does, as `through…` does
-what typing `@` does.
+Once such a card is taken, as a name under `nodes` or as a step, the list offers two ways on,
+under two headings: the **nodes** it may pass through next, and its **products**. The arrows reach
+both; `Tab` on a product keeps it and lists the rest. Wherever such a card is offered, it also has
+a `select…` beside `through…`, which takes it and lists only its products. `select…` does what
+typing `|` does, as `through…` does what typing `@` does; `add` finishes.
 
 The card itself decides what is written at all. When the model chosen yields more than one thing,
 the card shows a `select` field listing them, all taken to begin with; untick one and its column

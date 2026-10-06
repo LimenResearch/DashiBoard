@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { productsFor, throughOptions, toOutputs } from './through';
+import { productsFor, productsOf, throughOptions, toOutputs } from './through';
 import type { ProbeNode, ThroughOption } from './stores';
 
 const carries = (
@@ -142,5 +142,28 @@ describe('a node with several products', () => {
     // … and a node that takes only the first product's columns does not.
     const narrow = node('n', [], [carries(null, ['a_hat', 'b_hat'], 'z')]);
     expect(throughOptions({ kind: 'groups', value: 'g', chain: ['fit'] }, ['n'], [wide, narrow], groups)).toEqual([]);
+  });
+});
+
+describe('a node selection narrowed to some of its products', () => {
+  const fit: ProbeNode = {
+    ...node('fit', ['Iws_hat', 'Iws_logvar'], [carries('prediction', ['Iws'], 'hat'), carries('logvar', ['Iws'], 'logvar')]),
+    products: [{ product: 'prediction', outputs: ['Iws_hat'] }, { product: 'logvar', outputs: ['Iws_logvar'] }],
+  };
+  const after = node('after', [], [carries(null, ['Iws_logvar'], 'z')]);
+  const plain = node('plain', ['x_z'], [carries(null, ['x'], 'z')]);
+
+  it('lists what a node may be narrowed to, in the order it declares them', () => {
+    expect(productsOf('fit', [fit, after])).toEqual(['prediction', 'logvar']);
+    expect(productsOf('plain', [plain])).toEqual([]);
+    expect(productsOf('ghost', [fit])).toEqual([]);
+  });
+
+  // `after` reads only the logvar column, so it follows `fit|logvar` and not a bare `fit`.
+  it('hands a chain only what the selection kept', () => {
+    const whole = { kind: 'nodes', value: 'fit', chain: [] };
+    const narrowed = { kind: 'nodes', value: 'fit|logvar', chain: [] };
+    expect(throughOptions(whole, ['fit', 'after'], [fit, after], {})).toEqual([]);
+    expect(throughOptions(narrowed, ['fit', 'after'], [fit, after], {})).toEqual(['after']);
   });
 });

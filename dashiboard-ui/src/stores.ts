@@ -128,6 +128,8 @@ export type Selector = {
   nodes?: string | string[];
   groups?: string | string[];
   cols?: string | string[];
+  /** The products of the selected nodes to keep; absent for all of them. */
+  products?: string[];
   through?: ThroughStep[];
 };
 
@@ -177,6 +179,9 @@ export type ProbeNode = {
    * row per column to choose a transform for. Absent from a server that does not send it.
    */
   lists?: Record<string, string[]>;
+  /** Each named product with its columns: what a selection may narrow the node to. Absent from a
+   *  server that does not send it. */
+  products?: { product: string; outputs: string[] }[];
 };
 
 /**

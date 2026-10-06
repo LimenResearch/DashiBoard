@@ -22,6 +22,8 @@ export const nodeOfStep = (step: ThroughStep) => (typeof step === "string" ? ste
 
 export type SelectorItem = {
   through?: ThroughStep[];
+  /** The products of the selected nodes to keep; absent for all of them. */
+  products?: string[];
   [kind: string]: unknown;
 };
 
@@ -46,7 +48,8 @@ const fromToken = (token: string): ThroughStep => {
   return products.length === 0 ? node : { node, products };
 };
 
-/** One value with its qualification — what the control actually manipulates. */
+/** One value with its qualification — what the control actually manipulates. A node narrowed to
+ *  some of its products is one value, `fit|logvar`, written as a chain step narrowed is. */
 export type SelectorRow = {
   kind: string;
   value: string;
@@ -71,31 +74,37 @@ export const chainKey = (chain: string[]) => JSON.stringify(chain);
 export function expand(items: SelectorItem[], kinds: readonly string[]): SelectorRow[] {
   return items.flatMap((item) => {
     const chain = Array.isArray(item.through) ? item.through.map(toToken) : [];
+    const products = Array.isArray(item.products) ? item.products.map(String) : [];
     return kinds.flatMap((kind) =>
-      asList(item[kind]).map((value) => ({ kind, value, chain })),
+      asList(item[kind]).map((value) => ({
+        kind, value: kind === "nodes" ? formatStep(value, products) : value, chain,
+      })),
     );
   });
 }
 
 /**
- * Rows back to items, merging only *consecutive* runs of the same kind and chain.
+ * Rows back to items, merging only *consecutive* runs of the same kind, chain and products.
  *
  * Consecutive matters. Merging two `cols` runs separated by a `groups` item would move those
  * columns next to each other, and the field is ordered: a positional rule such as `weights` reads
  * that order, so a silent reordering changes which weight lands on which column.
  */
 export function collapse(rows: SelectorRow[]): SelectorItem[] {
-  const runs: { kind: string; chain: string[]; values: string[] }[] = [];
+  const runs: { kind: string; chain: string[]; products: string[]; values: string[] }[] = [];
   for (const row of rows) {
+    const { node, products } = row.kind === "nodes" ? parseStep(row.value) : { node: row.value, products: [] };
     const last = runs[runs.length - 1];
-    if (last && last.kind === row.kind && chainKey(last.chain) === chainKey(row.chain)) {
-      last.values.push(row.value);
+    if (last && last.kind === row.kind && chainKey(last.chain) === chainKey(row.chain) &&
+        chainKey(last.products) === chainKey(products)) {
+      last.values.push(node);
     } else {
-      runs.push({ kind: row.kind, chain: [...row.chain], values: [row.value] });
+      runs.push({ kind: row.kind, chain: [...row.chain], products, values: [node] });
     }
   }
   return runs.map((run) => {
     const item: SelectorItem = { [run.kind]: run.values.length === 1 ? run.values[0] : run.values };
+    if (run.products.length > 0) item.products = run.products;
     if (run.chain.length > 0) item.through = run.chain.map(fromToken);
     return item;
   });
@@ -115,11 +124,12 @@ export function documentText(rows: SelectorRow[]): string {
   if (items.length === 0) return '[]';
   return items
     .map((item) => {
-      const kind = Object.keys(item).find((k) => k !== 'through');
+      const kind = Object.keys(item).find((k) => k !== 'through' && k !== 'products');
       if (kind === undefined) return '{}';
       const values = list(asList(item[kind]));
+      const products = item.products?.length ? `, products = [${item.products.map(quote).join(', ')}]` : '';
       const through = item.through?.length ? `, through = ${list(item.through.map(toToken))}` : '';
-      return `{${kind} = ${values}${through}}`;
+      return `{${kind} = ${values}${products}${through}}`;
     })
     .join(', ');
 }

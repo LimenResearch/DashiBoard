@@ -363,6 +363,24 @@ describe('references follow the thing they name', () => {
     const out = s.exportCards();
     expect(out.nodes[1].card.inputs).toEqual([{ nodes: 'rescaled' }, { cols: 'PRES', through: ['rescaled'] }]);
   });
+  // A selection narrowed to some of a node's products follows the node, and goes with it whole.
+  const narrowed = () => ({
+    nodes: [
+      { id: 'fit', card: { type: 'rescale', inputs: [{ cols: 'PRES' }] } },
+      { id: 'use', card: { type: 'rescale', inputs: [{ nodes: 'fit', products: ['logvar'] }, { cols: 'TEMP' }] } },
+    ],
+    groups: {},
+  });
+  it('setNodeId keeps the products a selection asked of the node', async () => {
+    const s = await import('./stores');
+    s.importCards(narrowed()); s.setNodeId(0, 'model'); await flush();
+    expect(s.exportCards().nodes[1].card.inputs).toEqual([{ nodes: 'model', products: ['logvar'] }, { cols: 'TEMP' }]);
+  });
+  it('removeNode drops a narrowed selection whole, products included', async () => {
+    const s = await import('./stores');
+    s.importCards(narrowed()); s.removeNode(0); await flush();
+    expect(s.exportCards().nodes[0].card.inputs).toEqual([{ cols: 'TEMP' }]);
+  });
   // Two cards with one name is a document the server cannot build, and it says so with no
   // pointer (measured 2026-09-17: `Encountered nodes with equal \`id\``, `issues: []`) — so no
   // card could show it. Refused at the source, as `renameGroup` refuses a second group's name.

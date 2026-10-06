@@ -43,7 +43,15 @@ function chosen(node: ProbeNode, names: readonly string[], products: readonly st
 function initial(row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Selector[]>): string[] | null {
   switch (row.kind) {
     case "cols": return [row.value];
-    case "nodes": return nodes.find((node) => node.id === row.value)?.outputs ?? null;
+    case "nodes": {
+      const { node: id, products } = parseStep(row.value);
+      const node = nodes.find((n) => n.id === id);
+      if (node === undefined) return null;
+      if (products.length === 0) return node.outputs;
+      // Narrowed: only the columns of the products kept, in the order they were asked for.
+      const kept = products.map((wanted) => node.products?.find((p) => p.product === wanted));
+      return kept.every((p) => p !== undefined) ? kept.flatMap((p) => p!.outputs) : null;
+    }
     case "groups": {
       const items = groups[row.value];
       // Only plain column items are known by name here; anything else is the server's to resolve.
@@ -80,7 +88,7 @@ export function throughOptions(
   // itself. Both are redundant once the nodes are described — and they are all that is left when
   // the document does not build, so nothing has been described at all.
   const visited = new Set(row.chain.map((token) => parseStep(token).node));
-  const fresh = all.filter((id) => !visited.has(id) && !(row.kind === "nodes" && id === row.value));
+  const fresh = all.filter((id) => !visited.has(id) && !(row.kind === "nodes" && id === parseStep(row.value).node));
   if (nodes.length === 0) return fresh;
   const values = carried(row, nodes, groups);
   if (values === null) return fresh;
@@ -108,4 +116,10 @@ export function productsFor(
   return able
     .map((t) => t.product)
     .filter((product): product is string => product !== null && !step.products.includes(product));
+}
+
+/** The products `id` writes by name, in the order it declares them: what a selection or a step
+ *  may narrow it to. Empty for a node whose one output has no name, or one not described. */
+export function productsOf(id: string, nodes: ProbeNode[]): string[] {
+  return (nodes.find((n) => n.id === id)?.products ?? []).map((p) => p.product);
 }

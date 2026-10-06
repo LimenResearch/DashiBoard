@@ -902,3 +902,75 @@ describe('SelectorField, folded by its host', () => {
     expect((container.querySelector('[data-panel]') as HTMLElement).hidden).toBe(false);
   });
 });
+
+// In the panel, `select…` sits beside `through…` on a node with several products and opens the same
+// builder, whose first row keeps only some of the node's own products.
+describe('SelectorField, a node narrowed in the panel', () => {
+  const productsOf = (id: string) => (id === 'rescale' ? ['prediction', 'logvar'] : []);
+  // `split` reads only the logvar column of `rescale`, so it follows `rescale|logvar` and nothing else.
+  const chainFor = (r: { kind: string; value: string; chain: string[] }) =>
+    r.kind === 'nodes' && r.value === 'rescale|logvar' && r.chain.length === 0 ? ['split'] : [];
+  const field = (onChange: (items: SelectorItem[]) => void = () => {}, value: unknown = []) => render(() => (
+    <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={value} onChange={onChange}
+      productsOf={productsOf} chainFor={chainFor} />
+  ));
+  const head = (c: HTMLElement) => builderIn(c, 'rescale').querySelector('[data-products="rescale"][data-head]') as HTMLElement | null;
+  const keep = (c: HTMLElement, p: string) => head(c)!.querySelector(`[data-product="${p}"]`) as HTMLButtonElement;
+  const commit = (c: HTMLElement) => builderIn(c, 'rescale').querySelector('[data-chain="commit"]') as HTMLButtonElement | null;
+
+  it('offers select… only on a node with several products', async () => {
+    const { container } = field();
+    open(container); await flush();
+    expect(row(container, 'rescale').querySelector('[data-select]')).not.toBeNull();
+    expect(row(container, 'split').querySelector('[data-select]')).toBeNull();
+  });
+
+  it('opens the builder at the node\'s products, nothing on, and adds the node narrowed', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = field((items) => { written = items; });
+    open(container); await flush();
+    fireEvent.click(row(container, 'rescale').querySelector('[data-select]')!); await flush();
+    expect([...head(container)!.querySelectorAll('[data-product]')].map((e) => e.getAttribute('data-product')))
+      .toEqual(['prediction', 'logvar']);
+    expect(keep(container, 'logvar').getAttribute('aria-pressed')).toBe('false');
+    expect(commit(container)).toBeNull();                       // nothing chosen, nothing to add
+    fireEvent.click(keep(container, 'logvar')); await flush();
+    expect(builderIn(container, 'rescale').querySelector('[data-chain-preview]')!.textContent).toBe('rescale|logvar');
+    fireEvent.click(commit(container)!); await flush();
+    expect(written).toEqual([{ nodes: 'rescale', products: ['logvar'] }]);
+  });
+
+  it('narrows and chains in one go, the chain offered from what is kept', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = field((items) => { written = items; });
+    open(container); await flush();
+    fireEvent.click(row(container, 'rescale').querySelector('[data-select]')!); await flush();
+    expect(nodeButton(container, 'rescale', 'split')).toBeNull();   // a bare rescale goes nowhere
+    fireEvent.click(keep(container, 'logvar')); await flush();
+    fireEvent.click(nodeButton(container, 'rescale', 'split')); await flush();
+    expect(builderIn(container, 'rescale').querySelector('[data-chain-preview]')!.textContent).toBe('rescale|logvar → split');
+    fireEvent.click(commit(container)!); await flush();
+    expect(written).toEqual([{ nodes: 'rescale', products: ['logvar'], through: ['split'] }]);
+  });
+
+  it('shows a narrowed node as a case of its row, and removes it', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = field((items) => { written = items; }, [{ nodes: 'rescale', products: ['logvar'] }]);
+    open(container); await flush();
+    expect(casesOf(container, 'rescale')).toEqual(['|logvar']);
+    expect(isOn(container, 'rescale')).toBe('false');            // not the whole node
+    fireEvent.click(row(container, 'rescale').querySelector('[data-case] button')!); await flush();
+    expect(written).toEqual([]);
+  });
+
+  it('cancel adds nothing', async () => {
+    let written: SelectorItem[] | null = null;
+    const { container } = field((items) => { written = items; });
+    open(container); await flush();
+    fireEvent.click(row(container, 'rescale').querySelector('[data-select]')!); await flush();
+    fireEvent.click(keep(container, 'logvar')); await flush();
+    fireEvent.click(builderIn(container, 'rescale').querySelector('[data-chain="cancel"]')!); await flush();
+    expect(written).toBeNull();
+    expect(builderIn(container, 'rescale')).toBeNull();
+  });
+});

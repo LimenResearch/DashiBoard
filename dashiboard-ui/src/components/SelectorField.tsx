@@ -121,8 +121,10 @@ export function SelectorField(props: SelectorFieldProps) {
       ? props.value === undefined || props.value === null ? [] : [props.value as SelectorItem]
       : asItems(props.value);
   const rows = createMemo(() => expand(items(), kinds()));
+  /** The rows a panel value holds. A node's row holds it narrowed too: `fit|logvar` is a case of `fit`. */
+  const baseOf = (kind: string, value: string) => (kind === "nodes" ? parseStep(value).node : value);
   const casesFor = (kind: string, value: string) =>
-    rows().filter((r) => r.kind === kind && r.value === value).map((r) => r.chain);
+    rows().filter((r) => r.kind === kind && baseOf(kind, r.value) === baseOf(kind, value));
 
   const write = (next: SelectorRow[]) => {
     if (props.single === true) {
@@ -154,10 +156,11 @@ export function SelectorField(props: SelectorFieldProps) {
   const [picked, setPicked] = createSignal<string | null>(null);
   // One chain under construction at a time, keyed by the row: building a chain is a focused
   // activity, and two half-built chains on screen is a state nobody meant to be in.
-  const [composing, setComposing] = createSignal<{ key: string; chain: string[] } | null>(null);
+  // `products` narrows the node itself, for a `nodes` value: `select…` and `through…` open one builder.
+  const [composing, setComposing] = createSignal<{ key: string; chain: string[]; products: string[] } | null>(null);
   const chainBeingBuilt = (key: string) => {
     const c = composing();
-    return c !== null && c.key === key ? c.chain : null;
+    return c !== null && c.key === key ? c : null;
   };
   // Native drag is not keyboard reachable, which is why the chips carry arrow buttons as well.
   const [dragging, setDragging] = createSignal<number | null>(null);
@@ -209,7 +212,7 @@ export function SelectorField(props: SelectorFieldProps) {
     const result = step(entry(), input, vocabulary(), props.single === true);
     setEntry(result.state);
     const row = result.emit;
-    if (row !== undefined && !casesFor(row.kind, row.value).some((c) => chainKey(c) === chainKey(row.chain)))
+    if (row !== undefined && !casesFor(row.kind, row.value).some((c) => c.value === row.value && chainKey(c.chain) === chainKey(row.chain)))
       write([...rows(), row]);
     return result;
   };
@@ -662,7 +665,8 @@ export function SelectorField(props: SelectorFieldProps) {
               {(value, at) => {
                 const kind = () => openKind();
                 const cases = () => casesFor(kind(), value);
-                const hasDirect = () => cases().some((c) => c.length === 0);
+                const hasDirect = () => cases().some((c) => c.value === value && c.chain.length === 0);
+                const canSelect = () => kind() === "nodes" && productsLeft(value).length > 0;
                 const canThrough = () => chainFor({ kind: kind(), value, chain: [] }).length > 0;
                 const key = () => `${kind()}:${value}`;
 
@@ -694,35 +698,50 @@ export function SelectorField(props: SelectorFieldProps) {
                     </button>
 
                     <For each={cases()}>
-                      {(chain) => (
+                      {({ value: token, chain }) => {
+                        const kept = parseStep(token).products;
+                        const narrowed = kept.length > 0 ? `|${kept.join("|")}` : "";
+                        const label = chain.length === 0 ? narrowed || "direct" : `${narrowed}${narrowed ? " " : ""}${arrowText(chain)}`;
+                        return (
                         <span
-                          data-case={chain.length === 0 ? "direct" : chain.join("→")}
+                          data-case={chain.length === 0 ? narrowed || "direct" : `${narrowed}${chain.join("→")}`}
                           class="inline-flex h-5 items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 pr-0.5 pl-2 font-mono text-control-xs"
                         >
                           {/* Arrows where the chain is read, since they say what a chain *is*;
                               `@` is the typed form, and the chips keep it. */}
-                          <span class="text-accent-foreground">
-                            {chain.length === 0 ? "direct" : arrowText(chain)}
-                          </span>
+                          <span class="text-accent-foreground">{label}</span>
                           <button
                             type="button"
-                            aria-label={`remove ${chain.length === 0 ? "direct" : chain.join("→")} for ${value}`}
-                            onClick={() => removeCase(kind(), value, chain)}
+                            aria-label={`remove ${chain.length === 0 ? narrowed || "direct" : chain.join("→")} for ${value}`}
+                            onClick={() => removeCase(kind(), token, chain)}
                             class="grid h-4 w-4 place-items-center rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
                           >
                             ×
                           </button>
                         </span>
-                      )}
+                        );
+                      }}
                     </For>
+
+                    {/* `select…` is `|`: keep only some of what the node writes. */}
+                    <Show when={canSelect()}>
+                      <button
+                        type="button"
+                        data-select
+                        onClick={() => setComposing(chainBeingBuilt(key()) === null ? { key: key(), chain: [], products: [] } : null)}
+                        class="ml-auto inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary"
+                      >
+                        select…
+                      </button>
+                    </Show>
 
                     <button
                       type="button"
                       data-through
                       disabled={!canThrough()}
                       title={canThrough() ? undefined : "no node can take this value further"}
-                      onClick={() => setComposing(chainBeingBuilt(key()) === null ? { key: key(), chain: [] } : null)}
-                      class="ml-auto inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-inherit"
+                      onClick={() => setComposing(chainBeingBuilt(key()) === null ? { key: key(), chain: [], products: [] } : null)}
+                      class={[canSelect() ? "" : "ml-auto", "inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-inherit"]}
                     >
                       through…
                     </button>
@@ -731,8 +750,14 @@ export function SelectorField(props: SelectorFieldProps) {
                     {/* The nodes on offer, each on or off, read in click order. The chain is what
                         the author sees before committing it, rather than after. */}
                     <Show when={chainBeingBuilt(key())} keyed>
-                      {(chain: string[]) => {
-                        const taken = () => cases().some((c) => chainKey(c) === chainKey(chain));
+                      {(draft: { chain: string[]; products: string[] }) => {
+                        const chain = draft.chain;
+                        // The node's own products kept, for a `nodes` value: the chain starts from them.
+                        const head = draft.products;
+                        const from = (products: string[]) => (kind() === "nodes" ? formatStep(value, products) : value);
+                        const start = from(head);
+                        const headProducts = () => (kind() === "nodes" ? productsLeft(value) : []);
+                        const taken = () => cases().some((c) => c.value === start && chainKey(c.chain) === chainKey(chain));
                         // Any step can be taken out and the rest kept — but a step carries what
                         // the one before it produced, so removing one can leave a later step with
                         // nothing it accepts. Keep the longest run the host still allows and drop
@@ -741,13 +766,14 @@ export function SelectorField(props: SelectorFieldProps) {
                         const taking = (node: string) => chain.some((step) => nodeOf(step) === node);
                         /** Every product the step at `at` could keep, given what precedes it. */
                         const productsAt = (steps: string[], at: number) =>
-                          productsFor(nodeOf(steps[at]), { kind: kind(), value, chain: steps.slice(0, at) });
-                        const prune = (steps: string[]) => {
+                          productsFor(nodeOf(steps[at]), { kind: kind(), value: start, chain: steps.slice(0, at) });
+                        const prune = (steps: string[], origin = start) => {
                           const kept: string[] = [];
                           for (const [at, step] of steps.entries()) {
-                            if (!chainFor({ kind: kind(), value, chain: kept }).includes(nodeOf(step))) break;
+                            if (!chainFor({ kind: kind(), value: origin, chain: kept }).includes(nodeOf(step))) break;
                             const named = parseStep(step).products;
-                            if (named.length > 0 && !named.every((p) => productsAt(steps, at).includes(p))) break;
+                            const able = productsFor(nodeOf(step), { kind: kind(), value: origin, chain: steps.slice(0, at) });
+                            if (named.length > 0 && !named.every((p) => able.includes(p))) break;
                             kept.push(step);
                           }
                           return kept;
@@ -755,6 +781,7 @@ export function SelectorField(props: SelectorFieldProps) {
                         const toggle = (node: string) =>
                           setComposing({
                             key: key(),
+                            products: head,
                             chain: prune(
                               taking(node) ? chain.filter((step) => nodeOf(step) !== node) : [...chain, node]
                             ),
@@ -766,15 +793,22 @@ export function SelectorField(props: SelectorFieldProps) {
                           const next = products.includes(product) ? products.filter((p) => p !== product) : [...products, product];
                           setComposing({
                             key: key(),
+                            products: head,
                             chain: prune(chain.map((step, i) => (i === at ? formatStep(node, next) : step))),
                           });
+                        };
+                        // The node's own products, as a step's are: none on keeps them all. What
+                        // the chain was carrying changes with them, so it is pruned again.
+                        const toggleHead = (product: string) => {
+                          const next = head.includes(product) ? head.filter((p) => p !== product) : [...head, product];
+                          setComposing({ key: key(), products: next, chain: prune(chain, from(next)) });
                         };
                         // A chain is a sequence, so what may come next depends on what is already
                         // in it — the same narrowing the typed box does. Steps already taken stay
                         // on offer so they can be taken out again, and the vocabulary's order is
                         // kept so the pills do not move around as they are picked.
                         const offered = () => {
-                          const next = chainFor({ kind: kind(), value, chain });
+                          const next = chainFor({ kind: kind(), value: start, chain });
                           return chainOptions().filter((n) => taking(n) || next.includes(n));
                         };
                         return (
@@ -782,7 +816,31 @@ export function SelectorField(props: SelectorFieldProps) {
                             data-chain-builder
                             class="ml-3 flex flex-col gap-1.5 rounded-sm border border-dashed border-primary/45 bg-primary/5 px-2 py-1.5"
                           >
-                            {/* One row per thing: what to do, the nodes, the chain, the actions. */}
+                            {/* One row per thing: the node's own products, what to do, the nodes, the
+                                chain, the actions. */}
+                            <Show when={headProducts().length > 0}>
+                              <div data-products={value} data-head class="flex flex-wrap items-center gap-1.5">
+                                <span class="text-control-xs text-muted-foreground">{value} — keep only</span>
+                                <For each={props.productsOf?.(value) ?? []}>
+                                  {(product) => (
+                                    <button
+                                      type="button"
+                                      data-product={product}
+                                      aria-pressed={head.includes(product) ? "true" : "false"}
+                                      onClick={() => toggleHead(product)}
+                                      class={[
+                                        "inline-flex h-5 items-center rounded-full border px-2 font-mono text-control-xs hover:border-primary hover:text-primary",
+                                        head.includes(product)
+                                          ? "border-primary bg-primary/15 font-medium text-primary"
+                                          : "border-border bg-card",
+                                      ]}
+                                    >
+                                      {product}
+                                    </button>
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
                             <span class="text-detail tracking-wider text-muted-foreground uppercase">
                               pick nodes — order matters
                             </span>
@@ -843,21 +901,21 @@ export function SelectorField(props: SelectorFieldProps) {
                             </For>
 
                             {/* The chain as it stands, once there is one to read. */}
-                            <Show when={chain.length > 0}>
+                            <Show when={chain.length > 0 || head.length > 0}>
                               <div data-chain-preview class="font-mono text-control-xs font-medium text-primary">
-                                {arrowText(chain)}
+                                {[head.length > 0 ? start : "", arrowText(chain)].filter((part) => part !== "").join(" ")}
                               </div>
                             </Show>
 
                             <div class="flex flex-wrap items-center gap-1.5">
                               {/* Nothing to add before a node is on; leaving is always offered. */}
-                              <Show when={chain.length > 0}>
+                              <Show when={chain.length > 0 || head.length > 0}>
                                 <button
                                   type="button"
                                   data-chain="commit"
                                   disabled={taken()}
                                   onClick={() => {
-                                    addCase(kind(), value, chain);
+                                    addCase(kind(), start, chain);
                                     setComposing(null);
                                   }}
                                   class={buttonClass("default", "sm", taken())}

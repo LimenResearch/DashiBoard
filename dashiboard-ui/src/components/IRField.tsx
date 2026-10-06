@@ -36,7 +36,7 @@ type IRFieldProps = {
   /** Handed to every selector below: which nodes a chain may pass through next. */
   chainFor?: (row: SelectorRow, all: string[]) => string[];
   /** Handed to every selector below: which products a chain step may be narrowed to. */
-  groupsFor?: (token: string, row: SelectorRow) => string[];
+  productsFor?: (token: string, row: SelectorRow) => string[];
   /**
    * Handed to every map field below: the columns the card's list `name` resolved to, as the
    * server said — `null` when it has not.
@@ -217,7 +217,7 @@ export function IRField(props: IRFieldProps) {
                         fallback={
                       <IRField
                         chainFor={props.chainFor}
-                        groupsFor={props.groupsFor}
+                        productsFor={props.productsFor}
                         listsFor={props.listsFor}
                         refusedFor={props.refusedFor}
                         isCategorical={props.isCategorical}
@@ -374,7 +374,7 @@ export function IRField(props: IRFieldProps) {
                 <Show when={!unasked() && w().objects[chosen()]}>
                   <IRField
                     chainFor={props.chainFor}
-                    groupsFor={props.groupsFor}
+                    productsFor={props.productsFor}
                     listsFor={props.listsFor}
                     refusedFor={props.refusedFor}
                     isCategorical={props.isCategorical}
@@ -524,7 +524,7 @@ export function IRField(props: IRFieldProps) {
                       {(item, index) => (
                         <IRField
                           chainFor={props.chainFor}
-                          groupsFor={props.groupsFor}
+                          productsFor={props.productsFor}
                           listsFor={props.listsFor}
                           refusedFor={props.refusedFor}
                           isCategorical={props.isCategorical}
@@ -550,7 +550,7 @@ export function IRField(props: IRFieldProps) {
                     box on screen and folds the rest itself. */}
                 <SelectorField
                   chainFor={props.chainFor}
-                  groupsFor={props.groupsFor}
+                  productsFor={props.productsFor}
                   itemNode={w().items}
                   defs={props.defs}
                   label={props.label}
@@ -571,7 +571,7 @@ export function IRField(props: IRFieldProps) {
             return (
               <SelectorField
                 chainFor={props.chainFor}
-                groupsFor={props.groupsFor}
+                productsFor={props.productsFor}
                 single
                 itemNode={props.node}
                 defs={props.defs}

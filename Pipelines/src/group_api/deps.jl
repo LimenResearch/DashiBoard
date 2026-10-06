@@ -12,7 +12,7 @@ end
 # or `nothing` for a bare step, which takes every product that can carry the value.
 struct Step
     node::Int
-    groups::Maybe{Vector{String}}
+    products::Maybe{Vector{String}}
 end
 
 struct Deps
@@ -46,7 +46,7 @@ not_through(s) = !isequal(s, "through")
 get_through(d::AbstractDict)::Vector{Any} = get(d, "through", Any[])
 
 Step(dp::DepsParser, id::AbstractString) = Step(dp.node_idxs[id], nothing)
-Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], collect(String, d["groups"]))
+Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], collect(String, d["products"]))
 
 is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(not_through, keys(d)) == 1
 
@@ -113,7 +113,7 @@ end
 function pass_through(x::AbstractVector, steps::AbstractVector{Step}, nodes::AbstractVector)
     for step in steps
         node = nodes[step.node]
-        x = to_outputs(node, output_spec(get_card(node), get_invert(node)), x, step.groups)
+        x = to_outputs(node, output_spec(get_card(node), get_invert(node)), x, step.products)
     end
     return x
 end
@@ -140,7 +140,7 @@ end
 (_::Context)(x::Any) = x
 
 with_pointer(err::ThroughError, pointer::AbstractString) =
-    ThroughError(err.id, err.cols, err.allowed, err.reason, err.groups, pointer)
+    ThroughError(err.id, err.cols, err.allowed, err.reason, err.products, pointer)
 # A product refusal is about one field of the card, so it is addressed one step further in.
 with_pointer(err::ProductError, pointer::AbstractString) =
     ProductError(err.message, err.field, string(pointer, '/', err.field))

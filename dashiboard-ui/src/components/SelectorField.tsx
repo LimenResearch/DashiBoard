@@ -52,7 +52,7 @@ type SelectorFieldProps = {
   /** Narrows `all`, the nodes `through` accepts, to those a chain may pass through next after `row`. */
   chainFor?: (row: SelectorRow, all: string[]) => string[];
   /** The products the step `token` may still be narrowed to, after `row` — the selection before it. */
-  groupsFor?: (token: string, row: SelectorRow) => string[];
+  productsFor?: (token: string, row: SelectorRow) => string[];
   value: unknown;
 } & (
   | { single?: false; onChange: (items: SelectorItem[]) => void }
@@ -107,7 +107,7 @@ export function SelectorField(props: SelectorFieldProps) {
     if (w.kind !== "selector") return [] as string[];
     const array = resolveRef(w.through, props.defs);
     const items = resolveRef((array.items ?? {}) as IRNode, props.defs);
-    // A step is a node id or `{node, groups}`; the ids are the enum of the option that has one.
+    // A step is a node id or `{node, products}`; the ids are the enum of the option that has one.
     const options = items.type === "either" && Array.isArray(items.options) ? (items.options as IRNode[]) : [items];
     const ids = options.map((option) => resolveRef(option, props.defs)).find((option) => Array.isArray(option.enum));
     return ids === undefined ? [] : (ids.enum as unknown[]).map(String);
@@ -169,7 +169,7 @@ export function SelectorField(props: SelectorFieldProps) {
     return narrow === undefined ? chainOptions() : narrow(row, chainOptions());
   };
   /** The products `token` may still be narrowed to after `row`: the host's say, else none. */
-  const groupsFor = (token: string, row: SelectorRow) => props.groupsFor?.(token, row) ?? [];
+  const productsFor = (token: string, row: SelectorRow) => props.productsFor?.(token, row) ?? [];
   const vocabulary = createMemo(() => {
     const e = entry();
     const named = e.kind !== null && e.name !== null;
@@ -178,7 +178,7 @@ export function SelectorField(props: SelectorFieldProps) {
       options: Object.fromEntries(tabKinds().map((kind) => [kind, optionsOf(kind)])),
       chain: named ? chainFor({ kind: e.kind!, value: e.name!, chain: e.chain }) : chainOptions(),
       narrow: named && e.chain.length > 0
-        ? groupsFor(e.chain[e.chain.length - 1], { kind: e.kind!, value: e.name!, chain: e.chain.slice(0, -1) })
+        ? productsFor(e.chain[e.chain.length - 1], { kind: e.kind!, value: e.name!, chain: e.chain.slice(0, -1) })
         : [],
     };
   });
@@ -679,13 +679,13 @@ export function SelectorField(props: SelectorFieldProps) {
                         const taking = (node: string) => chain.some((step) => nodeOf(step) === node);
                         /** Every product the step at `at` could keep, given what precedes it. */
                         const productsAt = (steps: string[], at: number) =>
-                          groupsFor(nodeOf(steps[at]), { kind: kind(), value, chain: steps.slice(0, at) });
+                          productsFor(nodeOf(steps[at]), { kind: kind(), value, chain: steps.slice(0, at) });
                         const prune = (steps: string[]) => {
                           const kept: string[] = [];
                           for (const [at, step] of steps.entries()) {
                             if (!chainFor({ kind: kind(), value, chain: kept }).includes(nodeOf(step))) break;
-                            const wanted = parseStep(step).groups;
-                            if (wanted.length > 0 && !wanted.every((g) => productsAt(steps, at).includes(g))) break;
+                            const named = parseStep(step).products;
+                            if (named.length > 0 && !named.every((p) => productsAt(steps, at).includes(p))) break;
                             kept.push(step);
                           }
                           return kept;
@@ -700,8 +700,8 @@ export function SelectorField(props: SelectorFieldProps) {
                         // A product switched on is kept alone with the others switched on, in the
                         // order they were; none on is the bare step, which keeps them all.
                         const toggleProduct = (at: number, product: string) => {
-                          const { node, groups } = parseStep(chain[at]);
-                          const next = groups.includes(product) ? groups.filter((g) => g !== product) : [...groups, product];
+                          const { node, products } = parseStep(chain[at]);
+                          const next = products.includes(product) ? products.filter((p) => p !== product) : [...products, product];
                           setComposing({
                             key: key(),
                             chain: prune(chain.map((step, i) => (i === at ? formatStep(node, next) : step))),
@@ -756,7 +756,7 @@ export function SelectorField(props: SelectorFieldProps) {
                                     </span>
                                     <For each={productsAt(chain, at())}>
                                       {(product) => {
-                                        const on = () => parseStep(step).groups.includes(product);
+                                        const on = () => parseStep(step).products.includes(product);
                                         return (
                                           <button
                                             type="button"

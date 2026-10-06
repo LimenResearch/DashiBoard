@@ -152,7 +152,7 @@ export const emptyCards = (): CardsStore => ({ nodes: [], groups: {} });
  * bounds, say — each named by its own rule. `group` is the product's name, or null when the node
  * has one unnamed product.
  */
-export type ThroughOption = { group: string | null; cols: string[]; suffix: string | null; number: number | null };
+export type ThroughOption = { product: string | null; cols: string[]; suffix: string | null; number: number | null };
 
 // What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, any
 // reference nothing produces, and what a chain may do with it.

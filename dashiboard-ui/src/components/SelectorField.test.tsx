@@ -493,11 +493,11 @@ describe('SelectorField, typed entry', () => {
     return node === 'rescale' ? ['prediction', 'logvar'].filter((g) => !taken.includes(g)) : [];
   };
 
-  it('narrows a typed step to a product with `|`, and writes the step with its groups', async () => {
+  it('narrows a typed step to a product with `|`, and writes the step with its products', async () => {
     let written: SelectorItem[] | null = null;
-    const groupsFor = vi.fn(products);
+    const productsFor = vi.fn(products);
     const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={(items) => { written = items; }} groupsFor={groupsFor} />
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={(items) => { written = items; }} productsFor={productsFor} />
     ));
     await type(container, 'c'); await key(container, 'Tab');
     await type(container, 'PRES'); await key(container, 'Tab');
@@ -505,17 +505,17 @@ describe('SelectorField, typed entry', () => {
     await type(container, '|lo');
     expect([...container.querySelectorAll('[data-suggestion]')].map((e) => e.getAttribute('data-suggestion'))).toEqual(['logvar']);
     // The products are asked of the step as it stands, after what came before it.
-    expect(groupsFor).toHaveBeenCalledWith('rescale', { kind: 'cols', value: 'PRES', chain: [] });
+    expect(productsFor).toHaveBeenCalledWith('rescale', { kind: 'cols', value: 'PRES', chain: [] });
     await key(container, 'Tab');
     expect(tokens(container)).toEqual(['cols:', 'PRES', '@rescale|logvar']);
     await key(container, 'Enter');
-    expect(written).toEqual([{ cols: 'PRES', through: [{ node: 'rescale', groups: ['logvar'] }] }]);
+    expect(written).toEqual([{ cols: 'PRES', through: [{ node: 'rescale', products: ['logvar'] }] }]);
   });
 
   it('offers a taken step\'s products in the chain builder, and rewrites the step', async () => {
     let written: SelectorItem[] | null = null;
     const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={(items) => { written = items; }} groupsFor={products} />
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={(items) => { written = items; }} productsFor={products} />
     ));
     open(container); await flush(); await onCols(container);
     fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();
@@ -541,12 +541,12 @@ describe('SelectorField, typed entry', () => {
     fireEvent.click(toggle('logvar')); await flush();
     fireEvent.click(toggle('prediction')); await flush();
     fireEvent.click(builderIn(container, 'PRES').querySelector('[data-chain="commit"]')!); await flush();
-    expect(written).toEqual([{ cols: 'PRES', through: [{ node: 'rescale', groups: ['logvar', 'prediction'] }] }]);
+    expect(written).toEqual([{ cols: 'PRES', through: [{ node: 'rescale', products: ['logvar', 'prediction'] }] }]);
   });
 
   it('draws no product toggles for a step with one product', async () => {
     const { container } = render(() => (
-      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} groupsFor={products} />
+      <SelectorField itemNode={itemNode} defs={defs} label="inputs" value={[]} onChange={() => {}} productsFor={products} />
     ));
     open(container); await flush(); await onCols(container);
     fireEvent.click(row(container, 'PRES').querySelector('[data-through]')!); await flush();

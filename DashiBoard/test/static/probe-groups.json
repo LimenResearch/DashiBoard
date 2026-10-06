@@ -3,7 +3,7 @@
     {"id": "r", "card": {"type": "rescale", "method": {"type": "zscore"},
                          "inputs": [{"cols": "TEMP"}], "suffix": "a"}},
     {"id": "use", "card": {"type": "rescale", "method": {"type": "minmax"},
-                           "inputs": [{"cols": "TEMP", "through": [{"node": "r", "groups": ["x"]}]}], "suffix": "c"}}
+                           "inputs": [{"cols": "TEMP", "through": [{"node": "r", "products": ["x"]}]}], "suffix": "c"}}
   ],
   "groups": {}
 }

@@ -202,9 +202,9 @@ get_names(vts::VariableTransformSpec) = vts.cols
 """
     OutputGroup(name, spec)
 
-One product of a card: what it writes, as a specification, under the name a `through` chain uses
-to ask for it. A card with a single product may leave it unnamed; a card with several names every
-one, uniquely.
+What a card writes, as a specification, under the name a `through` chain or a node selection uses
+to ask for it. A named one is a *product*. A card that writes one thing may leave it unnamed; a card
+with several names every one, uniquely.
 """
 struct OutputGroup
     name::Maybe{String}
@@ -242,20 +242,20 @@ A `through` chain asked node `id` to carry `cols`, and it cannot.
 the set an author should be offered instead, which is the difference between a form that proposes a
 correction and one that can only refuse. `pointer` addresses the card or group whose chain is at
 fault; that is known where the chain is resolved rather than where it fails, so it is filled in
-there. `groups` is the products the node does name, given when the chain asked for one it does not
-have.
+there. `products` is the products the node does name, given when the chain asked for one it does
+not have.
 """
 struct ThroughError <: Exception
     id::String
     cols::Vector{String}
     allowed::Maybe{Vector{String}}
     reason::Symbol
-    groups::Vector{String}
+    products::Vector{String}
     pointer::Maybe{String}
 end
 
-function ThroughError(id, cols, allowed, reason; groups = String[], pointer = nothing)
-    return ThroughError(id, cols, allowed, reason, groups, pointer)
+function ThroughError(id, cols, allowed, reason; products = String[], pointer = nothing)
+    return ThroughError(id, cols, allowed, reason, products, pointer)
 end
 
 function Base.showerror(io::IO, err::ThroughError)
@@ -267,13 +267,13 @@ function Base.showerror(io::IO, err::ThroughError)
             io, "writes columns of its own rather than renaming what it is given, so ",
             join(err.cols, ", "), " cannot pass through it"
         )
-    elseif err.reason === :no_such_group
-        if isempty(err.groups)
+    elseif err.reason === :no_such_product
+        if isempty(err.products)
             print(io, "has no named products, so a chain cannot ask for one")
         else
-            print(io, "has no such product; it has ", join(err.groups, ", "))
+            print(io, "has no such product; it has ", join(err.products, ", "))
         end
-    elseif err.reason === :repeated_group
+    elseif err.reason === :repeated_product
         print(io, "is asked for the same product more than once")
     else
         print(
@@ -284,11 +284,11 @@ function Base.showerror(io::IO, err::ThroughError)
 end
 
 """
-    to_outputs(n::Node, groups, cols, wanted)::Vector{String}
+    to_outputs(n::Node, groups, cols, products)::Vector{String}
 
 The names `cols` take after passing through `n`.
 
-`wanted` is the products the chain asked for by name, or `nothing` for a bare step, which takes
+`products` is the products the chain asked for by name, or `nothing` for a bare step, which takes
 every product able to carry `cols` — one that renames columns it is given, and is given all of
 these. Each product chosen is applied to the whole of `cols` in turn.
 
@@ -299,13 +299,13 @@ column nor the node.
 """
 function to_outputs(
         n::Node, groups::AbstractVector{OutputGroup},
-        cols::AbstractVector{<:AbstractString}, wanted::Maybe{AbstractVector}
+        cols::AbstractVector{<:AbstractString}, products::Maybe{AbstractVector}
     )
     transforms = [g for g in groups if g.spec isa VariableTransformSpec]
     carries(g) = cols ⊆ g.spec.cols
     accepted(gs) = unique!(reduce(vcat, (g.spec.cols for g in gs); init = String[]))
 
-    chosen = if isnothing(wanted)
+    chosen = if isnothing(products)
         isempty(transforms) && throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
         carriers = filter(carries, transforms)
         isempty(carriers) && throw(
@@ -313,11 +313,11 @@ function to_outputs(
         )
         carriers
     else
-        allunique(wanted) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_group))
+        allunique(products) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_product))
         names = String[g.name for g in groups if !isnothing(g.name)]
-        named = map(wanted) do name
+        named = map(products) do name
             i = findfirst(g -> g.name == name, groups)
-            isnothing(i) && throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_group; groups = names))
+            isnothing(i) && throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_product; products = names))
             groups[i]
         end
         # All or nothing: a step is refused rather than narrowed to the products that can carry it.
@@ -360,7 +360,7 @@ function through_options(node::Node)
     groups = output_spec(get_card(node), get_invert(node))
     isnothing(groups) && return NamedTuple[]
     return [
-        (; group = g.name, g.spec.cols, g.spec.suffix, g.spec.number)
+        (; product = g.name, g.spec.cols, g.spec.suffix, g.spec.number)
             for g in groups if g.spec isa VariableTransformSpec
     ]
 end

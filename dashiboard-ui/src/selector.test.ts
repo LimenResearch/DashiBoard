@@ -120,7 +120,7 @@ describe('asItems', () => {
 
 describe('a chain step that names products', () => {
   it('reads as a token and is written back as the same object', () => {
-    const items = [{ cols: 'Iws', through: ['rescale', { node: 'fit', groups: ['logvar', 'prediction'] }] }];
+    const items = [{ cols: 'Iws', through: ['rescale', { node: 'fit', products: ['logvar', 'prediction'] }] }];
     const rows = expand(items, KINDS);
     expect(rows[0].chain).toEqual(['rescale', 'fit|logvar|prediction']);
     expect(collapse(rows)).toEqual(items);
@@ -133,14 +133,14 @@ describe('a chain step that names products', () => {
   });
 
   it('splits a token into its node and the products asked for', () => {
-    expect(parseStep('fit')).toEqual({ node: 'fit', groups: [] });
-    expect(parseStep('fit|logvar')).toEqual({ node: 'fit', groups: ['logvar'] });
+    expect(parseStep('fit')).toEqual({ node: 'fit', products: [] });
+    expect(parseStep('fit|logvar')).toEqual({ node: 'fit', products: ['logvar'] });
     expect(formatStep('fit', [])).toBe('fit');
     expect(formatStep('fit', ['a', 'b'])).toBe('fit|a|b');
   });
 
   it('shows the step in the written form as it is typed', () => {
-    const rows = expand([{ cols: 'Iws', through: [{ node: 'fit', groups: ['logvar'] }] }], KINDS);
+    const rows = expand([{ cols: 'Iws', through: [{ node: 'fit', products: ['logvar'] }] }], KINDS);
     expect(documentText(rows)).toBe('{cols = "Iws", through = "fit|logvar"}');
   });
 });

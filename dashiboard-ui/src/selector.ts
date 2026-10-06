@@ -15,7 +15,7 @@
 // why any of that rule lives in the browser at all is said there.
 
 /** A chain step as the document writes it: a node id, or the node with the products wanted. */
-export type ThroughStep = string | { node: string; groups: string[] };
+export type ThroughStep = string | { node: string; products: string[] };
 
 /** The node a step passes through, whichever way it is written. */
 export const nodeOfStep = (step: ThroughStep) => (typeof step === "string" ? step : step.node);
@@ -30,20 +30,20 @@ export type SelectorItem = {
 // `|` therefore cannot appear in a node's name, which the name check enforces.
 export const STEP_SEPARATOR = "|";
 
-export function parseStep(token: string): { node: string; groups: string[] } {
-  const [node, ...groups] = token.split(STEP_SEPARATOR);
-  return { node, groups };
+export function parseStep(token: string): { node: string; products: string[] } {
+  const [node, ...products] = token.split(STEP_SEPARATOR);
+  return { node, products };
 }
 
-export const formatStep = (node: string, groups: readonly string[]) =>
-  [node, ...groups].join(STEP_SEPARATOR);
+export const formatStep = (node: string, products: readonly string[]) =>
+  [node, ...products].join(STEP_SEPARATOR);
 
 const toToken = (step: ThroughStep) =>
-  typeof step === "string" ? step : formatStep(String(step.node), (step.groups ?? []).map(String));
+  typeof step === "string" ? step : formatStep(String(step.node), (step.products ?? []).map(String));
 
 const fromToken = (token: string): ThroughStep => {
-  const { node, groups } = parseStep(token);
-  return groups.length === 0 ? node : { node, groups };
+  const { node, products } = parseStep(token);
+  return products.length === 0 ? node : { node, products };
 };
 
 /** One value with its qualification — what the control actually manipulates. */

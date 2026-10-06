@@ -32,10 +32,10 @@ function carriers(node: ProbeNode, names: readonly string[]): ThroughOption[] {
 }
 
 /** The products a step takes: every carrier for a bare one, exactly those named otherwise. */
-function chosen(node: ProbeNode, names: readonly string[], groups: readonly string[]): ThroughOption[] | null {
+function chosen(node: ProbeNode, names: readonly string[], products: readonly string[]): ThroughOption[] | null {
   const able = carriers(node, names);
-  if (groups.length === 0) return able.length === 0 ? null : able;
-  const named = groups.map((group) => able.find((t) => t.group === group));
+  if (products.length === 0) return able.length === 0 ? null : able;
+  const named = products.map((product) => able.find((t) => t.product === product));
   return named.every((t) => t !== undefined) ? (named as ThroughOption[]) : null;
 }
 
@@ -61,7 +61,7 @@ function carried(row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Se
     if (names === null) return null;
     const step = parseStep(token);
     const node = nodes.find((n) => n.id === step.node);
-    const products = node === undefined ? null : chosen(node, names, step.groups);
+    const products = node === undefined ? null : chosen(node, names, step.products);
     // A chain the server would refuse tells us nothing about what comes next.
     if (products === null) return null;
     const handed = names;
@@ -95,7 +95,7 @@ export function throughOptions(
  * already list. `row` is the selection *before* that step. Empty for a node with one product, or
  * one whose products have no names.
  */
-export function groupsFor(
+export function productsFor(
   token: string, row: SelectorRow, nodes: ProbeNode[], groups: Record<string, Selector[]>,
 ): string[] {
   const step = parseStep(token);
@@ -106,6 +106,6 @@ export function groupsFor(
   // A lone carrier is what the bare step already takes.
   if (able.length < 2) return [];
   return able
-    .map((t) => t.group)
-    .filter((group): group is string => group !== null && !step.groups.includes(group));
+    .map((t) => t.product)
+    .filter((product): product is string => product !== null && !step.products.includes(product));
 }

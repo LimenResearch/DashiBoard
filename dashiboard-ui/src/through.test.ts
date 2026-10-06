@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { groupsFor, throughOptions, toOutputs } from './through';
+import { productsFor, throughOptions, toOutputs } from './through';
 import type { ProbeNode, ThroughOption } from './stores';
 
 const carries = (
-  group: string | null, cols: string[], suffix: string | null, number: number | null = null,
-): ThroughOption => ({ group, cols, suffix, number });
+  product: string | null, cols: string[], suffix: string | null, number: number | null = null,
+): ThroughOption => ({ product, cols, suffix, number });
 
 const node = (id: string, outputs: string[], through: ThroughOption[] = []): ProbeNode =>
   ({ id, inputs: [], outputs, unproduced: [], through });
@@ -109,16 +109,16 @@ describe('a node with several products', () => {
   });
 
   it('names the products a step may be narrowed to', () => {
-    expect(groupsFor('fit', row([]), [fit, after], {})).toEqual(['prediction', 'logvar']);
-    expect(groupsFor('fit|logvar', row([]), [fit, after], {})).toEqual(['prediction']);
+    expect(productsFor('fit', row([]), [fit, after], {})).toEqual(['prediction', 'logvar']);
+    expect(productsFor('fit|logvar', row([]), [fit, after], {})).toEqual(['prediction']);
     // One unnamed product leaves nothing to choose.
-    expect(groupsFor('after', { kind: 'cols', value: 'Iws_logvar', chain: [] }, [fit, after], {})).toEqual([]);
+    expect(productsFor('after', { kind: 'cols', value: 'Iws_logvar', chain: [] }, [fit, after], {})).toEqual([]);
   });
 
   // A lone product is what the bare step already takes: naming it would be a choice of one.
   it('offers no narrowing for a node with a single named product', () => {
     const plain = node('plain', ['Iws_hat'], [carries('prediction', ['Iws'], 'hat')]);
-    expect(groupsFor('plain', row([]), [plain], {})).toEqual([]);
+    expect(productsFor('plain', row([]), [plain], {})).toEqual([]);
   });
 
   // A bare `fit` hands on both columns, and `after` accepts only one of them.

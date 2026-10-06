@@ -586,7 +586,7 @@ mktempdir() do data_dir
         @test issue["pointer"] == "/nodes/1/card"
         @test issue["found"] == ["TEMP_a"]
         @test issue["allowed"] == ["TEMP"]
-        @test issue["groups"] == []
+        @test issue["products"] == []
         @test occursin("Node `r` does not read TEMP_a", issue["message"])
         # The vocabularies a picker offers from survive the failure, so a form can still correct
         # the chain rather than going blank.
@@ -604,7 +604,7 @@ mktempdir() do data_dir
         ))
         probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
         product = only(only(probe["nodes"])["through"])
-        @test product["group"] === nothing
+        @test product["product"] === nothing
         @test product["cols"] == ["TEMP"]
         @test product["suffix"] == "a"
 
@@ -651,7 +651,7 @@ mktempdir() do data_dir
         issue = only(probe["issues"])
         @test issue["reason"] == "through"
         @test issue["pointer"] == "/nodes/1/card"
-        @test issue["groups"] == []
+        @test issue["products"] == []
         @test occursin("has no named products", issue["message"])
 
         # A probe reports rather than throws — for *every* way a document can be malformed,

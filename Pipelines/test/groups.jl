@@ -358,23 +358,23 @@ end
     # A bare step carries the value through every product, in the order the card declares them.
     @test through("both") == ["PRES_double", "PRES_triple"]
     # Naming narrows it, and the order written is the order returned.
-    @test through(Dict("node" => "both", "groups" => ["triple"])) == ["PRES_triple"]
-    @test through(Dict("node" => "both", "groups" => ["triple", "double"])) == ["PRES_triple", "PRES_double"]
+    @test through(Dict("node" => "both", "products" => ["triple"])) == ["PRES_triple"]
+    @test through(Dict("node" => "both", "products" => ["triple", "double"])) == ["PRES_triple", "PRES_double"]
 
-    # A group the node does not have is refused, with the ones it does.
-    e = @test_throws Pipelines.ThroughError through(Dict("node" => "both", "groups" => ["ghost"]))
-    @test e.value.reason === :no_such_group
-    @test e.value.groups == ["double", "triple"]
+    # A product the node does not write is refused, with the ones it does.
+    e = @test_throws Pipelines.ThroughError through(Dict("node" => "both", "products" => ["ghost"]))
+    @test e.value.reason === :no_such_product
+    @test e.value.products == ["double", "triple"]
     # … including on a node whose one product has no name to offer.
     e = @test_throws Pipelines.ThroughError resolve(
-        [Dict("cols" => "PRES", "through" => [Dict("node" => "rescale", "groups" => ["x"])])]
+        [Dict("cols" => "PRES", "through" => [Dict("node" => "rescale", "products" => ["x"])])]
     )
-    @test e.value.reason === :no_such_group
-    @test isempty(e.value.groups)
+    @test e.value.reason === :no_such_product
+    @test isempty(e.value.products)
     @test occursin("has no named products", sprint(showerror, e.value))
 
     # The same product twice would hand the consuming card the same column twice.
-    @test_throws Pipelines.ThroughError through(Dict("node" => "both", "groups" => ["double", "double"]))
+    @test_throws Pipelines.ThroughError through(Dict("node" => "both", "products" => ["double", "double"]))
 
     # A step written the old way still means what it meant.
     @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]

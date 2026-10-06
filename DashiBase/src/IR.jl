@@ -72,8 +72,11 @@ const NumberIR = NumericIR{Float64}
 end
 
 @kwarg struct ReferenceIR <: AbstractIR
+    type::String = "reference"
     var"$ref"::String
 end
+
+ReferenceIR(ref::AbstractString) = ReferenceIR(var"$ref" = ref)
 
 @kwarg struct ArrayIR{T, IR <: AbstractIR} <: AbstractIR
     type::String = "array"

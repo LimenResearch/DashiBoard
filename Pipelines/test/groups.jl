@@ -207,7 +207,7 @@ end
     # and its one-or-many fields are now identifiable by a renderer
     nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
     @test nodes_entry.value.type == "one_or_many"
-    # A chain step is a node id or `{node, groups}`, and the schema tells them apart by type.
+    # A chain step is a node id or `{node, products}`, and the schema tells them apart by type.
     through = only(p for p in irs["variable"].properties if p.key == "through").value
     @test through.items.type == "either"
     @test through.items.types == ["string", "object"]

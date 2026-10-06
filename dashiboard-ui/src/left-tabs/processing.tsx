@@ -581,9 +581,14 @@ export function Cards() {
                 class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
               >
                 <p>
-                  A streamliner card without a partition can't be evaluated in the UI. It can be
-                  trained from a script run in the workspace folder, but with no validation
-                  partition training returns its statistics and saves no weights:
+                  A streamliner card without a partition can't be evaluated in the UI. Add a split
+                  card and choose its node as this card's partition: the split marks the rows to
+                  train on and the rows to validate on.
+                </p>
+                <p class="mt-1">
+                  Without one, the card can still be trained from a script run in the workspace
+                  folder. However without a validation partition, the training returns its statistics and
+                  saves no weights:
                 </p>
                 <pre class="mt-1 max-h-64 overflow-auto font-mono whitespace-pre">{trainingScript(node.id ?? "")}</pre>
               </div>

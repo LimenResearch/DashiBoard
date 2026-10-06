@@ -257,6 +257,9 @@ end
     # that also refuses them is defence in depth rather than the only guard.
     rejects([Dict("cols" => "PRES", "groups" => "weather")])
     rejects([Dict{String, Any}()])
+    # `products` qualifies a selection, it is not one; and an empty list asks for nothing.
+    rejects([Dict("products" => ["x"])])
+    rejects([Dict("nodes" => "rescale", "products" => String[])])
 
     # Order is preserved and meaningful, across kinds and within one. Until section 12 designs the
     # positional `weights` rule out, a UI that concatenates by kind silently changes the result.
@@ -378,6 +381,48 @@ end
 
     # A step written the old way still means what it meant.
     @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
+
+    # A node selection may ask for some of what the node writes, by name, in the order written.
+    pick(products; node = both) = resolve([Dict("nodes" => "both", "products" => products)]; extra = node)
+    @test resolve([Dict("nodes" => "both")]; extra = both) == ["PRES_double", "PRES_triple"]
+    @test pick(["triple"]) == ["PRES_triple"]
+    @test pick(["triple", "double"]) == ["PRES_triple", "PRES_double"]
+
+    # A product the node does not write is refused at the card that asked, with the ones it does —
+    # including one its own `select` switched off.
+    e = @test_throws Pipelines.ThroughError pick(["ghost"])
+    @test e.value.reason === :no_such_product
+    @test e.value.products == ["double", "triple"]
+    @test e.value.pointer == "/nodes/2/card"          # `pca`, counted from zero
+    doubled = Dict("id" => "both", "card" => merge(both["card"], Dict("select" => ["double"])))
+    e = @test_throws Pipelines.ThroughError pick(["triple"]; node = doubled)
+    @test e.value.products == ["double"]
+    @test_throws Pipelines.ThroughError pick(["double", "double"])
+
+    # A narrowed node can still be passed on, and the chain is handed only what was kept.
+    e = @test_throws Pipelines.ThroughError resolve(
+        [Dict("nodes" => "both", "products" => ["triple"], "through" => ["rescale"])]; extra = both
+    )
+    @test e.value.cols == ["PRES_triple"]
+
+    # `products` narrows a node selection and nothing else.
+    @test_throws ArgumentError resolve([Dict("cols" => "PRES", "products" => ["x"])])
+
+    # Inside a group the refusal addresses the group.
+    e = @test_throws Pipelines.ThroughError resolve_group([Dict("nodes" => "log", "products" => ["x"])])
+    @test e.value.pointer == "/groups/weather"
+
+    # What each node offers to be narrowed to: its products, with their columns.
+    built = let d = deepcopy(base)
+        push!(d["nodes"], both)
+        Pipelines.Pipeline(d["nodes"], d["groups"], cols)
+    end
+    by_id(id) = only(n for n in built.nodes if n.id == id)
+    @test Pipelines.product_outputs(by_id("both")) == [
+        (; product = "double", outputs = ["PRES_double"]),
+        (; product = "triple", outputs = ["PRES_triple"]),
+    ]
+    @test isempty(Pipelines.product_outputs(by_id("rescale")))
 end
 
 @testset "unproduced references" begin

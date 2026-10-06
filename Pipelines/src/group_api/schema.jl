@@ -32,6 +32,9 @@ function variable_item_IR()
         Property("nodes" => OneOrManyIR{String}(; items = NODE_DEF, eltype = "string"), required = false),
         Property("groups" => OneOrManyIR{String}(; items = GROUP_DEF, eltype = "string"), required = false),
         Property("cols" => OneOrManyIR{String}(; items = COL_DEF, eltype = "string"), required = false),
+        # Which products of the selected nodes to keep. Not enumerable here — they depend on the
+        # node — so an unknown one is caught when the selection is resolved, as for a chain step.
+        Property("products" => ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1), required = false),
         Property("through" => ArrayIR{Any}(; items = through_step_IR(), default = []), required = false),
     ]
     oneOf = [

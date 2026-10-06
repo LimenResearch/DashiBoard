@@ -236,7 +236,8 @@ end
 """
     ThroughError(id, cols, allowed, reason, pointer = nothing)
 
-A `through` chain asked node `id` to carry `cols`, and it cannot.
+A `through` chain asked node `id` to carry `cols`, or a chain or a node selection asked it for a
+product, and it cannot.
 
 `allowed` is what the node *can* carry, or `nothing` when nothing passes through it at all — it is
 the set an author should be offered instead, which is the difference between a form that proposes a
@@ -269,7 +270,7 @@ function Base.showerror(io::IO, err::ThroughError)
         )
     elseif err.reason === :no_such_product
         if isempty(err.products)
-            print(io, "has no named products, so a chain cannot ask for one")
+            print(io, "has no named products, so none can be asked for")
         else
             print(io, "has no such product; it has ", join(err.products, ", "))
         end
@@ -313,13 +314,7 @@ function to_outputs(
         )
         carriers
     else
-        allunique(products) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_product))
-        names = String[g.name for g in groups if !isnothing(g.name)]
-        named = map(products) do name
-            i = findfirst(g -> g.name == name, groups)
-            isnothing(i) && throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_product; products = names))
-            groups[i]
-        end
+        named = named_products(n, groups, products, cols)
         # All or nothing: a step is refused rather than narrowed to the products that can carry it.
         for g in named
             g.spec isa VariableTransformSpec ||
@@ -348,6 +343,51 @@ invertible, so every other card ignores `invert`.
 output_spec(::Card) = nothing
 
 output_spec(c::Card, invert::Bool) = invert ? nothing : output_spec(c)
+
+"""
+    named_products(n, groups, products, cols = String[])::Vector{OutputGroup}
+
+The groups of `n` that `products` names, in that order: one lookup for a chain step and a node
+selection alike. A name `n` does not write is refused with the ones it does, and so is a name given
+twice, which would hand a card the same columns twice. `cols` is what a chain was carrying, so a
+refusal can say so; a selection carries nothing.
+"""
+function named_products(
+        n::Node, groups::AbstractVector{OutputGroup}, products::AbstractVector,
+        cols::AbstractVector{<:AbstractString} = String[]
+    )
+    allunique(products) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_product))
+    names = String[g.name for g in groups if !isnothing(g.name)]
+    return map(products) do name
+        i = findfirst(g -> g.name == name, groups)
+        isnothing(i) && throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_product; products = names))
+        groups[i]
+    end
+end
+
+"""
+    narrowed_outputs(n::Node, products)::Vector{String}
+
+The columns `n` writes for the products named, in that order: what a node selection's `products`
+keeps of the node.
+"""
+function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
+    groups = output_spec(get_card(n), get_invert(n))
+    isnothing(groups) && return to_outputs(n, nothing)   # throws: the card declares nothing
+    return reduce(vcat, (to_outputs(g.spec) for g in named_products(n, groups, products)); init = String[])
+end
+
+"""
+    product_outputs(node::Node)
+
+Each product `node` writes, with its columns: what a node selection may narrow it to. Empty for a
+card whose one output has no name.
+"""
+function product_outputs(node::Node)
+    groups = output_spec(get_card(node), get_invert(node))
+    isnothing(groups) && return NamedTuple[]
+    return [(; product = g.name, outputs = to_outputs(g.spec)) for g in groups if !isnothing(g.name)]
+end
 
 """
     through_options(node::Node)

@@ -17,6 +17,8 @@ end
 
 struct Deps
     inputs::Union{Source, Computed}
+    # The products of the selected nodes asked for by name, or `nothing` for all they write.
+    products::Maybe{Vector{String}}
     through::Vector{Step}
 end
 
@@ -40,27 +42,33 @@ update!(dp::DepsParser, src::Source, _::Integer) = (union!(dp.cols, src.cols); d
 
 # Parsing machinery
 
-const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
+const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through", "products"))
+# Exactly one of these says what is selected; `through` and `products` qualify it.
+const DEPS_KINDS = ("nodes", "groups", "cols")
 
-not_through(s) = !isequal(s, "through")
 get_through(d::AbstractDict)::Vector{Any} = get(d, "through", Any[])
 
 Step(dp::DepsParser, id::AbstractString) = Step(dp.node_idxs[id], nothing)
 Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], collect(String, d["products"]))
 
-is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(not_through, keys(d)) == 1
+is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(in(DEPS_KINDS), keys(d)) == 1
 
 function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
-    key::String = only(Iterators.filter(not_through, keys(d)))
+    key::String = only(Iterators.filter(in(DEPS_KINDS), keys(d)))
     val::Vector{String} = to_stringlist(d[key])
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
     inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
+    # Products are a node's to name, so they narrow a node selection only.
+    products = haskey(d, "products") ? collect(String, d["products"]) : nothing
+    isnothing(products) || key == "nodes" || throw(
+        ArgumentError("`products` narrows a `nodes` selection; this one selects `$(key)`")
+    )
     through = Step[Step(dp, step) for step in get_through(d)]
 
     update!(dp, inputs, i)
     append_edges!(dp, Int[step.node for step in through], i)
 
-    return Deps(inputs, through)
+    return Deps(inputs, products, through)
 end
 
 function (dp::DepsParser)(d::AbstractDict, i::Integer)
@@ -120,9 +128,14 @@ end
 
 # Nested column computations
 
-get_cols(::Context, inputs::Source) = inputs.cols
-get_cols(c::Context, inputs::Computed) = reduce(vcat, view(c.outputs, inputs.idxs))
-get_cols(c::Context, deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
+get_cols(::Context, inputs::Source, ::Nothing) = inputs.cols
+get_cols(c::Context, inputs::Computed, ::Nothing) = reduce(vcat, view(c.outputs, inputs.idxs))
+# Only nodes reach here: `Deps` refuses `products` on anything else.
+function get_cols(c::Context, inputs::Computed, products::Vector{String})
+    return reduce(vcat, (narrowed_outputs(c.nodes[i], products) for i in inputs.idxs); init = String[])
+end
+get_cols(c::Context, deps::Deps) =
+    pass_through(get_cols(c, deps.inputs, deps.products), deps.through, c.nodes)
 
 # consider allowing `get_cols` to return `0` items, in which case return `nothing`
 (c::Context)(deps::Deps) = only(get_cols(c, deps))

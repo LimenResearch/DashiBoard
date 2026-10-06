@@ -842,6 +842,8 @@ function probe_pipeline(req::HTTP.Request)
             # What a `through` chain may do with this node, so a picker offers only chains the
             # pipeline would accept rather than guessing from which columns the node reads.
             through = Pipelines.through_options(node),
+            # What a selection may narrow this node to: each named product with its columns.
+            products = Pipelines.product_outputs(node),
             # What the card's lists resolved to, where a form has to spell them out — one row
             # per column to choose a transform for, say. Empty for most cards.
             lists = Pipelines.resolved_lists(Pipelines.get_card(node)),

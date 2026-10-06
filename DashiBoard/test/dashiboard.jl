@@ -367,6 +367,30 @@ mktempdir() do data_dir
             @test [t["name"] for t in listed["training"]] == ["batched"]
         end
 
+        # Each node says what a selection may narrow it to: its products, with their columns. A
+        # streamliner names even its one product, so another card can ask for it by name.
+        @testset "products in the probe" begin
+            fit = Dict(
+                "id" => "fit", "card" => Dict(
+                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                )
+            )
+            reader = Dict(
+                "id" => "reader", "card" => Dict(
+                    "type" => "rescale", "method" => Dict("type" => "zscore"), "suffix" => "z",
+                    "inputs" => [Dict("nodes" => "fit", "products" => ["prediction"])],
+                )
+            )
+            body = JSON.json((; nodes = [fit, reader], groups = Dict{String, Any}()))
+            probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
+            node(id) = only(n for n in probe["nodes"] if n["id"] == id)
+            @test node("fit")["products"] == [Dict("product" => "prediction", "outputs" => ["PRES_hat"])]
+            @test node("reader")["inputs"] == ["PRES_hat"]
+            @test node("reader")["products"] == []
+        end
+
         # A pipeline downloads as a workspace: the document, the configurations it names, and
         # which extensions it needs.
         @testset "bundle" begin

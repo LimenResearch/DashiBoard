@@ -131,13 +131,21 @@ card can write several, and then each has a name. A streamliner card whose model
 `Iws_hat` and `Iws_logvar`. The prediction takes the card's `suffix`; everything else is named
 after itself.
 
-Passing through such a card takes everything it writes, unless you say which:
+Passing through such a card, or choosing it under `nodes`, takes everything it writes, unless
+you say which:
 
 ```
 cols:  Iws  →fit                      Iws_hat and Iws_logvar
 cols:  Iws  →fit|logvar               Iws_logvar
 cols:  Iws  →fit|logvar|prediction    Iws_logvar, then Iws_hat
+nodes: fit                            Iws_hat and Iws_logvar
+nodes: fit|logvar                     Iws_logvar
 ```
+
+Wherever such a card is offered — as a name under `nodes`, or as a step to pass through — it has
+a `select…` beside `through…`. `select…` lists what the card writes, one row each; choosing one
+keeps it and lists the rest, and `add` finishes. It does what typing `|` does, as `through…` does
+what typing `@` does.
 
 The card itself decides what is written at all. When the model chosen yields more than one thing,
 the card shows a `select` field listing them, all taken to begin with; untick one and its column
@@ -194,7 +202,7 @@ cols:  bill_length  →impute  →zscore
 | `c`, `g` or `n` then `Tab` | choose cols, groups or nodes |
 | type, then `Tab` | take the top match; `↑` `↓` choose another |
 | a node name after a name | pass through it; repeat for a chain |
-| `|` after a node | keep only some of what it writes |
+| `|` or `select…` after a node | keep only some of what it writes |
 | `Enter` | add it, as a chip |
 | `Backspace` | undo the last part |
 | `Esc` | close the list, then clear the box |
@@ -211,7 +219,8 @@ until you type or press `↓` — so `Tab` never takes a choice you did not make
 
 Unfold the field to get the same vocabulary as a list, one tab per kind. Clicking a **name** adds
 it directly; `through…` opens the nodes it may pass through, which you switch on in the order you
-want them, then `add`.
+want them, then `add`. A card that writes several things also has `select…`, which opens the same
+builder with a first row to keep only some of them.
 
 Only nodes that can actually take the value further are offered, and a card is never offered
 itself or anything that depends on it — those would make a loop the server refuses.

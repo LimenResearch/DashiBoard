@@ -61,20 +61,20 @@ Pipelines.register_wild_card(:trivial, "Trivial"; settings)
     # log. Checked by holding the first request open while a second arrives and finishes.
     stamp(rec) = match(r"^(\S+ \S+) #(\d+)", rec.message)
     slow, fast = Test.TestLogger(min_level = Debug), Test.TestLogger(min_level = Debug)
-    gate = Threads.Event()
-    first_done = Threads.@spawn with_logger(slow) do
-        DashiBoard.LoggingMiddleware(_ -> wait(gate))(
-            FakeStream(HTTP.Request("POST", "/slow"), HTTP.Response(200))
-        )
+    channel = Channel{Nothing}(spawn = true) do ch
+        with_logger(slow) do
+            DashiBoard.LoggingMiddleware(_ -> put!(ch, nothing))(
+                FakeStream(HTTP.Request("POST", "/slow"), HTTP.Response(200))
+            )
+        end
     end
-    sleep(0.05)
+    wait(channel) # ensure that the slow handler has started
     with_logger(fast) do
         DashiBoard.LoggingMiddleware(_ -> nothing)(
             FakeStream(HTTP.Request("POST", "/fast"), HTTP.Response(200))
         )
     end
-    notify(gate)
-    wait(first_done)
+    for _ in channel; end # let the channel-bound task finish
     slow_at, slow_n = stamp(only(slow.logs)).captures
     fast_at, fast_n = stamp(only(fast.logs)).captures
     @test parse(Int, slow_n) < parse(Int, fast_n)   # the slow one arrived first

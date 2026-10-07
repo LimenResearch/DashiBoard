@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  carryShared,
   conditionalOptions,
   defaultsFor,
   resolveRef,
@@ -358,5 +359,53 @@ describe('a variant whose options are files', () => {
     expect(w.optionsFrom).toBe('model');
     const plain = widgetFor({ type: 'tagged_object', options: ['a'], objects: { a: { type: 'object', properties: [] } } }, {});
     expect(plain.kind === 'variant' && plain.optionsFrom).toBeUndefined();
+  });
+});
+
+// Choosing another option of a variant keeps what both branches declare, so switching a funnel to
+// `time` does not throw away its `order_by`, its columns or their transforms.
+describe('switching a variant', () => {
+  const defs = payload.defs as Defs;
+  const funnel = (payload.cards.streamliner.properties as { key: string; value: IRNode }[])
+    .find((p) => p.key === 'funnel')!.value as { objects: { [o: string]: IRNode } };
+  const plain = funnel.objects[''];
+  const dispatcher = {
+    key: 'dispatcher', required: true,
+    value: { type: 'object', properties: [{ key: 'input', required: false, value: { type: 'integer', default: 1 } }] },
+  };
+  const time: IRNode = { ...plain, properties: [dispatcher, ...(plain.properties as unknown[])] };
+  const filled = {
+    order_by: [{ cols: 'id' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'PRES' }],
+    input_transforms: { TEMP: 'log' },
+  };
+
+  it('keeps the fields both branches declare, and adds the new branch\'s defaults', () => {
+    const next = carryShared(filled, time, defs);
+    expect(next.order_by).toEqual([{ cols: 'id' }]);
+    expect(next.inputs).toEqual([{ cols: 'TEMP' }]);
+    expect(next.targets).toEqual([{ cols: 'PRES' }]);
+    expect(next.input_transforms).toEqual({ TEMP: 'log' });
+    expect(next.dispatcher).toEqual({ input: 1 });
+  });
+
+  it('drops the fields the new branch lacks', () => {
+    const back = carryShared({ ...filled, dispatcher: { input: 5 } }, plain, defs);
+    expect('dispatcher' in back).toBe(false);
+    expect(back.order_by).toEqual([{ cols: 'id' }]);
+  });
+
+  it('carries nothing between branches that share no field', () => {
+    const method = (payload.cards.split.properties as { key: string; value: IRNode }[])
+      .find((p) => p.key === 'method')!.value as { objects: { [o: string]: IRNode } };
+    const next = carryShared({ percentile: 0.3 }, method.objects.tiles, defs);
+    expect('percentile' in next).toBe(false);
+  });
+
+  it('does not carry a value the new branch would refuse', () => {
+    const a: IRNode = { type: 'object', properties: [{ key: 'how', required: false, value: { type: 'string', enum: ['x', 'y'] } }] };
+    const b: IRNode = { type: 'object', properties: [{ key: 'how', required: false, value: { type: 'string', enum: ['z'], default: 'z' } }] };
+    expect(carryShared(carryShared({}, a, defs), b, defs).how).toBe('z');
+    expect(carryShared({ how: 'x' }, b, defs).how).toBe('z');
+    expect(carryShared({ how: 'x' }, a, defs).how).toBe('x');
   });
 });

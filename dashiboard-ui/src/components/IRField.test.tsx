@@ -394,12 +394,21 @@ describe('IRField, a variant with one option', () => {
     const { container } = mountVariant(two, { width: 2 }, (v) => { written = v; });
     const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
     chooser.value = 'time'; fireEvent.change(chooser); await flush();
-    expect(written).toEqual({ type: 'time' });
+    expect(written).toEqual({ type: 'time', width: 2 });         // both branches declare `width`
     cleanup();
     const again = mountVariant(two, { type: 'time', width: 2 }, (v) => { written = v; });
     const back = again.container.querySelector('#n-funnel-variant') as HTMLSelectElement;
     back.value = ''; fireEvent.change(back); await flush();
-    expect(written).toEqual({});
+    expect(written).toEqual({ width: 2 });                         // the default is still not named
+  });
+
+  // What both branches declare survives the switch: a filled `width` stays when `time` is chosen.
+  it('keeps the shared fields when another option is chosen', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(two, { width: 7 }, (v) => { written = v; });
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    chooser.value = 'time'; fireEvent.change(chooser); await flush();
+    expect(written).toEqual({ type: 'time', width: 7 });
   });
 
   // One option that takes no settings is nothing to show at all.
@@ -420,7 +429,7 @@ describe('IRField, a variant with one option', () => {
     expect(chooser.selectedOptions[0].textContent).toMatch(/time/);
     expect(container.querySelector('#n-funnel-funnel-width')).toBeNull();
     chooser.value = ''; fireEvent.change(chooser); await flush();
-    expect(written).toEqual({});
+    expect(written).toEqual({ width: 2 });                         // the default declares `width` too
   });
 
   // A lone option that has to be named is asked for when a loaded value does not name it.
@@ -503,7 +512,7 @@ describe('IRField, a variant whose options are files', () => {
     expect(written).toEqual({ type: 'dense', features: 3 });
     const select = container.querySelector('#n-model-variant') as HTMLSelectElement;
     select.value = 'fuzzy'; fireEvent.change(select); await flush();
-    expect(written).toEqual({ type: 'fuzzy' });
+    expect(written).toEqual({ type: 'fuzzy', features: 2 });       // both models take `features`
     fireEvent.click(container.querySelector('button[aria-label="refresh the model list"]')!);
     expect(refresh).toHaveBeenCalled();
   });

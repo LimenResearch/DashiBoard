@@ -265,6 +265,40 @@ export function conditionalOptions(
   return null;
 }
 
+/** Whether a field drawn as `widget` would take `value` as it is. */
+function accepts(widget: Widget, value: unknown): boolean {
+  const record = (v: unknown) => !!v && typeof v === "object" && !Array.isArray(v);
+  switch (widget.kind) {
+    case "text": return typeof value === "string";
+    case "select": return widget.options.includes(value as string | number);
+    case "number": return typeof value === "number";
+    case "toggle": return typeof value === "boolean";
+    case "multiselect": return Array.isArray(value) && value.every((v) => widget.options.includes(v as string | number));
+    case "repeater": return Array.isArray(value);
+    case "selector": return Array.isArray(value) || record(value);
+    case "variant":
+    case "object":
+    case "map": return record(value);
+    case "unknown": return true;
+  }
+}
+
+/**
+ * The value a variant takes when `branch` is chosen in place of what held `previous`: the branch's
+ * defaults, with every field the branch also declares kept as it was — the columns and the order
+ * of a funnel survive a change of funnel type. A kept value the branch would refuse gives way to
+ * the branch's default; a field the branch lacks is dropped.
+ */
+export function carryShared(previous: unknown, branch: IRNode, defs: Defs): Record<string, unknown> {
+  const base = { ...((defaultsFor(branch, defs) ?? {}) as Record<string, unknown>) };
+  const held = (previous && typeof previous === "object" && !Array.isArray(previous) ? previous : {}) as Record<string, unknown>;
+  for (const property of (resolveRef(branch, defs).properties ?? []) as PropertyEntry[]) {
+    if (!(property.key in held) || property.key === "type") continue;
+    if (accepts(widgetFor(property.value, defs), held[property.key])) base[property.key] = held[property.key];
+  }
+  return base;
+}
+
 /**
  * The value an IR node implies when nothing has been entered.
  *

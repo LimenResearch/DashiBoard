@@ -8,7 +8,7 @@ import { MapField } from "./MapField";
 import { plainColumns, pruneMap, transformRows } from "../transformRows";
 import { SelectorField } from "./SelectorField";
 import type { SelectorRow } from "../selector";
-import { conditionalOptions, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
+import { carryShared, conditionalOptions, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
 // `widgetFor` returns — a switch over a closed set rather than an attempt to recover intent from
@@ -329,7 +329,7 @@ export function IRField(props: IRFieldProps) {
                       text={(name) => props.configurationText?.(w().optionsFrom!, name) ?? null}
                       onChoose={(option) => {
                         const branch = w().objects[option];
-                        const inner = branch === undefined ? undefined : defaultsFor(branch, props.defs);
+                        const inner = branch === undefined ? undefined : carryShared(props.value, branch, props.defs);
                         props.onChange(named(inner, option));
                       }}
                       onRefresh={() => props.refreshConfigurations?.()}
@@ -352,7 +352,9 @@ export function IRField(props: IRFieldProps) {
                       // to be carried.
                       const option = event.currentTarget.value;
                       const branch = w().objects[option];
-                      const inner = branch === undefined ? undefined : defaultsFor(branch, props.defs);
+                      // What both branches declare is kept, so a change of type does not throw
+                      // away what was already filled in (`carryShared`).
+                      const inner = branch === undefined ? undefined : carryShared(props.value, branch, props.defs);
                       props.onChange(named(inner, option));
                     }}
                   >

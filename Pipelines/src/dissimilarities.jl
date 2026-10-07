@@ -87,7 +87,7 @@ Minkowski distance of order `p` (`"type" => "minkowski"`): the p-norm of
 the coordinate differences, interpolating between city block (`p = 1`),
 Euclidean (`p = 2`) and Chebyshev (`p → ∞`). Restricted to `p ≥ 1` —
 fractional orders break the triangle inequality, and with it the
-`SimpleMetricMethod` classification.
+metric classification.
 """
 @kwarg struct MinkowskiMethod <: SimpleMetricMethod
     p::Float64 = 2.0 & (dashi = NumberIR(minimum = 1),)
@@ -201,7 +201,7 @@ const NONMETRIC_METHODS = OrderedDict{String, Type}(
     DISSIMILARITY_METHODS
 
 Registry of every [`DissimilarityMethod`](@ref) type by JSON `"type"` name:
-the semimetrics plus all of [`SIMPLE_METRIC_METHODS`](@ref). This is the set an
+it includes `NONMETRIC_METHODS` and [`METRIC_METHODS`](@ref). This is the set an
 unrestricted dissimilarity field (e.g. k-means') accepts.
 """
 function DISSIMILARITY_METHODS()

@@ -666,7 +666,17 @@ function model_issues(repository, pipeline, table::AbstractString)
     for (i, node) in enumerate(pipeline.nodes)
         card = Pipelines.get_card(node)
         card isa Pipelines.StreamlinerCard || continue
-        issue = Pipelines.model_issue(repository, card, table)
+        # Only a model that does not fit its funnel is this check's to say. Anything else that
+        # stops it building is left to the run, which reports every failure, rather than turning
+        # a probe into an answer the form cannot render.
+        issue = try
+            Pipelines.model_issue(repository, card, table)
+        catch exception
+            exception isa Exception || rethrow()
+            @error "could not check whether the model of node $(i - 1) fits its funnel" exception =
+                (exception, catch_backtrace())
+            nothing
+        end
         isnothing(issue) && continue
         push!(issues, (;
             pointer = "/nodes/$(i - 1)/card/model", reason = "model", severity = "error",
@@ -789,8 +799,10 @@ Resolve a document without running it: which columns each node consumes and emit
 references that nothing produces.
 
 Construction is the cheap half of `evaluate-pipeline` — it resolves the group vocabulary and
-validates against the schema — so a probe costs a graph walk and no data access beyond reading the
-source table's column names. Nothing is materialised, so this is safe to call on every edit.
+validates against the schema — so a probe costs a graph walk and the source table's column names.
+A streamliner card adds a check that its model can be built for its funnel: the table's column
+types, one count per categorical column it names, and the model built once (`model_issues`).
+Nothing is trained or materialised, so this is safe to call on every edit.
 
 It reports rather than throws, for *every* way a document can be malformed rather than only
 schema failures: a probe that answers 500 tells a form nothing it can render. Two nodes with no

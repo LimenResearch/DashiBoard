@@ -3,6 +3,12 @@ using ZipArchives: ZipReader, zip_names, zip_readentry
 using TOML: TOML
 using Sockets: Sockets
 using Base.ScopedValues: @with
+using StreamlinerCore: StreamlinerCore
+
+# A model whose building fails for a reason that has nothing to do with sizes.
+struct BoomSpec end
+BoomModel(::AbstractDict) = BoomSpec()
+StreamlinerCore.instantiate(::BoomSpec, templates) = error("boom")
 using DashiBoard
 using Test
 using Downloads
@@ -396,6 +402,25 @@ mktempdir() do data_dir
                     Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
                     Pipelines.Pipeline([fit(model)], Dict{String, Any}(), names)
                 )
+                # A model that fails to build for another reason is not this check's to report:
+                # the probe answers, and the run reports it as it reports any failure.
+                write(joinpath(dir, "boom.toml"), """
+                    name = "boom"
+                    [components]
+                    model = []
+                    [loss]
+                    name = "mse"
+                    agg = "mean"
+                    """)
+                boom_parser = Pipelines.default_parser(
+                    plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("boom" => BoomModel))]
+                )
+                boom = @with(
+                    Pipelines.PARSER => boom_parser, Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                    Pipelines.Pipeline([merge(fit("boom"), Dict("card" => merge(fit("boom")["card"], Dict("model" => Dict("type" => "boom")))))], Dict{String, Any}(), names)
+                )
+                @test isempty(@with(Pipelines.PARSER => boom_parser, DashiBoard.model_issues(repo, boom, "selection")))
+
                 issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
                 @test issue.pointer == "/nodes/0/card/model"
                 @test issue.reason == "model" && issue.severity == "error"

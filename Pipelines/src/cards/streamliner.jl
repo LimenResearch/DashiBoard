@@ -68,17 +68,23 @@ end
     model_issue(repository, sc::StreamlinerCard, table; schema = nothing)
 
 Whether the card's model can be built for what its funnel feeds it: `nothing` if it can, otherwise
-`(; message, input, target)` with the sizes one sample has. Nothing is trained and no row is read.
-A categorical column of `table` counts as its distinct values, as the model sees it one-hot; a
-column `table` does not have yet — an earlier card's output — counts as one, which is what every
-card writes. This is what lets Confirm say a model and a funnel do not fit before a run finds out.
+`(; message, input, target)` with the sizes one sample has. Nothing is trained: it reads `table`'s
+column types, counts the distinct values of each categorical column the funnel names, and builds
+the model once. A categorical column counts as its distinct values, as the model sees it one-hot —
+over the whole table, where training counts its training rows, so the two can differ for a value
+only the validation rows hold; a column `table` does not have yet — an earlier card's output —
+counts as one, which is what every card writes. This is what lets Confirm say a model and a funnel
+do not fit before a run finds out.
 """
 function model_issue(
         repository::Repository, sc::StreamlinerCard, table::AbstractString;
         schema::Maybe{AbstractString} = nothing
     )
     table_spec = SC.TableSpec(; repository, schema, table, id_var = "")
-    unique_values = categorical_values(repository, sc.funnel, table; schema)
+    # Only how many values each categorical column has matters to the sizes, so a placeholder of
+    # that length stands for them.
+    counts = categorical_counts(repository, sc.funnel, table; schema)
+    unique_values = Dict{String, AbstractVector}(name => fill(nothing, n) for (name, n) in counts)
     templates = SC.get_templates(FunneledData(Val(2), sc.funnel, table_spec; partition = nothing, unique_values))
     return try
         sc.model(templates)
@@ -104,20 +110,27 @@ function shape_text(size::AbstractVector{Int})
     return join(size, " × ")
 end
 
-# The distinct values of the funnel's non-numeric columns that `table` holds, for one-hot sizes.
-function categorical_values(
-        repository::Repository, funnel::Funnel, table::AbstractString; schema::Maybe{AbstractString}
+"""
+    categorical_counts(repository, funnel, table; schema = nothing) -> Dict{String, Int}
+
+How many distinct values each non-numeric column the funnel names has in `table` — one count per
+column, the values themselves never fetched. Grouped as training groups them, so a missing value
+counts as one more.
+"""
+function categorical_counts(
+        repository::Repository, funnel::Funnel, table::AbstractString;
+        schema::Maybe{AbstractString} = nothing
     )
     found = DBInterface.execute(Tables.schema, repository, From(table); schema)
     names = union(SC.colname.(SC.get_inputs(funnel)), SC.colname.(SC.get_targets(funnel)))
-    values = Dict{String, AbstractVector}()
+    counts = Dict{String, Int}()
     for name in names
         i = findfirst(==(Symbol(name)), collect(found.names))
         (isnothing(i) || nonmissingtype(found.types[i]) <: Number) && continue
-        query = From(table) |> Group(Get(name)) |> Select(Get(name)) |> Order(Get(name))
-        values[name] = DBInterface.execute(Fix1(map, first), repository, query; schema)
+        query = From(table) |> Group(Get(name)) |> Group() |> Select("n" => Agg.count())
+        counts[name] = only(DBInterface.execute(Fix1(map, first), repository, query; schema))
     end
-    return values
+    return counts
 end
 
 # A model's output fields are this card's products: which there are depends on the model chosen,

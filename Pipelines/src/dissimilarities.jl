@@ -27,6 +27,10 @@ Registered in `METRIC_METHODS`, a subset of `DISSIMILARITY_METHODS`.
 """
 abstract type MetricMethod <: DissimilarityMethod end
 
+abstract type SimpleMetricMethod <: MetricMethod end
+
+abstract type CompositeMetricMethod <: MetricMethod end
+
 # semimetrics (no triangle inequality)
 
 """
@@ -58,71 +62,71 @@ end
 
 Euclidean distance (`"type" => "euclidean"`).
 """
-@kwarg struct EuclideanMethod <: MetricMethod end
+@kwarg struct EuclideanMethod <: SimpleMetricMethod end
 
 """
-    CityblockMethod <: MetricMethod
+    CityblockMethod <: SimpleMetricMethod
 
 City-block / Manhattan distance (`"type" => "cityblock"`): the sum of
 absolute coordinate differences.
 """
-@kwarg struct CityblockMethod <: MetricMethod end
+@kwarg struct CityblockMethod <: SimpleMetricMethod end
 
 """
-    ChebyshevMethod <: MetricMethod
+    ChebyshevMethod <: SimpleMetricMethod
 
 Chebyshev distance (`"type" => "chebyshev"`): the largest absolute
 coordinate difference.
 """
-@kwarg struct ChebyshevMethod <: MetricMethod end
+@kwarg struct ChebyshevMethod <: SimpleMetricMethod end
 
 """
-    MinkowskiMethod <: MetricMethod
+    MinkowskiMethod <: SimpleMetricMethod
 
 Minkowski distance of order `p` (`"type" => "minkowski"`): the p-norm of
 the coordinate differences, interpolating between city block (`p = 1`),
 Euclidean (`p = 2`) and Chebyshev (`p → ∞`). Restricted to `p ≥ 1` —
 fractional orders break the triangle inequality, and with it the
-`MetricMethod` classification.
+metric classification.
 """
-@kwarg struct MinkowskiMethod <: MetricMethod
+@kwarg struct MinkowskiMethod <: SimpleMetricMethod
     p::Float64 = 2.0 & (dashi = NumberIR(minimum = 1),)
 end
 
 """
-    WeightedEuclideanMethod <: MetricMethod
+    WeightedEuclideanMethod <: SimpleMetricMethod
 
 Euclidean distance with one positive weight per coordinate
 (`"type" => "weighted_euclidean"`); `weights` must match the card's
 `inputs` in length and order.
 """
-@kwarg struct WeightedEuclideanMethod <: MetricMethod
+@kwarg struct WeightedEuclideanMethod <: SimpleMetricMethod
     weights::Vector{Float64} & (
         dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
 """
-    WeightedCityblockMethod <: MetricMethod
+    WeightedCityblockMethod <: SimpleMetricMethod
 
 City-block distance with one positive weight per coordinate
 (`"type" => "weighted_cityblock"`); `weights` must match the card's
 `inputs` in length and order.
 """
-@kwarg struct WeightedCityblockMethod <: MetricMethod
+@kwarg struct WeightedCityblockMethod <: SimpleMetricMethod
     weights::Vector{Float64} & (
         dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
 """
-    WeightedMinkowskiMethod <: MetricMethod
+    WeightedMinkowskiMethod <: SimpleMetricMethod
 
 Minkowski distance of order `p ≥ 1` with one positive weight per
 coordinate (`"type" => "weighted_minkowski"`); `weights` must match the
 card's `inputs` in length and order.
 """
-@kwarg struct WeightedMinkowskiMethod <: MetricMethod
+@kwarg struct WeightedMinkowskiMethod <: SimpleMetricMethod
     weights::Vector{Float64} & (
         dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
@@ -130,18 +134,18 @@ card's `inputs` in length and order.
 end
 
 """
-    RMSDeviationMethod <: MetricMethod
+    RMSDeviationMethod <: SimpleMetricMethod
 
 RMSDeviation distance (`"type" => "rmsdeviation"`).
 """
-@kwarg struct RMSDeviationMethod <: MetricMethod end
+@kwarg struct RMSDeviationMethod <: SimpleMetricMethod end
 
 """
-    HellingerDistMethod <: MetricMethod
+    HellingerDistMethod <: SimpleMetricMethod
 
 HellingerDist distance (`"type" => "hellingerdist"`).
 """
-@kwarg struct HellingerDistMethod <: MetricMethod end
+@kwarg struct HellingerDistMethod <: SimpleMetricMethod end
 
 """
     get_dissimilarity(m::DissimilarityMethod)
@@ -170,7 +174,7 @@ Registry of the [`MetricMethod`](@ref) types by JSON `"type"` name — the
 subset of [`DISSIMILARITY_METHODS`](@ref) a metric-restricted field (e.g.
 dbscan's) accepts, in parsing and in the generated schema alike.
 """
-const METRIC_METHODS = OrderedDict{String, Type}(
+const SIMPLE_METRIC_METHODS = OrderedDict{String, Type}(
     "euclidean" => EuclideanMethod,
     "cityblock" => CityblockMethod,
     "chebyshev" => ChebyshevMethod,
@@ -182,20 +186,27 @@ const METRIC_METHODS = OrderedDict{String, Type}(
     "hellingerdist" => HellingerDistMethod
 )
 
+const COMPOSITE_METRIC_METHODS = OrderedDict{String, Type}()
+
+function METRIC_METHODS()
+    return merge(SIMPLE_METRIC_METHODS, COMPOSITE_METRIC_METHODS)
+end
+
+const NONMETRIC_METHODS = OrderedDict{String, Type}(
+    "sqeuclidean" => SqEuclideanMethod,
+    "weighted_sqeuclidean" => WeightedSqEuclideanMethod,
+)
+
 """
     DISSIMILARITY_METHODS
 
 Registry of every [`DissimilarityMethod`](@ref) type by JSON `"type"` name:
-the semimetrics plus all of [`METRIC_METHODS`](@ref). This is the set an
+it includes `NONMETRIC_METHODS` and [`METRIC_METHODS`](@ref). This is the set an
 unrestricted dissimilarity field (e.g. k-means') accepts.
 """
-const DISSIMILARITY_METHODS = merge(
-    OrderedDict{String, Type}(
-        "sqeuclidean" => SqEuclideanMethod,
-        "weighted_sqeuclidean" => WeightedSqEuclideanMethod,
-    ),
-    METRIC_METHODS,
-)
+function DISSIMILARITY_METHODS()
+    return merge(NONMETRIC_METHODS, METRIC_METHODS())
+end
 
 # The macro gives automatically
 # construct(DissimilarityMethod, d::AbstractDict)
@@ -203,3 +214,5 @@ const DISSIMILARITY_METHODS = merge(
 
 @options DissimilarityMethod DISSIMILARITY_METHODS
 @options MetricMethod METRIC_METHODS
+@options SimpleMetricMethod SIMPLE_METRIC_METHODS
+@options CompositeMetricMethod COMPOSITE_METRIC_METHODS

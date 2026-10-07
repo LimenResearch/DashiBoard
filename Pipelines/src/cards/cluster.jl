@@ -128,12 +128,14 @@ SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.p
 
 OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
 
+diagnostics(_) = NamedTuple()
+
 function _train(cc::ClusterCard, t, id_var::AbstractPrimaryKey)
     X = stack(Fix1(getindex, t), cc.inputs, dims = 1)
     weights = isnothing(cc.weights) ? nothing : t[cc.weights]
     res = cc.method(X; weights)
     label = assignments(res)
-    return (; label, id = t[id_var]) # return `label`s and relative `id`s for the evaluation
+    return (; label, id = t[id_var], diagnostics(res)...) # return `label`s and relative `id`s for the evaluation
 end
 
 function (cc::ClusterCard)(model, t, id_var::AbstractPrimaryKey)

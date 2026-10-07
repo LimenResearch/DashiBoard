@@ -81,7 +81,10 @@ function schema_validation_error(
         object::Any,
         issue::JSONSchema.SingleIssue
     )
-    pointer_tail = json_pointer(issue.path, object)
+    # JSONSchema.json_pointer is returned as RFC 6901 JSON Pointer URI fragment
+    # and it must be unescaped to get a standalone JSON Pointer
+    pointer_URI = JSONSchema.json_pointer(issue)
+    pointer_tail = unescapeuri(lstrip(pointer_URI, '#'))
     return SchemaValidationError(culprit, pointer_base, pointer_tail, issue)
 end
 
@@ -118,38 +121,6 @@ function Base.showerror(io::IO, err::SchemaValidationErrors)
 end
 
 escape_pointer(token::AbstractString) = replace(token, "~" => "~0", "/" => "~1")
-
-"""
-    json_pointer(path, object)
-
-Convert a `JSONSchema.SingleIssue` path — `"[method][dissimilarity][p]"` — to a JSON Pointer.
-
-Two things make this less mechanical than it looks:
-
-  * `path` indexes arrays **the Julia way**. The third element of `inputs` reports `[inputs][3]`,
-    and a JSON Pointer counts from zero, so array steps subtract one. Skip this and the form
-    highlights the wrong row — which is worse than not highlighting one.
-  * Whether a step *is* an array step cannot be recovered from the path, since `"1"` is a legal
-    object key. So this walks `object` alongside the path and asks what it actually found.
-
-Relevant issue: https://github.com/JuliaIO/JSONSchema.jl/issues/84
-"""
-function json_pointer(path::AbstractString, object)
-    io = IOBuffer()
-    current = object
-    for m in eachmatch(r"\[([^\]]*)\]", path)
-        token = m.captures[1]
-        index = current isa AbstractVector ? tryparse(Int, token) : nothing
-        if !isnothing(index)
-            print(io, '/', index - 1)
-            current = checkbounds(Bool, current, index) ? current[index] : nothing
-        else
-            print(io, '/', escape_pointer(token))
-            current = current isa AbstractDict ? get(current, token, nothing) : nothing
-        end
-    end
-    return String(take!(io))
-end
 
 """
     issue_report(err::SchemaValidationError)

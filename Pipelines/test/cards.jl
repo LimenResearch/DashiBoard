@@ -1038,6 +1038,9 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
         rule = only(Pipelines.DashiBase.constraints(Pipelines.StreamlinerCard))
         @test rule["if"]["properties"]["model"]["properties"]["type"]["const"] == "twohead"
         @test rule["then"]["properties"]["select"]["items"]["enum"] == ["prediction", "spread"]
+        # A product is written once, so `select` is a set, which a form offers as on/off choices.
+        select = only(p for p in Pipelines.card_ir("streamliner").properties if p.key == "select")
+        @test select.value.uniqueItems == true
     end
 
     # A single-field model is unchanged by any of this.

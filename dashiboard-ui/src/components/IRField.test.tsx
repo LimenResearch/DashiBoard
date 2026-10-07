@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { createSignal, flush } from 'solid-js';
 import { IRField } from './IRField';
 import { defaultsFor, type Defs, type IRNode } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -297,7 +297,7 @@ describe('IRField, options that depend on a sibling', () => {
     type: 'object',
     properties: [
       { key: 'model', required: true, value: { type: 'tagged_object', options: ['fuzzy', 'dense'], objects: { fuzzy: branch, dense: branch } } },
-      { key: 'select', required: false, value: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1 } },
+      { key: 'select', required: false, value: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true } },
     ],
     constraints: [rule('fuzzy', ['prediction', 'logvar']), rule('dense', ['prediction'])],
   };
@@ -538,5 +538,65 @@ describe('IRField, a variant whose options are files', () => {
     ));
     expect(container.querySelector('#n-model-variant')).toBeNull();
     expect(container.querySelector('details[data-configuration] pre')!.textContent).toBe(texts.dense);
+  });
+});
+
+// A list of plain values is a box of comma-separated values, with the allowed ones below it to
+// click; what the definition holds is read off the `writes` line.
+describe('IRField, a list typed as values', () => {
+  const prop = (card: IRNode, key: string) => (card.properties as { key: string; value: IRNode }[]).find((p) => p.key === key)!.value;
+  const tilesBranch = (prop(cards.split, 'method') as { objects: { [o: string]: IRNode } }).objects.tiles;
+  const mount = (node: IRNode, initial: unknown, label: string) => {
+    const [value, setValue] = createSignal<unknown>(initial);
+    const view = render(() => (
+      <IRField node={node} defs={defs} label={label} idPrefix="n" value={value()} onChange={setValue} />
+    ));
+    return { ...view, value };
+  };
+  const box = (c: HTMLElement) => c.querySelector('input[data-list]') as HTMLInputElement;
+  const writes = (c: HTMLElement) => [...c.querySelectorAll('[data-writes]')].map((e) => e.textContent);
+
+  it('starts empty with a placeholder, and the allowed values below to click', async () => {
+    const { container, value } = mount(tilesBranch, { repeat: 5, tail: 0 }, 'method');
+    expect(box(container).placeholder).toBe('values separated by commas');
+    const bubbles = [...container.querySelectorAll('[data-list-option]')].map((e) => e.textContent);
+    expect(bubbles).toEqual(['1', '2']);
+    fireEvent.click(container.querySelector('[data-list-option="1"]')!); await flush();
+    fireEvent.click(container.querySelector('[data-list-option="1"]')!); await flush();
+    fireEvent.click(container.querySelector('[data-list-option="2"]')!); await flush();
+    expect(box(container).value).toBe('1, 1, 2');
+    expect((value() as { tiles: unknown }).tiles).toEqual([1, 1, 2]);
+    expect(writes(container)).toEqual(['writes repeat = 5, tail = 0, tiles = [1, 1, 2]']);
+  });
+
+  it('writes nothing for a value outside the set, and says which', async () => {
+    const { container, value } = mount(tilesBranch, { tiles: [1, 2], repeat: 1, tail: 0 }, 'method');
+    expect(box(container).value).toBe('1, 2');
+    fireEvent.input(box(container), { target: { value: '1, 1, 3' } }); await flush();
+    expect((value() as { tiles: unknown }).tiles).toEqual([1, 2]);
+    expect(container.querySelector('[data-list-error]')!.textContent).toBe('3 is not one of 1, 2');
+    expect(box(container).className).toMatch(/border-warning/);
+  });
+
+  it('types free numbers with no values to click', async () => {
+    const node: IRNode = { type: 'object', properties: [{ key: 'weights', required: true, value: { type: 'array', items: { type: 'number' }, minItems: 1 } }] };
+    const { container, value } = mount(node, {}, 'dissimilarity');
+    expect(container.querySelector('[data-list-option]')).toBeNull();
+    fireEvent.input(box(container), { target: { value: '1, 0.5, 2' } }); await flush();
+    expect(value()).toEqual({ weights: [1, 0.5, 2] });
+    expect(writes(container)).toEqual(['writes weights = [1, 0.5, 2]']);
+  });
+
+  it('gives a list that is a field of the card itself its own line', async () => {
+    const { container } = mount(cards.trivial, { outputs: ['score', 'rank'] }, 'trivial');
+    expect(box(container).value).toBe('score, rank');
+    expect(writes(container)).toEqual(['writes outputs = ["score", "rank"]']);
+  });
+
+  it('keeps a set as pills', () => {
+    const select: IRNode = { type: 'array', items: { type: 'string', enum: ['prediction', 'logvar'] }, uniqueItems: true };
+    const { container } = render(() => <IRField node={select} defs={defs} label="select" idPrefix="n" value={['prediction']} onChange={() => {}} />);
+    expect(container.querySelector('input[data-list]')).toBeNull();
+    expect(container.querySelector('[data-option="logvar"]')).not.toBeNull();
   });
 });

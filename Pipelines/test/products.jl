@@ -18,6 +18,8 @@
     @test Pipelines.get_node_outputs(Node(card)) == ["TEMP_triple"]
     card = Pipelines.Card(Dict("type" => "twofold", "inputs" => ["TEMP"], "select" => ["triple", "double"]))
     @test Pipelines.get_node_outputs(Node(card)) == ["TEMP_triple", "TEMP_double"]
+    # A product is written once: `select` is a set.
+    @test Pipelines.select_IR(all).uniqueItems == true
 
     # What a selection may not be.
     bad(select; suffix = "double") = Pipelines.product_groups(["TEMP"], select, all, suffix)

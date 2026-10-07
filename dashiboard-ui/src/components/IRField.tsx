@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import type { Element as JSXElement } from "solid-js";
 
 import { Disclosure } from "./Disclosure";
@@ -8,7 +8,7 @@ import { MapField } from "./MapField";
 import { plainColumns, pruneMap, transformRows } from "../transformRows";
 import { SelectorField } from "./SelectorField";
 import type { SelectorRow } from "../selector";
-import { carryShared, conditionalOptions, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
+import { carryShared, conditionalOptions, defaultsFor, listText, parseList, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
 // `widgetFor` returns — a switch over a closed set rather than an attempt to recover intent from
@@ -52,6 +52,11 @@ type IRFieldProps = {
   configurationText?: (kind: string, name: string) => string | null;
   /** Handed to the same: ask the server for the files again. */
   refreshConfigurations?: () => void;
+  /**
+   * Show what this field writes under it. A list's `writes` line belongs to the object holding
+   * it; a list that is a field of the card itself has none above it, so it draws its own.
+   */
+  ownWrites?: boolean;
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -62,6 +67,14 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     : {};
 
 const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+/** A value as the `writes` line shows it: lists in brackets, strings quoted. */
+function written(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(written).join(", ")}]`;
+  if (value !== null && typeof value === "object")
+    return `{${Object.entries(value).map(([k, v]) => `${k} = ${written(v)}`).join(", ")}}`;
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
 
 /** Options round-trip through the DOM as strings; give the caller back the original type. */
 function optionByString(options: (string | number)[], raw: string): string | number {
@@ -224,6 +237,7 @@ export function IRField(props: IRFieldProps) {
                         isCategorical={props.isCategorical}
                         configurationText={props.configurationText}
                         refreshConfigurations={props.refreshConfigurations}
+                        ownWrites={w().title !== undefined}
                         node={node()}
                         defs={props.defs}
                         label={entry().key}
@@ -267,13 +281,28 @@ export function IRField(props: IRFieldProps) {
             // caller drew the disclosure, and a second one repeating the same label put every
             // branch field a level deeper than the `type` row it belongs beside.
             const bare = () => props.inline === true || w().title !== undefined;
+            // An object holding a list says what it writes as a whole, as a selector field does:
+            // the list's box shows what was typed, this line what the definition holds. The card
+            // itself has no such line; its lists draw their own.
+            const holdsList = createMemo(() =>
+              w().properties.some((entry) => widgetFor(entry.value, props.defs).kind === "list"));
+            const withWrites = () => (
+              <>
+                {fields()}
+                <Show when={holdsList() && w().title === undefined}>
+                  <p data-writes class="font-mono text-control-xs text-muted-foreground">
+                    writes {Object.entries(asRecord(props.value)).map(([k, v]) => `${k} = ${written(v)}`).join(", ")}
+                  </p>
+                </Show>
+              </>
+            );
             return (
               <Show
                 when={!bare()}
-                fallback={<div class="flex flex-col gap-0.5">{fields()}</div>}
+                fallback={<div class="flex flex-col gap-0.5">{withWrites()}</div>}
               >
                 <Collapsible label={props.label} required={props.required}>
-                  {fields()}
+                  {withWrites()}
                 </Collapsible>
               </Show>
             );
@@ -415,6 +444,73 @@ export function IRField(props: IRFieldProps) {
                     {(option) => <option value={String(option)}>{option}</option>}
                   </For>
                 </select>
+              </Row>
+            );
+          }
+
+          // Plain values in order, typed comma-separated; the allowed ones, when there is a fixed
+          // set, below the box to click. What was typed stays on screen while it does not read,
+          // and nothing is written until it does.
+          case "list": {
+            const w = () => widget() as Extract<Widget, { kind: "list" }>;
+            const [draft, setDraft] = createSignal<string | null>(null);
+            const text = () => draft() ?? listText(props.value);
+            const error = () => {
+              const read = parseList(text(), w().item, w().options);
+              return "error" in read ? read.error : null;
+            };
+            const commit = (next: string) => {
+              setDraft(next);
+              const read = parseList(next, w().item, w().options);
+              // Emptied is absent, as for any field.
+              if ("values" in read) props.onChange(read.values.length === 0 ? undefined : read.values);
+            };
+            // A click appends, with the comma when something is already there.
+            const append = (option: string | number) => {
+              const held = text().replace(/[\s,]*$/, "");
+              commit(held === "" ? String(option) : `${held}, ${option}`);
+            };
+            return (
+              <Row for={id()} label={props.label} required={props.required}>
+                <div class="flex min-w-0 flex-1 flex-col gap-1">
+                  <input
+                    id={id()}
+                    data-list
+                    type="text"
+                    placeholder="values separated by commas"
+                    value={text()}
+                    onInput={(event) => commit(event.currentTarget.value)}
+                    onBlur={() => { if (error() === null) setDraft(null); }}
+                    class={[
+                      "h-control-xs rounded-sm border bg-transparent px-2 font-mono text-control-xs outline-none focus:ring-2 focus:ring-ring",
+                      error() === null ? "border-border" : "border-warning",
+                    ]}
+                  />
+                  <Show when={error()}>
+                    {(message) => <p data-list-error class="text-control-xs text-warning">{message()}</p>}
+                  </Show>
+                  <Show when={(w().options ?? []).length > 0}>
+                    <div class="flex flex-wrap gap-1.5">
+                      <For each={w().options}>
+                        {(option) => (
+                          <button
+                            type="button"
+                            data-list-option={String(option)}
+                            onClick={() => append(option)}
+                            class="inline-flex h-6 items-center rounded-full border border-border bg-card px-2.5 font-mono text-control-xs hover:border-primary hover:text-primary"
+                          >
+                            {option}
+                          </button>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                  <Show when={props.ownWrites}>
+                    <p data-writes class="font-mono text-control-xs text-muted-foreground">
+                      writes {props.label} = {written(props.value ?? [])}
+                    </p>
+                  </Show>
+                </div>
               </Row>
             );
           }

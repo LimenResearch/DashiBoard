@@ -155,6 +155,19 @@ end
     @test_throws ArgumentError OneOrManyIR{StructTest.MyStruct}(items = arr)
 end
 
+# A list says when a value makes sense at most once; a form draws such a set as on/off choices
+# and anything else as a sequence, where repeats are meant.
+@testset "uniqueItems" begin
+    set = ArrayIR{String}(items = StringIR(enum = ["a", "b"]), uniqueItems = true)
+    @test DashiBase.json_schema(set)["uniqueItems"] == true
+    schema = DashiBase.json_schema(set) |> Schema
+    @test isvalid(["a", "b"], schema)
+    @test !isvalid(["a", "a"], schema)
+    sequence = ArrayIR{Int}(items = IntegerIR(enum = [1, 2]))
+    @test !haskey(DashiBase.json_schema(sequence), "uniqueItems")
+    @test isvalid([1, 1, 2], DashiBase.json_schema(sequence) |> Schema)
+end
+
 @testset "IR serialises to JSON" begin
     # `TrivialIR` has no fields, so JSON's struct path does not apply and serialisation used to
     # fall back to `show` — defined as `JSON.json` — recursing without bound. Reachable in

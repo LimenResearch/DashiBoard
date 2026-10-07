@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   carryShared,
+  listText,
+  parseList,
   conditionalOptions,
   defaultsFor,
   resolveRef,
@@ -71,9 +73,13 @@ describe('widgetFor', () => {
     });
   });
 
-  it('maps an array of enum-bearing integers to a multiselect', () => {
+  // Repeats are meant unless the list says it is a set.
+  it('maps an array of enum-bearing integers to a list, and to a multiselect when it is a set', () => {
     expect(widgetFor(
       { type: 'array', minItems: 1, items: { type: 'integer', enum: [1, 2] } }, defs,
+    )).toEqual({ kind: 'list', item: 'integer', options: [1, 2], minItems: 1 });
+    expect(widgetFor(
+      { type: 'array', minItems: 1, items: { type: 'integer', enum: [1, 2] }, uniqueItems: true }, defs,
     )).toEqual({ kind: 'multiselect', options: [1, 2], minItems: 1 });
   });
 
@@ -407,5 +413,50 @@ describe('switching a variant', () => {
     expect(carryShared(carryShared({}, a, defs), b, defs).how).toBe('z');
     expect(carryShared({ how: 'x' }, b, defs).how).toBe('z');
     expect(carryShared({ how: 'x' }, a, defs).how).toBe('x');
+  });
+});
+
+// A list of plain values is typed, comma-separated, unless the schema marks it a set.
+describe('lists of values', () => {
+  const defs = payload.defs as Defs;
+  const prop = (card: IRNode, key: string) => (card.properties as { key: string; value: IRNode }[]).find((p) => p.key === key)!.value;
+  const branch = (variant: IRNode, option: string) => (variant as { objects: { [o: string]: IRNode } }).objects[option];
+
+  it('draws a sequence as a list, with the allowed values when there is a fixed set', () => {
+    const tiles = prop(branch(prop(payload.cards.split as IRNode, 'method'), 'tiles'), 'tiles');
+    expect(widgetFor(tiles, defs)).toEqual({ kind: 'list', item: 'integer', options: [1, 2], minItems: 1 });
+    const weights = prop(branch(prop(branch(prop(payload.cards.cluster as IRNode, 'method'), 'kmeans'), 'dissimilarity'), 'weighted_euclidean'), 'weights');
+    expect(widgetFor(weights, defs)).toMatchObject({ kind: 'list', item: 'number' });
+    expect((widgetFor(weights, defs) as { options?: unknown }).options).toBeUndefined();
+    expect(widgetFor(prop(payload.cards.trivial as IRNode, 'outputs'), defs)).toMatchObject({ kind: 'list', item: 'string' });
+  });
+
+  it('keeps a set as on/off choices', () => {
+    expect(widgetFor(prop(payload.cards.streamliner as IRNode, 'select'), defs).kind).toBe('multiselect');
+  });
+
+  it('leaves selectors and untyped lists alone', () => {
+    expect(widgetFor(prop(payload.cards.rescale as IRNode, 'inputs'), defs).kind).toBe('repeater');
+    const formula = prop(payload.cards.glm as IRNode, 'formula');
+    expect(widgetFor(prop(formula, 'inputs'), defs).kind).toBe('repeater');
+  });
+
+  it('reads values separated by commas, spaces ignored, numbers as numbers', () => {
+    expect(parseList('1, 1 ,2', 'integer', [1, 2])).toEqual({ values: [1, 1, 2] });
+    expect(parseList('1,0.5,  2', 'number')).toEqual({ values: [1, 0.5, 2] });
+    expect(parseList(' score , rank ', 'string')).toEqual({ values: ['score', 'rank'] });
+    expect(parseList('', 'integer', [1, 2])).toEqual({ values: [] });
+  });
+
+  it('says which value it cannot read', () => {
+    expect(parseList('1, 1, 3', 'integer', [1, 2])).toEqual({ error: '3 is not one of 1, 2' });
+    expect(parseList('1, x', 'number')).toEqual({ error: 'x is not a number' });
+    expect(parseList('1, 1.5', 'integer')).toEqual({ error: '1.5 is not a whole number' });
+    expect(parseList('a,,b', 'string')).toEqual({ error: 'a value is missing between two commas' });
+  });
+
+  it('writes a list back as the box shows it', () => {
+    expect(listText([1, 1, 2])).toBe('1, 1, 2');
+    expect(listText(undefined)).toBe('');
   });
 });

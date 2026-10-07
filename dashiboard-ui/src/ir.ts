@@ -34,6 +34,17 @@ export type Widget =
       default?: unknown[];
     }
   | { kind: "repeater"; items: IRNode; minItems?: number }
+  /**
+   * Plain values in order, repeats meant — typed comma-separated. `options` are the values allowed
+   * when they come from a fixed set.
+   */
+  | {
+      kind: "list";
+      item: "string" | "number" | "integer";
+      options?: (string | number)[];
+      minItems?: number;
+      default?: unknown[];
+    }
   | {
       kind: "variant";
       options: string[];
@@ -166,6 +177,27 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
     case "array": {
       const raw = (n.items ?? {}) as IRNode;
       const items = resolveRef(raw, defs);
+      // Plain values written in place: a set (`uniqueItems`) is on/off choices; otherwise the
+      // values are typed in order, repeats meant, with the allowed ones offered when they come
+      // from a fixed set. Items given by a reference name things from a vocabulary — columns,
+      // nodes — and stay a choice of names below.
+      const scalar = items.type === "string" || items.type === "number" || items.type === "integer";
+      if (scalar && typeof raw.$ref !== "string") {
+        const options = Array.isArray(items.enum) ? (items.enum as (string | number)[]) : undefined;
+        if (n.uniqueItems === true)
+          return {
+            kind: "multiselect",
+            options: options ?? [],
+            minItems: num(n.minItems),
+            default: Array.isArray(n.default) ? n.default : undefined,
+          };
+        const list: Extract<Widget, { kind: "list" }> = {
+          kind: "list", item: items.type as "string" | "number" | "integer", minItems: num(n.minItems),
+        };
+        if (options !== undefined) list.options = options;
+        if (Array.isArray(n.default)) list.default = n.default;
+        return list;
+      }
       // An array over an enum is the multi-select case — including a `$defs/variables`
       // reference, whose items resolve to the source table's column enum.
       return Array.isArray(items.enum)
@@ -274,7 +306,8 @@ function accepts(widget: Widget, value: unknown): boolean {
     case "number": return typeof value === "number";
     case "toggle": return typeof value === "boolean";
     case "multiselect": return Array.isArray(value) && value.every((v) => widget.options.includes(v as string | number));
-    case "repeater": return Array.isArray(value);
+    case "repeater":
+    case "list": return Array.isArray(value);
     case "selector": return Array.isArray(value) || record(value);
     case "variant":
     case "object":
@@ -347,6 +380,7 @@ export function defaultsFor(node: IRNode, defs: Defs): unknown {
     case "toggle":
     case "text":
     case "multiselect":
+    case "list":
       return w.default;
 
     // A repeater's default is an empty list and a map's an empty map, which is what an absent
@@ -357,3 +391,32 @@ export function defaultsFor(node: IRNode, defs: Defs): unknown {
       return undefined;
   }
 }
+
+/**
+ * The values typed into a list's box: separated by commas, spaces ignored, numbers read as
+ * numbers. The first value that cannot be read is named, and then nothing is returned.
+ */
+export function parseList(
+  text: string, item: "string" | "number" | "integer", options?: (string | number)[],
+): { values: (string | number)[] } | { error: string } {
+  if (text.trim() === "") return { values: [] };
+  const values: (string | number)[] = [];
+  for (const raw of text.split(",")) {
+    const token = raw.trim();
+    if (token === "") return { error: "a value is missing between two commas" };
+    let value: string | number = token;
+    if (item !== "string") {
+      const parsed = Number(token);
+      if (Number.isNaN(parsed)) return { error: `${token} is not a number` };
+      if (item === "integer" && !Number.isInteger(parsed)) return { error: `${token} is not a whole number` };
+      value = parsed;
+    }
+    if (options !== undefined && !options.some((o) => String(o) === String(value)))
+      return { error: `${token} is not one of ${options.join(", ")}` };
+    values.push(value);
+  }
+  return { values };
+}
+
+/** A list as its box shows it. */
+export const listText = (values: unknown): string => (Array.isArray(values) ? values.map(String).join(", ") : "");

@@ -83,6 +83,9 @@ end
     items::IR
     minItems::Maybe{Int} = nothing
     maxItems::Maybe{Int} = nothing
+    # `true` when a value makes sense at most once: a set, which a form offers as on/off choices.
+    # Left out, repeats are meant and a form takes the values as a sequence.
+    uniqueItems::Maybe{Bool} = nothing
 end
 
 function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}

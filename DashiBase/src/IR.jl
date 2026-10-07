@@ -199,9 +199,9 @@ struct EitherIR <: AbstractIR
     types::Vector{String}
     options::Vector{AbstractIR}
     function EitherIR(options::AbstractVector{<:Pair{<:AbstractString, <:AbstractIR}})
-        types = String[first(option) for option in options]
+        types = collect(String, Iterators.map(first, options))
         allunique(types) || throw(ArgumentError("each option of an `EitherIR` needs a distinct JSON type"))
-        return new("either", types, AbstractIR[last(option) for option in options])
+        return new("either", types, collect(AbstractIR, Iterators.map(last, options)))
     end
 end
 

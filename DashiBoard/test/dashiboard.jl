@@ -367,6 +367,43 @@ mktempdir() do data_dir
             @test [t["name"] for t in listed["training"]] == ["batched"]
         end
 
+        # The probe and a run ask whether each streamliner model can be built for its funnel, and
+        # say so at the card's `model`. The served models all fit, so this uses its own.
+        @testset "a model that cannot be built" begin
+            mktempdir() do dir
+                cp(joinpath(model_dir, "dense.toml"), joinpath(dir, "dense.toml"))
+                write(joinpath(dir, "conv.toml"), """
+                    name = "basic"
+                    [components]
+                    model = [{ name = "conv", kernel = [3], pad = [1], features = { "-v" = "features" } }, { name = "conv", kernel = [3], pad = [1] }]
+                    [loss]
+                    name = "mse"
+                    agg = "mean"
+                    [[properties]]
+                    key = "features"
+                    type = "integer"
+                    """)
+                fit(model) = Dict(
+                    "id" => "fit", "card" => Dict(
+                        "type" => "streamliner", "model" => Dict("type" => model, "features" => 2),
+                        "training" => Dict("type" => "batched", "iterations" => 1),
+                        "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                    )
+                )
+                cols = DataIngestion.summarize(repo, "selection")
+                names = String[c.name for c in cols]
+                built(model) = @with(
+                    Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                    Pipelines.Pipeline([fit(model)], Dict{String, Any}(), names)
+                )
+                issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
+                @test issue.pointer == "/nodes/0/card/model"
+                @test issue.reason == "model" && issue.severity == "error"
+                @test occursin("cannot be built for this funnel", issue.message)
+                @test isempty(DashiBoard.model_issues(repo, built("dense"), "selection"))
+            end
+        end
+
         # Each node says what a selection may narrow it to: its products, with their columns. A
         # streamliner names even its one product, so another card can ask for it by name.
         @testset "products in the probe" begin

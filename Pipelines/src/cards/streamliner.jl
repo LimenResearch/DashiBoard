@@ -63,6 +63,62 @@ function resolved_lists(sc::StreamlinerCard)
     )
 end
 
+"""
+    model_issue(repository, sc::StreamlinerCard, table; schema = nothing)
+
+Whether the card's model can be built for what its funnel feeds it: `nothing` if it can, otherwise
+`(; message, input, target)` with the sizes one sample has. Nothing is trained and no row is read.
+A categorical column of `table` counts as its distinct values, as the model sees it one-hot; a
+column `table` does not have yet — an earlier card's output — counts as one, which is what every
+card writes. This is what lets Confirm say a model and a funnel do not fit before a run finds out.
+"""
+function model_issue(
+        repository::Repository, sc::StreamlinerCard, table::AbstractString;
+        schema::Maybe{AbstractString} = nothing
+    )
+    table_spec = SC.TableSpec(; repository, schema, table, id_var = "")
+    unique_values = categorical_values(repository, sc.funnel, table; schema)
+    templates = SC.get_templates(FunneledData(Val(2), sc.funnel, table_spec; partition = nothing, unique_values))
+    return try
+        sc.model(templates)
+        nothing
+    catch err
+        # Building refuses a shape it cannot handle with these; anything else is not about fit.
+        err isa Union{ArgumentError, DimensionMismatch} || rethrow()
+        input, target = collect(Int, templates.input.size), collect(Int, templates.target.size)
+        reason = err isa ArgumentError ? err.msg : sprint(showerror, err)
+        hint = occursin("Could not infer output features", reason) ?
+            " The last layer has no size of its own and the target's shape does not give it one: give the last layer a size, or use a model that keeps the target's shape, such as a convolution." :
+            ""
+        message = "This model cannot be built for this funnel: its input is $(shape_text(input)) and its target $(shape_text(target)). $(reason)$(hint)"
+        (; message, input, target)
+    end
+end
+
+# One sample's size, read as a funnel lays it out: columns last, steps before them.
+function shape_text(size::AbstractVector{Int})
+    columns = string(last(size), last(size) == 1 ? " column" : " columns")
+    length(size) == 1 && return columns
+    length(size) == 2 && return string(first(size), first(size) == 1 ? " step × " : " steps × ", columns)
+    return join(size, " × ")
+end
+
+# The distinct values of the funnel's non-numeric columns that `table` holds, for one-hot sizes.
+function categorical_values(
+        repository::Repository, funnel::Funnel, table::AbstractString; schema::Maybe{AbstractString}
+    )
+    found = DBInterface.execute(Tables.schema, repository, From(table); schema)
+    names = union(SC.colname.(SC.get_inputs(funnel)), SC.colname.(SC.get_targets(funnel)))
+    values = Dict{String, AbstractVector}()
+    for name in names
+        i = findfirst(==(Symbol(name)), collect(found.names))
+        (isnothing(i) || nonmissingtype(found.types[i]) <: Number) && continue
+        query = From(table) |> Group(Get(name)) |> Select(Get(name)) |> Order(Get(name))
+        values[name] = DBInterface.execute(Fix1(map, first), repository, query; schema)
+    end
+    return values
+end
+
 # A model's output fields are this card's products: which there are depends on the model chosen,
 # which is the one thing a card with fixed products does not have to say.
 products(sc::StreamlinerCard) = String[string(field) for field in SC.output_fields(sc.model)]

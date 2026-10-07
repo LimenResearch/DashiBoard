@@ -892,6 +892,44 @@ end
     @test Pipelines.get_node_outputs(Node(sc)) == ["Iws_hat"]
 end
 
+# A model built against the funnel's sizes before any training: what Confirm asks of a card.
+@testset "a model that cannot be built for its funnel" begin
+    conv = """
+    name = "basic"
+    [components]
+    model = [{ name = "conv", kernel = [3], pad = [1], features = 4 }, { name = "conv", kernel = [3], pad = [1] }]
+    [loss]
+    name = "mse"
+    agg = "mean"
+    """
+    mktempdir() do dir
+        cp(joinpath(@__DIR__, "static", "model", "dense.toml"), joinpath(dir, "dense.toml"))
+        write(joinpath(dir, "conv.toml"), conv)
+        card(model; inputs = ["TEMP", "PRES"]) = @with(
+            Pipelines.PARSER => Pipelines.default_parser(),
+            Pipelines.MODEL_DIR => dir,
+            Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+            Pipelines.Card(
+                Dict{String, Any}(
+                    "type" => "streamliner", "model" => Dict("type" => model, "features" => 4),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => ["No"], "inputs" => inputs, "targets" => ["Iws"]),
+                )
+            )
+        )
+        # A dense model takes a row of columns.
+        @test isnothing(Pipelines.model_issue(repo, card("dense"), "selection"))
+        # A convolution needs an axis to slide along, which a row of columns does not have.
+        issue = Pipelines.model_issue(repo, card("conv"), "selection")
+        @test occursin("cannot be built for this funnel", issue.message)
+        @test issue.input == [2] && issue.target == [1]
+        # A categorical column counts as its distinct values, as the model will see it.
+        @test Pipelines.model_issue(repo, card("conv"; inputs = ["TEMP", "cbwd"]), "selection").input == [5]
+        # A column that is not in the table yet — an earlier card's output — counts as one.
+        @test Pipelines.model_issue(repo, card("conv"; inputs = ["TEMP", "later"]), "selection").input == [2]
+    end
+end
+
 # An architecture that yields two fields, standing in for the ones that live in packages this one
 # cannot depend on. `spread` is as wide as the prediction, so it is written the same way.
 struct TwoHeadSpec

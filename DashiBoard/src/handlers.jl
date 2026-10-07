@@ -654,6 +654,30 @@ function build_failure(nodes::AbstractVector, groups::AbstractDict, exception::E
 end
 
 """
+    model_issues(repository, pipeline, table) -> Vector
+
+For each streamliner card of a built `pipeline`, whether its model can be built for what its
+funnel feeds it, sized from `table`: one error at the card's `model` for each that cannot. Asked
+by the probe, so Confirm turns the card red before a run trains anything, and by a run before it
+trains.
+"""
+function model_issues(repository, pipeline, table::AbstractString)
+    issues = []
+    for (i, node) in enumerate(pipeline.nodes)
+        card = Pipelines.get_card(node)
+        card isa Pipelines.StreamlinerCard || continue
+        issue = Pipelines.model_issue(repository, card, table)
+        isnothing(issue) && continue
+        push!(issues, (;
+            pointer = "/nodes/$(i - 1)/card/model", reason = "model", severity = "error",
+            found = nothing, allowed = nothing, missing = String[], related = String[],
+            message = issue.message,
+        ))
+    end
+    return issues
+end
+
+"""
     validate_card(req)
 
 Check one card against its own schema, without resolving a document.
@@ -810,6 +834,8 @@ function probe_pipeline(req::HTTP.Request)
     end
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
+    # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.
+    unfit = model_issues(REPOSITORY[], pipeline, "source")
     # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
     # this the third answer to "what is this node called" in three files.
     ids = Pipelines.get_id.(spec["nodes"])
@@ -851,10 +877,10 @@ function probe_pipeline(req::HTTP.Request)
     end
 
     return json_response((;
-        valid = isempty(absent),
+        valid = isempty(absent) && isempty(unfit),
         # The probe's second way of being invalid, and the same kind as the first: a reference
         # nothing produces is a fault of the document, found by resolving rather than by running.
-        kind = isempty(absent) ? nothing : "pipeline",
+        kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
         cols,
         nodes,
         referable = may_refer,
@@ -865,7 +891,7 @@ function probe_pipeline(req::HTTP.Request)
         # route answered.
         # Errors first, then warnings: a client reading the list top-down sees what blocks the
         # run before what merely deserves a look.
-        issues = vcat(unproduced_issues, overwrite_warnings(pipeline, cols)),
+        issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
     ))
 end
 
@@ -929,6 +955,16 @@ function evaluate_pipeline(req::HTTP.Request)
         @error "evaluate-pipeline: could not build the pipeline" exception =
             (exception, catch_backtrace())
         return json_response(build_failure(spec["nodes"], get(spec, "groups", Dict{String, Any}()), exception))
+    end
+
+    # A model that cannot be built for its funnel is a fault of the document, said as the probe
+    # says it, before anything is trained.
+    unfit = model_issues(REPOSITORY[], pipeline, "selection")
+    if !isempty(unfit)
+        return json_response((;
+            valid = false, kind = "pipeline",
+            errors = [issue.message for issue in unfit], issues = unfit,
+        ))
     end
 
     return try

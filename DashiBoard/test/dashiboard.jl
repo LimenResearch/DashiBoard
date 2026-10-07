@@ -458,7 +458,7 @@ mktempdir() do data_dir
                 Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
                 begin
                     @test DashiBoard.needed_extensions(doc) == ["Fake"]
-                    # A funnel names its type and its transforms; there is no loader to name.
+                    # A funnel contributes its type and its transforms, nothing else.
                     entries = DashiBoard.registry_entries(doc)
                     @test "funnel:" in entries && "transform:log" in entries
                     @test !any(startswith("loader:"), entries)

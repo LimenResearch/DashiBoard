@@ -1,4 +1,5 @@
 using DashiBase: DashiBase
+using StreamlinerCore: @kwarg
 using JSONSchema: JSONSchema
 
 @testset "FunneledData" begin
@@ -226,6 +227,19 @@ end
     @test !isnothing(JSONSchema.validate(Dict{String, Any}("order_by" => ["No"], "targets" => ["Iws"]), s))
     @test isnothing(JSONSchema.validate(merge(d, Dict("input_paths" => "frame")), s))
     @test !isnothing(JSONSchema.validate(merge(d, Dict("loader" => Dict("type" => ""))), s))
+end
+
+# A struct a wrapper writes flat beside its own fields: one setting, nothing else.
+@kwarg struct FlatInner
+    channels::Int = 1
+end
+
+@testset "a struct written flat over another" begin
+    SC = StreamlinerCore
+    inner = DashiBase.ObjectIR(FlatInner)
+    inside, outside = SC.split_config(inner, Dict{String, Any}("channels" => 2, "other" => 1))
+    @test inside == Dict{String, Any}("channels" => 2)
+    @test outside == Dict{String, Any}("other" => 1)
 end
 
 @testset "transforms" begin

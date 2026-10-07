@@ -33,7 +33,7 @@ describe("issues the server writes a sentence for", () => {
   });
 
   it("keeps the sentence for the others", () => {
-    for (const reason of ["empty", "unproduced", "products"]) {
+    for (const reason of ["empty", "unproduced", "products", "model"]) {
       const found = issueFindings([issue({ reason, message: `about ${reason}` })]);
       expect(found[0].message, reason).toBe(`about ${reason}`);
     }

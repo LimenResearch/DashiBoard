@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Major breaking changes
+
+- A streamliner funnel lists its columns by name and gives transforms in separate maps, `input_transforms` and `target_transforms`, keyed by column; `{colname, transform}` objects are no longer accepted. A funnel document is checked against its schema: an unknown key is refused, and `inputs` and `targets` are required.
+- The transform registry no longer has a `""` entry: a column without an entry in its map is taken as it is. `log`, `log1p`, `sqrt` and `asinh` are registered beside `identity`.
+- A `through` chain that passes a value through a node that cannot carry it is refused with a `ThroughError` pointing at the card or group that holds the chain.
+- `DashiBoard.launch(workspace; data_dir, pipeline_dir, filter_dir, model_dir, training_dir, ...)` replaces `launch(data_directory; model_directory, training_directory, ...)`. `bin/launch.jl` takes a workspace folder and the flags `--data_dir`, `--pipeline_dir`, `--filter_dir`, `--model_dir` and `--training_dir`, replacing the positional data directory, `--model_directory` and `--training_directory`. A directory is resolved from its flag, then the workspace's `dashiboard.toml`, then its conventional folder, then the workspace root; `static/model` and `static/training` are no longer defaults.
+- `list-files` answers `{files, misplaced, folders}` instead of a bare list of files.
+- `read-document` and `write-document` take paths relative to the workspace instead of the data directory; `write-document` and `write-configuration` refuse hidden paths and `dashiboard.toml`.
+- A card declares what it writes with `output_spec(card)`, returning a list of `OutputGroup`s (each an `OutputSpec`, or a `VariableTransformSpec` for outputs derived from given columns); `OutputVariables(card)` is no longer called.
+
+### Features
+
+- A card can write several named products; the streamliner card writes every field its model yields, or the ones named in `select`.
+- A `through` step or a `nodes` selection can keep only some of a node's products: `{node, products}` in a chain, `{nodes, products}` on a selector item. The probe reports each node's products and how a value may pass through it.
+- A streamliner funnel's schema comes from the funnel's own fields, so the form can build a streamliner card; a funnel that wraps another is written flat (`flat_IR`, `split_config`). The probe reports the columns a funnel's lists resolve to.
+- The probe and a run check that each streamliner model can be built for its funnel, and report one that cannot at the card's `model` (`Pipelines.model_issue`).
+- A streamliner card that kept no trained model says why at prediction — never trained, or no validation rows because it has no `partition`.
+- The server runs against a workspace: `dashiboard.toml` with `[directories]`, `[extensions]` and `[server]`; `bin/launch.jl --init` sorts a plain folder into the layout; the launcher starts the server in an environment holding the workspace's extensions.
+- Routes to read and write each kind of file (`read-pipeline`, `write-pipeline`, `read-filters`, `write-filters`, `read-model`, `write-model`, `read-training`, `write-training`), to list, read and write model and training configurations (`list-configurations`, `read-configuration`, `write-configuration`), and to download a pipeline with the configurations and extensions it names as a zip (`bundle-pipeline`).
+- DashiBase: `EitherIR` for a value of one of several types, `MapIR` for a map of names to values of one kind, and `uniqueItems` on `ArrayIR` for a list that is a set.
+
 ## Version 2.0.0
 
 ### Major breaking changes

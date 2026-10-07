@@ -266,26 +266,6 @@ export function conditionalOptions(
 }
 
 /**
- * The properties a sibling's choice makes required, read from the object's `if`/`then`
- * constraints: "with this loader, the columns must be named".
- *
- * A condition on a sibling that is absent, or names no type, holds — the schema's own reading,
- * where a rule about a property says nothing of a document that lacks it.
- */
-export function conditionallyRequired(node: IRNode, value: Record<string, unknown>): string[] {
-  const constraints = (Array.isArray(node.constraints) ? node.constraints : []) as Record<string, any>[];
-  return constraints.flatMap((rule) => {
-    if (!Array.isArray(rule?.then?.required)) return [];
-    const conditions = Object.entries((rule.if?.properties ?? {}) as Record<string, any>);
-    const holds = conditions.every(([sibling, schema]) => {
-      const held = (value[sibling] as Record<string, unknown> | undefined)?.type;
-      return held === undefined || held === schema?.properties?.type?.const;
-    });
-    return holds ? (rule.then.required as unknown[]).map(String) : [];
-  });
-}
-
-/**
  * The value an IR node implies when nothing has been entered.
  *
  * A card added to the document used to carry only its `type`, while the form displayed every

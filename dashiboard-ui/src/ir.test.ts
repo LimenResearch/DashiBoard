@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   conditionalOptions,
-  conditionallyRequired,
   defaultsFor,
   resolveRef,
   widgetFor,
@@ -321,7 +320,7 @@ describe('the streamliner funnel, as served', () => {
     expect(w.options).toEqual(['']);
     expect(w.default).toBe('');
     const keys = (branch().properties as { key: string }[]).map((p) => p.key);
-    expect(keys).toEqual(['order_by', 'inputs', 'input_transforms', 'targets', 'target_transforms', 'loader']);
+    expect(keys).toEqual(['order_by', 'inputs', 'input_transforms', 'targets', 'target_transforms', 'input_paths', 'target_paths']);
   });
   it('reads a map field with the list its keys come from', () => {
     const map = (branch().properties as { key: string; value: IRNode }[]).find((p) => p.key === 'input_transforms')!.value;
@@ -340,13 +339,13 @@ describe('the streamliner funnel, as served', () => {
     expect(defaults.training).toEqual({ type: 'batched' });
     expect('model' in defaults).toBe(false);           // two models: the author's to choose
   });
-  // "With the default loader, name the columns": the rule is the schema's, read here so the
-  // form can mark the fields before the server is asked.
-  it('says which fields a sibling makes required', () => {
-    expect(conditionallyRequired(branch(), {})).toEqual(['inputs', 'targets']);
-    expect(conditionallyRequired(branch(), { loader: { type: '' } })).toEqual(['inputs', 'targets']);
-    expect(conditionallyRequired(branch(), { loader: { type: 'PathToArray' } })).toEqual([]);
-    expect(conditionallyRequired({ type: 'object', properties: [] }, {})).toEqual([]);
+  // Both lists are always asked for; a path column is there to be kept, not asked for.
+  it('requires both lists and leaves the path columns optional', () => {
+    const required = Object.fromEntries((branch().properties as { key: string; required: boolean }[]).map((p) => [p.key, p.required]));
+    expect(required.inputs).toBe(true);
+    expect(required.targets).toBe(true);
+    expect(required.input_paths).toBe(false);
+    expect(required.target_paths).toBe(false);
   });
 });
 

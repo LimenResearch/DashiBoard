@@ -8,7 +8,7 @@ import { MapField } from "./MapField";
 import { plainColumns, pruneMap, transformRows } from "../transformRows";
 import { SelectorField } from "./SelectorField";
 import type { SelectorRow } from "../selector";
-import { conditionalOptions, conditionallyRequired, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
+import { conditionalOptions, defaultsFor, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
 // `widgetFor` returns — a switch over a closed set rather than an attempt to recover intent from
@@ -182,8 +182,6 @@ export function IRField(props: IRFieldProps) {
               }
               props.onChange(next);
             };
-            // What a sibling's choice makes required, on top of what the field always is.
-            const forced = () => conditionallyRequired(resolveRef(props.node, props.defs), asRecord(props.value));
             const fields = () => (
               <For each={w().properties} keyed={(entry) => entry.key}>
                 {(entry) => {
@@ -229,7 +227,7 @@ export function IRField(props: IRFieldProps) {
                         node={node()}
                         defs={props.defs}
                         label={entry().key}
-                        required={entry().required || forced().includes(entry().key)}
+                        required={entry().required}
                         idPrefix={id()}
                         value={value()}
                         onChange={(inner) => write(entry().key, inner)}

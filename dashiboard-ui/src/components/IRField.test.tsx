@@ -405,7 +405,7 @@ describe('IRField, a variant with one option', () => {
   // One option that takes no settings is nothing to show at all.
   it('draws nothing for a lone option with no fields', () => {
     const empty: IRNode = { type: 'tagged_object', options: [''], objects: { '': { type: 'object', properties: [], additionalProperties: false } }, default_option: '' };
-    const { container } = render(() => <IRField node={empty} defs={defs} label="loader" idPrefix="n" value={undefined} onChange={() => {}} />);
+    const { container } = render(() => <IRField node={empty} defs={defs} label="choice" idPrefix="n" value={undefined} onChange={() => {}} />);
     expect(container.textContent).toBe('');
   });
 
@@ -437,26 +437,6 @@ describe('IRField, a variant with one option', () => {
     const { container } = mountVariant(open, undefined);
     expect((container.querySelector('#n-funnel-variant') as HTMLSelectElement).className).toMatch(/border-warning/);
     expect(container.querySelector('#n-funnel-funnel-width')).toBeNull();
-  });
-});
-
-describe('IRField, a field a sibling makes required', () => {
-  const node: IRNode = {
-    type: 'object',
-    properties: [
-      { key: 'inputs', required: false, value: { type: 'string' } },
-      { key: 'loader', required: false, value: { type: 'tagged_object', options: ['', 'file'], objects: { '': { type: 'object', properties: [] }, file: { type: 'object', properties: [] } }, default_option: '' } },
-    ],
-    constraints: [{ if: { properties: { loader: { properties: { type: { const: '' } } } } }, then: { required: ['inputs'] } }],
-  };
-  const starred = (value: unknown) => {
-    const { container } = render(() => <IRField node={node} defs={defs} label="funnel" idPrefix="n" value={value} onChange={() => {}} />);
-    return container.querySelector('label[for="n-funnel-inputs"]')!.textContent!.includes('*');
-  };
-  it('marks it while the rule holds, and not otherwise', () => {
-    expect(starred({})).toBe(true);
-    cleanup();
-    expect(starred({ loader: { type: 'file' } })).toBe(false);
   });
 });
 

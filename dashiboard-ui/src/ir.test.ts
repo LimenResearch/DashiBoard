@@ -407,6 +407,17 @@ describe('switching a variant', () => {
     expect('percentile' in next).toBe(false);
   });
 
+  // A nested choice the new branch does not offer is not carried: kmeans offers `sqeuclidean`,
+  // dbscan does not.
+  it('does not carry a nested option the new branch lacks', () => {
+    const method = (payload.cards.cluster.properties as { key: string; value: IRNode }[])
+      .find((p) => p.key === 'method')!.value as { objects: { [o: string]: IRNode } };
+    const kept = carryShared({ dissimilarity: { type: 'euclidean' } }, method.objects.dbscan, defs);
+    expect(kept.dissimilarity).toEqual({ type: 'euclidean' });
+    const dropped = carryShared({ dissimilarity: { type: 'sqeuclidean' } }, method.objects.dbscan, defs);
+    expect((dropped.dissimilarity as { type?: string } | undefined)?.type).not.toBe('sqeuclidean');
+  });
+
   it('does not carry a value the new branch would refuse', () => {
     const a: IRNode = { type: 'object', properties: [{ key: 'how', required: false, value: { type: 'string', enum: ['x', 'y'] } }] };
     const b: IRNode = { type: 'object', properties: [{ key: 'how', required: false, value: { type: 'string', enum: ['z'], default: 'z' } }] };
@@ -453,6 +464,8 @@ describe('lists of values', () => {
     expect(parseList('1, x', 'number')).toEqual({ error: 'x is not a number' });
     expect(parseList('1, 1.5', 'integer')).toEqual({ error: '1.5 is not a whole number' });
     expect(parseList('a,,b', 'string')).toEqual({ error: 'a value is missing between two commas' });
+    // A comma just typed is a value on its way, not a fault.
+    expect(parseList('1, ', 'integer', [1, 2])).toEqual({ incomplete: true });
   });
 
   it('writes a list back as the box shows it', () => {

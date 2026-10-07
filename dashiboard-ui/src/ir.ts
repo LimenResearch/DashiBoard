@@ -327,7 +327,24 @@ export function carryShared(previous: unknown, branch: IRNode, defs: Defs): Reco
   const held = (previous && typeof previous === "object" && !Array.isArray(previous) ? previous : {}) as Record<string, unknown>;
   for (const property of (resolveRef(branch, defs).properties ?? []) as PropertyEntry[]) {
     if (!(property.key in held) || property.key === "type") continue;
-    if (accepts(widgetFor(property.value, defs), held[property.key])) base[property.key] = held[property.key];
+    const widget = widgetFor(property.value, defs);
+    const value = held[property.key];
+    const record = !!value && typeof value === "object" && !Array.isArray(value);
+    // A nested choice is kept only if the new branch offers it, and then trimmed to that option's
+    // own fields; a nested object is trimmed to the new shape.
+    if (widget.kind === "variant") {
+      const named = (value as Record<string, unknown> | undefined)?.type;
+      const option = typeof named === "string" ? named : widget.default ?? "";
+      if (!record || !widget.options.includes(option)) continue;
+      const inner = carryShared(value, widget.objects[option], defs);
+      base[property.key] = typeof named === "string" ? { ...inner, type: named } : inner;
+      continue;
+    }
+    if (widget.kind === "object") {
+      if (record) base[property.key] = carryShared(value, property.value, defs);
+      continue;
+    }
+    if (accepts(widget, value)) base[property.key] = value;
   }
   return base;
 }
@@ -394,15 +411,19 @@ export function defaultsFor(node: IRNode, defs: Defs): unknown {
 
 /**
  * The values typed into a list's box: separated by commas, spaces ignored, numbers read as
- * numbers. The first value that cannot be read is named, and then nothing is returned.
+ * numbers. The first value that cannot be read is named, and then nothing is returned; a text
+ * ending in a comma is still being typed.
  */
 export function parseList(
   text: string, item: "string" | "number" | "integer", options?: (string | number)[],
-): { values: (string | number)[] } | { error: string } {
+): { values: (string | number)[] } | { error: string } | { incomplete: true } {
   if (text.trim() === "") return { values: [] };
   const values: (string | number)[] = [];
-  for (const raw of text.split(",")) {
+  const tokens = text.split(",");
+  for (const [at, raw] of tokens.entries()) {
     const token = raw.trim();
+    // A comma just typed is the next value on its way.
+    if (token === "" && at === tokens.length - 1) return { incomplete: true };
     if (token === "") return { error: "a value is missing between two commas" };
     let value: string | number = token;
     if (item !== "string") {

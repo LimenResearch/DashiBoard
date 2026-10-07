@@ -176,7 +176,7 @@ const REGISTRY_NAMES = (
     models = "model", layers = "layer", sigmas = "sigma", aggregators = "aggregator",
     metrics = "metric", regularizations = "regularization", optimizers = "optimizer",
     schedules = "schedule", stoppers = "stopper", devices = "device", funnels = "funnel",
-    loaders = "loader", transforms = "transform",
+    transforms = "transform",
 )
 
 """

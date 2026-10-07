@@ -977,7 +977,7 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
         funnel = only(p for p in ir.properties if p.key == "funnel").value
         @test funnel.options == [""] && funnel.default_option == ""
         @test [p.key for p in funnel.objects[""].properties] ==
-            ["order_by", "inputs", "input_transforms", "targets", "target_transforms", "loader"]
+            ["order_by", "inputs", "input_transforms", "targets", "target_transforms", "input_paths", "target_paths"]
         schema = JSONSchema.Schema(Pipelines.card_schema("streamliner", ["No", "TEMP", "PRES", "Iws", "partition"]))
         good = config()
         @test isnothing(JSONSchema.validate(good, schema))

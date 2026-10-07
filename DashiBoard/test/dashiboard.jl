@@ -458,6 +458,10 @@ mktempdir() do data_dir
                 Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
                 begin
                     @test DashiBoard.needed_extensions(doc) == ["Fake"]
+                    # A funnel names its type and its transforms; there is no loader to name.
+                    entries = DashiBoard.registry_entries(doc)
+                    @test "funnel:" in entries && "transform:log" in entries
+                    @test !any(startswith("loader:"), entries)
                     # Not only the architecture: a layer, a loss or an optimizer a configuration
                     # names may come from an extension too, and the pipeline needs it as much.
                     for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")

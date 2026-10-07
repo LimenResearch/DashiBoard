@@ -37,7 +37,7 @@ end
 
 # The registry entries a document uses. A streamliner card names a model and a training
 # configuration — whose architecture, layers, losses, optimizer may each come from an extension
-# — a funnel type, a loader type, and the transforms of its columns.
+# — a funnel type, and the transforms of its columns.
 function registry_entries(cards::AbstractDict)
     entries = String[]
     for node in get(cards, "nodes", Any[])
@@ -51,8 +51,6 @@ function registry_entries(cards::AbstractDict)
         end
         funnel = get(card, "funnel", Dict{String, Any}())
         push!(entries, "funnel:" * get(funnel, "type", ""))
-        loader = get(funnel, "loader", Dict{String, Any}())
-        push!(entries, "loader:" * get(loader, "type", ""))
         for map in ("input_transforms", "target_transforms"), transform in values(get(funnel, map, Dict{String, Any}()))
             push!(entries, "transform:" * transform)
         end

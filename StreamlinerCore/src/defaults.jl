@@ -131,12 +131,6 @@ const DEFAULT_PARSER = let
         "" => DBFunnel,
     )
 
-    # The one loader that is always there: rows are read as they are. An extension adds the
-    # readers that load a row from a file.
-    loaders = StringDict(
-        "" => RowLoader,
-    )
-
     # A transform is handed a whole column of a batch at once, hence the broadcast.
     elementwise(f) = Fix1(broadcast, f)
     transforms = StringDict(
@@ -159,7 +153,6 @@ const DEFAULT_PARSER = let
         stoppers,
         devices,
         funnels,
-        loaders,
         transforms
     )
 end

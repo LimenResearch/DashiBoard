@@ -17,8 +17,7 @@ using JSONSchema: JSONSchema
 
     @test StreamlinerCore.get_helper_table_keys(funnel) == (tables = String[], files = String[])
 
-    # What is written back is the document: no entry for a transform nobody named, none for the
-    # default loader.
+    # What is written back is the document: no entry for a transform or a path column nobody named.
     @test StreamlinerCore.get_metadata(funnel) == Dict{String, Any}(
         "order_by" => ["No"], "inputs" => ["TEMP", "PRES"], "targets" => ["Iws"],
     )
@@ -167,14 +166,16 @@ end
     SC = StreamlinerCore
     ir = SC.funnel_IR(SC.DBFunnel)
     @test [p.key for p in ir.properties] ==
-        ["order_by", "inputs", "input_transforms", "targets", "target_transforms", "loader"]
+        ["order_by", "inputs", "input_transforms", "targets", "target_transforms", "input_paths", "target_paths"]
     transforms = only(p for p in ir.properties if p.key == "input_transforms").value
     @test transforms isa DashiBase.MapIR && transforms.keys_from == "inputs"
     @test transforms.values.enum == ["asinh", "log", "log1p", "sqrt"]
     @test only(p for p in ir.properties if p.key == "order_by").required
-    @test !only(p for p in ir.properties if p.key == "loader").required
-    # With the default loader the columns must be named; a file loader may stand in for them.
-    @test length(ir.constraints) == 1
+    # Both lists are always asked for; a path column is optional and does not stand in for them.
+    @test only(p for p in ir.properties if p.key == "inputs").required
+    @test only(p for p in ir.properties if p.key == "targets").required
+    @test !only(p for p in ir.properties if p.key == "input_paths").required
+    @test isempty(ir.constraints)
 
     tagged = DashiBase.IR_from_type(SC.Funnel, nothing)
     @test tagged.options == [""] && tagged.default_option == ""
@@ -192,6 +193,10 @@ end
     # The same column as a target is its own entry: untransformed unless its own map says so.
     @test only(SC.get_targets(funnel)).transform === identity
     @test isnothing(SC.get_input_paths(funnel)) && isnothing(SC.get_target_paths(funnel))
+    # A path column is kept as written and read back by its accessor.
+    with_paths = SC.get_streamliner_funnel(merge(d, Dict("input_paths" => "frame")))
+    @test SC.get_input_paths(with_paths) == "frame"
+    @test SC.get_metadata(with_paths)["input_paths"] == "frame"
     @test SC.get_metadata(funnel) == d
     @test SC.get_streamliner_funnel(SC.get_metadata(funnel)) == funnel
     # Naming the default funnel and leaving it out are the same document.
@@ -207,7 +212,7 @@ end
     @test_throws ArgumentError SC.get_streamliner_funnel(Dict{String, Any}("order_by" => ["No"], "targets" => ["b"]))
     @test_throws ArgumentError SC.get_streamliner_funnel(Dict{String, Any}("order_by" => ["No"], "inputs" => ["a"]))
 
-    # The schema says the same: closed, and the columns required with the default loader.
+    # The schema says the same: closed, and both lists required.
     schema = DashiBase.json_schema(tagged)
     schema["\$defs"] = Dict{String, Any}(
         "variable" => Dict("type" => "string"),
@@ -219,6 +224,8 @@ end
     @test !isnothing(JSONSchema.validate(merge(d, Dict("inptus" => ["TEMP"])), s))
     @test !isnothing(JSONSchema.validate(merge(d, Dict("input_transforms" => Dict("Iws" => "cube"))), s))
     @test !isnothing(JSONSchema.validate(Dict{String, Any}("order_by" => ["No"], "targets" => ["Iws"]), s))
+    @test isnothing(JSONSchema.validate(merge(d, Dict("input_paths" => "frame")), s))
+    @test !isnothing(JSONSchema.validate(merge(d, Dict("loader" => Dict("type" => ""))), s))
 end
 
 @testset "transforms" begin

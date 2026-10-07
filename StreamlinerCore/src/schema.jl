@@ -168,13 +168,9 @@ function DashiBase.IR_from_type(::Type{Funnel}, default)
     return TaggedObjectIR(; objects, default_option = "")
 end
 
-# An abstract funnel or loader is chosen by name, so it is read through `lift`; a concrete one
-# is read field by field.
+# An abstract funnel is chosen by name, so it is read through `lift`; a concrete one is read field
+# by field.
 StructUtils.structlike(::DashiStyle, ::Type{Funnel}) = false
-StructUtils.structlike(::DashiStyle, ::Type{Loader}) = false
-
-StructUtils.lift(::DashiStyle, ::Type{Loader}, d::AbstractDict) = make_loader(d), nothing
-StructUtils.lower(::DashiStyle, loader::Loader) = get_metadata(loader)
 
 function StructUtils.lift(::DashiStyle, ::Type{Funnel}, d::AbstractDict)
     return get_streamliner_funnel(d), nothing

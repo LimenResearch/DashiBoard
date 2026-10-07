@@ -98,7 +98,6 @@ include("data.jl")
 
 include("funnel/transform.jl")
 include("funnel/flat.jl")
-include("funnel/loader.jl")
 include("funnel/funnel.jl")
 include("funnel/onehot.jl")
 

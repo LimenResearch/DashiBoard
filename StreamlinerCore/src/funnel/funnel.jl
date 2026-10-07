@@ -80,23 +80,26 @@ initialize_helper_tables(data::FunneledData) = data
 transform_map(list::AbstractString) = MapIR(values = StringIR(enum = transform_names()), keys_from = list)
 
 """
-    DBFunnel(; order_by, inputs, input_transforms, targets, target_transforms, loader)
+    DBFunnel(; order_by, inputs, input_transforms, targets, target_transforms, input_paths, target_paths)
 
 Rows of a table, in `order_by` order, as model inputs and targets.
 
-`inputs` and `targets` name columns. A column is passed through the transform its map gives it,
-and as it is when the map does not mention it; the two maps are separate because one column may be
-both an input and a target. `loader` says how a row is read: as it is, or as a tensor from a file.
+`inputs` and `targets` name columns, and both are required. A column is passed through the
+transform its map gives it, and as it is when the map does not mention it; the two maps are
+separate because one column may be both an input and a target. `input_paths` and `target_paths`
+each name a column of file paths, for a funnel that reads tensors from files; this funnel does not
+read them, and keeps them as written.
 
 The fields are in the order a form draws them, each map under its list.
 """
 @kwarg struct DBFunnel <: Funnel
     order_by::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
-    inputs::Vector{String} = String[] & (dashi = VARIABLES_DEF,)
+    inputs::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
     input_transforms::Dict{String, String} = Dict{String, String}() & (dashi = transform_map("inputs"),)
-    targets::Vector{String} = String[] & (dashi = VARIABLES_DEF,)
+    targets::Vector{String} & (dashi = NONEMPTY_VARIABLES_DEF,)
     target_transforms::Dict{String, String} = Dict{String, String}() & (dashi = transform_map("targets"),)
-    loader::Loader = RowLoader() & (dashi = loader_IR(),)
+    input_paths::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
+    target_paths::Maybe{String} = nothing & (dashi = VARIABLE_DEF,)
 end
 
 # Two funnels built from the same document are the same funnel.
@@ -104,27 +107,6 @@ function Base.:(==)(a::DBFunnel, b::DBFunnel)
     return all(getfield(a, f) == getfield(b, f) for f in fieldnames(DBFunnel))
 end
 Base.hash(f::DBFunnel, h::UInt) = foldr(hash, ntuple(i -> getfield(f, i), fieldcount(DBFunnel)); init = h)
-
-# With the default loader the rows are the columns, so there must be some on each side; a loader
-# that reads files may stand in for them. An absent `loader` is the default, and satisfies the
-# condition as written.
-function DashiBase.constraints(::Type{DBFunnel})
-    rule = StringDict(
-        "if" => StringDict(
-            "properties" => StringDict(
-                "loader" => StringDict("properties" => StringDict("type" => StringDict("const" => "")))
-            )
-        ),
-        "then" => StringDict(
-            "properties" => StringDict(
-                "inputs" => DashiBase.json_schema(NONEMPTY_VARIABLES_DEF),
-                "targets" => DashiBase.json_schema(NONEMPTY_VARIABLES_DEF),
-            ),
-            "required" => ["inputs", "targets"],
-        ),
-    )
-    return StringDict[rule]
-end
 
 get_helpers_in(dbf::DBFunnel) = String[]
 get_helpers_out(dbf::DBFunnel) = String[]
@@ -134,11 +116,11 @@ rich_columns(names, transforms) = RichColumn[RichColumn(name, get(transforms, na
 
 get_inputs(dbf::DBFunnel) = rich_columns(dbf.inputs, dbf.input_transforms)
 get_constant_inputs(dbf::DBFunnel) = String[]
-get_input_paths(dbf::DBFunnel) = input_paths(dbf.loader)
+get_input_paths(dbf::DBFunnel) = dbf.input_paths
 
 get_targets(dbf::DBFunnel) = rich_columns(dbf.targets, dbf.target_transforms)
 get_constant_targets(dbf::DBFunnel) = String[]
-get_target_paths(dbf::DBFunnel) = target_paths(dbf.loader)
+get_target_paths(dbf::DBFunnel) = dbf.target_paths
 
 # What a document cannot be checked for by its schema: a transform's key has to be one of the
 # columns of its list, and which columns those are is only known once the selectors are resolved.
@@ -188,12 +170,13 @@ function make_funnel(::Type{DBFunnel}, d::AbstractDict)
     return validate(DashiBase.construct(DBFunnel, d))
 end
 
-# The document form: nothing for a transform nobody named, nothing for the default loader.
+# The document form: nothing for a transform or a path column nobody named.
 function get_metadata(dbf::DBFunnel)
     d = StringDict("order_by" => dbf.order_by, "inputs" => dbf.inputs, "targets" => dbf.targets)
     isempty(dbf.input_transforms) || (d["input_transforms"] = dbf.input_transforms)
     isempty(dbf.target_transforms) || (d["target_transforms"] = dbf.target_transforms)
-    dbf.loader isa RowLoader || (d["loader"] = get_metadata(dbf.loader))
+    isnothing(dbf.input_paths) || (d["input_paths"] = dbf.input_paths)
+    isnothing(dbf.target_paths) || (d["target_paths"] = dbf.target_paths)
     return d
 end
 

@@ -37,7 +37,6 @@ See [`default_parser`](@ref) for more advanced uses.
     stoppers::StringDict = StringDict()
     devices::StringDict = StringDict()
     funnels::StringDict = StringDict()
-    loaders::StringDict = StringDict()
     transforms::StringDict = StringDict()
 end
 

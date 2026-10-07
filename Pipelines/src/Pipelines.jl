@@ -160,6 +160,8 @@ using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
 
 using Dates: hour, minute
 
+using URIs: unescapeuri
+
 # Alias to potentially support richer primary keys in the future
 const AbstractPrimaryKey = AbstractString
 const PrimaryKey = String

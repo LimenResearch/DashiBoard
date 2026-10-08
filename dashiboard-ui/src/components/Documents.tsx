@@ -9,7 +9,7 @@ import { DOCUMENT_ROUTES } from "../apiRoutes";
 import { Input } from "./Input";
 import { postBlob, postRequest, saveBlob } from "../requests";
 
-// The document row of a tab: load one from the data directory, save this one into it, download
+// The document row of a tab: load one from the folder of its kind, save this one into it, download
 // it. One component for cards and for filters, because the three actions are the same and only
 // the kind and the owner differ — it knows neither store.
 //

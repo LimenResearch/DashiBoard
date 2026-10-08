@@ -1,6 +1,8 @@
 module DashiBoard
 
 public launch
+# What `bin/launch.jl` calls to prepare a workspace and the extensions it names.
+public init_workspace, load_extensions, provenance, Workspace
 
 using Base: Fix1, Fix2
 
@@ -14,14 +16,10 @@ using Scratch: @get_scratch!
 
 using JSON: JSON
 
-# TOML is Pipelines' native configuration format, so a cards document written by hand is as
-# likely to be TOML as JSON; the file routes read both (handlers.jl, `parse_document`).
 using TOML: TOML
 
 using Pkg: Pkg
 
-# For naming the members of a loop (handlers.jl, `loop_issues`): Graphs' own error for a cyclic
-# dependency graph says only that there is one, and a client cannot act on that.
 using Graphs: strongly_connected_components, has_edge, gdistances
 
 using DBInterface: DBInterface
@@ -40,8 +38,6 @@ using FunSQL: SQLNode,
     Get,
     Asc,
     Desc,
-    # `Fun` for `finite_projection`'s `CASE WHEN isfinite(col) THEN col END` (handlers.jl): the
-    # projection is built as FunSQL nodes, so the SQL function call needs `Fun` in scope here.
     Fun
 
 using DuckDBUtils: Repository, export_table, to_nrow, colnames

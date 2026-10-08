@@ -18,7 +18,9 @@ julia --project=DashiBoard bin/launch.jl <workspace>
 ├── pipeline/           pipeline documents
 ├── filter/             filters documents
 ├── model/              model configuration TOMLs
-└── training/           training configuration TOMLs
+├── training/           training configuration TOMLs
+├── quarantine/         what --init could not place; never read
+└── .dashiboard/        made by the launcher: the extensions' environment (env/)
 ```
 
 Each folder is where the server lists, reads and saves files of that kind. A folder may hold
@@ -133,6 +135,13 @@ JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 <wor
 ```
 
 Then watch it from another shell: `tail -f /tmp/dashi.log`.
+
+### The second stage
+
+With extensions, the first stage hands what it resolved to the second through the environment
+variable `DASHIBOARD_LAUNCH`, and starts the second with `--project=<workspace>/.dashiboard/env`.
+A process started from inside the server inherits that variable; a launcher run by hand never
+needs to set it.
 
 ### Cache directory
 

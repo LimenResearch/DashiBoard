@@ -84,7 +84,8 @@ transform_map(list::AbstractString) = MapIR(values = StringIR(enum = transform_n
 
 Rows of a table, in `order_by` order, as model inputs and targets.
 
-`inputs` and `targets` name columns, and both are required. A column is passed through the
+`inputs` and `targets` name columns; the schema requires both, and a funnel built from Julia may
+leave one empty only when it names that side's path column. A column is passed through the
 transform its map gives it, and as it is when the map does not mention it; the two maps are
 separate because one column may be both an input and a target. `input_paths` and `target_paths`
 each name a column of file paths, for a funnel that reads tensors from files; this funnel does not

@@ -215,6 +215,8 @@ function train(
     end
 end
 
+# Why a card holds no model, and what to do. The partition values are StreamlinerCore's
+# `DataPartition`: 1 trains, 2 validates — what a split card writes.
 function no_model_message(sc::StreamlinerCard, state::CardState)
     get(state.metadata, "trained", false) === true || return "this card has not been trained."
     cause = isnothing(sc.partition) ?

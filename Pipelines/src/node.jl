@@ -179,20 +179,35 @@ function evaluate(
     end
 end
 
-## Output transformation (consider adding inside `CardSpec`)
+## What a card writes
 
 abstract type AbstractOutputSpec end
 
+"""
+    OutputSpec(; names, suffix = nothing, number = nothing)
+
+Columns a card writes under names of its own: each of `names`, followed by `_suffix` when `suffix`
+is given, and written `number` times as `_1` … `_number` when `number` is given. These are not
+derived from the columns the card was handed, so a `through` chain cannot pass a value through
+them.
+"""
 @defaults struct OutputSpec <: AbstractOutputSpec
-    names::Vector{String} # could be `OrderedSet{String}` as an optimization
+    names::Vector{String}
     suffix::Maybe{String} = nothing
     number::Maybe{Int} = nothing
 end
 
 get_names(os::OutputSpec) = os.names
 
+"""
+    VariableTransformSpec(; cols, suffix = nothing, number = nothing)
+
+Columns a card derives from those it was handed, one for each of `cols`, renamed with `suffix` and
+`number` as [`OutputSpec`](@ref) does. A `through` chain can pass a value through it when the
+value is among `cols`: the name the chain arrives at is the one this card writes.
+"""
 @defaults struct VariableTransformSpec <: AbstractOutputSpec
-    cols::Vector{String} # could be `OrderedSet{String}` as an optimization
+    cols::Vector{String}
     suffix::Maybe{String} = nothing
     number::Maybe{Int} = nothing
 end
@@ -336,9 +351,10 @@ end
     output_spec(card, invert::Bool)
 
 What `card` writes, as a list of [`OutputGroup`](@ref)s, or `nothing` when it does not declare one.
+This is what a card type defines to say what it writes.
 
-Only an invertible card answers differently in the two directions, and only `RescaleCard` is
-invertible, so every other card ignores `invert`.
+A card that cannot be inverted answers the same in both directions, so only an invertible card
+needs to look at `invert`.
 """
 output_spec(::Card) = nothing
 

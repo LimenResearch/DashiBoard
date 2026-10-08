@@ -37,9 +37,9 @@ data_directory() = pointer(:data)
 leaves that directory.
 
 The one path function of the file routes. A client names files by the relative paths
-`list-files` gave it, but nothing stops a request from saying `../../etc/passwd`, and
-`load-files` used to join such a path without looking. Compared through `relpath` rather than
-`startswith`, which would let `/data-evil` pass for `/data`.
+`list-files` gave it, but nothing stops a request from saying `../../etc/passwd`, so every route
+that takes a path goes through here. Compared through `relpath` rather than `startswith`, which
+would let `/data-evil` pass for `/data`.
 """
 function resolve_in(base::AbstractString, path::AbstractString; what::AbstractString = "the workspace")
     outside() = throw(ArgumentError("`$(path)` is outside $(what)"))
@@ -225,9 +225,6 @@ The counterpart of the browser's file dialog, which read a local file the server
 showed the whole disk. `kind` is what the client expects: a filters file picked where cards
 were asked for is refused here, with a sentence, rather than loaded into the wrong store.
 """
-# The document routes, with the directory a path is read against as an argument: the general
-# routes resolve against the workspace, so a client that says where a file goes decides; the
-# kind routes resolve against one kind's directory.
 read_document(req::HTTP.Request) = read_document(req, workspace_directory())
 
 function read_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
@@ -249,8 +246,8 @@ end
     write_document(req)
 
 Save a cards or filters document into the workspace, as indented JSON: `{valid: true, path}`
-or the failure envelope. What makes a document round-trip where it can be loaded again — the
-browser's Download puts the file in a folder `list-files` never sees.
+or the failure envelope. What keeps a document where it can be loaded again: a download leaves
+the workspace, a save stays where `list-files` looks.
 
 Refuses: a path outside the directory; a name that does not end in `.json` (TOML is read, not
 written); a document whose shape is not `kind`'s; an existing file, unless `overwrite` is `true`.
@@ -314,8 +311,8 @@ function kind_path(kind::Symbol, path::AbstractString)
 end
 
 # A request for a kind route, rewritten as one for the general route it stands on: the kind
-# filled in, the path resolved under the kind's directory and handed on as absolute-safe
-# relative to it.
+# filled in, and the path checked against the layout's folder names, resolved under the kind's
+# directory and handed on relative to that directory, which becomes the general route's base.
 function with_kind(req::HTTP.Request, kind::Symbol, content::AbstractString)
     spec = json_read(req)
     path = spec["path"]

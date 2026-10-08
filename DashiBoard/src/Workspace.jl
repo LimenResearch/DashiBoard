@@ -197,6 +197,7 @@ end
 function sources_stamp(sources::AbstractDict)
     paths = vcat(PACKAGE_DIR, own_packages(), String[source["path"] for source in values(sources) if haskey(source, "path")])
     projects = [path => (isfile(joinpath(path, "Project.toml")) ? hash(read(joinpath(path, "Project.toml"))) : UInt(0)) for path in sort!(paths)]
+    # The leading number is the stamp's format: changing it rebuilds every workspace's environment.
     return string("4:", hash((sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first), projects)))
 end
 

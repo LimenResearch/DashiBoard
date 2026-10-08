@@ -20,11 +20,14 @@ julia --project=DashiBoard -e 'using Pkg; Pkg.instantiate()'
 Then, launch the server with the following command:
 
 ```
-julia --project=DashiBoard bin/launch.jl path/to/data
+julia --project=DashiBoard bin/launch.jl path/to/workspace
 ```
 
-where `path/to/data` represents the data folder you wish to make accessible
-to DashiBoard.
+where `path/to/workspace` is the folder DashiBoard works in: its tables in `data/`, saved
+pipelines in `pipeline/`, filters in `filter/`, model and training configurations in `model/`
+and `training/`. A plain folder of files can be sorted into that layout with
+`bin/launch.jl path/to/folder --init`. The workspace, its `dashiboard.toml` and the launch flags
+are described in `bin/README.md`.
 
 ## Launching the frontend
 

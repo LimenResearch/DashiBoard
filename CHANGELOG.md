@@ -5,6 +5,8 @@
 ### Major breaking changes
 
 - A streamliner funnel lists its columns by name and gives transforms in separate maps, `input_transforms` and `target_transforms`, keyed by column; `{colname, transform}` objects are no longer accepted. A funnel document is checked against its schema: an unknown key is refused, and `inputs` and `targets` are required.
+- In StreamlinerCore, `DBFunnel` has the fields `order_by`, `inputs`, `input_transforms`, `targets`, `target_transforms`, `input_paths` and `target_paths`, with `inputs` and `targets` as column names; `RichColumn` is built from a column name and a transform name rather than from a `{colname, transform}` dictionary.
+- `TaggedStreamlinerIR(dir, kind)` and `available_streamliner_configs(dir, kind)` take the kind, `"model"` or `"training"`, list only configuration files of that kind, and include subfolders.
 - The transform registry no longer has a `""` entry: a column without an entry in its map is taken as it is. `log`, `log1p`, `sqrt` and `asinh` are registered beside `identity`.
 - A `through` chain that passes a value through a node that cannot carry it is refused with a `ThroughError` pointing at the card or group that holds the chain.
 - `DashiBoard.launch(workspace; data_dir, pipeline_dir, filter_dir, model_dir, training_dir, ...)` replaces `launch(data_directory; model_directory, training_directory, ...)`. `bin/launch.jl` takes a workspace folder and the flags `--data_dir`, `--pipeline_dir`, `--filter_dir`, `--model_dir` and `--training_dir`, replacing the positional data directory, `--model_directory` and `--training_directory`. A directory is resolved from its flag, then the workspace's `dashiboard.toml`, then its conventional folder, then the workspace root; `static/model` and `static/training` are no longer defaults.
@@ -21,7 +23,9 @@
 - A streamliner card that kept no trained model says why at prediction — never trained, or no validation rows because it has no `partition`.
 - The server runs against a workspace: `dashiboard.toml` with `[directories]`, `[extensions]` and `[server]`; `bin/launch.jl --init` sorts a plain folder into the layout; the launcher starts the server in an environment holding the workspace's extensions.
 - Routes to read and write each kind of file (`read-pipeline`, `write-pipeline`, `read-filters`, `write-filters`, `read-model`, `write-model`, `read-training`, `write-training`), to list, read and write model and training configurations (`list-configurations`, `read-configuration`, `write-configuration`), and to download a pipeline with the configurations and extensions it names as a zip (`bundle-pipeline`).
-- DashiBase: `EitherIR` for a value of one of several types, `MapIR` for a map of names to values of one kind, and `uniqueItems` on `ArrayIR` for a list that is a set.
+- A model architecture declares the fields it yields with `StreamlinerCore.output_fields`; `ingest` writes each selected field, with one suffix per field.
+- A transform map that names a column its list does not have raises `StreamlinerCore.TransformError`, reported at the entry at fault.
+- DashiBase: `EitherIR` for a value of one of several types, `MapIR` for a map of names to values of one kind, `uniqueItems` on `ArrayIR` for a list that is a set, and `options_from` on `TaggedObjectIR` for a choice among files.
 
 ## Version 2.0.0
 

@@ -93,6 +93,18 @@ fill in its fields. At its foot are three buttons:
 The dot beside the name is amber until you ask, green or red once the server has answered, and
 amber again the moment you edit — an answer is only ever about the content it was given.
 
+Two kinds of field need a word:
+
+- **A choice of kind** — a `method`, a funnel's `type`, a model. Changing it keeps whatever the new
+  kind also has: a funnel switched to `time` keeps its `order_by`, its columns and their transforms,
+  and a value the new kind does not offer goes back to its default.
+- **A list of values** — a split's `tiles`, a cluster's `weights`. Type the values separated by
+  commas (`1, 1, 2`); when they come from a fixed set, the allowed ones sit below the box and a
+  click adds one. A value that does not belong is named under the box and nothing is written until
+  it is fixed. A line beneath the field's group, starting `writes`, shows what the card will hold.
+  A list where each value can appear only once, such as a streamliner's `select`, is a row of
+  switches instead.
+
 ### A group
 
 `Add group` adds a named set of columns, so several cards can refer to one list instead of
@@ -188,6 +200,17 @@ A categorical column has no transform to choose.
 When the server is launched with an extension that adds another kind of funnel, `funnel` gains a
 `type` to choose, where `default` is the one described above.
 
+**partition** names a column that is 1 for the rows to train on and 2 for the rows to validate on
+— what a split card writes, so the usual way is a split card chosen here under `nodes`. A model is
+kept only if its loss on the validation rows improves, so a card without a partition keeps none
+and cannot predict: Confirm shows a note saying so, with a script that trains it outside the UI
+for its statistics alone.
+
+Confirm also checks that the model can be built for what the funnel feeds it. A time funnel hands
+the model windows — several steps of several columns — and a model whose last layer has no size
+of its own cannot produce a target of several steps; the card turns red at `model` with the sizes
+involved and what to change.
+
 The field shows what it holds as chips beside its name, and offers two ways to add to it.
 
 ### By typing
@@ -233,7 +256,8 @@ then one switch per name. None switched on keeps them all.
 
 `Run pipeline`, top right. Beside it a dot says whether what is on screen has been run, and a line
 names anything that was asked about and refused. A pipeline can be run even so: the line says
-where to look, it does not stop you.
+where to look, it does not stop you. A streamliner card whose model cannot be built for its funnel
+is the exception: the run stops before training anything and marks the card at `model`.
 
 ## Saving
 
@@ -246,9 +270,11 @@ Presets are yours, not the pipeline's, and are not saved with it.
 workspace: the document under `pipeline/`, the
 model and training configurations it names under `model/` and `training/`, the filters under
 `filter/` when the Filters tab holds some, and a `dashiboard.toml` naming the extensions the
-document needs, each with the path it was loaded from on this machine. Unpacked beside the table,
-it is a workspace that launches and runs the same pipeline; on another machine, the paths in its
-`dashiboard.toml` are the one thing to edit. The data is not in it.
+document needs, each with where it came from: a path on this machine, or a repository URL. Unpacked
+beside the table, it is a workspace that launches and runs the same pipeline; on another machine,
+an extension given by a path is the one thing to edit. The data is not in it.
+
+`Download filters` gives the filters document alone, as JSON.
 
 ---
 

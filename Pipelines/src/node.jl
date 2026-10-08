@@ -319,7 +319,7 @@ function to_outputs(
     )
     transforms = [g for g in groups if g.spec isa VariableTransformSpec]
     carries(g) = cols ⊆ g.spec.cols
-    accepted(gs) = unique!(reduce(vcat, (g.spec.cols for g in gs); init = String[]))
+    accepted(gs) = unique!(foldl(append!, (g.spec.cols for g in gs); init = String[]))
 
     chosen = if isnothing(products)
         isempty(transforms) && throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
@@ -340,7 +340,7 @@ function to_outputs(
         )
         named
     end
-    return reduce(vcat, (to_outputs(g.spec, cols) for g in chosen); init = String[])
+    return foldl(append!, (to_outputs(g.spec, cols) for g in chosen); init = String[])
 end
 
 function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString}, ::Maybe{AbstractVector})
@@ -390,7 +390,7 @@ keeps of the node.
 function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
     groups = output_spec(get_card(n), get_invert(n))
     isnothing(groups) && return to_outputs(n, nothing)   # throws: the card declares nothing
-    return reduce(vcat, (to_outputs(g.spec) for g in named_products(n, groups, products)); init = String[])
+    return foldl(append!, (to_outputs(g.spec) for g in named_products(n, groups, products)); init = String[])
 end
 
 """
@@ -427,7 +427,7 @@ end
 Everything `n` writes: each product's outputs, in the order the card declares them.
 """
 function to_outputs(::Node, groups::AbstractVector{OutputGroup})
-    return reduce(vcat, (to_outputs(g.spec) for g in groups); init = String[])
+    return foldl(append!, (to_outputs(g.spec) for g in groups); init = String[])
 end
 
 # Every card declares what it writes. Reaching this is a card that forgot, and saying so here

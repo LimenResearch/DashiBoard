@@ -45,23 +45,19 @@ macro options(T, methods, default = nothing)
             local default_option = if isnothing(_default)
                 $(esc(default))
             elseif isnothing($(esc(default)))
-                # `methods` maps a name to a *type*; `_default` is an *instance*. `==` between the
-                # two is never true, so this silently produced `nothing` and nothing downstream
-                # could tell "no default" from "a default we failed to name" — a form rendering a
-                # defaulted variant left the field blank and a confirmation step then called it
-                # unfinished.
-                findfirst(T -> _default isa T, m)
+                # `methods` maps a name to a *type*; `_default` is an *instance*.
+                findfirst(Fix1(isa, T), m)
             elseif _default isa m[$(esc(default))]
                 $(esc(default))
             else
                 throw(ArgumentError("Inconsistent defaults"))
             end
             local objects = Dict{String, ObjectIR}(k => ObjectIR(m) for (k, m) in pairs(m))
-
+            # FIXME: set default here as well
             return TaggedObjectIR(; objects, default_option)
         end
-        
-        function StructUtils.lower(::DashiStyle, c::$(esc(T))) 
+
+        function StructUtils.lower(::DashiStyle, c::$(esc(T)))
             local m = to_method_dict($(esc(methods)))
             return get_metadata(c, m)
         end

@@ -161,6 +161,16 @@ using JSONSchema: JSONSchema
     end
     @test e isa StreamlinerCore.TransformError
     @test e.path == ["target_transforms", "cbwd"]
+
+    # A column the table does not have is a fault by default, named. Asked to, it is left out —
+    # for a check made before the cards that produce it have run.
+    later = StreamlinerCore.DBFunnel(order_by = ["No"], inputs = ["TEMP", "later"], targets = ["cbwd"])
+    data = StreamlinerCore.FunneledData(Val(2), later, table_spec; partition = "_partition")
+    e = @test_throws ArgumentError StreamlinerCore.compute_unique_values(data)
+    @test occursin("later", e.value.msg)
+    values = StreamlinerCore.compute_unique_values(data; skip_absent = true)
+    @test collect(keys(values)) == ["cbwd"]
+    @test length(values["cbwd"]) == 4
 end
 
 @testset "a funnel is one definition" begin

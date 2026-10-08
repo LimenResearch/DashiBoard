@@ -925,9 +925,6 @@ end
         @test issue.input == [2] && issue.target == [1]
         # A categorical column counts as its distinct values, as the model will see it.
         @test Pipelines.model_issue(repo, card("conv"; inputs = ["TEMP", "cbwd"]), "selection").input == [5]
-        # Categorical columns are counted, not fetched: only how many values there are.
-        @test Pipelines.categorical_counts(repo, card("conv"; inputs = ["TEMP", "cbwd"]).funnel, "selection") ==
-            Dict("cbwd" => 4)
         # A column that is not in the table yet — an earlier card's output — counts as one.
         @test Pipelines.model_issue(repo, card("conv"; inputs = ["TEMP", "later"]), "selection").input == [2]
     end

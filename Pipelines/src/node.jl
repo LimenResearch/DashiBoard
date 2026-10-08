@@ -119,10 +119,12 @@ get_node_outputs(node::Node)::Vector{String} =
 
 invertible(n::Node) = invertible(get_card(n))
 
-# set `invert = true`, in which case training is disabled
+# set `invert = true`, in which case training is disabled.
+# The inverse shares its node's `StateRef`, so it undoes with whatever model training later gives
+# that node. It shares the state too: evaluating either one changes the state the other sees.
 function invert(n::Node)
     n.invert && throw(ArgumentError("Node is already inverted"))
-    return update_node(n; train = false, invert = true)
+    return update_node(n; train = false, invert = true, state = n.state)
 end
 
 """

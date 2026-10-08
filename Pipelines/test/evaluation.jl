@@ -248,6 +248,11 @@ mktempdir() do dir
         @test !inv_node.train
         @test_throws ArgumentError invert(inv_node)
 
+        # An inverse made before training still undoes with the model training gives its node.
+        Pipelines.train!(repo, node, "selection", "No")
+        @test !isnothing(get_model(inv_node))
+        @test get_model(inv_node) === get_model(node)
+
         d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
         card = Pipelines.Card(d["tiles"])
         node = Node(card)

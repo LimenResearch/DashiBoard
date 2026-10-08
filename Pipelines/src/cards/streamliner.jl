@@ -187,10 +187,9 @@ function train(
     end
 end
 
-# Why a card holds no model, and what to do. The partition values are StreamlinerCore's
+# Why training kept no weights, and what to do. The partition values are StreamlinerCore's
 # `DataPartition`: 1 trains, 2 validates — what a split card writes.
-function no_model_message(sc::StreamlinerCard, metadata::AbstractDict)
-    get(metadata, "trained", false) === true || return "this card has not been trained."
+function no_weights_message(sc::StreamlinerCard)
     cause = isnothing(sc.partition) ?
         "the card has no `partition`, so no rows were set aside to validate on. Set `partition` to a " *
         "column that is 1 for the rows to train on and 2 for the rows to validate on, such as a split card writes" :
@@ -199,19 +198,25 @@ function no_model_message(sc::StreamlinerCard, metadata::AbstractDict)
     return "training kept no model to predict with: $(cause)."
 end
 
+# A node holds no model until it is trained.
+function evaluate(
+        ::Repository, ::StreamlinerCard, ::Nothing, ::Pair, ::AbstractPrimaryKey;
+        schema::Maybe{AbstractString} = nothing
+    )
+    throw(ArgumentError("this card has not been trained."))
+end
+
 function evaluate(
         repository::Repository,
         sc::StreamlinerCard,
-        (; content, metadata, unique_values),
+        (; content, unique_values), # rm metadata from unpacking to properly handle the untrained card case
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
 
-    # No model means either the card was never trained, or it was and training kept none: a model
-    # is kept only if its loss on the validation rows improved. The training metadata tells the two
-    # apart, and the second has a cause the author can act on.
-    isnothing(content) && throw(ArgumentError(no_model_message(sc, metadata)))
+    # Training keeps weights only if the loss on the validation rows improved.
+    isnothing(content) && throw(ArgumentError(no_weights_message(sc)))
 
     (; model, training, funnel) = sc
     select = selected_products(sc)

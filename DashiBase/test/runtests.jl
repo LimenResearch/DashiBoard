@@ -1,5 +1,7 @@
 using Test, DashiBase
-using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ArrayIR, ObjectIR, OneOrManyIR, Maybe
+using DashiBase: auto_property, enum_instances,
+    TrivialIR, IntegerIR, StringIR,
+    ArrayIR, ObjectIR, OneOrManyIR, Maybe
 using JSON: JSON
 using JSONSchema: JSONSchema, Schema
 
@@ -169,15 +171,12 @@ end
 end
 
 @testset "IR serialises to JSON" begin
-    # `TrivialIR` has no fields, so JSON's struct path does not apply and serialisation used to
-    # fall back to `show` — defined as `JSON.json` — recursing without bound. Reachable in
-    # practice through `ArrayIR{Any}()`, which resolves its `items` to a `TrivialIR`.
-    @test JSON.json(DashiBase.TrivialIR()) == "{}"
-    @test JSON.json(ArrayIR{Int}(items = IntegerIR()); omit_null = true) ==
-        """{"type":"array","items":{"type":"integer"}}"""
-    # and it agrees with what json_schema emits for the same node
-    @test DashiBase.json_schema(ArrayIR{Int}(items = IntegerIR())) ==
-        Dict{String, Any}("type" => "array", "items" => Dict("type" => "integer"))
+    @test JSON.json(TrivialIR()) == "{\"type\":\"trivial\"}"
+    @test DashiBase.json_schema(TrivialIR()) == Dict{String, Any}()
+    @test JSON.json(ArrayIR{Any}(items = TrivialIR()); omit_null = true) ==
+        """{"type":"array","items":{"type":"trivial"}}"""
+    @test DashiBase.json_schema(ArrayIR{Any}(items = TrivialIR())) ==
+        Dict{String, Any}("type" => "array", "items" => Dict())
 end
 
 @testset "every IR node is self-describing" begin

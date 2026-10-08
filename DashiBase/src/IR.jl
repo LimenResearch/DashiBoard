@@ -31,13 +31,11 @@ end
 
 # Building blocks of IR
 
-struct TrivialIR <: AbstractIR end
+@kwarg struct TrivialIR <: AbstractIR
+    type::String = "trivial"
+end
 
-# `TrivialIR` has no fields, so JSON's struct path does not apply to it and serialisation falls back
-# to `show` — which is defined above as `JSON.json` itself, giving unbounded recursion. Reachable in
-# practice: `ArrayIR{Any}()` resolves its `items` to a `TrivialIR`, so `glm` and `mixed_model` cards
-# both carry one. An unconstrained entry is `{}`, which is what `json_schema` already emits for it.
-StructUtils.lower(::TrivialIR) = StringDict()
+json_schema(::TrivialIR) = StringDict()
 
 @kwarg struct BooleanIR <: AbstractIR
     type::String = "boolean"

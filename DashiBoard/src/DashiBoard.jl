@@ -50,7 +50,7 @@ using DataFrames: DataFrame
 
 using DataIngestion: Filter, DataIngestion
 
-using Pipelines: Card, get_state, Pipelines
+using Pipelines: Card, Pipelines
 
 using StreamlinerCore: StreamlinerCore
 

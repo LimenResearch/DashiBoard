@@ -204,11 +204,27 @@ A valid implementation of `evaluate` must return the list of output variables ad
 
 Here, `model` represents the result of `train(repository, card, source; schema)`.
 See also [`train`](@ref).
+
+    evaluate(
+        repository::Repository,
+        card::Card,
+        model,
+        state,
+        (source, destination)::Pair,
+        id_var::AbstractString;
+        kwargs...
+    )
+
+Evaluate as above, given the `state` left by the previous evaluation (`nothing` before the first),
+and return the output variables together with the state for the next one.
+
+A node always evaluates its card through this method. By default, it ignores `state`, calls the
+method above, and returns `state` unchanged, so only a card whose evaluation depends on earlier
+ones overloads it. The overload must type `repository::Repository`, as here, or it is ambiguous
+with the default.
 """
 function evaluate end
 
-# fallback when state is provided
-# overload this method for a card that requires state
 function evaluate(
         repository::Repository, card::Card, model, state,
         (source, destination), id_var; kwargs...

@@ -137,7 +137,7 @@ end
     )
 
 Train `node` on table `table` in `repository` with primary key `id_var`.
-The field `state` of `node` is modified.
+The node's model is replaced; its state is left as it is.
 
 See also [`evaljoin`](@ref), [`train_evaljoin!`](@ref).
 """
@@ -157,9 +157,12 @@ end
         schema::Union{AbstractString, Nothing} = nothing
     )
 
-Evaluate the card corresponding to a given `node` (using the node's state)
+Evaluate the card corresponding to a given `node` (using the node's model and state)
 on table `source` with primary column `id_var`.
 Then save the output in table `destination`.
+
+The node's state is replaced with the one the card returns, as soon as this node is evaluated.
+A pipeline that fails at a later node therefore leaves the earlier nodes' states updated.
 """
 function evaluate(
         repository::Repository, node::Node,

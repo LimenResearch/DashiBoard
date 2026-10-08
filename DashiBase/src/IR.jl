@@ -31,13 +31,11 @@ end
 
 # Building blocks of IR
 
-struct TrivialIR <: AbstractIR end
+@kwarg struct TrivialIR <: AbstractIR
+    type::String = "trivial"
+end
 
-# `TrivialIR` has no fields, so JSON's struct path does not apply to it and serialisation falls back
-# to `show` — which is defined above as `JSON.json` itself, giving unbounded recursion. Reachable in
-# practice: `ArrayIR{Any}()` resolves its `items` to a `TrivialIR`, so `glm` and `mixed_model` cards
-# both carry one. An unconstrained entry is `{}`, which is what `json_schema` already emits for it.
-StructUtils.lower(::TrivialIR) = StringDict()
+json_schema(::TrivialIR) = StringDict()
 
 @kwarg struct BooleanIR <: AbstractIR
     type::String = "boolean"
@@ -80,7 +78,7 @@ end
     title::Maybe{String} = nothing
     description::Maybe{String} = nothing
     default::Maybe{Vector{T}} = nothing
-    items::IR
+    items::Maybe{IR} = nothing
     minItems::Maybe{Int} = nothing
     maxItems::Maybe{Int} = nothing
     # `true` when a value makes sense at most once: a set, which a form offers as on/off choices.
@@ -88,7 +86,8 @@ end
     uniqueItems::Maybe{Bool} = nothing
 end
 
-function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}
+function ArrayIR{T}(; items::Maybe{AbstractIR} = nothing, kwargs...) where {T}
+    IR = isnothing(items) ? Union{} : typeof(items)
     return ArrayIR{T, IR}(; items, kwargs...)
 end
 

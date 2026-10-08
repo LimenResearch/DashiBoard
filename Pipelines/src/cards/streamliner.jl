@@ -242,7 +242,7 @@ function evaluate(
                     tables = Dict(helper_keys.tables .=> table_names),
                     files = Dict(helper_keys.files .=> get_scratch_file.(file_names))
                 )
-                SC.evaluate(dir, model, data, streaming, Tuple(Symbol.(select)); destination, suffix = suffixes)
+                SC.evaluate(dir, model, data, streaming, Symbol.(select); destination, suffix = suffixes)
             end
         end
     end

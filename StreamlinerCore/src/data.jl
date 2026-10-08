@@ -1,7 +1,3 @@
-# Type to encode selection of fields
-
-const SymbolTuple{N} = NTuple{N, Symbol}
-
 # Template to encode eltype and size of array
 
 # Type for `templates` dispatch

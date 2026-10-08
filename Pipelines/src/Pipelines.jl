@@ -23,10 +23,11 @@ public card_ir, ir_definitions, card_schema
 
 public register_wild_card, WildCardSettings
 
-public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
+public SourceVariables, get_node_inputs, get_node_outputs
 
-public get_source_vars, get_output_vars, unproduced_references, get_id, issue_report,
-    card_issues, ThroughError, ProductError, through_options, OutputGroup,
+public get_source_vars, get_output_vars, unproduced_references, get_id, issue_report, card_issues
+# Public for other package users FIXME: resolve without public in other DashiBase modules
+public ThroughError, ProductError, through_options, OutputGroup,
     output_spec, OutputSpec, VariableTransformSpec,
     named_products, narrowed_outputs, product_outputs,
     model_issue,

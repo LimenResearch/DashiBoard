@@ -13,7 +13,7 @@
 - `DashiBoard.launch(workspace; data_dir, pipeline_dir, filter_dir, model_dir, training_dir, ...)` replaces `launch(data_directory; model_directory, training_directory, ...)`. `bin/launch.jl` takes a workspace folder and the flags `--data_dir`, `--pipeline_dir`, `--filter_dir`, `--model_dir` and `--training_dir`, replacing the positional data directory, `--model_directory` and `--training_directory`. A directory is resolved from its flag, then the workspace's `dashiboard.toml`, then its conventional folder, then the workspace root; `static/model` and `static/training` are no longer defaults.
 - `list-files` answers `{files, misplaced, folders}` instead of a bare list of files.
 - `read-document` and `write-document` take paths relative to the workspace instead of the data directory; `write-document` and `write-configuration` refuse hidden paths and `dashiboard.toml`.
-- A card declares what it writes with `output_spec(card)`, returning a list of `OutputGroup`s (each an `OutputSpec`, or a `VariableTransformSpec` for outputs derived from given columns); `OutputVariables(card)` is no longer called.
+- A card declares what it writes with `output_spec(card)`, returning a list of `OutputGroup`s (each an `OutputSpec`, or a `VariableTransformSpec` for outputs derived from given columns); `OutputVariables` is removed.
 
 ### Features
 

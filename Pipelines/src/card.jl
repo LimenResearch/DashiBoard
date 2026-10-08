@@ -190,13 +190,6 @@ end
     partition::Maybe{String} = nothing
 end
 
-struct OutputVariables
-    outputs::Vector{String}
-    inverse_outputs::Vector{String}
-end
-
-OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
-
 ## Training and evaluation
 
 """

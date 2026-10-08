@@ -146,7 +146,7 @@ function stream(f, data::Data, partition::Integer, streaming::Streaming)
 end
 
 # The names a NamedTuple type keeps are a type parameter, which has to be a tuple.
-ingest(::Data{1}, stream, select) = Iterators.map(NamedTuple{Tuple(select)}, stream)
+ingest(::Data{1}, stream, select::Union{AbstractVector, Tuple}) = Iterators.map(NamedTuple{Tuple(select)}, stream)
 
 get_templates(data::Data) = data.templates
 

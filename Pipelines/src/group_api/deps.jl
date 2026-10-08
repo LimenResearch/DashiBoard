@@ -8,9 +8,18 @@ struct Computed
     idxs::Vector{Int}
 end
 
+# One step of a `through` chain: the node, and the products of it the chain asked for by name —
+# or `nothing` for a bare step, which takes every product that can carry the value.
+struct Step
+    node::Int
+    products::Maybe{Vector{String}}
+end
+
 struct Deps
     inputs::Union{Source, Computed}
-    through::Vector{Int}
+    # The products of the selected nodes asked for by name, or `nothing` for all they write.
+    products::Maybe{Vector{String}}
+    through::Vector{Step}
 end
 
 @defaults struct DepsParser
@@ -33,24 +42,33 @@ update!(dp::DepsParser, src::Source, _::Integer) = (union!(dp.cols, src.cols); d
 
 # Parsing machinery
 
-const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through"))
+const DEPS_NAMES = Set{String}(("nodes", "groups", "cols", "through", "products"))
+# Exactly one of these says what is selected; `through` and `products` qualify it.
+const DEPS_KINDS = ("nodes", "groups", "cols")
 
-not_through(s) = !isequal(s, "through")
-get_through(d::AbstractDict)::Vector{String} = get(d, "through", String[])
+get_through(d::AbstractDict)::Vector{Any} = get(d, "through", Any[])
 
-is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(not_through, keys(d)) == 1
+Step(dp::DepsParser, id::AbstractString) = Step(dp.node_idxs[id], nothing)
+Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], collect(String, d["products"]))
+
+is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(in(DEPS_KINDS), keys(d)) == 1
 
 function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
-    key::String = only(Iterators.filter(not_through, keys(d)))
+    key::String = only(Iterators.filter(in(DEPS_KINDS), keys(d)))
     val::Vector{String} = to_stringlist(d[key])
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
     inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
-    through = Int[dp.node_idxs[k] for k in get_through(d)]
+    # Products are a node's to name, so they narrow a node selection only.
+    products = haskey(d, "products") ? collect(String, d["products"]) : nothing
+    isnothing(products) || key == "nodes" || throw(
+        ArgumentError("`products` narrows a `nodes` selection; this one selects `$(key)`")
+    )
+    through = Step[Step(dp, step) for step in get_through(d)]
 
     update!(dp, inputs, i)
-    append_edges!(dp, through, i)
+    append_edges!(dp, Int[step.node for step in through], i)
 
-    return Deps(inputs, through)
+    return Deps(inputs, products, through)
 end
 
 function (dp::DepsParser)(d::AbstractDict, i::Integer)
@@ -97,18 +115,27 @@ struct Context
     outputs::Vector{Vector{String}}
 end
 
-# TODO: more general definition
-function pass_through(x::AbstractVector, is::AbstractVector, nodes::AbstractVector)
-    isempty(is) && return x
-    suffix = join((node.card.suffix for node in view(nodes, is)), "_")
-    return join_names.(x, suffix)
+# Fold the chain: each node renames what the one before it handed on, through the products the
+# step asked for, and refuses a value they do not transform. This is what makes a `through` list
+# checkable rather than a name built on hope.
+function pass_through(x::AbstractVector, steps::AbstractVector{Step}, nodes::AbstractVector)
+    for step in steps
+        node = nodes[step.node]
+        x = to_outputs(node, output_spec(get_card(node), get_invert(node)), x, step.products)
+    end
+    return x
 end
 
 # Nested column computations
 
-get_cols(::Context, inputs::Source) = inputs.cols
-get_cols(c::Context, inputs::Computed) = reduce(vcat, view(c.outputs, inputs.idxs))
-get_cols(c::Context, deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
+get_cols(::Context, inputs::Source, ::Nothing) = inputs.cols
+get_cols(c::Context, inputs::Computed, ::Nothing) = reduce(vcat, view(c.outputs, inputs.idxs))
+# Only nodes reach here: `Deps` refuses `products` on anything else.
+function get_cols(c::Context, inputs::Computed, products::AbstractVector{<:AbstractString})
+    return foldl(append!, (narrowed_outputs(c.nodes[i], products) for i in inputs.idxs); init = String[])
+end
+get_cols(c::Context, deps::Deps) =
+    pass_through(get_cols(c, deps.inputs, deps.products), deps.through, c.nodes)
 
 # consider allowing `get_cols` to return `0` items, in which case return `nothing`
 (c::Context)(deps::Deps) = only(get_cols(c, deps))
@@ -125,7 +152,31 @@ end
 
 (_::Context)(x::Any) = x
 
-function Context(G::DiGraph, nodes, groups)
+with_pointer(err::ThroughError, pointer::AbstractString) =
+    ThroughError(err.id, err.cols, err.allowed, err.reason, err.products, pointer)
+# A product refusal is about one field of the card, so it is addressed one step further in.
+with_pointer(err::ProductError, pointer::AbstractString) =
+    ProductError(err.message, err.field, string(pointer, '/', err.field))
+
+# A transform refusal is raised by the funnel, which knows the entry but not the card it sits in.
+function with_pointer(err::SC.TransformError, pointer::AbstractString)
+    entry = join(Iterators.map(escape_pointer, err.path), '/')
+    return SC.TransformError(err.message, err.path, string(pointer, "/funnel/", entry))
+end
+
+# A `through` failure knows which node refused but not which card or group asked it to, since it is
+# raised where the chain is walked; a product refusal knows the field but not the card. This is
+# the frame that knows. Everything else passes untouched, backtrace included.
+function at_pointer(f::F, pointer::AbstractString) where {F}
+    return try
+        f()
+    catch err
+        err isa Union{ThroughError, ProductError, SC.TransformError} || rethrow()
+        throw(with_pointer(err, pointer))
+    end
+end
+
+function Context(G::DiGraph, nodes, groups, group_names)
     n_nodes, n_groups = length(nodes), length(groups)
     c = Context(
         Vector{Node}(undef, n_nodes),
@@ -133,11 +184,17 @@ function Context(G::DiGraph, nodes, groups)
     )
     for i in topological_sort(G)
         if i ≤ n_nodes
-            node = Node(c(nodes[i]))
-            c.nodes[i] = node
-            c.outputs[i] = get_node_outputs(node)
+            # Naming the outputs is where a card's product selection is checked, so it is done
+            # inside the frame that knows which card this is.
+            c.nodes[i], c.outputs[i] = at_pointer("/nodes/$(i - 1)/card") do
+                node = Node(c(nodes[i]))
+                node, get_node_outputs(node)
+            end
         else
-            c.outputs[i] = c(groups[i - n_nodes])
+            name = group_names[i - n_nodes]
+            c.outputs[i] = at_pointer("/groups/" * escape_pointer(name)) do
+                c(groups[i - n_nodes])
+            end
         end
     end
     return c

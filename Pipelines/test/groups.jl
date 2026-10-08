@@ -20,7 +20,7 @@
 
     @test nds[3]["card"]["inputs"][1].inputs.idxs == [node_idxs["log"]]
     @test nds[3]["card"]["inputs"][2].inputs.idxs == [group_idxs["weather"]]
-    @test nds[3]["card"]["inputs"][2].through == [node_idxs["rescale"]]
+    @test [step.node for step in nds[3]["card"]["inputs"][2].through] == [node_idxs["rescale"]]
 
     @test nds[4]["card"]["order_by"][1].inputs.cols == ["No"]
 
@@ -207,6 +207,10 @@ end
     # and its one-or-many fields are now identifiable by a renderer
     nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
     @test nodes_entry.value.type == "one_or_many"
+    # A chain step is a node id or `{node, products}`, and the schema tells them apart by type.
+    through = only(p for p in irs["variable"].properties if p.key == "through").value
+    @test through.items.type == "either"
+    @test through.items.types == ["string", "object"]
 end
 
 # What a variable picker must be able to express. Each case below was established by running it,
@@ -253,6 +257,9 @@ end
     # that also refuses them is defence in depth rather than the only guard.
     rejects([Dict("cols" => "PRES", "groups" => "weather")])
     rejects([Dict{String, Any}()])
+    # `products` qualifies a selection, it is not one; and an empty list asks for nothing.
+    rejects([Dict("products" => ["x"])])
+    rejects([Dict("nodes" => "rescale", "products" => String[])])
 
     # Order is preserved and meaningful, across kinds and within one. Until section 12 designs the
     # positional `weights` rule out, a UI that concatenates by kind silently changes the result.
@@ -262,17 +269,9 @@ end
         ["PRES_rescaled", "TEMP_rescaled", "No_log"]
     @test resolve([Dict("cols" => "TEMP"), Dict("cols" => "PRES")]) == ["TEMP", "PRES"]
 
-    # `through` is an ordered *list* of nodes whose suffixes concatenate, not a single node.
-    # So a Through panel keys on an ordered combination: [log, rescale] ≠ [rescale, log].
+    # `through` is an ordered *list* of nodes, so a Through panel keys on an ordered combination
+    # rather than on a node. Which chains actually resolve is a separate mechanism, tested below.
     @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
-    @test resolve([Dict("cols" => "PRES", "through" => ["log", "rescale"])]) == ["PRES_log_rescaled"]
-
-    # THE GAP, pinned deliberately. `through` builds a column *name* by concatenating suffixes;
-    # validation checks only that the base column exists in the source. Nothing produces
-    # `PRES_rescaled_log` — `log` consumes `No` and emits `No_log` — yet this is accepted here and
-    # fails later inside a task, naming neither the column nor the node. If someone adds that
-    # check, this test should start failing and be updated rather than deleted.
-    @test resolve([Dict("cols" => "PRES", "through" => ["rescale", "log"])]) == ["PRES_rescaled_log"]
 
     # What *is* caught: a `through` naming the consuming node makes the dependency graph cyclic.
     @test_throws ErrorException resolve([Dict("cols" => "PRES", "through" => ["rescale", "pca"])])
@@ -281,6 +280,149 @@ end
     # section with an empty chain — one component, not two.
     @test resolve([Dict("cols" => "PRES", "through" => String[])]) ==
         resolve([Dict("cols" => "PRES")])
+end
+
+# What a `through` chain may pass through, now that the pipeline checks rather than concatenates.
+# The cases are the shapes of output specification, because that is what decides the answer.
+@testset "a through chain is checkable" begin
+    base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    cols = ["No", "PRES", "TEMP", "cbwd"]
+
+    # `recenter` reads what `rescale` writes. The fixture has no other node that does, and a rule
+    # about chains of two needs one that resolves as well as ones that do not.
+    recenter = Dict(
+        "id" => "recenter",
+        "card" => Dict(
+            "type" => "rescale", "method" => Dict("type" => "zscore"),
+            "suffix" => "recentered", "inputs" => [Dict("nodes" => "rescale")],
+        ),
+    )
+
+    # `pca`'s inputs, optionally against a document with `recenter` appended so `pca` stays node 3.
+    function resolve(inputs; extra = nothing)
+        d = deepcopy(base)
+        isnothing(extra) || push!(d["nodes"], extra)
+        d["nodes"][3]["card"]["inputs"] = inputs
+        return Pipelines.Pipeline(d["nodes"], d["groups"], cols).nodes[3].card.inputs
+    end
+
+    # A group carries chains too, and a failure there addresses the group rather than a card.
+    function resolve_group(items)
+        d = deepcopy(base)
+        d["groups"]["weather"] = items
+        return Pipelines.Pipeline(d["nodes"], d["groups"], cols)
+    end
+
+    # A transform renames what it is handed, once per step and in order.
+    @test resolve([Dict("cols" => "PRES", "through" => ["rescale", "recenter"])]; extra = recenter) ==
+        ["PRES_rescaled_recentered"]
+
+    # The reverse order is refused, and the refusal carries what a form needs to correct it.
+    e = @test_throws Pipelines.ThroughError resolve(
+        [Dict("cols" => "PRES", "through" => ["recenter", "rescale"])]; extra = recenter
+    )
+    @test e.value.id == "recenter"
+    @test e.value.cols == ["PRES"]
+    @test e.value.allowed == ["PRES_rescaled", "TEMP_rescaled", "No_rescaled"]
+    @test e.value.pointer == "/nodes/2/card"          # `pca`, counted from zero
+
+    # A node does not read what it writes, so naming one twice is refused. This is the rule that
+    # stops a picker offering the same node over and over.
+    @test_throws Pipelines.ThroughError resolve([Dict("cols" => "No", "through" => ["log", "log"])])
+
+    # A node that never reads the value cannot carry it: `log` reads `No`, not `PRES`.
+    @test_throws Pipelines.ThroughError resolve([Dict("cols" => "PRES", "through" => ["log"])])
+
+    # A node that names its own outputs carries nothing at all, so there is nothing to offer.
+    e = @test_throws Pipelines.ThroughError resolve(
+        [Dict("cols" => "PRES", "through" => ["partition"])]
+    )
+    @test isnothing(e.value.allowed)
+
+    # A failure inside a group addresses the group, not a card.
+    e = @test_throws Pipelines.ThroughError resolve_group(
+        [Dict("cols" => "PRES", "through" => ["log"])]
+    )
+    @test e.value.pointer == "/groups/weather"
+
+    # An inverted node undoes a transformation rather than applying one. No document can build one
+    # — `Node(::AbstractDict)` never sets `invert` — so this asks `to_outputs` directly.
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
+    inv = invert(Node(Pipelines.Card(d["zscore2"])))
+    @test_throws Pipelines.ThroughError Pipelines.to_outputs(
+        inv, Pipelines.output_spec(get_card(inv), true), ["TEMP"], nothing
+    )
+
+    # `both` writes two products of PRES — PRES_double and PRES_triple — so a chain through it has
+    # something to choose between.
+    both = Dict("id" => "both", "card" => Dict("type" => "twofold", "inputs" => [Dict("cols" => "PRES")]))
+    through(step) = resolve([Dict("cols" => "PRES", "through" => [step])]; extra = both)
+
+    # A bare step carries the value through every product, in the order the card declares them.
+    @test through("both") == ["PRES_double", "PRES_triple"]
+    # Naming narrows it, and the order written is the order returned.
+    @test through(Dict("node" => "both", "products" => ["triple"])) == ["PRES_triple"]
+    @test through(Dict("node" => "both", "products" => ["triple", "double"])) == ["PRES_triple", "PRES_double"]
+
+    # A product the node does not write is refused, with the ones it does.
+    e = @test_throws Pipelines.ThroughError through(Dict("node" => "both", "products" => ["ghost"]))
+    @test e.value.reason === :no_such_product
+    @test e.value.products == ["double", "triple"]
+    # … including on a node whose one product has no name to offer.
+    e = @test_throws Pipelines.ThroughError resolve(
+        [Dict("cols" => "PRES", "through" => [Dict("node" => "rescale", "products" => ["x"])])]
+    )
+    @test e.value.reason === :no_such_product
+    @test isempty(e.value.products)
+    @test occursin("has no named products", sprint(showerror, e.value))
+
+    # The same product twice would hand the consuming card the same column twice.
+    @test_throws Pipelines.ThroughError through(Dict("node" => "both", "products" => ["double", "double"]))
+
+    # A step written the old way still means what it meant.
+    @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
+
+    # A node selection may ask for some of what the node writes, by name, in the order written.
+    pick(products; node = both) = resolve([Dict("nodes" => "both", "products" => products)]; extra = node)
+    @test resolve([Dict("nodes" => "both")]; extra = both) == ["PRES_double", "PRES_triple"]
+    @test pick(["triple"]) == ["PRES_triple"]
+    @test pick(["triple", "double"]) == ["PRES_triple", "PRES_double"]
+
+    # A product the node does not write is refused at the card that asked, with the ones it does —
+    # including one its own `select` switched off.
+    e = @test_throws Pipelines.ThroughError pick(["ghost"])
+    @test e.value.reason === :no_such_product
+    @test e.value.products == ["double", "triple"]
+    @test e.value.pointer == "/nodes/2/card"          # `pca`, counted from zero
+    doubled = Dict("id" => "both", "card" => merge(both["card"], Dict("select" => ["double"])))
+    e = @test_throws Pipelines.ThroughError pick(["triple"]; node = doubled)
+    @test e.value.products == ["double"]
+    @test_throws Pipelines.ThroughError pick(["double", "double"])
+
+    # A narrowed node can still be passed on, and the chain is handed only what was kept.
+    e = @test_throws Pipelines.ThroughError resolve(
+        [Dict("nodes" => "both", "products" => ["triple"], "through" => ["rescale"])]; extra = both
+    )
+    @test e.value.cols == ["PRES_triple"]
+
+    # `products` narrows a node selection and nothing else.
+    @test_throws ArgumentError resolve([Dict("cols" => "PRES", "products" => ["x"])])
+
+    # Inside a group the refusal addresses the group.
+    e = @test_throws Pipelines.ThroughError resolve_group([Dict("nodes" => "log", "products" => ["x"])])
+    @test e.value.pointer == "/groups/weather"
+
+    # What each node offers to be narrowed to: its products, with their columns.
+    built = let d = deepcopy(base)
+        push!(d["nodes"], both)
+        Pipelines.Pipeline(d["nodes"], d["groups"], cols)
+    end
+    by_id(id) = only(n for n in built.nodes if n.id == id)
+    @test Pipelines.product_outputs(by_id("both")) == [
+        (; product = "double", outputs = ["PRES_double"]),
+        (; product = "triple", outputs = ["PRES_triple"]),
+    ]
+    @test isempty(Pipelines.product_outputs(by_id("rescale")))
 end
 
 @testset "unproduced references" begin
@@ -297,13 +439,55 @@ end
     # A chain that names something a node actually emits.
     @test isempty(issues([Dict("cols" => "PRES", "through" => ["rescale"])]))
 
-    # A chain that names a column nothing emits: `log` consumes `No` and emits only `No_log`, so
-    # `PRES_rescaled_log` exists nowhere. Validation accepts it; this is what catches it.
-    found = issues([Dict("cols" => "PRES", "through" => ["rescale", "log"])])
-    @test length(found) == 1
-    node_idx, missing_cols = only(found)
-    @test node_idx == 3                       # the `pca` node
-    @test missing_cols == ["PRES_rescaled_log"]
+    # A streamliner's funnel takes selector items like every other card, so a column nothing
+    # produces is refused by the schema, at the entry, before the pipeline is built.
+    fit(funnel) = begin
+        d = deepcopy(base)
+        push!(
+            d["nodes"],
+            Dict(
+                "id" => "fit",
+                "card" => Dict(
+                    "type" => "streamliner",
+                    "funnel" => merge(
+                        Dict{String, Any}(
+                            "order_by" => [Dict("cols" => "No")],
+                            "inputs" => [Dict("groups" => "weather")],
+                            "targets" => [Dict("cols" => "PRES", "through" => ["rescale"])],
+                        ),
+                        funnel
+                    ),
+                    "model" => Dict("type" => "dense", "features" => 5),
+                    "training" => Dict("type" => "batched", "iterations" => 4),
+                    "suffix" => "hat",
+                ),
+            ),
+        )
+        @with(
+            Pipelines.PARSER => Pipelines.default_parser(),
+            Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model"),
+            Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+            Pipelines.Pipeline(d["nodes"], d["groups"], available)
+        )
+    end
+    err = @test_throws Pipelines.SchemaValidationErrors fit(Dict("inputs" => [Dict("cols" => "NOSUCHCOL")]))
+    @test startswith(only(Pipelines.issue_report(err.value)).pointer, "/nodes/4/card/funnel/inputs")
+
+    # The lists resolve through groups and chains like any card's, and a transform is keyed by
+    # what they resolve to — here a column the list reaches only through a group.
+    p = fit(Dict{String, Any}())
+    lists = Pipelines.resolved_lists(Pipelines.get_card(p.nodes[5]))
+    @test lists["targets"] == ["PRES_rescaled"]
+    reached = first(lists["inputs"])
+    p = fit(Dict("input_transforms" => Dict(reached => "log")))
+    @test isempty(Pipelines.unproduced_references(p, available))
+
+    # A key the list does not resolve to is refused, and the refusal says which entry.
+    e = @test_throws StreamlinerCore.TransformError fit(Dict("input_transforms" => Dict("GONE" => "log")))
+    @test e.value.pointer == "/nodes/4/card/funnel/input_transforms/GONE"
+    report = Pipelines.issue_report(e.value)
+    @test report.reason == "transforms" && report.pointer == e.value.pointer
+    @test occursin("GONE", report.message)
 
     # The untouched fixture is clean, so this does not fire on well-formed documents.
     p = Pipelines.Pipeline(base["nodes"], base["groups"], available)

@@ -322,12 +322,15 @@ describe('the authoring page', () => {
     expect(offered).toContain('split');
     expect(offered).not.toContain('rescale');
 
-    // The same vocabulary feeds `through…`, so it must be narrowed there too.
+    // The same vocabulary feeds `through…`, so it must be narrowed there too — and by one rule
+    // more: `split` is this item's own value, and a node cannot carry what it wrote itself. The
+    // vocabulary here is only these two, so the builder is left with nothing, which is the honest
+    // answer. That the narrowing is not simply excluding everything is `through.test.ts`'s job.
     fireEvent.click(container.querySelector('[data-value="split"] [data-through]')!);
     await flush();
     const names = [...container.querySelectorAll('[data-value="split"] [data-chain-builder] [data-node]')].map((e) => e.getAttribute('data-node'));
-    expect(names).toContain('split');
     expect(names).not.toContain('rescale');
+    expect(names).not.toContain('split');
   });
 
   it('folds a card to one line naming its type and the id others refer to it by', async () => {

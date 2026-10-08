@@ -4,10 +4,12 @@ import { Button } from "./Button";
 import { Checkbox } from "./Checkbox";
 import { DownloadJSONButton } from "./JSON";
 import { FilePicker, type FileKind } from "./FilePicker";
+import { folderLabel } from "../folders";
+import { DOCUMENT_ROUTES } from "../apiRoutes";
 import { Input } from "./Input";
-import { postRequest } from "../requests";
+import { postBlob, postRequest, saveBlob } from "../requests";
 
-// The document row of a tab: load one from the data directory, save this one into it, download
+// The document row of a tab: load one from the folder of its kind, save this one into it, download
 // it. One component for cards and for filters, because the three actions are the same and only
 // the kind and the owner differ — it knows neither store.
 //
@@ -17,6 +19,11 @@ import { postRequest } from "../requests";
 // writes documents inside that directory, through the same picker.
 
 type DocumentKind = Exclude<FileKind, "table">;
+
+// The routes the form saves and reads with: one per kind, a path relative to that kind's own
+// folder. The general `write-document` takes any path in the workspace and is for other
+// clients; the form never calls it, which is what keeps the layout.
+const ROUTE_OF: Record<DocumentKind, string> = DOCUMENT_ROUTES;
 
 type DocumentsProps = {
   kind: DocumentKind;
@@ -28,6 +35,12 @@ type DocumentsProps = {
   /** Put a loaded document in place. Resolves to the sentences nobody could place on an item
    *  (a loop; an unreachable server); empty when there is nothing to say. */
   onLoad: (document: unknown) => Promise<string[]> | string[];
+  /**
+   * For a cards document: the filters document to bundle with it, `null` when the Filters tab
+   * holds none. Given, Download asks the server for the workspace zip instead of saving the
+   * bare JSON.
+   */
+  filters?: () => unknown | null;
 };
 
 type Reply = { valid?: boolean; document?: unknown; errors?: string[] } | null;
@@ -70,7 +83,7 @@ export function Documents(props: DocumentsProps) {
     if (path === null) return;
     setBusy(true);
     try {
-      const reply = (await postRequest("read-document", { path, kind: props.kind }, null)) as Reply;
+      const reply = (await postRequest(`read-${ROUTE_OF[props.kind]}`, { path }, null)) as Reply;
       if (reply === null || reply.valid !== true) return say(sentences(reply));
       const loose = await props.onLoad(reply.document);
       // Said about the document as loaded, which is only in place once the owner's write has
@@ -86,8 +99,8 @@ export function Documents(props: DocumentsProps) {
     setBusy(true);
     try {
       const reply = (await postRequest(
-        "write-document",
-        { path: name(), kind: props.kind, document: props.document(), overwrite: overwrite() },
+        `write-${ROUTE_OF[props.kind]}`,
+        { path: name(), document: props.document(), overwrite: overwrite() },
         null,
       )) as Reply;
       if (reply === null || reply.valid !== true) return say(sentences(reply));
@@ -98,11 +111,33 @@ export function Documents(props: DocumentsProps) {
     }
   }
 
+  /** The name as the author typed it, without the extension a document carries. */
+  const stem = () => name().replace(/\.json$/i, "") || noun();
+
+  // A pipeline downloads as a workspace: the document, the configurations it names, the
+  // filters — which the server assembles, since it is the one that knows what is named.
+  async function bundle() {
+    setBusy(true);
+    try {
+      const filters = props.filters?.() ?? null;
+      const answer = await postBlob("bundle-pipeline", {
+        name: stem(), cards: props.document(), ...(filters === null ? {} : { filters }),
+      });
+      if (answer === null) return say([UNREACHABLE]);
+      if ("json" in answer) return say(sentences(answer.json as Reply));
+      say([]);
+      // Named here, from what the author typed: a header cannot be trusted with every name.
+      saveBlob(answer.blob, `${stem()}.zip`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div data-documents={props.kind} class="flex flex-col gap-2 p-3">
       <FilePicker
         kind={props.kind}
-        label={`A ${noun()} file in the data directory`}
+        label={`A ${noun()} file`}
         onChange={(value) => setPicked(Array.isArray(value) ? (value[0] ?? null) : value || null)}
         refreshRef={(f) => { refresh = f; }}
       />
@@ -110,6 +145,7 @@ export function Documents(props: DocumentsProps) {
         <Button disabled={busy() || picked() === null} onClick={() => void load()}>
           Load {noun()}
         </Button>
+        <span class="text-control-xs text-muted-foreground">{folderLabel(props.kind)}</span>
         <Input
           aria-label="file name"
           value={name()}
@@ -119,9 +155,18 @@ export function Documents(props: DocumentsProps) {
         <Button disabled={busy() || name() === ""} onClick={() => void save()}>
           Save {noun()}
         </Button>
-        <DownloadJSONButton data={props.document()} name={name() || `${noun()}.json`}>
-          Download {noun()}
-        </DownloadJSONButton>
+        <Show
+          when={props.filters !== undefined}
+          fallback={
+            <DownloadJSONButton data={props.document()} name={name() || `${noun()}.json`}>
+              Download {noun()}
+            </DownloadJSONButton>
+          }
+        >
+          <Button disabled={busy()} onClick={() => void bundle()}>
+            Download {noun()}
+          </Button>
+        </Show>
       </div>
       {/* Same dress as a failed run's text under Run: the server's own sentence about the
           document. Gone on the next load or save, and on the next edit. */}

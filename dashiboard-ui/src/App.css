@@ -416,6 +416,21 @@
   --choices-border-radius-item: calc(var(--radius) - 2px);
 }
 
+/*
+  The one thing choices.js does not expose as a variable: its open dropdown is `z-index: 1`, which
+  loses to the sticky action row above the save controls (`z-10`), so the file list is sliced
+  through by Add group / Add card rather than covering them.
+
+  20 is the layer things float on here — the Add card menu and the presets panel are both z-20,
+  and the selector's suggestion list sits one above at z-30. Scoped under `.choices` rather than
+  doubling the class: that raises specificity over the library's own rule, so it wins on merit
+  instead of on whichever stylesheet the bundler happens to emit second.
+*/
+.choices .choices__list--dropdown,
+.choices .choices__list[aria-expanded] {
+  z-index: 20;
+}
+
 
 /*
   ag-grid Quartz, brought inside the system — the same move as choices.js above, and for the same

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  carryShared,
+  listText,
+  parseList,
+  conditionalOptions,
   defaultsFor,
   resolveRef,
   widgetFor,
@@ -8,6 +12,7 @@ import {
   type Defs,
   type IRNode,
 } from './ir';
+import payload from './fixtures/card-ir.json';
 
 // Fixtures are the real shapes POST /get-card-ir serves, taken from an enumeration of
 // every node the ten registered cards produce.
@@ -68,9 +73,13 @@ describe('widgetFor', () => {
     });
   });
 
-  it('maps an array of enum-bearing integers to a multiselect', () => {
+  // Repeats are meant unless the list says it is a set.
+  it('maps an array of enum-bearing integers to a list, and to a multiselect when it is a set', () => {
     expect(widgetFor(
       { type: 'array', minItems: 1, items: { type: 'integer', enum: [1, 2] } }, defs,
+    )).toEqual({ kind: 'list', item: 'integer', options: [1, 2], minItems: 1 });
+    expect(widgetFor(
+      { type: 'array', minItems: 1, items: { type: 'integer', enum: [1, 2] }, uniqueItems: true }, defs,
     )).toEqual({ kind: 'multiselect', options: [1, 2], minItems: 1 });
   });
 
@@ -279,5 +288,188 @@ describe('onlyOptions', () => {
     expect(cut.node.enum).toEqual(['a', 'c']);
     expect(cut.col).toBe(defs.col);
     expect(onlyOptions(defs, 'missing', ['a'])).toBe(defs);
+  });
+});
+
+describe('options that depend on a sibling', () => {
+  const rule = (model: string, fields: string[]) => ({
+    if: { properties: { model: { properties: { type: { const: model } } } }, required: ['model'] },
+    then: { properties: { select: { items: { type: 'string', enum: fields } } } },
+  });
+  const card = { type: 'object', constraints: [rule('fuzzy', ['prediction', 'logvar']), rule('dense', ['prediction'])] };
+
+  it('reads the options the chosen sibling allows', () => {
+    expect(conditionalOptions(card, 'select', { model: { type: 'fuzzy' } })).toEqual(['prediction', 'logvar']);
+    expect(conditionalOptions(card, 'select', { model: { type: 'dense' } })).toEqual(['prediction']);
+  });
+  it('says when a rule exists and none applies yet, and when there is no rule at all', () => {
+    expect(conditionalOptions(card, 'select', {})).toBeNull();
+    expect(conditionalOptions(card, 'suffix', { model: { type: 'fuzzy' } })).toBeUndefined();
+  });
+  // The fixture's own streamliner card: every model there yields one field.
+  it('reads the rules the server sends', () => {
+    expect(conditionalOptions(payload.cards.streamliner as IRNode, 'select', { model: { type: 'dense' } })).toEqual(['prediction']);
+  });
+});
+
+describe('the streamliner funnel, as served', () => {
+  const funnel = (payload.cards.streamliner.properties as { key: string; value: IRNode }[])
+    .find((p) => p.key === 'funnel')!.value;
+  const branch = () => {
+    const w = widgetFor(funnel, {});
+    if (w.kind !== 'variant') throw new Error('not a variant');
+    return w.objects[''];
+  };
+  it('is a choice of one, whose branch names its fields', () => {
+    const w = widgetFor(funnel, {});
+    expect(w.kind).toBe('variant');
+    if (w.kind !== 'variant') return;
+    expect(w.options).toEqual(['']);
+    expect(w.default).toBe('');
+    const keys = (branch().properties as { key: string }[]).map((p) => p.key);
+    expect(keys).toEqual(['order_by', 'inputs', 'input_transforms', 'targets', 'target_transforms', 'input_paths', 'target_paths']);
+  });
+  it('reads a map field with the list its keys come from', () => {
+    const map = (branch().properties as { key: string; value: IRNode }[]).find((p) => p.key === 'input_transforms')!.value;
+    expect(widgetFor(map, {})).toEqual({ kind: 'map', values: ['asinh', 'log', 'log1p', 'sqrt'], keysFrom: 'inputs' });
+  });
+  // The blank name is the default: saying it would be writing `type = ""`.
+  it('starts a card without naming the default funnel', () => {
+    const defaults = defaultsFor(payload.cards.streamliner as IRNode, payload.defs as Defs) as Record<string, unknown>;
+    expect(JSON.stringify(defaults)).not.toContain('"type":""');
+    expect('funnel' in defaults).toBe(false);
+  });
+  // A lone option is not a question, so a new card starts with it taken — and named, since
+  // the server has no default to fall back on.
+  it('starts a card with a lone option that is not the default already chosen', () => {
+    const defaults = defaultsFor(payload.cards.streamliner as IRNode, payload.defs as Defs) as Record<string, unknown>;
+    expect(defaults.training).toEqual({ type: 'batched' });
+    expect('model' in defaults).toBe(false);           // two models: the author's to choose
+  });
+  // Both lists are always asked for; a path column is there to be kept, not asked for.
+  it('requires both lists and leaves the path columns optional', () => {
+    const required = Object.fromEntries((branch().properties as { key: string; required: boolean }[]).map((p) => [p.key, p.required]));
+    expect(required.inputs).toBe(true);
+    expect(required.targets).toBe(true);
+    expect(required.input_paths).toBe(false);
+    expect(required.target_paths).toBe(false);
+  });
+});
+
+describe('a variant whose options are files', () => {
+  it('says where they come from, so a form can show the file behind a name', () => {
+    const model = (payload.cards.streamliner.properties as { key: string; value: IRNode }[]).find((p) => p.key === 'model')!.value;
+    const w = widgetFor(model, {});
+    expect(w.kind).toBe('variant');
+    if (w.kind !== 'variant') return;
+    expect(w.optionsFrom).toBe('model');
+    const plain = widgetFor({ type: 'tagged_object', options: ['a'], objects: { a: { type: 'object', properties: [] } } }, {});
+    expect(plain.kind === 'variant' && plain.optionsFrom).toBeUndefined();
+  });
+});
+
+// Choosing another option of a variant keeps what both branches declare, so switching a funnel to
+// `time` does not throw away its `order_by`, its columns or their transforms.
+describe('switching a variant', () => {
+  const defs = payload.defs as Defs;
+  const funnel = (payload.cards.streamliner.properties as { key: string; value: IRNode }[])
+    .find((p) => p.key === 'funnel')!.value as { objects: { [o: string]: IRNode } };
+  const plain = funnel.objects[''];
+  const dispatcher = {
+    key: 'dispatcher', required: true,
+    value: { type: 'object', properties: [{ key: 'input', required: false, value: { type: 'integer', default: 1 } }] },
+  };
+  const time: IRNode = { ...plain, properties: [dispatcher, ...(plain.properties as unknown[])] };
+  const filled = {
+    order_by: [{ cols: 'id' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'PRES' }],
+    input_transforms: { TEMP: 'log' },
+  };
+
+  it('keeps the fields both branches declare, and adds the new branch\'s defaults', () => {
+    const next = carryShared(filled, time, defs);
+    expect(next.order_by).toEqual([{ cols: 'id' }]);
+    expect(next.inputs).toEqual([{ cols: 'TEMP' }]);
+    expect(next.targets).toEqual([{ cols: 'PRES' }]);
+    expect(next.input_transforms).toEqual({ TEMP: 'log' });
+    expect(next.dispatcher).toEqual({ input: 1 });
+  });
+
+  it('drops the fields the new branch lacks', () => {
+    const back = carryShared({ ...filled, dispatcher: { input: 5 } }, plain, defs);
+    expect('dispatcher' in back).toBe(false);
+    expect(back.order_by).toEqual([{ cols: 'id' }]);
+  });
+
+  it('carries nothing between branches that share no field', () => {
+    const method = (payload.cards.split.properties as { key: string; value: IRNode }[])
+      .find((p) => p.key === 'method')!.value as { objects: { [o: string]: IRNode } };
+    const next = carryShared({ percentile: 0.3 }, method.objects.tiles, defs);
+    expect('percentile' in next).toBe(false);
+  });
+
+  // A nested choice the new branch does not offer is not carried: kmeans offers `sqeuclidean`,
+  // dbscan does not.
+  it('does not carry a nested option the new branch lacks', () => {
+    const method = (payload.cards.cluster.properties as { key: string; value: IRNode }[])
+      .find((p) => p.key === 'method')!.value as { objects: { [o: string]: IRNode } };
+    const kept = carryShared({ dissimilarity: { type: 'euclidean' } }, method.objects.dbscan, defs);
+    expect(kept.dissimilarity).toEqual({ type: 'euclidean' });
+    const dropped = carryShared({ dissimilarity: { type: 'sqeuclidean' } }, method.objects.dbscan, defs);
+    expect((dropped.dissimilarity as { type?: string } | undefined)?.type).not.toBe('sqeuclidean');
+  });
+
+  it('does not carry a value the new branch would refuse', () => {
+    const a: IRNode = { type: 'object', properties: [{ key: 'how', required: false, value: { type: 'string', enum: ['x', 'y'] } }] };
+    const b: IRNode = { type: 'object', properties: [{ key: 'how', required: false, value: { type: 'string', enum: ['z'], default: 'z' } }] };
+    expect(carryShared(carryShared({}, a, defs), b, defs).how).toBe('z');
+    expect(carryShared({ how: 'x' }, b, defs).how).toBe('z');
+    expect(carryShared({ how: 'x' }, a, defs).how).toBe('x');
+  });
+});
+
+// A list of plain values is typed, comma-separated, unless the schema marks it a set.
+describe('lists of values', () => {
+  const defs = payload.defs as Defs;
+  const prop = (card: IRNode, key: string) => (card.properties as { key: string; value: IRNode }[]).find((p) => p.key === key)!.value;
+  const branch = (variant: IRNode, option: string) => (variant as { objects: { [o: string]: IRNode } }).objects[option];
+
+  it('draws a sequence as a list, with the allowed values when there is a fixed set', () => {
+    const tiles = prop(branch(prop(payload.cards.split as IRNode, 'method'), 'tiles'), 'tiles');
+    expect(widgetFor(tiles, defs)).toEqual({ kind: 'list', item: 'integer', options: [1, 2], minItems: 1 });
+    const weights = prop(branch(prop(branch(prop(payload.cards.cluster as IRNode, 'method'), 'kmeans'), 'dissimilarity'), 'weighted_euclidean'), 'weights');
+    expect(widgetFor(weights, defs)).toMatchObject({ kind: 'list', item: 'number' });
+    expect((widgetFor(weights, defs) as { options?: unknown }).options).toBeUndefined();
+    expect(widgetFor(prop(payload.cards.trivial as IRNode, 'outputs'), defs)).toMatchObject({ kind: 'list', item: 'string' });
+  });
+
+  it('keeps a set as on/off choices', () => {
+    expect(widgetFor(prop(payload.cards.streamliner as IRNode, 'select'), defs).kind).toBe('multiselect');
+  });
+
+  it('leaves selectors and untyped lists alone', () => {
+    expect(widgetFor(prop(payload.cards.rescale as IRNode, 'inputs'), defs).kind).toBe('repeater');
+    const formula = prop(payload.cards.glm as IRNode, 'formula');
+    expect(widgetFor(prop(formula, 'inputs'), defs).kind).toBe('repeater');
+  });
+
+  it('reads values separated by commas, spaces ignored, numbers as numbers', () => {
+    expect(parseList('1, 1 ,2', 'integer', [1, 2])).toEqual({ values: [1, 1, 2] });
+    expect(parseList('1,0.5,  2', 'number')).toEqual({ values: [1, 0.5, 2] });
+    expect(parseList(' score , rank ', 'string')).toEqual({ values: ['score', 'rank'] });
+    expect(parseList('', 'integer', [1, 2])).toEqual({ values: [] });
+  });
+
+  it('says which value it cannot read', () => {
+    expect(parseList('1, 1, 3', 'integer', [1, 2])).toEqual({ error: '3 is not one of 1, 2' });
+    expect(parseList('1, x', 'number')).toEqual({ error: 'x is not a number' });
+    expect(parseList('1, 1.5', 'integer')).toEqual({ error: '1.5 is not a whole number' });
+    expect(parseList('a,,b', 'string')).toEqual({ error: 'a value is missing between two commas' });
+    // A comma just typed is a value on its way, not a fault.
+    expect(parseList('1, ', 'integer', [1, 2])).toEqual({ incomplete: true });
+  });
+
+  it('writes a list back as the box shows it', () => {
+    expect(listText([1, 1, 2])).toBe('1, 1, 2');
+    expect(listText(undefined)).toBe('');
   });
 });

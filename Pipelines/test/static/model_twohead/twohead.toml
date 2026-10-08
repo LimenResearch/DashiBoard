@@ -1,0 +1,24 @@
+name = "twohead"
+seed = 1234
+
+[components]
+
+model = [
+    { name = "dense", features = { "-v" = "features" }, sigma = "relu" },
+    { name = "dense" },
+]
+
+[loss]
+name = "mse"
+agg = "mean"
+
+[[metrics]]
+name = "mae"
+agg = "mean"
+
+[[properties]]
+key = "features"
+title = "Features"
+description = "Number of features"
+type = "integer"
+minimum = 1

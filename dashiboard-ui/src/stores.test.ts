@@ -363,6 +363,24 @@ describe('references follow the thing they name', () => {
     const out = s.exportCards();
     expect(out.nodes[1].card.inputs).toEqual([{ nodes: 'rescaled' }, { cols: 'PRES', through: ['rescaled'] }]);
   });
+  // A selection narrowed to some of a node's products follows the node, and goes with it whole.
+  const narrowed = () => ({
+    nodes: [
+      { id: 'fit', card: { type: 'rescale', inputs: [{ cols: 'PRES' }] } },
+      { id: 'use', card: { type: 'rescale', inputs: [{ nodes: 'fit', products: ['logvar'] }, { cols: 'TEMP' }] } },
+    ],
+    groups: {},
+  });
+  it('setNodeId keeps the products a selection asked of the node', async () => {
+    const s = await import('./stores');
+    s.importCards(narrowed()); s.setNodeId(0, 'model'); await flush();
+    expect(s.exportCards().nodes[1].card.inputs).toEqual([{ nodes: 'model', products: ['logvar'] }, { cols: 'TEMP' }]);
+  });
+  it('removeNode drops a narrowed selection whole, products included', async () => {
+    const s = await import('./stores');
+    s.importCards(narrowed()); s.removeNode(0); await flush();
+    expect(s.exportCards().nodes[0].card.inputs).toEqual([{ cols: 'TEMP' }]);
+  });
   // Two cards with one name is a document the server cannot build, and it says so with no
   // pointer (measured 2026-09-17: `Encountered nodes with equal \`id\``, `issues: []`) — so no
   // card could show it. Refused at the source, as `renameGroup` refuses a second group's name.
@@ -678,6 +696,29 @@ describe('pruneReferences', () => {
       { what: 'groups:nogroup', where: 'r' }, { what: 'cols:GONE', where: 'group g' },
     ]);
   });
+  // A step that names products is a reference to its node like any other.
+  const named = () => ({
+    nodes: [
+      { id: 'fit', card: { type: 'rescale', inputs: [{ cols: 'TEMP' }] } },
+      { id: 'use', card: { type: 'rescale', inputs: [{ cols: 'TEMP', through: [{ node: 'fit', products: ['logvar'] }, { node: 'ghost', products: ['x'] }] }] } },
+    ],
+    groups: {},
+  });
+  it('keeps a step that names products of a node that exists, and drops one whose node is gone', async () => {
+    const s = await import('./stores');
+    s.importCards(named() as never); await flush();
+    const dropped = s.pruneReferences(['TEMP']); await flush();
+    expect(s.exportCards().nodes[1].card.inputs).toEqual([{ cols: 'TEMP', through: [{ node: 'fit', products: ['logvar'] }] }]);
+    expect(dropped).toEqual([{ what: '@ghost', where: 'use' }]);
+  });
+  it('renames and removes the node of a step that names products', async () => {
+    const s = await import('./stores');
+    s.importCards(named() as never); await flush();
+    s.setNodeId(0, 'model'); await flush();
+    expect((s.exportCards().nodes[1].card.inputs as { through: unknown[] }[])[0].through[0]).toEqual({ node: 'model', products: ['logvar'] });
+    s.removeNode(0); await flush();
+    expect(s.exportCards().nodes[0].card.inputs).toEqual([{ cols: 'TEMP', through: [{ node: 'ghost', products: ['x'] }] }]);
+  });
   it('judges no column while no table is loaded', async () => {
     const s = await import('./stores');
     s.importCards(doc()); await flush();
@@ -711,8 +752,8 @@ describe('pruneReferences', () => {
 describe('rememberDescribed', () => {
   it('keeps the last descriptions the server gave, dropping only nodes the document no longer has', async () => {
     const s = await import('./stores');
-    const a = { id: 'a', inputs: ['T'], outputs: ['T_a'], unproduced: [] };
-    const b = { id: 'b', inputs: ['T_a'], outputs: ['T_a_b'], unproduced: [] };
+    const a = { id: 'a', inputs: ['T'], outputs: ['T_a'], unproduced: [], through: [] };
+    const b = { id: 'b', inputs: ['T_a'], outputs: ['T_a_b'], unproduced: [], through: [] };
     s.rememberDescribed({ valid: true, nodes: [a, b] }, ['a', 'b']); await flush();
     expect(s.describedNodes()).toEqual([a, b]);
     s.rememberDescribed({ valid: false, nodes: [] }, ['a', 'b', 'c']); await flush();   // the document broke: memory stays

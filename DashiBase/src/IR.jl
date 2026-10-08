@@ -83,6 +83,9 @@ end
     items::IR
     minItems::Maybe{Int} = nothing
     maxItems::Maybe{Int} = nothing
+    # `true` when a value makes sense at most once: a set, which a form offers as on/off choices.
+    # Left out, repeats are meant and a form takes the values as a sequence.
+    uniqueItems::Maybe{Bool} = nothing
 end
 
 function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}
@@ -121,6 +124,10 @@ end
     objects::Dict{String, ObjectIR} = Dict{String, ObjectIR}()
     options::Vector{String} = collect(String, keys(objects))
     default_option::Maybe{String} = nothing
+    # Where the options come from, when they are more than names — the files of a directory,
+    # say — so a form can show what an option holds. The schema does not carry it: the options
+    # are the same either way.
+    options_from::Maybe{String} = nothing
 end
 
 function json_schema(to::TaggedObjectIR)
@@ -177,6 +184,54 @@ function json_schema(o::OneOrManyIR)
         ]
     )
 end
+
+"""
+    EitherIR(["string" => ir₁, "object" => ir₂, …])
+
+A value that is one of several JSON types, each with its own description.
+
+The options are told apart by the value's own type, so each needs a distinct one — which is also
+what lets the schema branch with `if`/`then` instead of `anyOf`, and so report a failure inside a
+branch by that branch's keyword rather than as a bare "none of these matched".
+"""
+struct EitherIR <: AbstractIR
+    type::String
+    types::Vector{String}
+    options::Vector{AbstractIR}
+    function EitherIR(options::AbstractVector{<:Pair{<:AbstractString, <:AbstractIR}})
+        types = collect(String, Iterators.map(first, options))
+        allunique(types) || throw(ArgumentError("each option of an `EitherIR` needs a distinct JSON type"))
+        return new("either", types, collect(AbstractIR, Iterators.map(last, options)))
+    end
+end
+
+function json_schema(e::EitherIR)
+    return StringDict(
+        "type" => e.types,
+        "allOf" => [
+            Dict("if" => Dict("type" => type), "then" => json_schema(option))
+                for (type, option) in zip(e.types, e.options)
+        ]
+    )
+end
+
+"""
+    MapIR(; values, keys_from = nothing)
+
+An object whose keys are not known to the schema and whose values are all described by `values`.
+
+The keys of such a map depend on the document — the columns a list resolves to, say — so a schema
+cannot enumerate them. `keys_from` names the sibling field they come from, for a form to draw one
+row per key; whoever owns the map checks the keys.
+"""
+struct MapIR <: AbstractIR
+    type::String
+    values::AbstractIR
+    keys_from::Maybe{String}
+    MapIR(; values::AbstractIR, keys_from::Maybe{AbstractString} = nothing) = new("map", values, keys_from)
+end
+
+json_schema(m::MapIR) = StringDict("type" => "object", "additionalProperties" => json_schema(m.values))
 
 const IR_DICT = Dict{String, Type}(
     "boolean" => IntegerIR,

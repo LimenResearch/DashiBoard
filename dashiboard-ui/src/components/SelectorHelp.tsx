@@ -12,6 +12,7 @@ const KEYS: [string, string][] = [
   ["type → Tab", "take the top match; ↑ ↓ choose another"],
   ["Tab, nothing typed", "leave the field"],
   ["a node after a name", "pass through it; repeat for a chain"],
+  ["| or select… after a node", "keep only some of its products"],
   ["Enter", "add what is in the box"],
   ["Backspace", "undo the last part"],
   ["Esc", "close the list, then clear the box"],
@@ -65,13 +66,27 @@ function place(anchor: Element | undefined): Place {
   return { up, max: Math.max(120, Math.floor(up ? room.up : room.down)) };
 }
 
+// The side may still be short on a small window; scrolling beats being cut off.
+const SKIN =
+  "w-72 max-w-[80vw] overflow-y-auto rounded-sm border border-border bg-card p-2 text-control-xs shadow-sm";
+
+// `z-40` is the top of the stack here: the sticky action row is 10, menus and panels 20, the
+// selector's suggestion list 30. This explains the control the reader is using, so it is the one
+// thing that must never be drawn under.
 const note = (edge: "left" | "right", at: Place) =>
-  [
-    `absolute ${edge}-0 z-30 w-72 max-w-[80vw] rounded-sm border border-border bg-card p-2 text-control-xs shadow-sm`,
-    // The side may still be short on a small window; scrolling beats being cut off.
-    "overflow-y-auto",
-    at.up ? "bottom-full mb-1" : "top-full mt-1",
-  ].join(" ");
+  [`absolute ${edge}-0 z-40 ${SKIN}`, at.up ? "bottom-full mb-1" : "top-full mt-1"].join(" ");
+
+/** Where the page-level panel goes, in viewport coordinates — see `HelpButton` for why. */
+function anchor(trigger: Element | undefined) {
+  const at = place(trigger);
+  const rect = trigger?.getBoundingClientRect();
+  if (rect === undefined) return { ...at, right: GAP, y: GAP };
+  return {
+    ...at,
+    right: Math.max(GAP, window.innerWidth - rect.right),
+    y: at.up ? window.innerHeight - rect.top + GAP : rect.bottom + GAP,
+  };
+}
 
 /** The pointer's path: a glyph beside the box, hovered, never focused and never clicked. */
 export function HelpTip(props: { single?: boolean }) {
@@ -100,20 +115,57 @@ export function HelpTip(props: { single?: boolean }) {
   );
 }
 
+// Where the open panel sits, and the panel itself, so that `HelpPanel` can be rendered somewhere
+// else in the tree from the button that opens it. That separation is the whole point: the button
+// belongs in the sticky action row, and `position: sticky` with a `z-index` makes that row a
+// stacking context — everything inside is capped at the row's layer, so no z-index could lift the
+// panel above the selector's suggestion list in a context of its own. Solid 2 has no `Portal`, so
+// the panel is rendered outside the row instead and placed in viewport coordinates.
+const [helpAt, setHelpAt] = createSignal({ up: true, max: TALL, right: GAP, y: GAP });
+let panelEl: HTMLDivElement | undefined;
+
+/**
+ * The keys themselves, which `HelpButton` opens but does not contain.
+ *
+ * Render it outside any stacking context that would trap it — in practice, as a sibling of the
+ * action row rather than inside it.
+ */
+export function HelpPanel() {
+  return (
+    <Show when={helpOpen()}>
+      <div
+        ref={(el) => { panelEl = el; }}
+        role="note"
+        tabindex={-1}
+        style={{
+          position: "fixed",
+          right: `${helpAt().right}px`,
+          [helpAt().up ? "bottom" : "top"]: `${helpAt().y}px`,
+          "max-height": `${helpAt().max}px`,
+        }}
+        class={`z-40 ${SKIN}`}
+      >
+        <Keys />
+      </div>
+    </Show>
+  );
+}
+
 /** The keyboard's path: one button for the page, and what F1 opens. */
 export function HelpButton() {
-  const [at, setAt] = createSignal<Place>({ up: true, max: TALL });
   let trigger: HTMLButtonElement | undefined;
   let wrapper: HTMLDivElement | undefined;
   // Opened by F1 as well as by the button, so where it goes is decided whenever it opens.
-  createEffect(helpOpen, (open) => { if (open) setAt(place(trigger)); });
+  createEffect(helpOpen, (open) => { if (open) setHelpAt(anchor(trigger)); });
 
   // F1 leaves the caret where it was, so focus never enters this panel and focus leaving it
   // cannot be what puts it away. Carrying on anywhere else does. One listener for this
   // component's life: registering it per opening leaves one behind on unmount, and the next
   // panel — the state is shared — is closed by the one before it.
   const elsewhere = (event: Event) => {
-    if (helpOpen() && !wrapper?.contains(event.target as Node)) setHelpOpen(false);
+    const target = event.target as Node;
+    // The panel is no longer inside the wrapper, so it has to be asked separately.
+    if (helpOpen() && !wrapper?.contains(target) && !panelEl?.contains(target)) setHelpOpen(false);
   };
   document.addEventListener("mousedown", elsewhere, true);
   onCleanup(() => document.removeEventListener("mousedown", elsewhere, true));
@@ -131,11 +183,6 @@ export function HelpButton() {
       >
         ⓘ
       </button>
-      <Show when={helpOpen()}>
-        <div role="note" tabindex={-1} style={{ "max-height": `${at().max}px` }} class={note("right", at())}>
-          <Keys />
-        </div>
-      </Show>
     </div>
   );
 }

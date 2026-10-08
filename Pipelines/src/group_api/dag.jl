@@ -19,7 +19,7 @@ function Pipeline(
     validate_schema && validate_pipeline_schema(node_configs, group_configs, available_cols)
     G, nodes, (group_names, groups), cols = dependency_graph(node_configs, group_configs)
     n_nodes = length(nodes)
-    c = Context(G, nodes, groups)
+    c = Context(G, nodes, groups, group_names)
     # `reduce` over zero outputs throws a "reducing over an empty collection" error
     V = eltype(c.outputs)
     output_vars = n_nodes == 0 ? similar(V, 0) : reduce(vcat, view(c.outputs, 1:n_nodes))

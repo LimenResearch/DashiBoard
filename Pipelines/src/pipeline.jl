@@ -34,17 +34,19 @@ get_output_vars(p::Pipeline) = get_output_vars(p.enriched_digraph)
 
 graphviz(io::IO, p::Pipeline) = graphviz(io, p.enriched_digraph, p.nodes)
 
+# FIXME: we will not allow to pass a produced column as a string to deduce from its suffix in the future
+# Therefore `unproduced_references` should become obsolete and the error messaged should be resolvable by dag
 """
     unproduced_references(p::Pipeline, available)
 
 Node indices paired with the inputs they consume that nothing makes available — neither the
 source columns in `available` nor any node's outputs.
 
-Schema validation cannot catch these. A `through` qualifier builds a column *name* by
-concatenating the suffixes of the nodes it lists, and validation only checks that the *base*
-column exists in the source; the constructed name is never compared against anything. So
-`{cols = "PRES", through = ["rescale", "log"]}` names `PRES_rescaled_log` and is accepted even when
-`log` emits only `No_log`, failing later inside a task with an exception that names neither the
+Schema validation cannot catch these. A selector item is checked against the vocabulary it draws
+on, and a `through` chain is refused while the pipeline is built if a node cannot carry what it is
+handed — but a card is free to build names of its own that no schema ever sees. A `glm` formula
+names its target and its inputs in free text, so a formula naming a column nothing writes is
+accepted at validation and fails later inside a task, with an exception that names neither the
 column nor the node.
 
 Walks by layer so the pool grows in execution order. That ordering is defensive rather than

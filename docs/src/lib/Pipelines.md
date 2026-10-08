@@ -19,6 +19,23 @@ Pipelines.get_node_outputs
 Pipelines.invertible
 ```
 
+## What a card writes
+
+A card says what it writes with `output_spec`: a list of groups, each named when the card writes
+more than one thing. A group that derives its columns from those the card was given
+(`VariableTransformSpec`) is one a `through` chain can pass a value through; one that writes names
+of its own (`OutputSpec`) is not.
+
+```@docs
+Pipelines.output_spec
+Pipelines.OutputGroup
+Pipelines.OutputSpec
+Pipelines.VariableTransformSpec
+Pipelines.products
+Pipelines.selected_products
+Pipelines.product_groups
+```
+
 ## Pipeline computation
 
 ```@docs

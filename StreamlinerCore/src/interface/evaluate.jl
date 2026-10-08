@@ -1,14 +1,15 @@
 """
     evaluate(
             device_m, data::AbstractData{1}, streaming::Streaming,
-            select::SymbolTuple = (:prediction,)
+            select::AbstractVector{Symbol} = [:prediction]
         )
 
 Evaluate model `device_m` on `data` using streaming settings `streaming`.
+`select` names the fields of the model's output to write, `[:prediction]` by default.
 """
 function evaluate(
         device_m, data::AbstractData{1}, streaming::Streaming,
-        select::SymbolTuple = (:prediction,);
+        select::AbstractVector{Symbol} = [:prediction];
         options...
     )
 
@@ -22,16 +23,17 @@ end
     evaluate(
         dirname::AbstractString,
         model::Model, data::AbstractData{1}, streaming::Streaming,
-        select::SymbolTuple = (:prediction,)
+        select::AbstractVector{Symbol} = [:prediction]
     )
 
 Load `model` with weights saved in `dirname` and evaluate it on `data`
 using streaming settings `streaming`.
+`select` names the fields of the model's output to write, `[:prediction]` by default.
 """
 function evaluate(
         dirname::AbstractString,
         model::Model, data::AbstractData{1}, streaming::Streaming,
-        select::SymbolTuple = (:prediction,);
+        select::AbstractVector{Symbol} = [:prediction];
         options...
     )
     device_m = loadmodel(dirname, model, data, streaming.device)

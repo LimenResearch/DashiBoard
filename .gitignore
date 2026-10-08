@@ -9,3 +9,4 @@ LocalPreferences.toml
 # local tooling scratch — never committed
 .claude/
 .superpowers/
+graphify-out/

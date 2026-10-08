@@ -1,7 +1,3 @@
-# Type to encode selection of fields
-
-const SymbolTuple{N} = NTuple{N, Symbol}
-
 # Template to encode eltype and size of array
 
 # Type for `templates` dispatch
@@ -149,7 +145,8 @@ function stream(f, data::Data, partition::Integer, streaming::Streaming)
     return f(batches)
 end
 
-ingest(::Data{1}, stream, select) = Iterators.map(NamedTuple{select}, stream)
+# The names a NamedTuple type keeps are a type parameter, which has to be a tuple.
+ingest(::Data{1}, stream, select::Union{AbstractVector, Tuple}) = Iterators.map(NamedTuple{Tuple(select)}, stream)
 
 get_templates(data::Data) = data.templates
 

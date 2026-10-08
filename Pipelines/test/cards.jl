@@ -872,3 +872,209 @@ end
     @test stats["training"]["logitcrossentropy"] ≈ 2.82 atol = 1.0e-2
     @test stats["validation"]["logitcrossentropy"] ≈ 1.69 atol = 1.0e-2
 end
+
+# Which shape of specification each card declares. The three shapes mean different things to a
+# `through` chain, so a change that silently reclassifies a card has to fail here.
+@testset "output specifications" begin
+    only_spec(card, invert = false) = only(Pipelines.output_spec(card, invert)).spec
+
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
+    gc = Pipelines.Card(d["dayofweek"])
+    groups = Pipelines.output_spec(gc, false)
+    @test groups isa Vector{Pipelines.OutputGroup}
+    # One product, so it needs no name.
+    @test isnothing(only(groups).name)
+    @test only_spec(gc) isa Pipelines.VariableTransformSpec
+    @test only_spec(gc).cols == ["date"]
+
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "split.json"))
+    # A split invents its column rather than deriving it, so nothing passes through one.
+    @test only_spec(Pipelines.Card(d["percentile"])) isa Pipelines.OutputSpec
+
+    wc = Pipelines.Card(Dict("type" => "trivial", "inputs" => ["a", "b"], "outputs" => ["c"]))
+    @test only_spec(wc) isa Pipelines.OutputSpec
+    @test Pipelines.get_node_outputs(Node(wc)) == ["c"]
+
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "rescale.json"))
+    rc = Pipelines.Card(d["zscore2"])
+    # Forward it renames every input and target, which is what a chain follows.
+    @test only_spec(rc) isa Pipelines.VariableTransformSpec
+    @test only_spec(rc).cols == ["TEMP", "PRES"]
+    @test Pipelines.get_node_outputs(Node(rc)) == ["TEMP_rescaled", "PRES_rescaled"]
+    # Inverted it writes a fixed list, which nothing a chain carries can be derived into.
+    @test only_spec(rc, true) isa Pipelines.OutputSpec
+    @test Pipelines.get_node_outputs(invert(Node(rc))) == ["PRES_hat"]
+
+    # A streamliner names its products even when there is one, and no longer needs a bridge.
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
+    sc = @with(
+        Pipelines.PARSER => Pipelines.default_parser(),
+        Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model"),
+        Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+        Pipelines.Card(d["basic"])
+    )
+    @test [g.name for g in Pipelines.output_spec(sc, false)] == ["prediction"]
+    @test Pipelines.get_node_outputs(Node(sc)) == ["Iws_hat"]
+end
+
+# A model built against the funnel's sizes before any training: what Confirm asks of a card.
+@testset "a model that cannot be built for its funnel" begin
+    conv = """
+    name = "basic"
+    [components]
+    model = [{ name = "conv", kernel = [3], pad = [1], features = 4 }, { name = "conv", kernel = [3], pad = [1] }]
+    [loss]
+    name = "mse"
+    agg = "mean"
+    """
+    mktempdir() do dir
+        cp(joinpath(@__DIR__, "static", "model", "dense.toml"), joinpath(dir, "dense.toml"))
+        write(joinpath(dir, "conv.toml"), conv)
+        card(model; inputs = ["TEMP", "PRES"]) = @with(
+            Pipelines.PARSER => Pipelines.default_parser(),
+            Pipelines.MODEL_DIR => dir,
+            Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+            Pipelines.Card(
+                Dict{String, Any}(
+                    "type" => "streamliner", "model" => Dict("type" => model, "features" => 4),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => ["No"], "inputs" => inputs, "targets" => ["Iws"]),
+                )
+            )
+        )
+        # A dense model takes a row of columns.
+        @test isnothing(Pipelines.model_issue(repo, card("dense"), "selection"))
+        # A convolution needs an axis to slide along, which a row of columns does not have.
+        issue = Pipelines.model_issue(repo, card("conv"), "selection")
+        @test occursin("cannot be built for this funnel", issue.message)
+        @test issue.input == [2] && issue.target == [1]
+        # A categorical column counts as its distinct values, as the model will see it.
+        @test Pipelines.model_issue(repo, card("conv"; inputs = ["TEMP", "cbwd"]), "selection").input == [5]
+        # A column that is not in the table yet — an earlier card's output — counts as one.
+        @test Pipelines.model_issue(repo, card("conv"; inputs = ["TEMP", "later"]), "selection").input == [2]
+    end
+end
+
+# An architecture that yields two fields, standing in for the ones that live in packages this one
+# cannot depend on. `spread` is as wide as the prediction, so it is written the same way.
+struct TwoHeadSpec
+    model::Vector{Any}
+end
+twohead(components::AbstractDict) = TwoHeadSpec(StreamlinerCore.parse_modules(components, (:model,))...)
+function twohead_forward(modules, x)
+    prediction = modules.model(x.input)
+    return merge(x, (; prediction, spread = abs.(prediction)))
+end
+function StreamlinerCore.instantiate(spec::TwoHeadSpec, templates)
+    input, output = StreamlinerCore.Shape(templates.input), StreamlinerCore.Shape(templates.target)
+    model, _ = StreamlinerCore.chain(spec.model, input, output)
+    return StreamlinerCore.Architecture(:TwoHead, twohead_forward, (; model))
+end
+StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
+
+@testset "streamliner, several products" begin
+    parser = Pipelines.default_parser(
+        plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("twohead" => twohead))]
+    )
+    scoped(f) = @with(
+        Pipelines.PARSER => parser,
+        Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model_twohead"),
+        Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+        f()
+    )
+    config(; kwargs...) = merge(
+        Dict{String, Any}(
+            "type" => "streamliner",
+            "funnel" => Dict{String, Any}("order_by" => ["No"], "inputs" => ["TEMP", "PRES"], "targets" => ["Iws"]),
+            "model" => Dict("type" => "twohead", "features" => 5),
+            "training" => Dict("type" => "batched", "iterations" => 2),
+            "partition" => "partition",
+        ),
+        Dict{String, Any}(string(k) => v for (k, v) in kwargs)
+    )
+
+    scoped() do
+        # A model's fields are its card's products, and nothing said means all of them.
+        card = Pipelines.Card(config())
+        @test Pipelines.products(card) == ["prediction", "spread"]
+        @test [g.name for g in Pipelines.output_spec(card, false)] == ["prediction", "spread"]
+        node = Node(card)
+        @test Pipelines.get_node_outputs(node) == ["Iws_hat", "Iws_spread"]
+
+        # Both are written, not only reported.
+        Pipelines.train_evaljoin!(repo, node, "partition" => "twoheaded", "No")
+        result = DBInterface.execute(DataFrame, repo, "FROM twoheaded")
+        @test "Iws_hat" in names(result) && "Iws_spread" in names(result)
+        @test all(>=(0), result.Iws_spread)
+
+        # A card with no model is refused at prediction, saying which of two cases it is.
+        refusal(card, state) = try
+            Pipelines.evaluate(repo, card, state, "partition" => "unsplit", "No"); nothing
+        catch e
+            e
+        end
+        # Never trained.
+        untrained = refusal(card, Pipelines.CardState())
+        @test untrained isa ArgumentError && occursin("not been trained", untrained.msg)
+        # Trained without a partition: no row is set aside to validate on, so training succeeds
+        # but keeps no model, and the refusal names `partition`.
+        unsplit = Pipelines.Card(delete!(config(), "partition"))
+        weightless = Pipelines.train(repo, unsplit, "partition", "No")
+        @test isnothing(weightless.content)
+        kept_none = refusal(unsplit, weightless)
+        @test kept_none isa ArgumentError
+        @test occursin("kept no model", kept_none.msg) && occursin("`partition`", kept_none.msg)
+
+        # Narrowed, only the one asked for is written.
+        one = Node(Pipelines.Card(config(select = ["spread"])))
+        @test Pipelines.get_node_outputs(one) == ["Iws_spread"]
+        Pipelines.train_evaljoin!(repo, one, "partition" => "oneheaded", "No")
+        @test !("Iws_hat" in names(DBInterface.execute(DataFrame, repo, "FROM oneheaded")))
+
+        # A field the model does not yield is refused as soon as the card's outputs are asked for,
+        # which building a pipeline does for every node.
+        @test_throws Pipelines.ProductError Pipelines.get_node_outputs(Node(Pipelines.Card(config(select = ["logvar"]))))
+
+        # The funnel is described by its own fields, so a form can draw it and a schema can check it.
+        ir = Pipelines.card_ir("streamliner")
+        funnel = only(p for p in ir.properties if p.key == "funnel").value
+        @test funnel.options == [""] && funnel.default_option == ""
+        @test [p.key for p in funnel.objects[""].properties] ==
+            ["order_by", "inputs", "input_transforms", "targets", "target_transforms", "input_paths", "target_paths"]
+        schema = JSONSchema.Schema(Pipelines.card_schema("streamliner", ["No", "TEMP", "PRES", "Iws", "partition"]))
+        good = config()
+        @test isnothing(JSONSchema.validate(good, schema))
+        # A funnel is closed: a misspelt key is a failure, not an ignored setting.
+        bad = deepcopy(good); bad["funnel"]["inptus"] = ["TEMP"]
+        @test !isnothing(JSONSchema.validate(bad, schema))
+        bad = deepcopy(good); bad["funnel"]["input_transforms"] = Dict("TEMP" => "nosuch")
+        @test !isnothing(JSONSchema.validate(bad, schema))
+        bad = deepcopy(good); delete!(bad["funnel"], "inputs")
+        @test !isnothing(JSONSchema.validate(bad, schema))
+
+        # What the lists come to, for a form to offer a transform per column.
+        transformed = deepcopy(good); transformed["funnel"]["input_transforms"] = Dict("TEMP" => "log")
+        @test isnothing(JSONSchema.validate(transformed, schema))
+        card = Pipelines.Card(transformed)
+        @test Pipelines.resolved_lists(card) == Dict{String, Any}("inputs" => ["TEMP", "PRES"], "targets" => ["Iws"])
+        @test isempty(Pipelines.resolved_lists(Pipelines.Card(Dict("type" => "trivial", "inputs" => ["a"], "outputs" => ["c"]))))
+
+        # The schema carries the rule per model, so a form offers only what the chosen model has.
+        rule = only(Pipelines.DashiBase.constraints(Pipelines.StreamlinerCard))
+        @test rule["if"]["properties"]["model"]["properties"]["type"]["const"] == "twohead"
+        @test rule["then"]["properties"]["select"]["items"]["enum"] == ["prediction", "spread"]
+        # A product is written once, so `select` is a set, which a form offers as on/off choices.
+        select = only(p for p in Pipelines.card_ir("streamliner").properties if p.key == "select")
+        @test select.value.uniqueItems == true
+    end
+
+    # A single-field model is unchanged by any of this.
+    basic = @with(
+        Pipelines.PARSER => Pipelines.default_parser(),
+        Pipelines.MODEL_DIR => joinpath(@__DIR__, "static", "model"),
+        Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
+        Pipelines.Card(JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))["basic"])
+    )
+    @test Pipelines.products(basic) == ["prediction"]
+    @test Pipelines.get_node_outputs(Node(basic)) == ["Iws_hat"]
+end

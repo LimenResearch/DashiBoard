@@ -1,0 +1,13 @@
+name = "TestExtension"
+uuid = "7b1f0c3e-5d2a-4f6b-9e8c-1a2b3c4d5e6f"
+version = "0.1.0"
+
+[deps]
+DashiBase = "b2406810-cf54-4e58-91cb-2ebd7b47efe7"
+StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
+
+# Deliberately not the checkout beside this one: an extension names whatever version it was
+# written against, and the launcher is what pins the server's own packages.
+[sources]
+DashiBase = {rev = "main", subdir = "DashiBase", url = "https://github.com/LimenResearch/DashiBoard"}
+StreamlinerCore = {rev = "main", subdir = "StreamlinerCore", url = "https://github.com/LimenResearch/DashiBoard"}

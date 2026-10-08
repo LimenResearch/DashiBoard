@@ -1,11 +1,14 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import type { Element as JSXElement } from "solid-js";
 
 import { Disclosure } from "./Disclosure";
 import { Input } from "./Input";
+import { ConfigurationPicker } from "./ConfigurationPicker";
+import { MapField } from "./MapField";
+import { plainColumns, pruneMap, transformRows } from "../transformRows";
 import { SelectorField } from "./SelectorField";
 import type { SelectorRow } from "../selector";
-import { defaultsFor, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
+import { carryShared, conditionalOptions, defaultsFor, listText, parseList, resolveRef, widgetFor, type Defs, type IRNode, type Widget } from "../ir";
 
 // The recursive renderer: one component per IR node, dispatching on the widget descriptor
 // `widgetFor` returns — a switch over a closed set rather than an attempt to recover intent from
@@ -32,6 +35,28 @@ type IRFieldProps = {
   idPrefix?: string;
   /** Handed to every selector below: which nodes a chain may pass through next. */
   chainFor?: (row: SelectorRow, all: string[]) => string[];
+  /** Handed to every selector below: which products a chain step may be narrowed to. */
+  productsFor?: (token: string, row: SelectorRow) => string[];
+  /** Handed to every selector below: the products a node writes by name. */
+  productsOf?: (id: string) => string[];
+  /**
+   * Handed to every map field below: the columns the card's list `name` resolved to, as the
+   * server said — `null` when it has not.
+   */
+  listsFor?: (name: string) => string[] | null;
+  /** Handed to every map field below: the entries of the card's map `field` the server refused. */
+  refusedFor?: (field: string) => string[];
+  /** Handed to every map field below: whether a column is categorical, where that is known. */
+  isCategorical?: (column: string) => boolean;
+  /** Handed to every variant below whose options are files: the text of the file behind a name. */
+  configurationText?: (kind: string, name: string) => string | null;
+  /** Handed to the same: ask the server for the files again. */
+  refreshConfigurations?: () => void;
+  /**
+   * Show what this field writes under it. A list's `writes` line belongs to the object holding
+   * it; a list that is a field of the card itself has none above it, so it draws its own.
+   */
+  ownWrites?: boolean;
   value: unknown;
   onChange: (value: unknown) => void;
 };
@@ -42,6 +67,14 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     : {};
 
 const asArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+/** A value as the `writes` line shows it: lists in brackets, strings quoted. */
+function written(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(written).join(", ")}]`;
+  if (value !== null && typeof value === "object")
+    return `{${Object.entries(value).map(([k, v]) => `${k} = ${written(v)}`).join(", ")}}`;
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
 
 /** Options round-trip through the DOM as strings; give the caller back the original type. */
 function optionByString(options: (string | number)[], raw: string): string | number {
@@ -136,22 +169,110 @@ export function IRField(props: IRFieldProps) {
             // every time even when no property actually changed — reference-keying (`<For>`'s
             // default) would remount every field in every card on every refetch, which is the
             // same bug this file's outer `Show` was just fixed for, one level down.
+            // A choice that hung on a sibling does not outlive the sibling's change: left in
+            // place it would be refused at a control that may no longer be drawn.
+            const write = (key: string, inner: unknown) => {
+              const next = { ...asRecord(props.value), [key]: inner };
+              // Emptied is absent: a key left holding nothing would still read as set.
+              if (inner === undefined) delete next[key];
+              for (const other of w().properties) {
+                if (other.key === key) continue;
+                const allowed = conditionalOptions(resolveRef(props.node, props.defs), other.key, next);
+                const held = next[other.key];
+                if (allowed === undefined || !Array.isArray(held)) continue;
+                if (allowed === null || !held.every((v) => allowed.includes(String(v)))) delete next[other.key];
+              }
+              // A plain column taken out of a list takes its entry in the list's map with it.
+              for (const other of w().properties) {
+                const map = widgetFor(other.value, props.defs);
+                if (map.kind !== "map" || map.keysFrom !== key) continue;
+                const pruned = pruneMap(
+                  next[other.key] as Record<string, string> | undefined,
+                  plainColumns(asRecord(props.value)[key]), plainColumns(inner),
+                );
+                if (pruned === undefined) delete next[other.key];
+                else next[other.key] = pruned;
+              }
+              props.onChange(next);
+            };
             const fields = () => (
               <For each={w().properties} keyed={(entry) => entry.key}>
-                {(entry) => (
-                  <IRField
-                    chainFor={props.chainFor}
-                    node={entry().value}
-                    defs={props.defs}
-                    label={entry().key}
-                    required={entry().required}
-                    idPrefix={id()}
-                    value={asRecord(props.value)[entry().key]}
-                    onChange={(inner) =>
-                      props.onChange({ ...asRecord(props.value), [entry().key]: inner })
-                    }
-                  />
-                )}
+                {(entry) => {
+                  // A property whose options hang on a sibling's choice — the fields a
+                  // streamliner may select, given its model.
+                  const allowed = () =>
+                    conditionalOptions(resolveRef(props.node, props.defs), entry().key, asRecord(props.value));
+                  // With one option, or none applying yet, there is nothing to choose.
+                  const hidden = () => {
+                    const a = allowed();
+                    return a === null || (a !== undefined && a.length <= 1);
+                  };
+                  const node = () => {
+                    const a = allowed();
+                    return a ? { ...entry().value, items: { type: "string", enum: a } } : entry().value;
+                  };
+                  // Absent means every option, so that is what an untouched field shows.
+                  const value = () => {
+                    const a = allowed();
+                    const held = asRecord(props.value)[entry().key];
+                    return a && held === undefined ? a : held;
+                  };
+                  // A map is drawn beside the list its keys come from, a row per column.
+                  const map = () => {
+                    const widget = widgetFor(entry().value, props.defs);
+                    return widget.kind === "map" ? widget : null;
+                  };
+                  return (
+                    <Show when={!hidden()}>
+                      <Show
+                        when={map()}
+                        keyed
+                        fallback={
+                      <IRField
+                        chainFor={props.chainFor}
+                        productsFor={props.productsFor}
+                        productsOf={props.productsOf}
+                        listsFor={props.listsFor}
+                        refusedFor={props.refusedFor}
+                        isCategorical={props.isCategorical}
+                        configurationText={props.configurationText}
+                        refreshConfigurations={props.refreshConfigurations}
+                        ownWrites={w().title !== undefined}
+                        node={node()}
+                        defs={props.defs}
+                        label={entry().key}
+                        required={entry().required}
+                        idPrefix={id()}
+                        value={value()}
+                        onChange={(inner) => write(entry().key, inner)}
+                      />
+                        }
+                      >
+                        {(m: Extract<Widget, { kind: "map" }>) => {
+                          const list = m.keysFrom ?? "";
+                          const held = () => asRecord(asRecord(props.value)[entry().key]) as Record<string, string>;
+                          const rows = () => transformRows(
+                            props.listsFor?.(list) ?? null, plainColumns(asRecord(props.value)[list]), held(),
+                            props.refusedFor?.(entry().key) ?? [],
+                          );
+                          return (
+                            <MapField
+                              label={entry().key}
+                              id={`${id()}-${entry().key}`}
+                              listName={list}
+                              columns={rows().live}
+                              stale={rows().stale}
+                              values={m.values}
+                              held={held()}
+                              fixed={(column) => props.isCategorical?.(column) ?? false}
+                              onChange={(next) => write(entry().key, next)}
+                            />
+                          );
+                        }}
+                      </Show>
+                    </Show>
+                  );
+                }}
               </For>
             );
             // Two objects render bare. The card is the outermost one and already sits in a
@@ -160,13 +281,28 @@ export function IRField(props: IRFieldProps) {
             // caller drew the disclosure, and a second one repeating the same label put every
             // branch field a level deeper than the `type` row it belongs beside.
             const bare = () => props.inline === true || w().title !== undefined;
+            // An object holding a list says what it writes as a whole, as a selector field does:
+            // the list's box shows what was typed, this line what the definition holds. The card
+            // itself has no such line; its lists draw their own.
+            const holdsList = createMemo(() =>
+              w().properties.some((entry) => widgetFor(entry.value, props.defs).kind === "list"));
+            const withWrites = () => (
+              <>
+                {fields()}
+                <Show when={holdsList() && w().title === undefined}>
+                  <p data-writes class="font-mono text-control-xs text-muted-foreground">
+                    writes {Object.entries(asRecord(props.value)).map(([k, v]) => `${k} = ${written(v)}`).join(", ")}
+                  </p>
+                </Show>
+              </>
+            );
             return (
               <Show
                 when={!bare()}
-                fallback={<div class="flex flex-col gap-0.5">{fields()}</div>}
+                fallback={<div class="flex flex-col gap-0.5">{withWrites()}</div>}
               >
                 <Collapsible label={props.label} required={props.required}>
-                  {fields()}
+                  {withWrites()}
                 </Collapsible>
               </Show>
             );
@@ -180,16 +316,62 @@ export function IRField(props: IRFieldProps) {
             // No fallback to `options[0]`. That list arrives from a Julia `Dict`, so its order
             // carries no intent — preselecting from it asserts a choice nobody made, and the
             // document then disagrees with the form about whether the question was answered.
-            const chosen = () =>
-              (asRecord(props.value).type as string | undefined) ?? w().default ?? "";
+            // A lone option is not a question: where nothing has been written yet it counts as
+            // chosen, whatever the IR's default. A value that is there and names no option has
+            // to be asked, since the server will want the name.
+            const sole = () => (w().options.length === 1 ? w().options[0] : undefined);
+            const untouched = () => props.value === undefined || props.value === null;
+            const picked = () =>
+              (asRecord(props.value).type as string | undefined) ?? w().default ?? (untouched() ? sole() : undefined);
+            const unasked = () => picked() === undefined;
+            const chosen = () => picked() ?? "";
+            // The chooser is left out only when the one option is the one in hand — a document
+            // naming an option this server does not have still needs somewhere to be put right.
+            const lone = () => sole() !== undefined && picked() === sole();
+            const foreign = () => !unasked() && !w().options.includes(chosen());
+            // The blank option is the one meant when none is named, so the document does not
+            // name it.
+            const named = (inner: unknown, option: string) => {
+              const { type: _, ...rest } = asRecord(inner);
+              return option === "" ? rest : { ...rest, type: option };
+            };
+            const branchWidget = () => {
+              const branch = w().objects[chosen()];
+              return branch === undefined ? undefined : widgetFor(branch, props.defs);
+            };
+            // One option that takes no settings leaves nothing to show — unless the option is a
+            // file, which is itself worth showing.
+            const nothing = () => {
+              const b = branchWidget();
+              return w().optionsFrom === undefined && lone() && b !== undefined && b.kind === "object" && b.properties.length === 0;
+            };
             return (
+              <Show when={!nothing()}>
               <Collapsible label={props.label} required={props.required}>
+                <Show when={w().optionsFrom !== undefined}>
+                  <Row for={`${id()}-variant`} label="type">
+                    <ConfigurationPicker
+                      id={`${id()}-variant`}
+                      kind={w().optionsFrom!}
+                      options={w().options}
+                      chosen={unasked() ? undefined : chosen()}
+                      text={(name) => props.configurationText?.(w().optionsFrom!, name) ?? null}
+                      onChoose={(option) => {
+                        const branch = w().objects[option];
+                        const inner = branch === undefined ? undefined : carryShared(props.value, branch, props.defs);
+                        props.onChange(named(inner, option));
+                      }}
+                      onRefresh={() => props.refreshConfigurations?.()}
+                    />
+                  </Row>
+                </Show>
+                <Show when={!lone() && w().optionsFrom === undefined}>
                 <Row for={`${id()}-variant`} label="type">
                   <select
                     id={`${id()}-variant`}
                     class={[
                       "h-control-xs rounded-sm border px-2 text-control-xs",
-                      { "border-border": chosen() !== "", "border-warning": chosen() === "" },
+                      { "border-border": !unasked() && !foreign(), "border-warning": unasked() || foreign() },
                     ]}
                     value={chosen()}
                     onChange={(event) => {
@@ -199,31 +381,49 @@ export function IRField(props: IRFieldProps) {
                       // to be carried.
                       const option = event.currentTarget.value;
                       const branch = w().objects[option];
-                      const inner = branch === undefined ? undefined : defaultsFor(branch, props.defs);
-                      props.onChange({ ...(inner as object), type: option });
+                      // What both branches declare is kept, so a change of type does not throw
+                      // away what was already filled in (`carryShared`).
+                      const inner = branch === undefined ? undefined : carryShared(props.value, branch, props.defs);
+                      props.onChange(named(inner, option));
                     }}
                   >
-                    <Show when={chosen() === ""}>
+                    <Show when={unasked()}>
                       <option value="" disabled>
                         choose…
                       </option>
                     </Show>
-                    <For each={w().options}>{(option) => <option value={option}>{option}</option>}</For>
+                    <Show when={foreign()}>
+                      <option value={chosen()} disabled>
+                        {chosen()} — not available
+                      </option>
+                    </Show>
+                    <For each={w().options}>
+                      {(option) => <option value={option}>{option === "" ? "default" : option}</option>}
+                    </For>
                   </select>
                 </Row>
-                <Show when={w().objects[chosen()]}>
+                </Show>
+                <Show when={!unasked() && w().objects[chosen()]}>
                   <IRField
                     chainFor={props.chainFor}
+                    productsFor={props.productsFor}
+                    productsOf={props.productsOf}
+                    listsFor={props.listsFor}
+                    refusedFor={props.refusedFor}
+                    isCategorical={props.isCategorical}
+                    configurationText={props.configurationText}
+                    refreshConfigurations={props.refreshConfigurations}
                     node={w().objects[chosen()]!}
                     defs={props.defs}
                     label={props.label}
                     inline
                     idPrefix={id()}
                     value={props.value}
-                    onChange={(inner) => props.onChange({ ...asRecord(inner), type: chosen() })}
+                    onChange={(inner) => props.onChange(named(inner, chosen()))}
                   />
                 </Show>
               </Collapsible>
+              </Show>
             );
           }
 
@@ -248,35 +448,104 @@ export function IRField(props: IRFieldProps) {
             );
           }
 
+          // Plain values in order, typed comma-separated; the allowed ones, when there is a fixed
+          // set, below the box to click. What was typed stays on screen while it does not read,
+          // and nothing is written until it does.
+          case "list": {
+            const w = () => widget() as Extract<Widget, { kind: "list" }>;
+            const [draft, setDraft] = createSignal<string | null>(null);
+            const text = () => draft() ?? listText(props.value);
+            const error = () => {
+              const read = parseList(text(), w().item, w().options);
+              return "error" in read ? read.error : null;
+            };
+            const commit = (next: string) => {
+              setDraft(next);
+              const read = parseList(next, w().item, w().options);
+              // Emptied is absent, as for any field.
+              if ("values" in read) props.onChange(read.values.length === 0 ? undefined : read.values);
+            };
+            // A click appends, with the comma when something is already there.
+            const append = (option: string | number) => {
+              const held = text().replace(/[\s,]*$/, "");
+              commit(held === "" ? String(option) : `${held}, ${option}`);
+            };
+            return (
+              <Row for={id()} label={props.label} required={props.required}>
+                <div class="flex min-w-0 flex-1 flex-col gap-1">
+                  <input
+                    id={id()}
+                    data-list
+                    type="text"
+                    placeholder="values separated by commas"
+                    value={text()}
+                    onInput={(event) => commit(event.currentTarget.value)}
+                    onBlur={() => { if (error() === null) setDraft(null); }}
+                    class={[
+                      "h-control-xs rounded-sm border bg-transparent px-2 font-mono text-control-xs outline-none focus:ring-2 focus:ring-ring",
+                      error() === null ? "border-border" : "border-warning",
+                    ]}
+                  />
+                  <Show when={error()}>
+                    {(message) => <p data-list-error class="text-control-xs text-warning">{message()}</p>}
+                  </Show>
+                  <Show when={(w().options ?? []).length > 0}>
+                    <div class="flex flex-wrap gap-1.5">
+                      <For each={w().options}>
+                        {(option) => (
+                          <button
+                            type="button"
+                            data-list-option={String(option)}
+                            onClick={() => append(option)}
+                            class="inline-flex h-6 items-center rounded-full border border-border bg-card px-2.5 font-mono text-control-xs hover:border-primary hover:text-primary"
+                          >
+                            {option}
+                          </button>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                  <Show when={props.ownWrites}>
+                    <p data-writes class="font-mono text-control-xs text-muted-foreground">
+                      writes {props.label} = {written(props.value ?? [])}
+                    </p>
+                  </Show>
+                </div>
+              </Row>
+            );
+          }
+
           case "multiselect": {
             // Re-narrowed locally — see the comment in `case "object"`.
             const w = () => widget() as Extract<Widget, { kind: "multiselect" }>;
+            const taken = (option: string | number) =>
+              asArray(props.value).some((v) => String(v) === String(option));
+            // Written in the order offered, so pressing pills in another order changes nothing.
+            const toggle = (option: string | number) =>
+              props.onChange(w().options.filter((o) => (o === option ? !taken(o) : taken(o))));
             return (
               <Collapsible label={props.label} required={props.required}>
-                <select
-                  id={id()}
-                  multiple
-                  size={Math.min(w().options.length, 8)}
-                  class="my-1 h-control-xs w-full rounded-sm border border-border px-2 text-control-xs"
-                  onChange={(event) =>
-                    props.onChange(
-                      [...event.currentTarget.selectedOptions].map((option) =>
-                        optionByString(w().options, option.value),
-                      ),
-                    )
-                  }
-                >
+                {/* Every option is a pill, on or off: what is taken reads without scrolling. */}
+                <div id={id()} role="group" aria-label={props.label} class="my-1 flex flex-wrap gap-1.5">
                   <For each={w().options}>
                     {(option) => (
-                      <option
-                        value={String(option)}
-                        selected={asArray(props.value).some((v) => String(v) === String(option))}
+                      <button
+                        type="button"
+                        data-option={String(option)}
+                        aria-pressed={taken(option) ? "true" : "false"}
+                        onClick={() => toggle(option)}
+                        class={[
+                          "inline-flex h-6 items-center rounded-full border px-2.5 font-mono text-control-xs hover:border-primary",
+                          taken(option)
+                            ? "border-primary bg-primary/15 font-medium text-primary"
+                            : "border-border bg-card text-muted-foreground",
+                        ]}
                       >
                         {option}
-                      </option>
+                      </button>
                     )}
                   </For>
-                </select>
+                </div>
               </Collapsible>
             );
           }
@@ -355,6 +624,13 @@ export function IRField(props: IRFieldProps) {
                       {(item, index) => (
                         <IRField
                           chainFor={props.chainFor}
+                          productsFor={props.productsFor}
+                          productsOf={props.productsOf}
+                          listsFor={props.listsFor}
+                          refusedFor={props.refusedFor}
+                          isCategorical={props.isCategorical}
+                          configurationText={props.configurationText}
+                          refreshConfigurations={props.refreshConfigurations}
                           node={w().items}
                           defs={props.defs}
                           label={`${props.label}[${index()}]`}
@@ -375,6 +651,8 @@ export function IRField(props: IRFieldProps) {
                     box on screen and folds the rest itself. */}
                 <SelectorField
                   chainFor={props.chainFor}
+                  productsFor={props.productsFor}
+                  productsOf={props.productsOf}
                   itemNode={w().items}
                   defs={props.defs}
                   label={props.label}
@@ -395,6 +673,8 @@ export function IRField(props: IRFieldProps) {
             return (
               <SelectorField
                 chainFor={props.chainFor}
+                productsFor={props.productsFor}
+                productsOf={props.productsOf}
                 single
                 itemNode={props.node}
                 defs={props.defs}
@@ -409,6 +689,11 @@ export function IRField(props: IRFieldProps) {
           // beats a JSON textarea that invites input the schema will reject — and it makes the
           // gap visible where it belongs. Reachable today only through glm's formula, where
           // Pipelines uses ArrayIR{Any}() with a "make more specific" TODO.
+          // A map belongs beside the list its keys come from, so its object draws it; alone it
+          // has no columns to offer a row for.
+          case "map":
+            return null;
+
           case "unknown":
             return (
               <Row label={props.label} required={props.required}>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { asItems, collapse, expand, documentText, type SelectorItem } from './selector';
+import { asItems, collapse, expand, documentText, formatStep, parseStep, type SelectorItem } from './selector';
 
 const KINDS = ['cols', 'groups', 'nodes'];
 
@@ -115,5 +115,56 @@ describe('asItems', () => {
     expect(asItems(undefined)).toEqual([]);
     expect(asItems('PRES')).toEqual([]);
     expect(asItems({ cols: 'PRES' })).toEqual([]);
+  });
+});
+
+describe('a chain step that names products', () => {
+  it('reads as a token and is written back as the same object', () => {
+    const items = [{ cols: 'Iws', through: ['rescale', { node: 'fit', products: ['logvar', 'prediction'] }] }];
+    const rows = expand(items, KINDS);
+    expect(rows[0].chain).toEqual(['rescale', 'fit|logvar|prediction']);
+    expect(collapse(rows)).toEqual(items);
+  });
+
+  // A document that names no product is written exactly as it was read.
+  it('leaves a chain of bare node ids as bare strings', () => {
+    const items = [{ cols: 'PRES', through: ['rescale'] }];
+    expect(JSON.stringify(collapse(expand(items, KINDS)))).toBe(JSON.stringify(items));
+  });
+
+  it('splits a token into its node and the products asked for', () => {
+    expect(parseStep('fit')).toEqual({ node: 'fit', products: [] });
+    expect(parseStep('fit|logvar')).toEqual({ node: 'fit', products: ['logvar'] });
+    expect(formatStep('fit', [])).toBe('fit');
+    expect(formatStep('fit', ['a', 'b'])).toBe('fit|a|b');
+  });
+
+  it('shows the step in the written form as it is typed', () => {
+    const rows = expand([{ cols: 'Iws', through: [{ node: 'fit', products: ['logvar'] }] }], KINDS);
+    expect(documentText(rows)).toBe('{cols = "Iws", through = "fit|logvar"}');
+  });
+});
+
+describe('a node selection narrowed to some of its products', () => {
+  const KINDS = ['nodes', 'groups', 'cols'];
+  it('is one row, written back as the same item', () => {
+    const items = [{ nodes: 'fit', products: ['one', 'three'] }];
+    const rows = expand(items, KINDS);
+    expect(rows).toEqual([{ kind: 'nodes', value: 'fit|one|three', chain: [] }]);
+    expect(collapse(rows)).toEqual(items);
+  });
+  it('keeps its products beside a chain', () => {
+    const items = [{ nodes: 'fit', products: ['logvar'], through: ['scale'] }];
+    expect(collapse(expand(items, KINDS))).toEqual(items);
+  });
+  it('merges nodes narrowed the same way, and only those', () => {
+    expect(collapse([
+      { kind: 'nodes', value: 'a|x', chain: [] }, { kind: 'nodes', value: 'b|x', chain: [] },
+      { kind: 'nodes', value: 'c', chain: [] },
+    ])).toEqual([{ nodes: ['a', 'b'], products: ['x'] }, { nodes: 'c' }]);
+  });
+  it('shows its products in the written form', () => {
+    expect(documentText([{ kind: 'nodes', value: 'fit|one|three', chain: [] }]))
+      .toBe('{nodes = "fit", products = ["one", "three"]}');
   });
 });

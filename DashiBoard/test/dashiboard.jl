@@ -1,5 +1,14 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
+using ZipArchives: ZipReader, zip_names, zip_readentry
+using TOML: TOML
 using Sockets: Sockets
+using Base.ScopedValues: @with
+using StreamlinerCore: StreamlinerCore
+
+# A model whose building fails for a reason that has nothing to do with sizes.
+struct BoomSpec end
+BoomModel(::AbstractDict) = BoomSpec()
+StreamlinerCore.instantiate(::BoomSpec, templates) = error("boom")
 using DashiBoard
 using Test
 using Downloads
@@ -202,8 +211,8 @@ mktempdir() do data_dir
     end
 
     static_directory = joinpath(@__DIR__, "..", "..", "static")
-    model_directory = joinpath(static_directory, "model")
-    training_directory = joinpath(static_directory, "training")
+    model_dir = joinpath(static_directory, "model")
+    training_dir = joinpath(static_directory, "training")
 
     # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
     # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
@@ -228,11 +237,33 @@ mktempdir() do data_dir
         data_dir;
         port = port,
         async = true,
-        model_directory,
-        training_directory
+        model_dir,
+        training_dir
     )
 
     @testset "request" begin
+        # Every file route confines itself to a pointer: the scoped value `launch` sets for its
+        # kind, or the working directory where nothing was set. Read here the way a handler
+        # reads them, inside the scope.
+        @testset "pointers" begin
+            @with(
+                DataIngestion.DATA_DIR => data_dir, DashiBoard.WORKSPACE => data_dir,
+                DashiBoard.PIPELINE_DIR => data_dir, DashiBoard.FILTER_DIR => "",
+                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+                begin
+                    @test DashiBoard.pointer(:data) == normpath(abspath(data_dir))
+                    @test DashiBoard.pointer(:pipeline) == normpath(abspath(data_dir))
+                    @test DashiBoard.pointer(:filter) == pwd()
+                    @test DashiBoard.pointer(:model) == normpath(abspath(model_dir))
+                    @test DashiBoard.pointer(:training) == normpath(abspath(training_dir))
+                    @test DashiBoard.workspace_directory() == normpath(abspath(data_dir))
+                end
+            )
+            # Pipelines' directories have no default: unset, they read as the working directory too.
+            @test DashiBoard.pointer(:model) == pwd()
+            @test_throws ArgumentError DashiBoard.pointer(:nowhere)
+        end
+
         url = "http://127.0.0.1:$(port)/"
 
         @testset "files" begin
@@ -242,7 +273,10 @@ mktempdir() do data_dir
             # a table by content, so the kind survives a rename; what does not parse, what is
             # hidden and what is neither table nor document are not listed.
             listed = post("list-files", Dict())
-            @test [(f["path"], f["kind"]) for f in listed] == [
+            @test listed["misplaced"] == []
+            # With everything at the root, there is no folder to name.
+            @test listed["folders"] == Dict("table" => "", "cards" => "", "filters" => "")
+            @test [(f["path"], f["kind"]) for f in listed["files"]] == [
                 ("cards.json", "cards"),
                 ("cards.toml", "cards"),
                 ("filters.json", "filters"),
@@ -255,6 +289,7 @@ mktempdir() do data_dir
             escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
             @test escaped["valid"] == false
             @test occursin("outside the data directory", only(escaped["errors"]))
+
 
             # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
             # found; nothing outside the directory, nothing that is not there.
@@ -273,7 +308,7 @@ mktempdir() do data_dir
             for path in ("../cards.json", joinpath(data_dir, "cards.json"))
                 outside = post("read-document", Dict("path" => path, "kind" => "cards"))
                 @test outside["valid"] == false
-                @test occursin("outside the data directory", only(outside["errors"]))
+                @test occursin("outside the workspace", only(outside["errors"]))
             end
             missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
             @test occursin("does not exist", only(missing_file["errors"]))
@@ -287,17 +322,220 @@ mktempdir() do data_dir
             saved = save("sub/mine.json", "cards", false)
             @test saved["valid"] == true
             @test saved["path"] == "sub/mine.json"
-            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())]
+            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["files"]]
             @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["document"] == doc
 
             @test occursin("already exists", only(save("sub/mine.json", "cards", false)["errors"]))
             @test save("sub/mine.json", "cards", true)["valid"] == true
 
             @test occursin("not a filters document", only(save("f.json", "filters", false)["errors"]))
-            @test occursin("outside the data directory", only(save("../x.json", "cards", false)["errors"]))
+            @test occursin("outside the workspace", only(save("../x.json", "cards", false)["errors"]))
             @test occursin(".json", only(save("x.toml", "cards", false)["errors"]))
-            @test occursin("folder", only(save("nowhere/x.json", "cards", false)["errors"]))
+            # A folder named on the way is made: a client that says where a file goes means it.
+            @test save("new/folder/x.json", "cards", false)["valid"] == true
+            @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
             @test !isfile(joinpath(data_dir, "f.json"))
+
+            # A model or a training configuration goes the same way, as TOML, checked for the
+            # kind it is said to be.
+            model_text = read(joinpath(model_dir, "dense.toml"), String)
+            config(route, body) = post(route, body)
+            written = config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))
+            @test written["valid"] == true && written["path"] == "anywhere/m.toml"
+            back = config("read-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model"))
+            @test back["valid"] == true && back["text"] == model_text && back["parsed"]["name"] == "basic"
+            @test occursin("not a training", only(config("write-configuration", Dict("path" => "t.toml", "kind" => "training", "text" => model_text))["errors"]))
+            @test occursin(".toml", only(config("write-configuration", Dict("path" => "m.json", "kind" => "model", "text" => model_text))["errors"]))
+            @test occursin("TOML", only(config("write-configuration", Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml"))["errors"]))
+            @test occursin("outside the workspace", only(config("write-configuration", Dict("path" => "../m.toml", "kind" => "model", "text" => model_text))["errors"]))
+            @test occursin("already exists", only(config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["errors"]))
+
+            # What the launcher reads and runs is not a client's to write: the workspace file names
+            # packages the next launch installs and loads, and hidden folders hold its environment.
+            planted = "[loss]\n[extensions]\nX = { url = \"https://example.org/X.jl\" }\n"
+            for path in ("dashiboard.toml", "sub/dashiboard.toml", ".dashiboard/x.toml", "sub/.hidden/x.toml")
+                refused = config("write-configuration", Dict("path" => path, "kind" => "model", "text" => planted, "overwrite" => true))
+                @test refused["valid"] == false
+                @test !ispath(joinpath(data_dir, path))
+            end
+            @test save(".hidden/x.json", "cards", true)["valid"] == false
+            @test !ispath(joinpath(data_dir, ".hidden"))
+        end
+
+        # What each configuration name means, for a form to show beside the name.
+        @testset "configurations" begin
+            listed = JSON.parse(HTTP.post(url * "list-configurations", body = "{}").body)
+            @test [m["name"] for m in listed["model"]] == ["classifier", "dense"]
+            dense = only(m for m in listed["model"] if m["name"] == "dense")
+            @test dense["path"] == "dense.toml"
+            @test dense["text"] == read(joinpath(model_dir, "dense.toml"), String)
+            @test dense["properties"][1]["key"] == "features"
+            @test [t["name"] for t in listed["training"]] == ["batched"]
+        end
+
+        # The probe and a run ask whether each streamliner model can be built for its funnel, and
+        # say so at the card's `model`. The served models all fit, so this uses its own.
+        @testset "a model that cannot be built" begin
+            mktempdir() do dir
+                cp(joinpath(model_dir, "dense.toml"), joinpath(dir, "dense.toml"))
+                write(joinpath(dir, "conv.toml"), """
+                    name = "basic"
+                    [components]
+                    model = [{ name = "conv", kernel = [3], pad = [1], features = { "-v" = "features" } }, { name = "conv", kernel = [3], pad = [1] }]
+                    [loss]
+                    name = "mse"
+                    agg = "mean"
+                    [[properties]]
+                    key = "features"
+                    type = "integer"
+                    """)
+                fit(model) = Dict(
+                    "id" => "fit", "card" => Dict(
+                        "type" => "streamliner", "model" => Dict("type" => model, "features" => 2),
+                        "training" => Dict("type" => "batched", "iterations" => 1),
+                        "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                    )
+                )
+                cols = DataIngestion.summarize(repo, "selection")
+                names = String[c.name for c in cols]
+                built(model) = @with(
+                    Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                    Pipelines.Pipeline([fit(model)], Dict{String, Any}(), names)
+                )
+                # A model that fails to build for another reason is not this check's to report:
+                # the probe answers, and the run reports it as it reports any failure.
+                write(joinpath(dir, "boom.toml"), """
+                    name = "boom"
+                    [components]
+                    model = []
+                    [loss]
+                    name = "mse"
+                    agg = "mean"
+                    """)
+                boom_parser = Pipelines.default_parser(
+                    plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("boom" => BoomModel))]
+                )
+                boom = @with(
+                    Pipelines.PARSER => boom_parser, Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                    Pipelines.Pipeline([merge(fit("boom"), Dict("card" => merge(fit("boom")["card"], Dict("model" => Dict("type" => "boom")))))], Dict{String, Any}(), names)
+                )
+                @test isempty(@with(Pipelines.PARSER => boom_parser, DashiBoard.model_issues(repo, boom, "selection")))
+
+                issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
+                @test issue.pointer == "/nodes/0/card/model"
+                @test issue.reason == "model" && issue.severity == "error"
+                @test occursin("cannot be built for this funnel", issue.message)
+                @test isempty(DashiBoard.model_issues(repo, built("dense"), "selection"))
+            end
+        end
+
+        # Each node says what a selection may narrow it to: its products, with their columns. A
+        # streamliner names even its one product, so another card can ask for it by name.
+        @testset "products in the probe" begin
+            fit = Dict(
+                "id" => "fit", "card" => Dict(
+                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                )
+            )
+            reader = Dict(
+                "id" => "reader", "card" => Dict(
+                    "type" => "rescale", "method" => Dict("type" => "zscore"), "suffix" => "z",
+                    "inputs" => [Dict("nodes" => "fit", "products" => ["prediction"])],
+                )
+            )
+            body = JSON.json((; nodes = [fit, reader], groups = Dict{String, Any}()))
+            probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
+            node(id) = only(n for n in probe["nodes"] if n["id"] == id)
+            @test node("fit")["products"] == [Dict("product" => "prediction", "outputs" => ["PRES_hat"])]
+            @test node("reader")["inputs"] == ["PRES_hat"]
+            @test node("reader")["products"] == []
+        end
+
+        # A pipeline downloads as a workspace: the document, the configurations it names, and
+        # which extensions it needs.
+        @testset "bundle" begin
+            fit = Dict(
+                "id" => "fit", "card" => Dict(
+                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                )
+            )
+            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+            filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
+            resp = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc, filters)))
+            @test HTTP.header(resp, "Content-Type") == "application/zip"
+            @test occursin("mine.zip", HTTP.header(resp, "Content-Disposition"))
+            # A name outside ASCII travels in the form a header can carry.
+            accented = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "prova è", cards = doc)))
+            @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", HTTP.header(accented, "Content-Disposition"))
+            zip = ZipReader(Vector{UInt8}(resp.body))
+            @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
+            @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
+            @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
+            # Nothing here came from an extension, so none is named.
+            @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
+            without = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc)))
+            @test !("filter/mine.json" in zip_names(ZipReader(Vector{UInt8}(without.body))))
+            # A configuration the document names but the directory lacks is a pointed issue.
+            missing = deepcopy(doc); missing["nodes"][1]["card"]["model"]["type"] = "nosuch"
+            refused = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = missing)), status_exception = false)
+            @test HTTP.header(refused, "Content-Type") == "application/json"
+            report = JSON.parse(refused.body)
+            @test report["valid"] == false
+            @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
+
+            # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
+            # that cannot be a file's, a configuration named outside its folder, a request with
+            # no document.
+            bundle(body) = HTTP.post(url * "bundle-pipeline", body = JSON.json(body), status_exception = false)
+            for name in ("run:2", "../up", "a/b", "", "quo\"te")
+                bad = bundle((; name, cards = doc))
+                @test bad.status == 200 && HTTP.header(bad, "Content-Type") == "application/json"
+                @test JSON.parse(bad.body)["valid"] == false
+            end
+            outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
+            bad = bundle((; name = "mine", cards = outside))
+            @test HTTP.header(bad, "Content-Type") == "application/json" && JSON.parse(bad.body)["valid"] == false
+            bad = bundle((; name = "mine"))
+            @test bad.status == 200 && JSON.parse(bad.body)["valid"] == false
+        end
+
+        # With a provenance table, the bundle names exactly the extensions the document uses.
+        @testset "bundle names its extensions" begin
+            fit = Dict(
+                "id" => "fit", "card" => Dict(
+                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
+                                     "input_transforms" => Dict("TEMP" => "log")),
+                )
+            )
+            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+            @with(
+                DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
+                DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
+                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+                begin
+                    @test DashiBoard.needed_extensions(doc) == ["Fake"]
+                    # A funnel contributes its type and its transforms, nothing else.
+                    entries = DashiBoard.registry_entries(doc)
+                    @test "funnel:" in entries && "transform:log" in entries
+                    @test !any(startswith("loader:"), entries)
+                    # Not only the architecture: a layer, a loss or an optimizer a configuration
+                    # names may come from an extension too, and the pipeline needs it as much.
+                    for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
+                        @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
+                            @test DashiBoard.needed_extensions(doc) == ["Other"]
+                        end
+                    end
+                    bytes = DashiBoard.bundle_pipeline(doc, nothing, "x")
+                    toml = TOML.parse(zip_readentry(ZipReader(bytes), "dashiboard.toml", String))
+                    @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
+                end
+            )
         end
 
         body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)
@@ -421,23 +659,90 @@ mktempdir() do data_dir
         @test parsed["valid"] == false
         @test parsed["kind"] == "pipeline"
 
-        # A10: probing constructs without executing, and reports references nothing produces.
-        # `through = ["r","r"]` names TEMP_a_a, which no node emits — schema validation accepts it.
+        # Probing constructs without executing, so a chain that cannot resolve is a fault the
+        # probe reports rather than a crash. `through = ["r", "r"]` asks `r` to carry `TEMP_a`,
+        # which it does not read — it reads `TEMP` — so the pipeline refuses to build and the
+        # answer names the node responsible.
         body = read(joinpath(@__DIR__, "static", "probe-bad.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body)
+        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
+        @test resp.status == 200
         probe = JSON.parse(resp.body)
         @test probe["valid"] == false
-        @test probe["kind"] == "pipeline"   # an unproduced reference is a document fault too
-        offender = only(filter(n -> !isempty(n["unproduced"]), probe["nodes"]))
-        @test offender["id"] == "bad"
-        @test offender["unproduced"] == ["TEMP_a_a"]
-        # and it still reports what it resolved, rather than only failing
-        @test "TEMP_a" in probe["nodes"][1]["outputs"]
-        # A7: the same failure also arrives in the uniform `issues` shape, addressed by pointer.
-        # Node granularity, not item: resolution keeps no provenance back to the selector item.
-        unproduced = only(filter(i -> i["reason"] == "unproduced", probe["issues"]))
-        @test unproduced["pointer"] == "/nodes/1/card"
-        @test unproduced["missing"] == ["TEMP_a_a"]
+        @test probe["kind"] == "pipeline"
+        # It arrives in the same shape as a schema failure, so a form reads one list: the card to
+        # address, what the chain asked for, and what the offending node would have accepted.
+        issue = only(probe["issues"])
+        @test issue["reason"] == "through"
+        @test issue["pointer"] == "/nodes/1/card"
+        @test issue["found"] == ["TEMP_a"]
+        @test issue["allowed"] == ["TEMP"]
+        @test issue["products"] == []
+        @test occursin("Node `r` does not read TEMP_a", issue["message"])
+        # The vocabularies a picker offers from survive the failure, so a form can still correct
+        # the chain rather than going blank.
+        @test "TEMP" in probe["cols"]
+        @test haskey(probe, "referable")
+
+        # Each node says how a value may pass through it, one entry per product. A rescale has one,
+        # unnamed, so a picker offers the node and nothing to choose within it.
+        body = JSON.json((;
+            nodes = [(; id = "r", card = Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
+            ))],
+            groups = Dict{String, Any}(),
+        ))
+        probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
+        product = only(only(probe["nodes"])["through"])
+        @test product["product"] === nothing
+        @test product["cols"] == ["TEMP"]
+        @test product["suffix"] == "a"
+
+        @test only(probe["nodes"])["lists"] == Dict{String, Any}()
+
+        # A card whose lists a form has to spell out says what they resolved to: here the inputs
+        # come from a group and the target through another node.
+        fit(funnel) = JSON.json((;
+            nodes = [
+                (; id = "r", card = Dict(
+                    "type" => "rescale", "method" => Dict("type" => "zscore"),
+                    "inputs" => [Dict("cols" => "PRES")], "suffix" => "z",
+                )),
+                (; id = "fit", card = Dict(
+                    "type" => "streamliner",
+                    "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => merge(
+                        Dict{String, Any}(
+                            "order_by" => [Dict("cols" => "No")],
+                            "inputs" => [Dict("groups" => "g")],
+                            "targets" => [Dict("cols" => "PRES", "through" => ["r"])],
+                        ),
+                        funnel
+                    ),
+                )),
+            ],
+            groups = Dict{String, Any}("g" => [Dict("cols" => ["TEMP", "Iws"])]),
+        ))
+        probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = fit(Dict("input_transforms" => Dict("Iws" => "log")))).body)
+        @test probe["valid"]
+        @test probe["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
+
+        # A transform for a column the list does not reach is a pointed issue at its entry.
+        resp = HTTP.post(url * "probe-pipeline", body = fit(Dict("input_transforms" => Dict("GONE" => "log"))), status_exception = false)
+        issue = only(JSON.parse(resp.body)["issues"])
+        @test issue["reason"] == "transforms"
+        @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
+
+        # A step naming a product the node does not have is a pointed issue, with what it has.
+        body = read(joinpath(@__DIR__, "static", "probe-groups.json"), String)
+        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
+        probe = JSON.parse(resp.body)
+        issue = only(probe["issues"])
+        @test issue["reason"] == "through"
+        @test issue["pointer"] == "/nodes/1/card"
+        @test issue["products"] == []
+        @test occursin("has no named products", issue["message"])
 
         # A probe reports rather than throws — for *every* way a document can be malformed,
         # not only schema failures. Two nodes with no `id` both resolve to "", which the
@@ -754,11 +1059,114 @@ mktempdir() do data_dir
         nowhere_port = first_free_port(8281:8380)
         nowhere = DashiBoard.launch(
             joinpath(data_dir, "does-not-exist");
-            port = nowhere_port, async = true, model_directory, training_directory
+            port = nowhere_port, async = true, model_dir, training_dir
         )
         resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
         @test resp.status == 200
-        @test JSON.parse(resp.body) == []
+        listed = JSON.parse(resp.body)
+        @test listed["files"] == [] && listed["misplaced"] == []
         close(nowhere)
+    end
+
+    # A workspace with no folder for its configurations reads them from the root: only what is a
+    # configuration of the kind asked for counts, wherever else TOML files lie.
+    @testset "configurations in a flat workspace" begin
+        mktempdir() do ws
+            cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "m.toml"))
+            cp(joinpath(training_dir, "batched.toml"), joinpath(ws, "tr.toml"))
+            write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 1\n")
+            write(joinpath(ws, "broken.toml"), "= not toml")
+            mkpath(joinpath(ws, "quarantine")); cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "quarantine", "old.toml"))
+            flat_port = first_free_port(8581:8680)
+            flat = DashiBoard.launch(ws; port = flat_port, async = true)
+            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/list-configurations", body = "{}").body)
+            @test [m["name"] for m in listed["model"]] == ["m"]
+            @test [t["name"] for t in listed["training"]] == ["tr"]
+            ir = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/get-card-ir", body = JSON.json((; cols = ["a"], nodes = String[], groups = String[], include = ["cards"]))).body)
+            model = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "model")
+            @test model["value"]["options"] == ["m"]
+            close(flat)
+        end
+    end
+
+    # With a layout, a file is offered for what its folder says it is, as long as its content
+    # agrees; one whose content says otherwise is reported, not offered.
+    @testset "files by folder" begin
+        mktempdir() do ws
+            for d in ("data", "pipeline/sub", "filter"), p in (joinpath(ws, d),)
+                mkpath(p)
+            end
+            write(joinpath(ws, "data", "t.csv"), "a,b\n1,2\n")
+            write(joinpath(ws, "pipeline", "sub", "p.json"), JSON.json(cards_doc))
+            write(joinpath(ws, "pipeline", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
+            write(joinpath(ws, "pipeline", "note.md"), "neither a document nor a table")
+            write(joinpath(ws, "pipeline", "t2.csv"), "a,b\n1,2\n")
+            write(joinpath(ws, "filter", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
+            laid_port = first_free_port(8381:8480)
+            laid = DashiBoard.launch(
+                ws; port = laid_port, async = true, model_dir, training_dir,
+                data_dir = joinpath(ws, "data"), pipeline_dir = joinpath(ws, "pipeline"), filter_dir = joinpath(ws, "filter"),
+            )
+            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(laid_port)/list-files", body = "{}").body)
+            # Grouped by kind, then by path; what is neither table nor document is not mentioned.
+            @test [(f["path"], f["kind"]) for f in listed["files"]] == [
+                ("sub/p.json", "cards"), ("f.json", "filters"), ("t.csv", "table"),
+            ]
+            @test listed["misplaced"] == [
+                Dict("path" => "f.json", "kind" => "pipeline", "found" => "filters"),
+                Dict("path" => "t2.csv", "kind" => "pipeline", "found" => "table"),
+            ]
+
+            # The routes the form saves with: a path is relative to the kind's own folder, so
+            # one path saved as a pipeline and as a filters document lands in twin subfolders.
+            laid_url = "http://127.0.0.1:$(laid_port)/"
+            lpost(route, body) = JSON.parse(HTTP.post(laid_url * route, body = JSON.json(body), status_exception = false).body)
+            filters_doc = Dict("numerical" => Dict(), "categorical" => Dict())
+            @test lpost("write-pipeline", Dict("path" => "sub/mine.json", "document" => cards_doc))["valid"] == true
+            @test isfile(joinpath(ws, "pipeline", "sub", "mine.json"))
+            @test lpost("write-filters", Dict("path" => "sub/mine.json", "document" => filters_doc))["valid"] == true
+            @test isfile(joinpath(ws, "filter", "sub", "mine.json"))
+            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in lpost("list-files", Dict())["files"]]
+            @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["document"] == cards_doc
+            @test lpost("read-filters", Dict("path" => "sub/mine.json"))["document"] == filters_doc
+            # The folder is implied, so a path that spells it is turned away rather than nested —
+            # however it is spelt.
+            for path in ("pipeline/mine.json", "./pipeline/mine.json")
+                implied = lpost("write-pipeline", Dict("path" => path, "document" => cards_doc))
+                @test implied["valid"] == false && occursin("implied", only(implied["errors"]))
+            end
+            # The layout's folder names are not subfolder names: such a subfolder is neither
+            # written to nor listed, and a read of it says why in a reader's words.
+            other = lpost("write-pipeline", Dict("path" => "training/x.json", "document" => cards_doc))
+            @test other["valid"] == false && occursin("layout", only(other["errors"]))
+            mkpath(joinpath(ws, "pipeline", "model")); write(joinpath(ws, "pipeline", "model", "p.json"), JSON.json(cards_doc))
+            @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["files"]])
+            unread = lpost("read-pipeline", Dict("path" => "model/p.json"))
+            @test unread["valid"] == false && occursin("layout", only(unread["errors"])) && !occursin("save", only(unread["errors"]))
+            @test lpost("read-pipeline", Dict("path" => "pipeline"))["valid"] == false
+
+            # Each kind's folder, as the workspace sees it, for the form to say where it lists
+            # and saves; and a table is loaded from the data folder, not the workspace root.
+            @test lpost("list-files", Dict())["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
+            loaded = HTTP.post(laid_url * "load-files", body = JSON.json(Dict("name" => "t", "files" => ["t.csv"])))
+            @test [c["name"] for c in JSON.parse(loaded.body)] == ["a", "b"]
+            escaped = lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))
+            @test escaped["valid"] == false && occursin("pipeline", only(escaped["errors"]))
+            @test !isfile(joinpath(ws, "x.json"))
+            # A configuration the same way, into the model and training folders — here outside
+            # the workspace, which a kind route may reach and the general route may not.
+            elsewhere = mktempdir()
+            model_text = read(joinpath(model_dir, "dense.toml"), String)
+            aside_port = first_free_port(8481:8580)
+            aside = DashiBoard.launch(ws; port = aside_port, async = true, model_dir = elsewhere, training_dir)
+            apost(route, body) = JSON.parse(HTTP.post("http://127.0.0.1:$(aside_port)/" * route, body = JSON.json(body), status_exception = false).body)
+            @test apost("write-model", Dict("path" => "m.toml", "text" => model_text))["valid"] == true
+            @test isfile(joinpath(elsewhere, "m.toml"))
+            @test apost("read-model", Dict("path" => "m.toml"))["parsed"]["name"] == "basic"
+            @test apost("write-configuration", Dict("path" => joinpath(elsewhere, "n.toml"), "kind" => "model", "text" => model_text))["valid"] == false
+            @test apost("write-training", Dict("path" => "t.toml", "text" => model_text))["valid"] == false
+            close(aside)
+            close(laid)
+        end
     end
 end

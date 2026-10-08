@@ -12,14 +12,30 @@ const COL_DEF = ReferenceIR(raw"#/$defs/col")
     cols::Maybe{Vector{String}} = nothing
 end
 
+# A step of a `through` chain: a node id, or the node with the products of it wanted by name.
+# The names are not enumerable here — they depend on the node — so an unknown one is caught when
+# the chain is resolved, not when the document is validated.
+function through_step_IR()
+    named = ObjectIR(
+        properties = [
+            Property("node" => NODE_DEF),
+            Property("products" => ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1)),
+        ]
+    )
+    return EitherIR(["string" => NODE_DEF, "object" => named])
+end
+
 # IR for a `{nodes: str | list[str]}`, `{groups: str | list[str]}`, `{cols: str | list[str]}`
-# with a potential `through: list[str]` attribute
+# with a potential `through: list[str | {node, products}]` attribute
 function variable_item_IR()
     properties = [
         Property("nodes" => OneOrManyIR{String}(; items = NODE_DEF, eltype = "string"), required = false),
         Property("groups" => OneOrManyIR{String}(; items = GROUP_DEF, eltype = "string"), required = false),
         Property("cols" => OneOrManyIR{String}(; items = COL_DEF, eltype = "string"), required = false),
-        Property("through" => ArrayIR{String}(; items = NODE_DEF, default = []), required = false),
+        # Which products of the selected nodes to keep. Not enumerable here — they depend on the
+        # node — so an unknown one is caught when the selection is resolved, as for a chain step.
+        Property("products" => ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1), required = false),
+        Property("through" => ArrayIR{Any}(; items = through_step_IR(), default = []), required = false),
     ]
     oneOf = [
         StringDict("required" => ["nodes"]),
@@ -37,7 +53,7 @@ The group dialect's shared `\$defs` entries as IR nodes — what a renderer buil
 for the flat dialect in `card_schema.jl`.
 
 Where the flat dialect's `variable` is a string enum of column names, here it is a *selector
-object*: `{nodes|groups|cols: str | list[str], through: list[str]}`, gated so exactly one of the
+object*: `{nodes|groups|cols: str | list[str], through: list[str | {node, products}]}`, gated so exactly one of the
 three is present.
 """
 function ir_definitions(variable_config::VariableConfig)
@@ -167,6 +183,67 @@ name in `val`, not the missing one — so neither half identifies the control on
 `severity` is `"error"` for every schema issue; warnings are emitted elsewhere with the same shape.
 """
 issue_report(errs::SchemaValidationErrors) = map(issue_report, errs.errors)
+
+"""
+    issue_report(err::ThroughError)
+
+A refused `through` chain in the shape every other issue uses, so a client reads one list.
+
+`allowed` is what distinguishes a form that can offer a correction from one that can only say no:
+it is exactly the set of columns the offending node does carry.
+"""
+function issue_report(err::ThroughError)
+    return (;
+        pointer = something(err.pointer, ""),
+        # One reason for every shape of refusal: a client branches on "through" and shows the
+        # sentence, rather than learning four names that all mean "this chain cannot resolve".
+        reason = "through",
+        severity = "error",
+        found = err.cols,
+        allowed = err.allowed,
+        missing = String[],
+        related = String[],
+        # The products the node does name, when the chain asked for one it does not have.
+        products = err.products,
+        message = sprint(showerror, err),
+    )
+end
+
+"""
+    issue_report(err::ProductError)
+
+A refused product selection in the shape every other issue uses, addressed at the field at fault.
+"""
+function issue_report(err::ProductError)
+    return (;
+        pointer = something(err.pointer, ""),
+        reason = "products",
+        severity = "error",
+        found = nothing,
+        allowed = nothing,
+        missing = String[],
+        related = String[],
+        message = sprint(showerror, err),
+    )
+end
+
+"""
+    issue_report(err::StreamlinerCore.TransformError)
+
+A refused column transform in the shape every other issue uses, addressed at the entry at fault.
+"""
+function issue_report(err::SC.TransformError)
+    return (;
+        pointer = something(err.pointer, ""),
+        reason = "transforms",
+        severity = "error",
+        found = nothing,
+        allowed = nothing,
+        missing = String[],
+        related = String[],
+        message = sprint(showerror, err),
+    )
+end
 
 function issue_report(err::SchemaValidationError)
     issue = err.issue

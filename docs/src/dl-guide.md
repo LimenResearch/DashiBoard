@@ -6,7 +6,10 @@ Streamliner cards can be inserted into any pipeline and receive / provide data t
 
 ## Setup
 
-As designing a deep learning model and devising a training procedure are complex tasks, DashiBoard request the user to pass in folders with example configuration files (see the `static/model` and `static/training` folders for examples).
+As designing a deep learning model and devising a training procedure are complex tasks, DashiBoard
+reads them from configuration files: the workspace's `model/` and `training/` folders, or the
+folders given with `--model_dir` and `--training_dir` (see `bin/README.md`). The repository's
+`static/model` and `static/training` folders hold examples.
 
 When using a streamliner card, DashiBoard reads those folders and derives the card's form from
 them: each configuration's `[[properties]]` entries become fields, carrying their `title`,

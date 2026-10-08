@@ -12,9 +12,12 @@ import {
   expand,
   type SelectorItem,
   type SelectorRow,
+  formatStep,
+  parseStep,
+  STEP_SEPARATOR,
 } from "../selector";
-import { widgetFor, type Defs, type IRNode } from "../ir";
-import { emptyEntry, engaged, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
+import { resolveRef, widgetFor, type Defs, type IRNode } from "../ir";
+import { emptyEntry, engaged, narrowing, stageOf, step, suggestions, type EntryInput } from "../selectorEntry";
 import * as _ from "lodash";
 
 // The variable picker.
@@ -49,6 +52,10 @@ type SelectorFieldProps = {
   open?: boolean;
   /** Narrows `all`, the nodes `through` accepts, to those a chain may pass through next after `row`. */
   chainFor?: (row: SelectorRow, all: string[]) => string[];
+  /** The products the step `token` may still be narrowed to, after `row` — the selection before it. */
+  productsFor?: (token: string, row: SelectorRow) => string[];
+  /** The products node `id` writes by name — what a `nodes` selection of it may keep. */
+  productsOf?: (id: string) => string[];
   value: unknown;
 } & (
   | { single?: false; onChange: (items: SelectorItem[]) => void }
@@ -97,12 +104,16 @@ export function SelectorField(props: SelectorFieldProps) {
   /** The tabs drawn: a kind with nothing to offer has no tab. `kinds()` stays the model's. */
   const tabKinds = createMemo(() => kinds().filter((kind) => optionsOf(kind).length > 0));
 
-  /** The nodes a chain may be built from — the vocabulary `through` itself accepts. */
+  /** The nodes a chain may be built from — the vocabulary a bare `through` step accepts. */
   const chainOptions = () => {
     const w = widget();
     if (w.kind !== "selector") return [] as string[];
-    const through = widgetFor(w.through, props.defs);
-    return through.kind === "multiselect" ? through.options.map(String) : [];
+    const array = resolveRef(w.through, props.defs);
+    const items = resolveRef((array.items ?? {}) as IRNode, props.defs);
+    // A step is a node id or `{node, products}`; the ids are the enum of the option that has one.
+    const options = items.type === "either" && Array.isArray(items.options) ? (items.options as IRNode[]) : [items];
+    const ids = options.map((option) => resolveRef(option, props.defs)).find((option) => Array.isArray(option.enum));
+    return ids === undefined ? [] : (ids.enum as unknown[]).map(String);
   };
 
   // One item is read as a one-item list; the boundary is `write`, which hands one back.
@@ -111,8 +122,10 @@ export function SelectorField(props: SelectorFieldProps) {
       ? props.value === undefined || props.value === null ? [] : [props.value as SelectorItem]
       : asItems(props.value);
   const rows = createMemo(() => expand(items(), kinds()));
+  /** The rows a panel value holds. A node's row holds it narrowed too: `fit|logvar` is a case of `fit`. */
+  const baseOf = (kind: string, value: string) => (kind === "nodes" ? parseStep(value).node : value);
   const casesFor = (kind: string, value: string) =>
-    rows().filter((r) => r.kind === kind && r.value === value).map((r) => r.chain);
+    rows().filter((r) => r.kind === kind && baseOf(kind, r.value) === baseOf(kind, value));
 
   const write = (next: SelectorRow[]) => {
     if (props.single === true) {
@@ -144,10 +157,11 @@ export function SelectorField(props: SelectorFieldProps) {
   const [picked, setPicked] = createSignal<string | null>(null);
   // One chain under construction at a time, keyed by the row: building a chain is a focused
   // activity, and two half-built chains on screen is a state nobody meant to be in.
-  const [composing, setComposing] = createSignal<{ key: string; chain: string[] } | null>(null);
+  // `products` narrows the node itself, for a `nodes` value: `select…` and `through…` open one builder.
+  const [composing, setComposing] = createSignal<{ key: string; chain: string[]; products: string[] } | null>(null);
   const chainBeingBuilt = (key: string) => {
     const c = composing();
-    return c !== null && c.key === key ? c.chain : null;
+    return c !== null && c.key === key ? c : null;
   };
   // Native drag is not keyboard reachable, which is why the chips carry arrow buttons as well.
   const [dragging, setDragging] = createSignal<number | null>(null);
@@ -160,12 +174,25 @@ export function SelectorField(props: SelectorFieldProps) {
     const narrow = props.chainFor;
     return narrow === undefined ? chainOptions() : narrow(row, chainOptions());
   };
+  /** The products `token` may still be narrowed to after `row`: the host's say, else none. */
+  const productsFor = (token: string, row: SelectorRow) => props.productsFor?.(token, row) ?? [];
+  /** What a `nodes` selection of `token` may still keep: nothing to choose below two products. */
+  const productsLeft = (token: string) => {
+    const { node, products } = parseStep(token);
+    const all = props.productsOf?.(node) ?? [];
+    return all.length < 2 ? [] : all.filter((p) => !products.includes(p));
+  };
   const vocabulary = createMemo(() => {
     const e = entry();
+    const named = e.kind !== null && e.name !== null;
     return {
       kinds: tabKinds(),
       options: Object.fromEntries(tabKinds().map((kind) => [kind, optionsOf(kind)])),
-      chain: e.kind !== null && e.name !== null ? chainFor({ kind: e.kind, value: e.name, chain: e.chain }) : chainOptions(),
+      chain: named ? chainFor({ kind: e.kind!, value: e.name!, chain: e.chain }) : chainOptions(),
+      narrow: !named ? []
+        : e.chain.length > 0
+          ? productsFor(e.chain[e.chain.length - 1], { kind: e.kind!, value: e.name!, chain: e.chain.slice(0, -1) })
+          : e.kind === "nodes" ? productsLeft(e.name!) : [],
     };
   });
   const listId = _.uniqueId("selector-list-");
@@ -186,7 +213,7 @@ export function SelectorField(props: SelectorFieldProps) {
     const result = step(entry(), input, vocabulary(), props.single === true);
     setEntry(result.state);
     const row = result.emit;
-    if (row !== undefined && !casesFor(row.kind, row.value).some((c) => chainKey(c) === chainKey(row.chain)))
+    if (row !== undefined && !casesFor(row.kind, row.value).some((c) => c.value === row.value && chainKey(c.chain) === chainKey(row.chain)))
       write([...rows(), row]);
     return result;
   };
@@ -281,7 +308,26 @@ export function SelectorField(props: SelectorFieldProps) {
       : optionsOf(openKind());
   };
 
-  /** The matches for the part being typed; each carries the panel's two words for the mouse. */
+  /** The list holds products of the node just taken, not names or nodes. */
+  const choosing = () => narrowing(entry());
+  /** A name or a step on offer that writes several products, so it can be narrowed. */
+  const selectable = (value: string) => {
+    const e = entry();
+    if (choosing()) return false;
+    if (stageOf(e) === "name") return e.kind === "nodes" && productsLeft(value).length > 0;
+    if (stageOf(e) === "chain") return productsFor(value, { kind: e.kind!, value: e.name!, chain: e.chain }).length > 0;
+    return false;
+  };
+  /** The last node taken has products to choose from and none is chosen: it takes them all. */
+  const allProducts = () => {
+    const e = entry();
+    const last = e.chain.length > 0 ? e.chain[e.chain.length - 1] : e.name ?? "";
+    return parseStep(last).products.length === 0 && vocabulary().narrow.length >= 2;
+  };
+  const pickClass =
+    "inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary disabled:opacity-40";
+
+  /** The matches for the part being typed; each carries the panel's words for the mouse. */
   const SuggestionList = () => (
     <ul
       id={listId}
@@ -297,9 +343,11 @@ export function SelectorField(props: SelectorFieldProps) {
         ? "flex flex-col p-1"
         : "absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-sm border border-border bg-card p-1 shadow-sm"}
     >
-      {/* A chain with a step can be finished by mouse here; by keyboard it is ENTER. */}
-      <Show when={stageOf(entry()) === "chain" && entry().chain.length > 0}>
-        <li role="option" aria-selected="false" class="px-1.5 py-0.5">
+      {/* What is taken can be finished by mouse here — by keyboard it is ENTER — once there is a
+          step or a node to narrow. It names the selection, so it does not read as "add the node".
+          Its products, if it has some, are the list's second part below. */}
+      <Show when={stageOf(entry()) === "chain" && (entry().chain.length > 0 || entry().kind === "nodes")}>
+        <li role="option" aria-selected="false" class="flex items-center gap-2 px-1.5 py-0.5">
           <button
             type="button"
             tabindex={-1}
@@ -307,20 +355,44 @@ export function SelectorField(props: SelectorFieldProps) {
             onClick={() => apply({ type: "enter" })}
             class="inline-flex h-5 items-center rounded-sm bg-accent px-2.5 text-control-xs font-semibold text-accent-foreground"
           >
-            add {entry().chain.map((node) => `@${node}`).join("")}
+            add {[entry().name, ...entry().chain].join(" → ")}
+            {allProducts() ? " · all products" : ""}
           </button>
         </li>
       </Show>
       <For each={suggestions(entry(), vocabulary())} fallback={
-        <li class="p-1 text-control-xs text-muted-foreground italic">nothing matches</li>
+        <li class="p-1 text-control-xs text-muted-foreground italic">
+          {stageOf(entry()) === "chain" && !narrowing(entry()) && entry().text === ""
+            ? "no node can take this further"
+            : "nothing matches"}
+        </li>
       }>
         {(value, i) => {
           const stage = () => stageOf(entry());
+          // The two ways on after a node is taken, under their headings once there are both kinds:
+          // the next nodes, then that node's products, marked `|` in the list's own values.
+          const product = value.startsWith(STEP_SEPARATOR);
+          const listed = () => suggestions(entry(), vocabulary());
+          const twoParts = () => listed().some((v) => v.startsWith(STEP_SEPARATOR));
+          const heading = () => {
+            if (!twoParts()) return null;
+            const firstProduct = listed().findIndex((v) => v.startsWith(STEP_SEPARATOR));
+            if (i() === firstProduct) return "products";
+            return i() === 0 ? "nodes" : null;
+          };
           // A click on the row is the plain choice: the kind, the name as direct, or the next
           // step of a chain. Only `through…` needs a button of its own.
           const pick = () =>
             apply({ type: "pick", value, how: stage() === "name" ? "direct" : "continue" });
           return (
+            <>
+            <Show when={heading()}>
+              {(title) => (
+                <li data-list-heading role="presentation" class="px-1.5 pt-1 font-sans text-detail tracking-wider text-muted-foreground uppercase">
+                  {title()}
+                </li>
+              )}
+            </Show>
             <li
               data-suggestion={value}
               data-highlighted={highlightedId(i())}
@@ -333,8 +405,24 @@ export function SelectorField(props: SelectorFieldProps) {
                 { "bg-accent/60": highlightedId(i()) === true },
               ]}
             >
-              <span class="min-w-0 grow truncate">{stage() === "kind" ? `${value}:` : value}</span>
-              <Show when={stage() === "name"}>
+              <span class="min-w-0 grow truncate">{stage() === "kind" ? `${value}:` : product ? value.slice(1) : value}</span>
+              {/* `select…` is `|` and `through…` is `@`: a node with several products may be
+                  narrowed wherever it is offered, and a product may be passed on. */}
+              <Show when={selectable(value)}>
+                <button
+                  type="button"
+                  tabindex={-1}
+                  data-pick="select"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    apply({ type: "pick", value, how: "select" });
+                  }}
+                  class={pickClass}
+                >
+                  select…
+                </button>
+              </Show>
+              <Show when={stage() === "name" || choosing() || product}>
                 <button
                   type="button"
                   tabindex={-1}
@@ -344,12 +432,13 @@ export function SelectorField(props: SelectorFieldProps) {
                     event.stopPropagation();
                     apply({ type: "pick", value, how: "through" });
                   }}
-                  class="inline-flex h-5 items-center rounded-full border border-border bg-card px-2 font-sans hover:border-primary hover:text-primary disabled:opacity-40"
+                  class={pickClass}
                 >
                   through…
                 </button>
               </Show>
             </li>
+            </>
           );
         }}
       </For>
@@ -586,7 +675,8 @@ export function SelectorField(props: SelectorFieldProps) {
               {(value, at) => {
                 const kind = () => openKind();
                 const cases = () => casesFor(kind(), value);
-                const hasDirect = () => cases().some((c) => c.length === 0);
+                const hasDirect = () => cases().some((c) => c.value === value && c.chain.length === 0);
+                const canSelect = () => kind() === "nodes" && productsLeft(value).length > 0;
                 const canThrough = () => chainFor({ kind: kind(), value, chain: [] }).length > 0;
                 const key = () => `${kind()}:${value}`;
 
@@ -618,35 +708,50 @@ export function SelectorField(props: SelectorFieldProps) {
                     </button>
 
                     <For each={cases()}>
-                      {(chain) => (
+                      {({ value: token, chain }) => {
+                        const kept = parseStep(token).products;
+                        const narrowed = kept.length > 0 ? `|${kept.join("|")}` : "";
+                        const label = chain.length === 0 ? narrowed || "direct" : `${narrowed}${narrowed ? " " : ""}${arrowText(chain)}`;
+                        return (
                         <span
-                          data-case={chain.length === 0 ? "direct" : chain.join("→")}
+                          data-case={chain.length === 0 ? narrowed || "direct" : `${narrowed}${chain.join("→")}`}
                           class="inline-flex h-5 items-center gap-1.5 rounded-full border border-primary/35 bg-primary/10 pr-0.5 pl-2 font-mono text-control-xs"
                         >
                           {/* Arrows where the chain is read, since they say what a chain *is*;
                               `@` is the typed form, and the chips keep it. */}
-                          <span class="text-accent-foreground">
-                            {chain.length === 0 ? "direct" : arrowText(chain)}
-                          </span>
+                          <span class="text-accent-foreground">{label}</span>
                           <button
                             type="button"
-                            aria-label={`remove ${chain.length === 0 ? "direct" : chain.join("→")} for ${value}`}
-                            onClick={() => removeCase(kind(), value, chain)}
+                            aria-label={`remove ${chain.length === 0 ? narrowed || "direct" : chain.join("→")} for ${value}`}
+                            onClick={() => removeCase(kind(), token, chain)}
                             class="grid h-4 w-4 place-items-center rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
                           >
                             ×
                           </button>
                         </span>
-                      )}
+                        );
+                      }}
                     </For>
+
+                    {/* `select…` is `|`: keep only some of what the node writes. */}
+                    <Show when={canSelect()}>
+                      <button
+                        type="button"
+                        data-select
+                        onClick={() => setComposing(chainBeingBuilt(key()) === null ? { key: key(), chain: [], products: [] } : null)}
+                        class="ml-auto inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary"
+                      >
+                        select…
+                      </button>
+                    </Show>
 
                     <button
                       type="button"
                       data-through
                       disabled={!canThrough()}
                       title={canThrough() ? undefined : "no node can take this value further"}
-                      onClick={() => setComposing(chainBeingBuilt(key()) === null ? { key: key(), chain: [] } : null)}
-                      class="ml-auto inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-inherit"
+                      onClick={() => setComposing(chainBeingBuilt(key()) === null ? { key: key(), chain: [], products: [] } : null)}
+                      class={[canSelect() ? "" : "ml-auto", "inline-flex h-5 items-center rounded-full border border-border bg-card px-2 text-control-xs hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-inherit"]}
                     >
                       through…
                     </button>
@@ -655,34 +760,112 @@ export function SelectorField(props: SelectorFieldProps) {
                     {/* The nodes on offer, each on or off, read in click order. The chain is what
                         the author sees before committing it, rather than after. */}
                     <Show when={chainBeingBuilt(key())} keyed>
-                      {(chain: string[]) => {
-                        const taken = () => cases().some((c) => chainKey(c) === chainKey(chain));
+                      {(draft: { chain: string[]; products: string[] }) => {
+                        const chain = draft.chain;
+                        // The node's own products kept, for a `nodes` value: the chain starts from them.
+                        const head = draft.products;
+                        const from = (products: string[]) => (kind() === "nodes" ? formatStep(value, products) : value);
+                        const start = from(head);
+                        const headProducts = () => (kind() === "nodes" ? productsLeft(value) : []);
+                        const taken = () => cases().some((c) => c.value === start && chainKey(c.chain) === chainKey(chain));
+                        // Any step can be taken out and the rest kept — but a step carries what
+                        // the one before it produced, so removing one can leave a later step with
+                        // nothing it accepts. Keep the longest run the host still allows and drop
+                        // the remainder, so the draft is never a chain that cannot resolve.
+                        const nodeOf = (step: string) => parseStep(step).node;
+                        const taking = (node: string) => chain.some((step) => nodeOf(step) === node);
+                        /** Every product the step at `at` could keep, given what precedes it. */
+                        const productsAt = (steps: string[], at: number) =>
+                          productsFor(nodeOf(steps[at]), { kind: kind(), value: start, chain: steps.slice(0, at) });
+                        const prune = (steps: string[], origin = start) => {
+                          const kept: string[] = [];
+                          for (const [at, step] of steps.entries()) {
+                            if (!chainFor({ kind: kind(), value: origin, chain: kept }).includes(nodeOf(step))) break;
+                            const named = parseStep(step).products;
+                            const able = productsFor(nodeOf(step), { kind: kind(), value: origin, chain: steps.slice(0, at) });
+                            if (named.length > 0 && !named.every((p) => able.includes(p))) break;
+                            kept.push(step);
+                          }
+                          return kept;
+                        };
                         const toggle = (node: string) =>
                           setComposing({
                             key: key(),
-                            chain: chain.includes(node) ? chain.filter((n) => n !== node) : [...chain, node],
+                            products: head,
+                            chain: prune(
+                              taking(node) ? chain.filter((step) => nodeOf(step) !== node) : [...chain, node]
+                            ),
                           });
+                        // A product switched on is kept alone with the others switched on, in the
+                        // order they were; none on is the bare step, which keeps them all.
+                        const toggleProduct = (at: number, product: string) => {
+                          const { node, products } = parseStep(chain[at]);
+                          const next = products.includes(product) ? products.filter((p) => p !== product) : [...products, product];
+                          setComposing({
+                            key: key(),
+                            products: head,
+                            chain: prune(chain.map((step, i) => (i === at ? formatStep(node, next) : step))),
+                          });
+                        };
+                        // The node's own products, as a step's are: none on keeps them all. What
+                        // the chain was carrying changes with them, so it is pruned again.
+                        const toggleHead = (product: string) => {
+                          const next = head.includes(product) ? head.filter((p) => p !== product) : [...head, product];
+                          setComposing({ key: key(), products: next, chain: prune(chain, from(next)) });
+                        };
+                        // A chain is a sequence, so what may come next depends on what is already
+                        // in it — the same narrowing the typed box does. Steps already taken stay
+                        // on offer so they can be taken out again, and the vocabulary's order is
+                        // kept so the pills do not move around as they are picked.
+                        const offered = () => {
+                          const next = chainFor({ kind: kind(), value: start, chain });
+                          return chainOptions().filter((n) => taking(n) || next.includes(n));
+                        };
                         return (
                           <div
                             data-chain-builder
                             class="ml-3 flex flex-col gap-1.5 rounded-sm border border-dashed border-primary/45 bg-primary/5 px-2 py-1.5"
                           >
-                            {/* One row per thing: what to do, the nodes, the chain, the actions. */}
+                            {/* One row per thing: the node's own products, what to do, the nodes, the
+                                chain, the actions. */}
+                            <Show when={headProducts().length > 0}>
+                              <div data-products={value} data-head class="flex flex-wrap items-center gap-1.5">
+                                <span class="text-control-xs text-muted-foreground">{value} — keep only</span>
+                                <For each={props.productsOf?.(value) ?? []}>
+                                  {(product) => (
+                                    <button
+                                      type="button"
+                                      data-product={product}
+                                      aria-pressed={head.includes(product) ? "true" : "false"}
+                                      onClick={() => toggleHead(product)}
+                                      class={[
+                                        "inline-flex h-5 items-center rounded-full border px-2 font-mono text-control-xs hover:border-primary hover:text-primary",
+                                        head.includes(product)
+                                          ? "border-primary bg-primary/15 font-medium text-primary"
+                                          : "border-border bg-card",
+                                      ]}
+                                    >
+                                      {product}
+                                    </button>
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
                             <span class="text-detail tracking-wider text-muted-foreground uppercase">
                               pick nodes — order matters
                             </span>
 
                             <div class="flex flex-wrap items-center gap-1.5">
-                              <For each={chainFor({ kind: kind(), value, chain: [] })}>
+                              <For each={offered()}>
                                 {(node) => (
                                   <button
                                     type="button"
                                     data-node={node}
-                                    aria-pressed={chain.includes(node) ? "true" : "false"}
+                                    aria-pressed={taking(node) ? "true" : "false"}
                                     onClick={() => toggle(node)}
                                     class={[
                                       "inline-flex h-5 items-center rounded-full border px-2 font-mono text-control-xs hover:border-primary hover:text-primary",
-                                      chain.includes(node)
+                                      taking(node)
                                         ? "border-primary bg-primary/15 font-medium text-primary"
                                         : "border-border bg-card",
                                     ]}
@@ -693,22 +876,56 @@ export function SelectorField(props: SelectorFieldProps) {
                               </For>
                             </div>
 
+                            {/* A step through a node with several products may keep only some. */}
+                            <For each={chain}>
+                              {(step, at) => (
+                                <Show when={productsAt(chain, at()).length > 0}>
+                                  <div data-products={nodeOf(step)} class="flex flex-wrap items-center gap-1.5">
+                                    <span class="text-control-xs text-muted-foreground">
+                                      from {nodeOf(step)} keep only
+                                    </span>
+                                    <For each={productsAt(chain, at())}>
+                                      {(product) => {
+                                        const on = () => parseStep(step).products.includes(product);
+                                        return (
+                                          <button
+                                            type="button"
+                                            data-product={product}
+                                            aria-pressed={on() ? "true" : "false"}
+                                            onClick={() => toggleProduct(at(), product)}
+                                            class={[
+                                              "inline-flex h-5 items-center rounded-full border px-2 font-mono text-control-xs hover:border-primary hover:text-primary",
+                                              on()
+                                                ? "border-primary bg-primary/15 font-medium text-primary"
+                                                : "border-border bg-card",
+                                            ]}
+                                          >
+                                            {product}
+                                          </button>
+                                        );
+                                      }}
+                                    </For>
+                                  </div>
+                                </Show>
+                              )}
+                            </For>
+
                             {/* The chain as it stands, once there is one to read. */}
-                            <Show when={chain.length > 0}>
+                            <Show when={chain.length > 0 || head.length > 0}>
                               <div data-chain-preview class="font-mono text-control-xs font-medium text-primary">
-                                {arrowText(chain)}
+                                {[head.length > 0 ? start : "", arrowText(chain)].filter((part) => part !== "").join(" ")}
                               </div>
                             </Show>
 
                             <div class="flex flex-wrap items-center gap-1.5">
                               {/* Nothing to add before a node is on; leaving is always offered. */}
-                              <Show when={chain.length > 0}>
+                              <Show when={chain.length > 0 || head.length > 0}>
                                 <button
                                   type="button"
                                   data-chain="commit"
                                   disabled={taken()}
                                   onClick={() => {
-                                    addCase(kind(), value, chain);
+                                    addCase(kind(), start, chain);
                                     setComposing(null);
                                   }}
                                   class={buttonClass("default", "sm", taken())}

@@ -1,19 +1,21 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
-import { HelpTip, HelpButton, setHelpOpen } from './SelectorHelp';
+import { HelpTip, HelpButton, HelpPanel, setHelpOpen } from './SelectorHelp';
 
 afterEach(cleanup);
 beforeEach(() => setHelpOpen(false));
 
-const note = (c: HTMLElement) => c.querySelector('[role=note]');
+// `HelpTip` renders its note in place; `HelpButton` portals its own to the document, so both are
+// found by asking the document. Only one is ever open at a time.
+const note = (_c?: HTMLElement) => document.querySelector('[role=note]');
 /** jsdom has no layout: this is how far down the viewport the ⓘ sits. */
 const sitAt = (c: HTMLElement, selector: string, top: number) => {
   const anchor = c.querySelector(selector)!;
   anchor.getBoundingClientRect = () => ({ top, bottom: top + 20, height: 20, left: 0, right: 20, width: 20 } as DOMRect);
 };
 /** jsdom's window is 768 tall, so `top` decides which side has the room. */
-const height = (c: HTMLElement) => (note(c) as HTMLElement).style.maxHeight;
+const height = (c?: HTMLElement) => (note(c) as HTMLElement).style.maxHeight;
 
 describe('HelpTip, the pointer’s path', () => {
   it('is not a tab stop and carries no action: hover is all it does', () => {
@@ -36,6 +38,16 @@ describe('HelpTip, the pointer’s path', () => {
     expect(note(container)).toBeNull();
   });
 
+  // It sits above every other floating thing: the suggestion list is `z-30` and comes later in the
+  // document, so at an equal layer it covered these keys exactly when they were being read.
+  it('is drawn above the suggestion list, not under it', async () => {
+    const { container } = render(() => <HelpTip />);
+    sitAt(container, '[data-help-tip]', 600);
+    fireEvent.mouseEnter(container.querySelector('[data-help-tip]')!); await flush();
+    const layer = Number(note(container)!.className.match(/\bz-(\d+)\b/)?.[1]);
+    expect(layer).toBeGreaterThan(30);
+  });
+
   it('drops below the mark when there is no room above it', async () => {
     // Near the top of the page the panel was cut off at the window's edge and unreadable.
     const { container } = render(() => <HelpTip />);
@@ -54,7 +66,7 @@ describe('HelpTip, the pointer’s path', () => {
 
 describe('HelpButton, the keyboard’s path', () => {
   it('is one reachable button that toggles the same keys, and says F1 opens them', async () => {
-    const { container } = render(() => <HelpButton />);
+    const { container } = render(() => (<><HelpButton /><HelpPanel /></>));
     const button = container.querySelector('[data-help]') as HTMLButtonElement;
     expect(button.tabIndex).not.toBe(-1);
     expect(button.getAttribute('aria-label')).toMatch(/how to type/i);
@@ -62,25 +74,25 @@ describe('HelpButton, the keyboard’s path', () => {
     sitAt(container, '[data-help]', 600);
     fireEvent.click(button); await flush();
     expect(note(container)!.textContent).toContain('F1');
-    // The button is at the right end of its row, so the panel hangs from that edge.
-    expect(note(container)!.className).toContain('right-0');
-    expect(note(container)!.className).toContain('bottom-full');
+    // Portalled, so the side it hangs from is a viewport coordinate rather than a class.
+    expect((note(container) as HTMLElement).style.position).toBe('fixed');
+    expect((note(container) as HTMLElement).style.bottom).not.toBe('');
     fireEvent.click(button); await flush();
     expect(note(container)).toBeNull();
   });
 
   it('opens from anywhere through the shared signal, dropping below when the top is tight', async () => {
-    const { container } = render(() => <HelpButton />);
+    const { container } = render(() => (<><HelpButton /><HelpPanel /></>));
     sitAt(container, '[data-help]', 30);
     setHelpOpen(true); await flush();
-    expect(note(container)!.className).toContain('top-full');
+    expect((note(container) as HTMLElement).style.top).not.toBe('');
     expect(height(container)).toBe('710px');                      // 768 - (30 + 20) - 8
     fireEvent.keyDown(container.querySelector('[data-help]')!, { key: 'Escape' }); await flush();
     expect(note(container)).toBeNull();
   });
 
   it('goes away on a click anywhere else, so an accidental F1 is undone by carrying on', async () => {
-    const { container } = render(() => <HelpButton />);
+    const { container } = render(() => (<><HelpButton /><HelpPanel /></>));
     setHelpOpen(true); await flush();
     fireEvent.mouseDown(container.querySelector('[role=note]')!); await flush();
     expect(note(container)).not.toBeNull();                 // a click inside it is not "elsewhere"
@@ -89,7 +101,7 @@ describe('HelpButton, the keyboard’s path', () => {
   });
 
   it('never grows past the view, and is not a tab stop of its own', async () => {
-    const { container } = render(() => <HelpButton />);
+    const { container } = render(() => (<><HelpButton /><HelpPanel /></>));
     sitAt(container, '[data-help]', 600);
     setHelpOpen(true); await flush();
     expect(note(container)!.className).toMatch(/overflow-y-auto/);
@@ -99,7 +111,7 @@ describe('HelpButton, the keyboard’s path', () => {
   });
 
   it('gives each key its own line, so the long ones are not folded into a column', async () => {
-    const { container } = render(() => <HelpButton />);
+    const { container } = render(() => (<><HelpButton /><HelpPanel /></>));
     setHelpOpen(true); await flush();
     for (const term of container.querySelectorAll('dt')) {
       expect(term.className).toContain('whitespace-nowrap');

@@ -23,10 +23,15 @@ public card_ir, ir_definitions, card_schema
 
 public register_wild_card, WildCardSettings
 
-public SourceVariables, OutputVariables, get_node_inputs, get_node_outputs
+public SourceVariables, get_node_inputs, get_node_outputs
 
-public get_source_vars, get_output_vars, unproduced_references, get_id, issue_report,
-    card_issues
+public get_source_vars, get_output_vars, unproduced_references, get_id, issue_report, card_issues
+# Public for other package users FIXME: resolve without public in other DashiBase modules
+public ThroughError, ProductError, through_options, OutputGroup,
+    output_spec, OutputSpec, VariableTransformSpec,
+    named_products, narrowed_outputs, product_outputs,
+    model_issue,
+    products, selected_products, product_groups, select_IR, resolved_lists
 
 public train!, evaljoin, train_evaljoin!
 
@@ -46,7 +51,7 @@ using JSONSchema: JSONSchema
 
 using DashiBase: DashiBase, DashiStyle, json_schema, construct, enum_instances, to_config,
     AbstractMethod, @options, lift_simple_method, lower_simple_method, get_metadata,
-    Property, TaggedObjectIR, ObjectIR, OneOrManyIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
+    Property, TaggedObjectIR, ObjectIR, OneOrManyIR, EitherIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
     VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,
     StringDict, SymbolDict, Maybe
 
@@ -185,6 +190,7 @@ include("cards/streamliner.jl")
 include("cards/wild.jl")
 
 include("node.jl")
+include("products.jl")
 include("dag.jl")
 include("pipeline.jl")
 

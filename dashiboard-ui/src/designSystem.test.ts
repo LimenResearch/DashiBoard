@@ -154,6 +154,19 @@ describe('the control scale', () => {
   });
 });
 
+describe('layering', () => {
+  // The sticky action row is z-10, so anything that opens over it has to be above that. choices.js
+  // ships its dropdown at z-index 1 and offers no variable for it, so the override lives in CSS
+  // and is the kind of thing that silently regresses when the stylesheet is tidied.
+  it('floats the choices.js dropdown above the sticky action row', () => {
+    const css = read('src/App.css');
+    const rule = css.match(/\.choices \.choices__list--dropdown[\s\S]*?\{([\s\S]*?)\}/);
+    expect(rule, 'no .choices dropdown rule in App.css').not.toBeNull();
+    const z = Number(rule![1].match(/z-index:\s*(\d+)/)?.[1]);
+    expect(z).toBeGreaterThan(10);
+  });
+});
+
 describe('the type scale', () => {
   it('never spells a text size as an arbitrary value', () => {
     // A size below Tailwind's scale can only be written as `text-[10px]`, and arbitrary values

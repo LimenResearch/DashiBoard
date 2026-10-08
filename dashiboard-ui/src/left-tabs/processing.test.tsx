@@ -5,7 +5,7 @@ import payload from '../fixtures/card-ir.json';
 import {
   importCards, addGroup, addNode, removeNode, setNodeId, setCardField, confirmDefinition, rejectFromIssues, exportCards,
   forgetAllVerdicts, PROBE_STORE, emptyProbe, recordVerdict, documentVerdict, setDroppedReferences,
-  PRESETS_STORE,
+  PRESETS_STORE, LOADER_STORE,
 } from '../stores';
 
 const postRequest = vi.fn();
@@ -291,6 +291,44 @@ describe('a card is amber until asked', () => {
     await waitFor(() => expect(container.querySelector('[data-issue-severity="warning"]')).not.toBeNull());
     expect(cardDot(container).getAttribute('data-state')).toBe('confirmed');
     expect(cardDot(container).className).toMatch(/bg-success/);
+  });
+
+  describe('a streamliner card without a partition', () => {
+    const streamliner = (extra: Record<string, unknown>) => ({
+      type: 'streamliner', model: 'dense', training: 'batched',
+      funnel: { order_by: [{ cols: 'id' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'PRES' }] },
+      suffix: 'hat', ...extra,
+    });
+    const note = (container: HTMLElement) => container.querySelector('[data-no-partition]');
+
+    it('says, once confirmed, that the UI cannot evaluate it and how to train it from a script', async () => {
+      importCards({ nodes: [{ id: 'fit', card: streamliner({}) }], groups: {} });
+      mock(CLEAN_PROBE, { valid: true, issues: [] });
+      const { container } = render(() => <Cards />);
+      await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+      // Nothing to say before Confirm.
+      expect(note(container)).toBeNull();
+      fireEvent.click(cardConfirm(container));
+      await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('confirmed'));
+      const shown = note(container)!;
+      expect(shown.className).toMatch(/border-warning/);
+      expect(shown.textContent).toMatch(/without a partition can't be evaluated in the UI/);
+      // Training from the script is not a way around it: no validation rows, no weights.
+      expect(shown.textContent).toMatch(/returns its statistics and saves no weights/);
+      // The script names this card, so it can be pasted with only the placeholders to fill.
+      expect(shown.querySelector('pre')!.textContent).toMatch(/n\.id == "fit"/);
+      expect(shown.querySelector('pre')!.textContent).toMatch(/Pipelines\.train!/);
+    });
+
+    it('says nothing when the card has a partition', async () => {
+      importCards({ nodes: [{ id: 'fit', card: streamliner({ partition: { cols: 'part' } }) }], groups: {} });
+      mock(CLEAN_PROBE, { valid: true, issues: [] });
+      const { container } = render(() => <Cards />);
+      await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
+      fireEvent.click(cardConfirm(container));
+      await waitFor(() => expect(cardDot(container).getAttribute('data-state')).toBe('confirmed'));
+      expect(note(container)).toBeNull();
+    });
   });
 
   it('binds the verdict to the card as it was checked, not as it is when the reply lands', async () => {
@@ -607,7 +645,7 @@ describe('loading a cards document asks', () => {
   // loading one is an act of asking: what the server rejects is red on the items, what the UI
   // can place itself (a taken name) is red on the later card, and what nobody can place is said
   // under the document row. Nothing is confirmed green: nobody looked at it. The document comes
-  // from the server's data directory (`read-document`), not from a file dialog.
+  // from the server's pipeline folder (`read-pipeline`), not from a file dialog.
   const dots = (c: HTMLElement) =>
     [...c.querySelectorAll('details')]
       .filter((d) => d.querySelector('[data-card-title]'))
@@ -621,7 +659,7 @@ describe('loading a cards document asks', () => {
                      return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
         : page === 'probe-pipeline' ? probe
         : page === 'validate-card' ? { valid: true, issues: [] }
-        : page === 'read-document' ? { valid: true, document: doc }
+        : page === 'read-pipeline' ? { valid: true, document: doc }
         : [],
       ),
     );
@@ -702,7 +740,7 @@ describe('loading a cards document that names what it does not have', () => {
                      const full = structuredClone(payload) as Record<string, unknown>;
                      return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
         : page === 'probe-pipeline' ? CLEAN_PROBE
-        : page === 'read-document' ? { valid: true, document: doc }
+        : page === 'read-pipeline' ? { valid: true, document: doc }
         : [],
       ),
     );
@@ -866,7 +904,10 @@ describe('the Add card menu', () => {
 describe('a chain while the document does not build', () => {
   it('is still narrowed by what the server last said about the other cards', async () => {
     const rescale = { type: 'rescale', method: { type: 'zscore' }, inputs: [{ cols: 'TEMP' }] };
-    const described = { id: 'r', inputs: ['TEMP'], outputs: ['TEMP_rescaled'], unproduced: [] };
+    const described = {
+      id: 'r', inputs: ['TEMP'], outputs: ['TEMP_rescaled'], unproduced: [],
+      through: [{ product: null, cols: ['TEMP'], suffix: 'rescaled', number: null }],
+    };
     let valid = true;
     postRequest.mockImplementation((page: string, body: { nodes?: string[]; include?: string[] }) => {
       if (page === 'get-card-ir') {
@@ -945,4 +986,165 @@ describe('presets for new cards', () => {
     expect('partition' in exportCards().nodes[0].card).toBe(false);
   });
 
+});
+
+// The form does not resolve a list itself: the rows of a transform map are the columns the
+// server said the list came to, and what the loaded table says of each.
+describe('a transform row per column the server resolved', () => {
+  it('reads the list from the probe and the column\'s kind from the table', async () => {
+    const fit = {
+      type: 'streamliner', model: { type: 'dense', features: 2 }, training: { type: 'batched', iterations: 1 },
+      funnel: { order_by: [{ cols: 'No' }], inputs: [{ groups: 'g' }], targets: [{ cols: 'TEMP' }] },
+    };
+    const described = {
+      id: 'fit', inputs: [], outputs: [], unproduced: [], through: [],
+      lists: { inputs: ['PRES', 'cbwd'], targets: ['TEMP'] },
+    };
+    postRequest.mockImplementation((page: string, body: { include?: string[] }) => {
+      if (page === 'get-card-ir') {
+        const full = structuredClone(payload) as Record<string, unknown>;
+        return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, full[k]])));
+      }
+      if (page === 'probe-pipeline') return Promise.resolve({ ...CLEAN_PROBE, nodes: [described] });
+      return Promise.resolve([]);
+    });
+    LOADER_STORE[1](reconcile([{ name: 'cbwd', type: 'categorical', eltype: 'string', summary: ['NE'] }]));
+    importCards({ nodes: [{ id: 'fit', card: fit }], groups: { g: [{ cols: ['PRES', 'cbwd'] }] } });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(PROBE_STORE[0].nodes.length).toBe(1));
+    const rows = () => [...container.querySelectorAll('#node-0-streamliner-funnel-funnel-input_transforms [data-row]')];
+    await waitFor(() => expect(rows().map((r) => r.getAttribute('data-row'))).toEqual(['PRES', 'cbwd']));
+    expect(rows()[0].querySelector('select')).not.toBeNull();
+    expect(rows()[1].querySelector('select')).toBeNull();        // categorical: nothing to choose
+    LOADER_STORE[1](reconcile([]));
+  });
+});
+
+// A document the server refuses is not described, so what the form shows then cannot come from
+// an earlier answer: the rows are what is written, and the refusal says which entry is stale.
+describe('transform rows while the document does not build', () => {
+  const fit = (funnel: Record<string, unknown>) => ({
+    type: 'streamliner', model: { type: 'dense', features: 2 }, training: { type: 'batched', iterations: 1 },
+    funnel: { order_by: [{ cols: 'No' }], targets: [{ cols: 'TEMP' }], ...funnel },
+  });
+  const serve = (probe: () => unknown) =>
+    postRequest.mockImplementation((page: string, body: { include?: string[] }) => {
+      if (page === 'get-card-ir') {
+        const full = structuredClone(payload) as Record<string, unknown>;
+        return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, full[k]])));
+      }
+      return Promise.resolve(page === 'probe-pipeline' ? probe() : []);
+    });
+  const rows = (c: HTMLElement) => [...c.querySelectorAll('#node-0-streamliner-funnel-funnel-input_transforms [data-row]')];
+
+  it('marks the entry the server refused, and removes it', async () => {
+    const refusal = {
+      valid: false, cols: [], nodes: [], errors: ['x'],
+      issues: [{ pointer: '/nodes/0/card/funnel/input_transforms/TEMP_z', reason: 'transforms', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'no' }],
+    };
+    serve(() => refusal);
+    importCards({ nodes: [{ id: 'fit', card: fit({ inputs: [{ cols: 'PRES' }], input_transforms: { TEMP_z: 'log' } }) }], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(PROBE_STORE[0].issues.length).toBe(1));
+    await waitFor(() => expect(rows(container).map((r) => r.getAttribute('data-row'))).toEqual(['PRES', 'TEMP_z']));
+    const stale = rows(container)[1];
+    expect(stale.hasAttribute('data-stale')).toBe(true);
+    fireEvent.click(stale.querySelector('button')!); await flush();
+    expect('input_transforms' in (exportCards().nodes[0].card.funnel as object)).toBe(false);
+  });
+
+  it('does not keep the rows of an answer about an earlier document', async () => {
+    let valid = true;
+    const described = { id: 'fit', inputs: [], outputs: [], unproduced: [], through: [], lists: { inputs: ['A1', 'A2'], targets: ['TEMP'] } };
+    serve(() => (valid ? { ...CLEAN_PROBE, nodes: [described] } : { valid: false, cols: [], nodes: [], errors: ['x'], issues: [] }));
+    importCards({ nodes: [{ id: 'fit', card: fit({ inputs: [{ groups: 'g' }, { cols: 'PRES' }] }) }], groups: { g: [] } });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(rows(container).map((r) => r.getAttribute('data-row'))).toEqual(['A1', 'A2', 'PRES']));
+    valid = false;
+    addNode({ type: 'rescale' }, 'half');                       // the document no longer builds
+    await waitFor(() => expect(PROBE_STORE[0].valid).toBe(false));
+    await waitFor(() => expect(rows(container).map((r) => r.getAttribute('data-row'))).toEqual(['PRES']));
+  });
+});
+
+// The whole point of describing the funnel: a streamliner card can be filled in by hand, and
+// what the form writes is the document the server reads.
+describe('a streamliner card built from an empty form', () => {
+  it('writes the model, the training and the funnel\'s columns', async () => {
+    importCards({ nodes: [], groups: {} });
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.querySelector('[data-presets]')).not.toBeNull());
+    fireEvent.click([...container.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Add card')!);
+    await flush();
+    fireEvent.click(container.querySelector('[data-card-type="streamliner"]')!); await flush();
+
+    const choose = async (id: string, value: string) => {
+      const control = container.querySelector(`#${id}`) as HTMLSelectElement;
+      control.value = value; fireEvent.change(control); await flush();
+    };
+    const fill = async (id: string, value: string) => {
+      const control = container.querySelector(`#${id}`) as HTMLInputElement;
+      control.value = value; fireEvent.change(control); await flush();
+    };
+    /** Type a column into the selector labelled `label`, the way an author would. */
+    const column = async (label: string, name: string) => {
+      const box = container.querySelector(`[aria-label="${label}, type a selection"]`) as HTMLInputElement;
+      fireEvent.input(box, { target: { value: 'c' } }); await flush();
+      fireEvent.keyDown(box, { key: 'Tab' }); await flush();
+      fireEvent.input(box, { target: { value: name } }); await flush();
+      fireEvent.keyDown(box, { key: 'Enter' }); await flush();
+    };
+
+    await choose('node-0-streamliner-model-variant', 'dense');
+    await fill('node-0-streamliner-model-model-features', '5');
+    // One training configuration is not a question: it is taken, and named in the document.
+    expect(container.querySelector('#node-0-streamliner-training-variant')).toBeNull();
+    await fill('node-0-streamliner-training-training-iterations', '2');
+    // The funnel has one type, so there is nothing to choose before its fields.
+    expect(container.querySelector('#node-0-streamliner-funnel-variant')).toBeNull();
+    await column('order_by', 'No');
+    await column('inputs', 'TEMP');
+    await column('targets', 'Iws');
+
+    expect(exportCards().nodes[0].card).toEqual({
+      type: 'streamliner', suffix: 'hat',
+      model: { type: 'dense', features: 5 }, training: { type: 'batched', iterations: 2 },
+      funnel: { order_by: [{ cols: 'No' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'Iws' }] },
+    });
+    const card = container.querySelector('[data-selector]')!.closest('details')!.parentElement!;
+    expect(container.textContent).not.toMatch(/not described by the schema yet/);
+    expect(card).not.toBeNull();
+    // With a column named, its transform can be chosen, and it is written beside the list.
+    await choose('node-0-streamliner-funnel-funnel-input_transforms select', 'log');
+    expect((exportCards().nodes[0].card.funnel as Record<string, unknown>).input_transforms).toEqual({ TEMP: 'log' });
+  });
+});
+
+// The picker's refresh is for a configuration file added while the server runs: the names come
+// with the card descriptions, so those have to be asked for again, not served from the cache.
+describe('refreshing the configurations', () => {
+  it('asks for the card descriptions again, and for what the files hold', async () => {
+    const fit = {
+      type: 'streamliner', model: { type: 'dense', features: 2 }, training: { type: 'batched', iterations: 1 },
+      funnel: { order_by: [{ cols: 'No' }], inputs: [{ cols: 'TEMP' }], targets: [{ cols: 'Iws' }] },
+    };
+    postRequest.mockImplementation((page: string, body: { include?: string[] }) => {
+      if (page === 'get-card-ir') {
+        const full = structuredClone(payload) as Record<string, unknown>;
+        return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, full[k]])));
+      }
+      if (page === 'list-configurations') return Promise.resolve({ model: [{ name: 'dense', text: 'name = "basic"' }], training: [] });
+      return Promise.resolve(page === 'probe-pipeline' ? CLEAN_PROBE : []);
+    });
+    importCards({ nodes: [{ id: 'fit', card: fit }], groups: {} });
+    const { container } = render(() => <Cards />);
+    const asked = (page: string, withCards = false) => postRequest.mock.calls.filter((c) =>
+      c[0] === page && (!withCards || ((c[1] as { include?: string[] }).include ?? []).includes('cards'))).length;
+    await waitFor(() => expect(container.querySelector('button[aria-label="refresh the model list"]')).not.toBeNull());
+    expect(asked('get-card-ir', true)).toBe(1);
+    const before = asked('list-configurations');
+    fireEvent.click(container.querySelector('button[aria-label="refresh the model list"]')!);
+    await waitFor(() => expect(asked('get-card-ir', true)).toBe(2));
+    await waitFor(() => expect(asked('list-configurations')).toBeGreaterThan(before));
+  });
 });

@@ -1,34 +1,74 @@
-"""
-    data_directory() -> String
+# An absent directory is `pwd()`, which is `DataIngestion.acceptable_paths`'s own rule — so the
+# listing here and the loader there agree on where "here" is.
+absolute_or_here(dir::AbstractString) = tidy_path(abspath(isempty(dir) ? pwd() : dir))
 
-The directory every file route is confined to, absolute and normalised. `pwd()` when the server
-was launched without one, which is `DataIngestion.acceptable_paths`'s own rule — so the listing
-here and the loader there agree on where "here" is.
 """
-function data_directory()
-    dir = DataIngestion.DATA_DIR[]
-    return normpath(abspath(isempty(dir) ? pwd() : dir))
+    workspace_directory() -> String
+
+The directory every file route is confined to, absolute and normalised.
+"""
+workspace_directory() = absolute_or_here(WORKSPACE[])
+
+"""
+    pointer(kind::Symbol) -> String
+
+Where the files of one kind are: `:data`, `:pipeline`, `:filter`, `:model` or `:training`. The
+tables' and the configurations' directories are DataIngestion's and Pipelines' scoped values,
+so a card is resolved against the same folders the Load tab lists.
+"""
+function pointer(kind::Symbol)
+    # Pipelines' two have no default and read as unassigned until a server sets them.
+    unset(v) = isassigned(v) ? v[] : ""
+    dir = kind === :data ? DataIngestion.DATA_DIR[] :
+        kind === :pipeline ? PIPELINE_DIR[] :
+        kind === :filter ? FILTER_DIR[] :
+        kind === :model ? unset(Pipelines.MODEL_DIR) :
+        kind === :training ? unset(Pipelines.TRAINING_DIR) :
+        throw(ArgumentError("no such kind of file: `$(kind)`"))
+    return absolute_or_here(dir)
 end
 
-"""
-    resolve_in_data_dir(path) -> String
+data_directory() = pointer(:data)
 
-`path`, read relative to the data directory, as an absolute path — or an `ArgumentError` if it
+"""
+    resolve_in(base, path; what = "the workspace") -> String
+
+`path`, read relative to `base`, as an absolute path — or an `ArgumentError` naming `what` if it
 leaves that directory.
 
 The one path function of the file routes. A client names files by the relative paths
-`list-files` gave it, but nothing stops a request from saying `../../etc/passwd`, and
-`load-files` used to join such a path without looking. Compared through `relpath` rather than
-`startswith`, which would let `/data-evil` pass for `/data`.
+`list-files` gave it, but nothing stops a request from saying `../../etc/passwd`, so every route
+that takes a path goes through here. Compared through `relpath` rather than `startswith`, which
+would let `/data-evil` pass for `/data`.
 """
-function resolve_in_data_dir(path::AbstractString)
-    outside() = throw(ArgumentError("`$(path)` is outside the data directory"))
+function resolve_in(base::AbstractString, path::AbstractString; what::AbstractString = "the workspace")
+    outside() = throw(ArgumentError("`$(path)` is outside $(what)"))
     isabspath(path) && outside()
-    base = data_directory()
     full = normpath(joinpath(base, path))
     rel = relpath(full, base)
-    (rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)) && outside()
+    # Across drives there is no relative path, and `relpath` answers an absolute one.
+    (isabspath(rel) || rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)) && outside()
     return full
+end
+resolve_in_data_dir(path::AbstractString) = resolve_in(data_directory(), path; what = "the data directory")
+
+const configuration_kind = StreamlinerCore.configuration_kind
+
+"""
+    writable(path) -> path
+
+`path` if a client may write there, an `ArgumentError` otherwise. Two things are the launcher's
+alone: the workspace file, which names packages the next launch installs and loads, and hidden
+folders, where its environment lives. A route that could write either would let whoever reaches
+the server choose the code it runs next.
+"""
+function writable(path::AbstractString)
+    segments = splitpath(path)
+    # `.` and `..` are steps, not names: whether they lead outside is the resolver's to say.
+    hidden(segment) = startswith(segment, ".") && segment != "." && segment != ".."
+    any(hidden, segments) && throw(ArgumentError("`$(path)` is hidden, and hidden files and folders are not written to"))
+    lowercase(last(segments)) == WORKSPACE_FILE && throw(ArgumentError("`$(path)`: the workspace file is not written through the server"))
+    return path
 end
 
 # What makes a parsed file a document of the UI rather than a table: the keys `Download cards`
@@ -91,44 +131,93 @@ function file_kind(full::AbstractString)
     return DataIngestion.is_supported(full) ? "table" : nothing
 end
 
+# What a file under a kind's directory is expected to be.
+const EXPECTED_KIND = Dict(:data => "table", :pipeline => "cards", :filter => "filters")
+
+"""
+    files_under(base; except) -> Vector{String}
+
+Every file under `base`, as paths relative to it, sorted. Hidden entries, folders named like
+the layout's own and the directories in `except` — the other kinds' own, when they sit inside
+this one — are skipped.
+"""
+function files_under(base::AbstractString; except = String[])
+    found = String[]
+    for (root, dirs, names) in walkdir(base)
+        # `walkdir` is top-down, so pruning `dirs` in place keeps it out of them.
+        # The layout's folder names are not subfolder names: what sits in one is either
+        # another kind's or set aside, and the kind routes would not read it.
+        filter!(dirs) do dir
+            !startswith(dir, ".") && !(dir in RESERVED) && !(normpath(joinpath(root, dir)) in except)
+        end
+        for name in names
+            startswith(name, ".") && continue
+            push!(found, normpath(relpath(joinpath(root, name), base)))
+        end
+    end
+    return sort!(found)
+end
+
+# How a kind's directory reads from the workspace: `data`, a longer path when it is nested, the
+# whole path when it is elsewhere, and nothing when it is the workspace itself.
+function folder_label(kind::Symbol)
+    base, root = pointer(kind), workspace_directory()
+    base == root && return ""
+    rel = relpath(base, root)
+    return isabspath(rel) || startswith(rel, "..") ? base : rel
+end
+
 """
     list_files(req)
 
-Every file under the data directory the UI may pick, as `[{path, kind}]` — relative paths,
-subfolders included, sorted. Supersedes `get-acceptable-paths`, which listed tables only: cards
-and filters documents used to come in through the browser's own file dialog, which shows the
-whole disk, while tables were confined to this directory. One listing, one visibility.
+Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}],
+folders: {table, cards, filters}}` — `folders` being where each kind is listed from and saved
+to, as the workspace sees it, for a form to say so.
 
-Hidden files and folders are skipped. A data directory that does not exist answers `[]` and
-warns: `walkdir` throws on it, which reached the client as a 500 with an empty body and the log
-as a 200 (`LoggingMiddleware` records the status set *before* a throw).
+Where a file sits says what it is offered as: a table under the data directory, a cards document
+under the pipeline directory, a filters document under the filter directory, subfolders included,
+each path relative to its own directory. Content still has to agree — a JSON is parsed to find
+out, so a renamed document keeps its kind — and a file whose content says otherwise is reported
+under `misplaced` rather than offered, so the Load tab can say why it is not there. Two kinds
+sharing one directory (a flat workspace) list each file once, under the kind its content says.
+
+What does not parse, is hidden, or is neither table nor document is not listed. A directory that
+does not exist answers nothing for its kind and warns, rather than fail the whole listing.
 """
 function list_files(req::HTTP.Request)
     _ = json_read(req)
-    base = data_directory()
-    if !isdir(base)
-        @warn "the data directory does not exist" base
-        return json_response([])
-    end
     files = @NamedTuple{path::String, kind::String}[]
-    for (root, dirs, names) in walkdir(base)
-        # `walkdir` is top-down, so pruning `dirs` in place keeps it out of hidden folders.
-        filter!(dir -> !startswith(dir, "."), dirs)
-        for name in names
-            startswith(name, ".") && continue
-            kind = file_kind(joinpath(root, name))
-            isnothing(kind) && continue
-            push!(files, (; path = normpath(relpath(root, base), name), kind))
+    misplaced = @NamedTuple{path::String, kind::String, found::String}[]
+    bases = Dict{String, Vector{Symbol}}()
+    for kind in (:data, :pipeline, :filter)
+        push!(get!(bases, pointer(kind), Symbol[]), kind)
+    end
+    for (base, kinds) in bases
+        if !isdir(base)
+            @warn "a directory of the workspace does not exist" base kinds
+            continue
+        end
+        expected = [EXPECTED_KIND[kind] for kind in kinds]
+        for path in files_under(base; except = collect(keys(bases)))
+            found = file_kind(joinpath(base, path))
+            isnothing(found) && continue
+            if found in expected
+                push!(files, (; path, kind = found))
+            elseif length(kinds) < length(EXPECTED_KIND)
+                push!(misplaced, (; path, kind = string(first(kinds)), found))
+            end
         end
     end
-    sort!(files, by = file -> file.path)
-    return json_response(files)
+    sort!(files, by = file -> (file.kind, file.path))
+    sort!(misplaced, by = file -> (file.kind, file.path))
+    folders = (; table = folder_label(:data), cards = folder_label(:pipeline), filters = folder_label(:filter))
+    return json_response((; files, misplaced, folders))
 end
 
 """
     read_document(req)
 
-A cards or filters document from the data directory: `{valid: true, document}`, or the failure
+A cards or filters document from the workspace: `{valid: true, document}`, or the failure
 envelope every other route uses, with the server's sentence. Wrapped rather than returned bare,
 so a client tells a reply from a failure by `valid` alone, never by guessing at a document's keys.
 
@@ -136,11 +225,13 @@ The counterpart of the browser's file dialog, which read a local file the server
 showed the whole disk. `kind` is what the client expects: a filters file picked where cards
 were asked for is refused here, with a sentence, rather than loaded into the wrong store.
 """
-function read_document(req::HTTP.Request)
+read_document(req::HTTP.Request) = read_document(req, workspace_directory())
+
+function read_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
     spec = json_read(req)
     answer = try
         path, kind = spec["path"], spec["kind"]
-        full = resolve_in_data_dir(path)
+        full = resolve_in(base, path; what)
         isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
         document = parse_document(full)
         document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
@@ -154,29 +245,171 @@ end
 """
     write_document(req)
 
-Save a cards or filters document into the data directory, as indented JSON: `{valid: true, path}`
-or the failure envelope. What makes a document round-trip where it can be loaded again — the
-browser's Download puts the file in a folder `list-files` never sees.
+Save a cards or filters document into the workspace, as indented JSON: `{valid: true, path}`
+or the failure envelope. What keeps a document where it can be loaded again: a download leaves
+the workspace, a save stays where `list-files` looks.
 
 Refuses: a path outside the directory; a name that does not end in `.json` (TOML is read, not
-written); a document whose shape is not `kind`'s; a folder that does not exist (no folders are
-created on a client's word); an existing file, unless `overwrite` is `true`.
+written); a document whose shape is not `kind`'s; an existing file, unless `overwrite` is `true`.
+A folder named on the way is made: a client that says where a file goes means it.
 """
-function write_document(req::HTTP.Request)
+write_document(req::HTTP.Request) = write_document(req, workspace_directory())
+
+function write_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
     spec = json_read(req)
     answer = try
         path, kind, document = spec["path"], spec["kind"], spec["document"]
-        full = resolve_in_data_dir(path)
+        full = resolve_in(base, writable(path); what)
         lowercase(last(splitext(full))) == ".json" ||
             throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
         document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
-        isdir(dirname(full)) || throw(ArgumentError("the folder of `$(path)` does not exist"))
         (isfile(full) && get(spec, "overwrite", false) !== true) &&
             throw(ArgumentError("`$(path)` already exists"))
+        mkpath(dirname(full))
         write(full, JSON.json(document; pretty = true))
         (; valid = true, path)
     catch exception
         failure_report("document", exception)
+    end
+    return json_response(answer)
+end
+
+# The routes the form saves and reads with: one per kind, a path relative to that kind's own
+# directory. They are the general routes with the directory fixed, which is what enforces the
+# layout — the form never calls the general ones. The kind itself is implied, so a request
+# carries no `kind`, and a path that spells the folder is turned away rather than nested.
+
+const KIND_ROUTES = (
+    ("pipeline", :pipeline, "cards", :document),
+    ("filters", :filter, "filters", :document),
+    ("model", :model, "model", :configuration),
+    ("training", :training, "training", :configuration),
+)
+
+"""
+    kind_path(kind::Symbol, path) -> String
+
+`path` under the directory of `kind`, refusing one that leaves it or passes through a folder
+named like the layout's own. The kind's folder is implied, so `pipeline/mine.json` would nest;
+and another kind's name inside it would read as that kind's folder to anyone looking.
+"""
+function kind_path(kind::Symbol, path::AbstractString)
+    segments = splitpath(normpath(path))
+    folders = segments[1:(end - 1)]
+    own = string(kind)
+    if !isempty(folders) && first(folders) == own
+        rest = joinpath(segments[2:end]...)
+        throw(ArgumentError("`$(path)`: the `$(own)` folder is implied — name it `$(rest)`"))
+    end
+    reserved = findfirst(in(RESERVED), folders)
+    isnothing(reserved) || throw(
+        ArgumentError("`$(path)`: `$(folders[reserved])` is one of the layout's folder names, and cannot be a subfolder's")
+    )
+    length(segments) == 1 && first(segments) in RESERVED &&
+        throw(ArgumentError("`$(path)` is one of the layout's folder names, not a file"))
+    return resolve_in(pointer(kind), path; what = "the $(kind) directory")
+end
+
+# A request for a kind route, rewritten as one for the general route it stands on: the kind
+# filled in, and the path checked against the layout's folder names, resolved under the kind's
+# directory and handed on relative to that directory, which becomes the general route's base.
+function with_kind(req::HTTP.Request, kind::Symbol, content::AbstractString)
+    spec = json_read(req)
+    path = spec["path"]
+    base = pointer(kind)
+    full = kind_path(kind, path)
+    spec["kind"] = content
+    spec["path"] = relpath(full, base)
+    return HTTP.Request(req.method, req.target, req.headers, JSON.json(spec)), base, "the $(kind) directory"
+end
+
+function kind_handler(handler, kind::Symbol, content::AbstractString)
+    return function (req::HTTP.Request)
+        rewritten, base, what = try
+            with_kind(req, kind, content)
+        catch exception
+            return json_response(failure_report("document", exception))
+        end
+        return handler(rewritten, base; what)
+    end
+end
+
+"""
+    list_configurations(req)
+
+The model and training configurations a card may name, each with what it holds:
+`{model: [{name, path, text, properties}], training: [...]}`. `name` is what a card's `type`
+says — a path from the directory without the extension — and `text` is the file as written, for
+a form to show beside the name rather than make the author open it.
+"""
+function list_configurations(req::HTTP.Request)
+    _ = json_read(req)
+    describe(kind) = map(StreamlinerCore.available_streamliner_configs(pointer(kind), string(kind))) do name
+        path = string(name, ".toml")
+        full = joinpath(pointer(kind), path)
+        parsed = TOML.parsefile(full)
+        return (; name, path, text = read(full, String), properties = get(parsed, "properties", Any[]))
+    end
+    return json_response((; model = describe(:model), training = describe(:training)))
+end
+
+"""
+    read_configuration(req)
+
+A model or a training configuration: `{valid: true, text, parsed}` — the TOML as written, for
+a form to show, and parsed, for it to read — or the failure envelope. `kind` is `model` or
+`training` and must be what the file is.
+"""
+read_configuration(req::HTTP.Request) = read_configuration(req, workspace_directory())
+
+function read_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
+    spec = json_read(req)
+    answer = try
+        path, kind = spec["path"], spec["kind"]
+        full = resolve_in(base, path; what)
+        isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
+        text = read(full, String)
+        parsed = TOML.parse(text)
+        configuration_kind(parsed) == kind || throw(ArgumentError("`$(path)` is not a $(kind) configuration"))
+        (; valid = true, text, parsed)
+    catch exception
+        failure_report("configuration", exception)
+    end
+    return json_response(answer)
+end
+
+"""
+    write_configuration(req)
+
+Save a model or a training configuration as the TOML text given: `{valid: true, path}` or the
+failure envelope. The text is parsed to check it is TOML and is the `kind` it is said to be;
+it is written as sent, comments and all, since the file is what an author reads back.
+
+Refuses as `write_document` does: a path outside the directory, a name not ending in `.toml`,
+an existing file unless `overwrite` is `true`.
+"""
+write_configuration(req::HTTP.Request) = write_configuration(req, workspace_directory())
+
+function write_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
+    spec = json_read(req)
+    answer = try
+        path, kind, text = spec["path"], spec["kind"], spec["text"]
+        full = resolve_in(base, writable(path); what)
+        lowercase(last(splitext(full))) == ".toml" ||
+            throw(ArgumentError("configurations are saved as TOML: `$(path)` does not end in .toml"))
+        parsed = try
+            TOML.parse(text)
+        catch err
+            throw(ArgumentError("this is not TOML: $(sprint(showerror, err))"))
+        end
+        configuration_kind(parsed) == kind || throw(ArgumentError("this is not a $(kind) configuration"))
+        (isfile(full) && get(spec, "overwrite", false) !== true) &&
+            throw(ArgumentError("`$(path)` already exists"))
+        mkpath(dirname(full))
+        write(full, text)
+        (; valid = true, path)
+    catch exception
+        failure_report("configuration", exception)
     end
     return json_response(answer)
 end
@@ -276,12 +509,20 @@ A client reads the two the same way and means different things by them: a `pipel
 the author back to the cards, an `execution` failure back to the data.
 """
 function failure_report(kind::AbstractString, exception::Exception)
-    # A schema failure carries a JSON Pointer into the document and what would have been
-    # accepted, so the form can address the control and offer a correction. Anything else — a
-    # cyclic graph, a duplicate id, a binder error from DuckDB — has only its message.
-    # Validation collects, so one failure and twenty arrive in the same shape.
-    issues = exception isa Pipelines.SchemaValidationErrors ?
-        Pipelines.issue_report(exception) : []
+    # Four kinds of failure carry a JSON Pointer into the document, so the form can address the
+    # control and, where it is known, offer a correction: a schema failure, a `through` chain the
+    # pipeline refused to resolve, a product selection a card cannot write, and a transform for a
+    # column a funnel does not have. Anything else — a cyclic graph, a
+    # duplicate id, a binder error from DuckDB — has only its message.
+    # Validation collects, so one schema failure and twenty arrive in the same shape; a chain
+    # fails on the first one, so it arrives singular and is wrapped to match.
+    issues = if exception isa Pipelines.SchemaValidationErrors
+        Pipelines.issue_report(exception)
+    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, StreamlinerCore.TransformError}
+        [Pipelines.issue_report(exception)]
+    else
+        []
+    end
     return (;
         valid = false, kind,
         errors = [sprint(showerror, cause) for cause in root_causes(exception)],
@@ -410,6 +651,40 @@ function build_failure(nodes::AbstractVector, groups::AbstractDict, exception::E
 end
 
 """
+    model_issues(repository, pipeline, table) -> Vector
+
+For each streamliner card of a built `pipeline`, whether its model can be built for what its
+funnel feeds it, sized from `table`: one error at the card's `model` for each that cannot. Asked
+by the probe, so Confirm turns the card red before a run trains anything, and by a run before it
+trains.
+"""
+function model_issues(repository, pipeline, table::AbstractString)
+    issues = []
+    for (i, node) in enumerate(pipeline.nodes)
+        card = Pipelines.get_card(node)
+        card isa Pipelines.StreamlinerCard || continue
+        # Only a model that does not fit its funnel is this check's to say. Anything else that
+        # stops it building is left to the run, which reports every failure, rather than turning
+        # a probe into an answer the form cannot render.
+        issue = try
+            Pipelines.model_issue(repository, card, table)
+        catch exception
+            exception isa Exception || rethrow()
+            @error "could not check whether the model of node $(i - 1) fits its funnel" exception =
+                (exception, catch_backtrace())
+            nothing
+        end
+        isnothing(issue) && continue
+        push!(issues, (;
+            pointer = "/nodes/$(i - 1)/card/model", reason = "model", severity = "error",
+            found = nothing, allowed = nothing, missing = String[], related = String[],
+            message = issue.message,
+        ))
+    end
+    return issues
+end
+
+"""
     validate_card(req)
 
 Check one card against its own schema, without resolving a document.
@@ -521,8 +796,10 @@ Resolve a document without running it: which columns each node consumes and emit
 references that nothing produces.
 
 Construction is the cheap half of `evaluate-pipeline` — it resolves the group vocabulary and
-validates against the schema — so a probe costs a graph walk and no data access beyond reading the
-source table's column names. Nothing is materialised, so this is safe to call on every edit.
+validates against the schema — so a probe costs a graph walk and the source table's column names.
+A streamliner card adds a check that its model can be built for its funnel: the table's column
+types, one count per categorical column it names, and the model built once (`model_issues`).
+Nothing is trained or materialised, so this is safe to call on every edit.
 
 It reports rather than throws, for *every* way a document can be malformed rather than only
 schema failures: a probe that answers 500 tells a form nothing it can render. Two nodes with no
@@ -566,6 +843,8 @@ function probe_pipeline(req::HTTP.Request)
     end
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
+    # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.
+    unfit = model_issues(REPOSITORY[], pipeline, "source")
     # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
     # this the third answer to "what is this node called" in three files.
     ids = Pipelines.get_id.(spec["nodes"])
@@ -595,14 +874,22 @@ function probe_pipeline(req::HTTP.Request)
             inputs = Pipelines.get_node_inputs(node),
             outputs = Pipelines.get_node_outputs(node),
             unproduced = get(absent, i, String[]),
+            # What a `through` chain may do with this node, so a picker offers only chains the
+            # pipeline would accept rather than guessing from which columns the node reads.
+            through = Pipelines.through_options(node),
+            # What a selection may narrow this node to: each named product with its columns.
+            products = Pipelines.product_outputs(node),
+            # What the card's lists resolved to, where a form has to spell them out — one row
+            # per column to choose a transform for, say. Empty for most cards.
+            lists = Pipelines.resolved_lists(Pipelines.get_card(node)),
         )
     end
 
     return json_response((;
-        valid = isempty(absent),
+        valid = isempty(absent) && isempty(unfit),
         # The probe's second way of being invalid, and the same kind as the first: a reference
         # nothing produces is a fault of the document, found by resolving rather than by running.
-        kind = isempty(absent) ? nothing : "pipeline",
+        kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
         cols,
         nodes,
         referable = may_refer,
@@ -613,7 +900,7 @@ function probe_pipeline(req::HTTP.Request)
         # route answered.
         # Errors first, then warnings: a client reading the list top-down sees what blocks the
         # run before what merely deserves a look.
-        issues = vcat(unproduced_issues, overwrite_warnings(pipeline, cols)),
+        issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
     ))
 end
 
@@ -677,6 +964,16 @@ function evaluate_pipeline(req::HTTP.Request)
         @error "evaluate-pipeline: could not build the pipeline" exception =
             (exception, catch_backtrace())
         return json_response(build_failure(spec["nodes"], get(spec, "groups", Dict{String, Any}()), exception))
+    end
+
+    # A model that cannot be built for its funnel is a fault of the document, said as the probe
+    # says it, before anything is trained.
+    unfit = model_issues(REPOSITORY[], pipeline, "selection")
+    if !isempty(unfit)
+        return json_response((;
+            valid = false, kind = "pipeline",
+            errors = [issue.message for issue in unfit], issues = unfit,
+        ))
     end
 
     return try

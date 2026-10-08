@@ -131,10 +131,14 @@ const DEFAULT_PARSER = let
         "" => DBFunnel,
     )
 
-    # TODO: here and in sigmas decide whether we want to keep `""` option
+    # A transform is handed a whole column of a batch at once, hence the broadcast.
+    elementwise(f) = Fix1(broadcast, f)
     transforms = StringDict(
-        "" => identity,
         "identity" => identity,
+        "log" => elementwise(log),
+        "log1p" => elementwise(log1p),
+        "sqrt" => elementwise(sqrt),
+        "asinh" => elementwise(asinh),
     )
 
     Parser(;

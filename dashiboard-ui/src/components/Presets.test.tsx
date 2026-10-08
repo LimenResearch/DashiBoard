@@ -29,7 +29,7 @@ describe('Presets', () => {
     const { container } = mount();
     fireEvent.click(button(container)); await flush();
     expect([...container.querySelectorAll('[data-selector-name]')].map((e) => e.textContent))
-      .toEqual(['partition', 'group_by', 'order_by', 'weights']);
+      .toEqual(['partition', 'order_by', 'group_by', 'weights']);
   });
 
   it('writes what a picker holds, and forgets a field once it is emptied', async () => {

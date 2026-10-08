@@ -12,6 +12,7 @@ public Shape, AbstractFormat, ClassicalFormat, FlatFormat, SpatialFormat
 public Architecture, parse_modules, modules
 public Metric
 # funnels and funnel accessor functions
+public output_fields
 public get_helper_table_keys, initialize_helper_tables, initialize_helper_tables!
 public RichColumn, colname, compute_unique_values!,
     DBFunnel, Funnel, FunneledData, TableSpec
@@ -19,7 +20,8 @@ public get_helpers_in, get_helpers_out, get_order_by,
     get_inputs, get_constant_inputs, get_input_paths,
     get_targets, get_constant_targets, get_target_paths
 
-using DashiBase: DashiBase, DashiStyle, ObjectIR, TaggedObjectIR, Property,
+using DashiBase: DashiBase, DashiStyle, ObjectIR, TaggedObjectIR, Property, MapIR, StringIR,
+    VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,
     StringDict, SymbolDict, Maybe
 
 using DuckDBUtils: DuckDBUtils,
@@ -95,6 +97,7 @@ include("parser.jl")
 include("data.jl")
 
 include("funnel/transform.jl")
+include("funnel/flat.jl")
 include("funnel/funnel.jl")
 include("funnel/onehot.jl")
 

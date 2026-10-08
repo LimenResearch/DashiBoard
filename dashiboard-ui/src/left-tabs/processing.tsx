@@ -8,13 +8,14 @@ import { Documents } from "../components/Documents";
 import { IRField } from "../components/IRField";
 import { GroupsEditor } from "../components/GroupsEditor";
 import { Presets } from "../components/Presets";
-import { HelpButton } from "../components/SelectorHelp";
+import { HelpButton, HelpPanel } from "../components/SelectorHelp";
 import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
 import { issueFindings } from "../findings";
-import { throughOptions } from "../through";
-import { presetFields, presetsFor } from "../presets";
+import { productsFor, productsOf, throughOptions } from "../through";
+import { mergePresets, presetFields, presetsFor } from "../presets";
+import { refusedKeys } from "../transformRows";
 import {
   CARDS_STORE,
   CARDS_JSON,
@@ -49,10 +50,12 @@ import {
   type ProbeNode,
   type ProbeStore,
   type ProbeIssue,
+  FILTERS_STORE, filtersCodec,
 } from "../stores";
 import { defaultsFor, onlyOptions, withoutOption, type Defs, type IRNode } from "../ir";
 import { checkNames, checkNode, type Incompleteness } from "../completeness";
 import { askProbe } from "../probe";
+import { lacksPartition, trainingScript } from "../streamliner";
 
 /** The card half of the document, as `evaluate-pipeline` takes it. */
 export function getCards(state: Store<CardsStore>) {
@@ -79,6 +82,7 @@ const sameVocabulary = (a: Vocabulary, b: Vocabulary) =>
 export function Cards() {
   const [state] = CARDS_STORE;
   const [metadata] = LOADER_STORE;
+  const [filters] = FILTERS_STORE;
   const [probe, setProbe] = PROBE_STORE;
   const [presets] = PRESETS_STORE;
 
@@ -111,8 +115,27 @@ export function Cards() {
     return typeof title === "string" && title !== "" ? title : readableType(type);
   };
 
+  // What each model and training configuration holds, by kind and name, for the picker to show
+  // the file behind a name. Asked once with the card descriptions, and again on the picker's
+  // refresh — a file added by hand while the server runs.
+  const [configurations, setConfigurations] = createSignal<Record<string, Record<string, string>>>({});
+  async function loadConfigurations() {
+    const received = (await postRequest("list-configurations", {}, null)) as
+      Record<string, { name: string; text: string }[]> | null;
+    if (!received) return;
+    const texts: Record<string, Record<string, string>> = {};
+    for (const [kind, entries] of Object.entries(received)) {
+      texts[kind] = Object.fromEntries((entries ?? []).map((entry) => [entry.name, entry.text]));
+    }
+    setConfigurations(texts);
+  }
+  const configurationText = (kind: string, name: string) => configurations()[kind]?.[name] ?? null;
+  // The names come with the card descriptions, so a refresh asks for both.
+  const refreshConfigurations = () => void loadIR(untrack(vocabulary), true);
+
   let irSeq = 0;
-  async function loadIR(vocabulary: Vocabulary) {
+  /** `force` asks for the card descriptions again, where the cache would otherwise serve them. */
+  async function loadIR(vocabulary: Vocabulary, force = false) {
     const seq = ++irSeq;
     // Captured before the request, not re-read from the signal after `setCardIRs` below: a
     // signal write stages into `_pendingValue` and an untracked read from this plain async
@@ -120,7 +143,7 @@ export function Cards() {
     // model, unlike Solid 1's immediate same-tick reads). `untrack` says that is deliberate:
     // this is a cache lookup, not something the fetch should re-run for.
     const previousCards = untrack(cardIRs);
-    const include = previousCards === null ? ["defs", "cards"] : ["defs"];
+    const include = previousCards === null || force ? ["defs", "cards"] : ["defs"];
     const received = (await postRequest(
       "get-card-ir",
       { ...vocabulary, include },
@@ -136,6 +159,7 @@ export function Cards() {
     if (cards === null) return;                       // cannot happen on the first call
     setCardIRs(cards);
     setPayload({ defs: received.defs, cards });
+    if (include.includes("cards")) void loadConfigurations();
   }
 
   // Refetch whenever the *vocabulary* changes — columns, node ids, group names — not only on
@@ -255,10 +279,10 @@ export function Cards() {
   const freshCard = (type: string): Card => {
     const ir = payload()?.cards[type];
     const defaults = ir === undefined ? undefined : defaultsFor(ir, payload()!.defs);
-    const preset = payload() === null
-      ? {}
-      : presetsFor(presetFields(payload()!.cards, payload()!.defs), ir, snapshot(presets));
-    return { type, ...(defaults as object), ...preset } as Card;
+    if (payload() === null) return { type, ...(defaults as object) } as Card;
+    const fields = presetFields(payload()!.cards, payload()!.defs);
+    const preset = presetsFor(fields, ir, snapshot(presets), payload()!.defs);
+    return { type, ...mergePresets((defaults ?? {}) as { [key: string]: unknown }, preset, fields) } as Card;
   };
 
   const add = (type: string) => reach(`node-id-${addNode(freshCard(type))}`);
@@ -410,6 +434,7 @@ export function Cards() {
   // Memos are a tracking scope; reading `probe.nodes` straight from JSX is not enough here.
   const probeNodes = createMemo(() => probe.nodes);
   const probeIssues = createMemo(() => probe.issues);
+  const probeValid = createMemo(() => probe.valid);
   // What the continuous probe says live about a card is only its *warnings* (a column about to be
   // overwritten). Its errors are not shown here: red is reserved for what Confirm or a Run found,
   // and until then the card is amber.
@@ -548,6 +573,26 @@ export function Cards() {
                 </p>
               )}
             </For>
+            {/* Confirmed and legal, yet a Run cannot finish it: without a partition there are no
+                rows to validate on, so training keeps no model to predict with. */}
+            <Show when={nodeState() === "confirmed" && lacksPartition(node.card)}>
+              <div
+                data-no-partition
+                class="mb-2 rounded-sm border border-warning/40 bg-warning/10 p-2 text-control-xs text-foreground"
+              >
+                <p>
+                  A streamliner card without a partition can't be evaluated in the UI. Add a split
+                  card and choose its node as this card's partition: the split marks the rows to
+                  train on and the rows to validate on.
+                </p>
+                <p class="mt-1">
+                  Without one, the card can still be trained from a script run in the workspace
+                  folder. However without a validation partition, the training returns its statistics and
+                  saves no weights:
+                </p>
+                <pre class="mt-1 max-h-64 overflow-auto font-mono whitespace-pre">{trainingScript(node.id ?? "")}</pre>
+              </div>
+            </Show>
             <Show when={probeNodes()[index()]} keyed>
               {(reported: ProbeNode) => (
                 <div class="mb-2 text-control-xs">
@@ -572,6 +617,17 @@ export function Cards() {
                 // A chain may only pass through nodes that read what it carries; the probe
                 // says what each node reads.
                 chainFor={(row, all) => throughOptions(row, all, describedNodes(), state.groups)}
+                productsFor={(token, row) => productsFor(token, row, describedNodes(), state.groups)}
+                productsOf={(id) => productsOf(id, describedNodes())}
+                // A list's columns are the server's to resolve; what kind a column is, the
+                // loaded table's to say.
+                // Only an answer about this document says so: one remembered from an earlier
+                // build would list columns the lists no longer have.
+                listsFor={(name) => (probeValid() ? probeNodes().find((described) => described.id === node.id)?.lists?.[name] ?? null : null)}
+                refusedFor={(field) => refusedKeys(probeIssues(), index(), field)}
+                isCategorical={(column) => metadata.find((entry) => entry.name === column)?.type === "categorical"}
+                configurationText={configurationText}
+                refreshConfigurations={refreshConfigurations}
                 value={node.card}
                 onChange={(card) => setCard(index(), card as Card)}
               />
@@ -613,6 +669,9 @@ export function Cards() {
 
       {/* After the last item and before the files, where a hand that has just finished one item
           is; pinned to the bottom of the view so it is there without scrolling. */}
+      {/* Outside the row below, deliberately: that row is a stacking context, and the keys have to
+          be drawn over the selector's suggestion list, which is in one of its own. */}
+      <HelpPanel />
       <Show when={payload()} fallback={<p class="text-muted-foreground">Loading card descriptions…</p>}>
         <div data-add class="sticky bottom-0 z-10 flex flex-wrap items-center gap-2 border-t border-border bg-background p-3">
           <Button onClick={() => reach(`group-name-${addGroup()}`)}>Add group</Button>
@@ -693,6 +752,12 @@ export function Cards() {
         kind="cards"
         noun="pipeline"
         document={() => JSON.parse(CARDS_JSON()) as CardsStore}
+        // The filters travel with the pipeline when there are any to travel.
+        filters={() => {
+          const encoded = filtersCodec.encode(filters);
+          const held = Object.keys(encoded.numerical).length + Object.keys(encoded.categorical).length;
+          return held > 0 ? encoded : null;
+        }}
         onLoad={loadCards}
       />
     </div>

@@ -44,3 +44,14 @@ describe('checkNames', () => {
     expect(checkNames([{ id: 'a', card }, { card }, { id: 'b', card }])).toEqual([]);
   });
 });
+
+describe('a name a chain could not spell', () => {
+  // A chain step is typed `node|product`, so a `|` in a card's name would be read as the start
+  // of a product and the card could never be passed through by name.
+  it('marks a card whose name contains the separator', () => {
+    const found = checkNames([{ id: 'a|b', card: { type: 'rescale' } }]);
+    expect(found).toHaveLength(1);
+    expect(found[0].index).toBe(0);
+    expect(found[0].finding.message).toMatch(/cannot contain "\|"/);
+  });
+});

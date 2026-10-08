@@ -69,12 +69,10 @@ describe('the mapping covers the IR Julia actually serves', () => {
     }
     // glm and mixed_model formulas use ArrayIR{Any}(), whose items serialise as {}. mixed_model
     // is not registered by default, so glm is the only one of those — and Pipelines carries a
-    // "make more specific" TODO for exactly this. streamliner is here for its `funnel`, whose
-    // single branch is `EmptyTaggedObjectIR(...; additionalProperties = true)` under the same
-    // standing TODO. Its `model` and `training` are *not* here: they are described, by the
-    // `[[properties]]` blocks in the model and training directories, and reach the IR as
-    // `tagged_object`s over the available configurations.
-    expect([...new Set(unknown)].sort()).toEqual(['glm', 'streamliner']);
+    // "make more specific" TODO for exactly this. streamliner is *not* here: its funnel is
+    // described by the funnel's own fields, and its `model` and `training` by the
+    // `[[properties]]` blocks in the model and training directories.
+    expect([...new Set(unknown)].sort()).toEqual(['glm']);
   });
 
   it('resolves a variables field to a repeater over selectors', () => {

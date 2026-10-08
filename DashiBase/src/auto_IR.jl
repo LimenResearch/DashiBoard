@@ -50,13 +50,17 @@ end
 
 constraints(::Type{T}) where {T} = StringDict[]
 
-function ObjectIR(::Type{T}) where {T}
+# `except` leaves fields out: a struct that is written flat over another describes the wrapped
+# field by the wrapped struct's own properties, not as a property of its own.
+function ObjectIR(::Type{T}; except = ()) where {T}
     tags = fieldtags(DashiStyle(), T)
     defaults = fielddefaults(DashiStyle(), T)
-    properties::Vector{Property} = map(collect(fieldnames(T)), collect(fieldtypes(T))) do field, S
+    properties = Property[]
+    for (field, S) in zip(fieldnames(T), fieldtypes(T))
+        field in except && continue
         config = get_dashi(get(tags, field, nothing))
         default = get(defaults, field, nothing)
-        auto_property(S, string(field) => config; default)
+        push!(properties, auto_property(S, string(field) => config; default))
     end
     return ObjectIR(; properties, constraints = constraints(T))
 end

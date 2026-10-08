@@ -3,6 +3,7 @@ import {
   type Store, type StoreSetter,
 } from "solid-js";
 import { persisted, persistedSignal } from "./persist";
+import { nodeOfStep, type ThroughStep } from "./selector";
 import type { PresetStore } from "./presets";
 import type { Incompleteness } from "./completeness";
 import { issueFindings } from "./findings";
@@ -127,7 +128,9 @@ export type Selector = {
   nodes?: string | string[];
   groups?: string | string[];
   cols?: string | string[];
-  through?: string[];
+  /** The products of the selected nodes to keep; absent for all of them. */
+  products?: string[];
+  through?: ThroughStep[];
 };
 
 export type Card = { type: string } & { [key: string]: unknown };
@@ -144,18 +147,41 @@ export type CardsStore = {
 
 export const emptyCards = (): CardsStore => ({ nodes: [], groups: {} });
 
-// What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, and any
-// reference nothing produces.
+/**
+ * One way a value may pass through a node: the columns that way accepts, and how it renames them.
+ *
+ * A list per node, because a card may write several products — a prediction and its confidence
+ * bounds, say — each named by its own rule. `product` is the product's name, or null when the node
+ * has one unnamed product.
+ */
+export type ThroughOption = { product: string | null; cols: string[]; suffix: string | null; number: number | null };
+
+// What `POST /probe-pipeline` last reported: each node's resolved inputs and outputs, any
+// reference nothing produces, and what a chain may do with it.
 //
-// The resolved names come from the server. A `through` chain names a column by concatenating the
-// suffixes of the nodes it lists, and computing that here would be a second source of truth for a
-// naming rule: the UI writes the document, the server resolves it and says what it got.
+// Resolved names come from the server: the UI writes the document, the server resolves it and
+// says what it got. `through` is the one exception, and a deliberate one. Narrowing a chain of
+// two needs the name the *first* step produces, which the server never reports — it reports each
+// node's outputs as configured, not what an arbitrary column becomes after passing through. So
+// the renaming rule is carried here as data (`suffix`, `number`) and applied by `toOutputs` in
+// `through.ts`, which is a second implementation of `Pipelines.to_outputs` and has to stay in
+// step with it. Both are pinned by the same examples: `PRES` through `rescaled`, and a numbered
+// encoding giving `date_gaussian_1..3`.
 
 export type ProbeNode = {
   id: string;
   inputs: string[];
   outputs: string[];
   unproduced: string[];
+  through: ThroughOption[];
+  /**
+   * What the card's lists resolved to, by list name, for the lists a form has to spell out — one
+   * row per column to choose a transform for. Absent from a server that does not send it.
+   */
+  lists?: Record<string, string[]>;
+  /** Each named product with its columns: what a selection may narrow the node to. Absent from a
+   *  server that does not send it. */
+  products?: { product: string; outputs: string[] }[];
 };
 
 /**
@@ -499,8 +525,9 @@ export function pruneReferences(columns: readonly string[] | null, target?: Card
       if (!("cols" in out || "groups" in out || "nodes" in out)) return null;
       if (Array.isArray(out.through)) {
         out.through = out.through.filter((step) => {
-          if (!present.nodes!.has(step)) dropped.push({ what: `@${step}`, where });
-          return present.nodes!.has(step);
+          const node = nodeOfStep(step);
+          if (!present.nodes!.has(node)) dropped.push({ what: `@${node}`, where });
+          return present.nodes!.has(node);
         });
         if (out.through.length === 0) delete out.through;
       }
@@ -519,7 +546,7 @@ function dropName(item: Selector, kind: "groups" | "nodes", name: string): Selec
   if (Array.isArray(value) || value === undefined) { if (rest.length === 0) delete out[kind]; else out[kind] = rest; }
   else if (value === name) delete out[kind];
   if (Array.isArray(out.through)) {
-    out.through = out.through.filter((v) => v !== name);
+    out.through = out.through.filter((step) => nodeOfStep(step) !== name);
     if (out.through.length === 0) delete out.through;
   }
   return "cols" in out || "groups" in out || "nodes" in out ? out : null;
@@ -531,7 +558,9 @@ function renameIn(item: Selector, kind: "groups" | "nodes", from: string, to: st
   const value = out[kind];
   if (Array.isArray(value)) out[kind] = value.map((v) => (v === from ? to : v));
   else if (value === from) out[kind] = to;
-  if (Array.isArray(out.through)) out.through = out.through.map((v) => (v === from ? to : v));
+  if (Array.isArray(out.through))
+    out.through = out.through.map((step) =>
+      nodeOfStep(step) !== from ? step : typeof step === "string" ? to : { ...step, node: to });
   return out;
 }
 

@@ -164,13 +164,6 @@ end
     partition::Maybe{String} = nothing
 end
 
-struct OutputVariables
-    outputs::Vector{String}
-    inverse_outputs::Vector{String}
-end
-
-OutputVariables(outputs::AbstractVector) = OutputVariables(outputs, String[])
-
 ## Training and evaluation
 
 """
@@ -307,3 +300,12 @@ function DashiBase.get_metadata(c::Card)
     d["type"] = card_type(c)
     return d
 end
+
+"""
+    resolved_lists(card)::Dict{String, Any}
+
+The columns each of `card`'s lists came to once its selectors were resolved, by list name — for
+the lists a form needs spelled out, such as those whose columns may each be given a transform.
+Empty for a card with none.
+"""
+resolved_lists(::Card) = StringDict()

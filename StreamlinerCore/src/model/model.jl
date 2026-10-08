@@ -14,6 +14,20 @@ const ModelPair{L, M <: Tuple, R <: Tuple, T} = Pair{Model{L, M, R}, T}
 
 get_metadata(model::Model) = model.metadata
 
+"""
+    output_fields(constructor)::Tuple{Vararg{Symbol}}
+    output_fields(model::Model)
+
+The fields a model puts in its output, keyed on the architecture's *constructor* — the function
+registered in the parser under the model's `name`. Asking the constructor rather than a built
+network is what lets a schema describe a model configuration without instantiating it.
+
+An architecture yielding more than a prediction adds a method. The `Model` form looks the
+constructor up in the parser in scope, so it has to be asked where that parser is.
+"""
+output_fields(::Any) = (:prediction,)
+output_fields(model::Model) = output_fields(PARSER[].models[model.metadata["name"]])
+
 Model(m::Model) = m
 
 """

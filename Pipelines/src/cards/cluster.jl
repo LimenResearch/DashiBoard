@@ -126,7 +126,7 @@ end
 
 SourceVariables(cc::ClusterCard) = SourceVariables(; cc.inputs, cc.weights, cc.partition)
 
-OutputVariables(cc::ClusterCard) = OutputVariables([cc.output])
+output_spec(cc::ClusterCard) = [OutputGroup(OutputSpec([cc.output]))]
 
 diagnostics(_) = NamedTuple()
 

@@ -1,7 +1,7 @@
 using Test, DashiBase
 using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ArrayIR, ObjectIR, OneOrManyIR, Maybe
 using JSON: JSON
-using JSONSchema: Schema
+using JSONSchema: JSONSchema, Schema
 
 module StructTest
     using StructUtils: @kwarg
@@ -155,6 +155,19 @@ end
     @test_throws ArgumentError OneOrManyIR{StructTest.MyStruct}(items = arr)
 end
 
+# A list says when a value makes sense at most once; a form draws such a set as on/off choices
+# and anything else as a sequence, where repeats are meant.
+@testset "uniqueItems" begin
+    set = ArrayIR{String}(items = StringIR(enum = ["a", "b"]), uniqueItems = true)
+    @test DashiBase.json_schema(set)["uniqueItems"] == true
+    schema = DashiBase.json_schema(set) |> Schema
+    @test isvalid(["a", "b"], schema)
+    @test !isvalid(["a", "a"], schema)
+    sequence = ArrayIR{Int}(items = IntegerIR(enum = [1, 2]))
+    @test !haskey(DashiBase.json_schema(sequence), "uniqueItems")
+    @test isvalid([1, 1, 2], DashiBase.json_schema(sequence) |> Schema)
+end
+
 @testset "IR serialises to JSON" begin
     # `TrivialIR` has no fields, so JSON's struct path does not apply and serialisation used to
     # fall back to `show` — defined as `JSON.json` — recursing without bound. Reachable in
@@ -175,4 +188,53 @@ end
 
     # and the schema projection is unchanged by that: it builds its own dict
     @test DashiBase.json_schema(one_or_many)["type"] == ["string", "array"]
+end
+
+@testset "EitherIR" begin
+    step = ObjectIR(properties = [DashiBase.Property("node" => StringIR(enum = ["a", "b"]))])
+    either = DashiBase.EitherIR(["string" => StringIR(enum = ["a", "b"]), "object" => step])
+    @test either.type == "either"
+    @test either.types == ["string", "object"]
+
+    # The schema branches on the value's own JSON type, the way `OneOrManyIR` does. A failure
+    # inside a branch is then reported by that branch's keyword — `enum` — rather than as a bare
+    # "none of these matched", so a form can still say which values would have been accepted.
+    schema = DashiBase.json_schema(either)
+    @test schema["type"] == ["string", "object"]
+    @test schema["allOf"][1]["if"] == Dict("type" => "string")
+    @test schema["allOf"][1]["then"]["enum"] == ["a", "b"]
+    @test schema["allOf"][2]["then"]["type"] == "object"
+
+    # Two options of one JSON type could not be told apart by the value.
+    @test_throws ArgumentError DashiBase.EitherIR(["string" => StringIR(), "string" => StringIR()])
+    # and it announces itself, like every other node
+    @test JSON.parse(JSON.json(either; omit_null = true))["type"] == "either"
+end
+
+@testset "a map of names to values of one kind" begin
+    ir = DashiBase.MapIR(values = StringIR(enum = ["log", "sqrt"]), keys_from = "inputs")
+    @test ir.type == "map"
+    schema = DashiBase.json_schema(ir)
+    @test schema == Dict{String, Any}(
+        "type" => "object",
+        "additionalProperties" => Dict{String, Any}("type" => "string", "enum" => ["log", "sqrt"]),
+    )
+    # The form reads the IR, where the list the keys come from is named.
+    parsed = JSON.parse(JSON.json(ir; omit_null = true))
+    @test parsed["keys_from"] == "inputs"
+    @test parsed["values"]["enum"] == ["log", "sqrt"]
+    # A document is checked against it: any key, values of the one kind.
+    s = Schema(schema)
+    @test isnothing(JSONSchema.validate(Dict("TEMP" => "log"), s))
+    @test !isnothing(JSONSchema.validate(Dict("TEMP" => "cube"), s))
+end
+
+@testset "a tagged object that says where its options come from" begin
+    branch = ObjectIR(properties = [DashiBase.Property("features" => IntegerIR())])
+    tagged = DashiBase.TaggedObjectIR(objects = Dict("dense" => branch), options_from = "model")
+    @test tagged.options_from == "model"
+    @test JSON.parse(JSON.json(tagged; omit_null = true))["options_from"] == "model"
+    # The schema is unchanged by it: it checks the same documents.
+    @test !haskey(DashiBase.json_schema(tagged), "options_from")
+    @test DashiBase.json_schema(tagged) == DashiBase.json_schema(DashiBase.TaggedObjectIR(objects = Dict("dense" => branch)))
 end

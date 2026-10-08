@@ -5,6 +5,7 @@ const V: EntryVocabulary = {
   kinds: ['nodes', 'groups', 'cols'],
   options: { nodes: ['zscore', 'impute'], groups: ['bills'], cols: ['bill_length', 'flipper_length', 'with space', 'a@b'] },
   chain: ['zscore', 'impute'],
+  narrow: [],
 };
 /** Feed inputs in order; return the last state and every row emitted on the way. */
 const walk = (inputs: EntryInput[], vocabulary = V, single = false, from: EntryState = emptyEntry) => {
@@ -70,7 +71,7 @@ describe('the typed entry', () => {
     const { state, emitted } = walk([text('c'), TAB, text('bill'), TAB, text('@imp'), TAB, text('@zsc'), TAB, ENTER]);
     expect(emitted).toEqual([{ kind: 'cols', value: 'bill_length', chain: ['impute', 'zscore'] }]);
     // the kind stays for the next entry, with its names on offer; nothing typed, so TAB leaves
-    expect(state).toEqual({ kind: 'cols', name: null, chain: [], text: '', open: true, highlight: 0, moved: false });
+    expect(state).toEqual({ kind: 'cols', name: null, chain: [], text: '', open: true, highlight: 0, moved: false, selecting: false });
     expect(step(state, TAB, V).leave).toBe(true);
   });
 
@@ -158,5 +159,160 @@ describe('the typed entry', () => {
 
   it('in single mode ENTER clears the kind too', () => {
     expect(walk([text('c'), TAB, text('bill'), ENTER], V, true).state).toEqual(emptyEntry);
+  });
+});
+
+describe('narrowing a step to a product', () => {
+  const vocabulary = { kinds: ['cols'], options: { cols: ['Iws'] }, chain: ['fit'], narrow: ['prediction', 'logvar'] };
+  const atChain = { ...emptyEntry, kind: 'cols', name: 'Iws', chain: ['fit'] };
+
+  // `|` after a step asks which of its products; it does not start another step.
+  it('offers the products once `|` is typed, and adds the choice to the step', () => {
+    const typed = step(atChain, { type: 'text', value: '|lo' }, vocabulary).state;
+    expect(suggestions(typed, vocabulary)).toEqual(['logvar']);
+    const taken = step(typed, { type: 'tab' }, vocabulary).state;
+    expect(taken.chain).toEqual(['fit|logvar']);
+    expect(taken.text).toBe('');
+  });
+
+  it('keeps adding, in the order chosen', () => {
+    const one = { ...atChain, chain: ['fit|logvar'] };
+    const typed = step(one, { type: 'text', value: '|pre' }, { ...vocabulary, narrow: ['prediction'] }).state;
+    expect(step(typed, { type: 'tab' }, { ...vocabulary, narrow: ['prediction'] }).state.chain).toEqual(['fit|logvar|prediction']);
+  });
+
+  it('has nothing to offer for a step with one product', () => {
+    const typed = step(atChain, { type: 'text', value: '|' }, { ...vocabulary, narrow: [] }).state;
+    expect(suggestions(typed, { ...vocabulary, narrow: [] })).toEqual([]);
+  });
+
+  // A lone `|` is a question already asked: TAB takes the first product instead of leaving.
+  it('takes the first product on TAB after a lone `|`', () => {
+    const typed = step(atChain, { type: 'text', value: '|' }, vocabulary).state;
+    expect(step(typed, { type: 'tab' }, vocabulary).state.chain).toEqual(['fit|prediction']);
+  });
+
+  it('does not narrow before any step is taken', () => {
+    const typed = step({ ...atChain, chain: [] }, { type: 'text', value: '|' }, vocabulary).state;
+    expect(suggestions(typed, vocabulary)).toEqual([]);
+  });
+});
+
+// `select…` is to `|` what `through…` is to `@`: a click and its mark reach the same state, and the
+// list that follows has the form the list of nodes has — one row per choice, more until finished.
+describe('choosing products, by mark or by click', () => {
+  const v = (narrow: string[]): EntryVocabulary =>
+    ({ kinds: ['nodes', 'cols'], options: { nodes: ['fit', 'scale'], cols: ['Iws'] }, chain: ['scale'], narrow });
+  const same = (a: EntryState, b: EntryState) => {
+    const keep = (s: EntryState) => ({ kind: s.kind, name: s.name, chain: s.chain, selecting: s.selecting });
+    expect(keep(a)).toEqual(keep(b));
+  };
+  const atNodes = { ...emptyEntry, kind: 'nodes' };
+
+  it('narrows a node selection with `|`, as a step is narrowed, and emits one token', () => {
+    let s = walk([text('fi'), TAB], v(['one', 'two', 'three']), false, atNodes).state;
+    s = walk([text('|one'), TAB], v(['one', 'two', 'three']), false, s).state;
+    expect(s.name).toBe('fit|one');
+    s = walk([text('|th'), TAB], v(['two', 'three']), false, s).state;
+    expect(s.name).toBe('fit|one|three');
+    expect(walk([ENTER], v(['two']), false, s).emitted).toEqual([{ kind: 'nodes', value: 'fit|one|three', chain: [] }]);
+  });
+
+  it('reaches by select… on a name the state `|` reaches', () => {
+    const typed = walk([text('fit'), TAB, text('|')], v(['one', 'two']), false, atNodes).state;
+    const clicked = step(atNodes, { type: 'pick', value: 'fit', how: 'select' }, v(['one', 'two'])).state;
+    same(clicked, { ...typed, selecting: true });
+    expect(suggestions(clicked, v(['one', 'two']))).toEqual(['one', 'two']);
+    expect(suggestions(typed, v(['one', 'two']))).toEqual(['one', 'two']);
+  });
+
+  it('reaches by select… on a step the state `@step|` reaches', () => {
+    const atName = { ...emptyEntry, kind: 'cols', name: 'Iws' };
+    const typed = walk([text('@scale'), TAB, text('|')], v(['a', 'b']), false, atName).state;
+    const clicked = step(atName, { type: 'pick', value: 'scale', how: 'select' }, v(['a', 'b'])).state;
+    expect(clicked.chain).toEqual(typed.chain);
+    expect(clicked.selecting).toBe(true);
+    expect(suggestions(clicked, v(['a', 'b']))).toEqual(['a', 'b']);
+  });
+
+  it('lists the products left after one is kept by a click, until none is left', () => {
+    const selecting = step(atNodes, { type: 'pick', value: 'fit', how: 'select' }, v(['one', 'two'])).state;
+    const one = step(selecting, { type: 'pick', value: 'one', how: 'continue' }, v(['one', 'two'])).state;
+    expect(one.name).toBe('fit|one');
+    expect(one.selecting).toBe(true);
+    expect(suggestions(one, v(['two']))).toEqual(['two']);
+    const both = step(one, { type: 'pick', value: 'two', how: 'continue' }, v(['two'])).state;
+    expect(both.name).toBe('fit|one|two');
+    expect(both.selecting).toBe(false);                  // nothing left to choose: the nodes again
+    expect(suggestions(both, v([]))).toEqual(['scale']);
+  });
+
+  it('goes on to the nodes from a product by through…, and by `@`', () => {
+    const selecting = step(atNodes, { type: 'pick', value: 'fit', how: 'select' }, v(['one', 'two'])).state;
+    const through = step(selecting, { type: 'pick', value: 'one', how: 'through' }, v(['one', 'two'])).state;
+    expect(through.name).toBe('fit|one');
+    expect(through.selecting).toBe(false);
+    expect(suggestions(through, v(['two']))).toEqual(['scale', '|two']);   // nodes, then the product left
+    const typed = walk([text('@sc')], v(['one', 'two']), false, selecting).state;
+    expect(typed.selecting).toBe(false);
+    expect(suggestions(typed, v(['one', 'two']))).toEqual(['scale']);
+  });
+
+  it('narrows what is already taken with the select beside add', () => {
+    const atStep = { ...emptyEntry, kind: 'cols', name: 'Iws', chain: ['scale'] };
+    const s = step(atStep, { type: 'select' }, v(['a', 'b'])).state;
+    expect(s.selecting).toBe(true);
+    expect(suggestions(s, v(['a', 'b']))).toEqual(['a', 'b']);
+  });
+
+  it('finishes on ENTER with nothing typed, never taking the first product', () => {
+    const selecting = step(atNodes, { type: 'pick', value: 'fit', how: 'select' }, v(['one', 'two'])).state;
+    expect(walk([ENTER], v(['one', 'two']), false, selecting).emitted).toEqual([{ kind: 'nodes', value: 'fit', chain: [] }]);
+  });
+
+  it('BACKSPACE with nothing typed first stops choosing products', () => {
+    const selecting = step(atNodes, { type: 'pick', value: 'fit', how: 'select' }, v(['one', 'two'])).state;
+    const back = walk([BACK], v(['one', 'two']), false, selecting).state;
+    expect(back.selecting).toBe(false);
+    expect(back.name).toBe('fit');
+  });
+
+  it('does not narrow a column or a group by name', () => {
+    const atName = { ...emptyEntry, kind: 'cols', name: 'Iws' };
+    expect(suggestions(step(atName, text('|'), v(['a'])).state, v(['a']))).toEqual([]);
+  });
+});
+
+// After a node with products is taken, the list offers two ways on: the next nodes, then its
+// products. Both are rows the arrows reach; a product row is marked `|` as it is typed.
+describe('the next nodes and the products, in one list', () => {
+  const v = (narrow: string[]): EntryVocabulary =>
+    ({ kinds: ['nodes', 'cols'], options: { nodes: ['fit', 'scale'], cols: ['Iws'] }, chain: ['scale'], narrow });
+  const atStep = { ...emptyEntry, kind: 'cols', name: 'Iws', chain: ['fit'] };
+  const DOWN: EntryInput = { type: 'down' };
+
+  it('lists the next nodes, then the products of the step just taken', () => {
+    expect(suggestions(atStep, v(['prediction', 'logvar']))).toEqual(['scale', '|prediction', '|logvar']);
+  });
+
+  it('keeps a product reached with the arrows on TAB, then lists what is left and the nodes', () => {
+    const s = walk([DOWN, DOWN, TAB], v(['prediction', 'logvar']), false, atStep).state;
+    expect(s.chain).toEqual(['fit|prediction']);
+    expect(s.selecting).toBe(false);
+    expect(suggestions(s, v(['logvar']))).toEqual(['scale', '|logvar']);
+  });
+
+  it('does the same for the name of a nodes selection', () => {
+    const atName = { ...emptyEntry, kind: 'nodes', name: 'fit' };
+    expect(suggestions(atName, v(['one', 'two']))).toEqual(['scale', '|one', '|two']);
+    const s = walk([DOWN, DOWN, ENTER], v(['one', 'two']), false, atName);
+    expect(s.emitted).toEqual([{ kind: 'nodes', value: 'fit|one', chain: [] }]);
+  });
+
+  it('filters both by what is typed; `@` keeps the nodes, `|` the products', () => {
+    const typed = (t: string) => suggestions(step(atStep, text(t), v(['prediction', 'logvar'])).state, v(['prediction', 'logvar']));
+    expect(typed('lo')).toEqual(['|logvar']);
+    expect(typed('@')).toEqual(['scale']);
+    expect(typed('|')).toEqual(['prediction', 'logvar']);
   });
 });

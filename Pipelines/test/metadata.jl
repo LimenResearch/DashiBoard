@@ -217,15 +217,7 @@ end
         @test metadata["model"] == StreamlinerCore.get_metadata(card.model)
         @test metadata["training"] == StreamlinerCore.get_metadata(card.training)
         @test metadata["funnel"] == Dict(
-            "type" => "",
-            "order_by" => ["No"],
-            "inputs" => [
-                Dict("colname" => "TEMP", "transform" => ""),
-                Dict("colname" => "PRES", "transform" => ""),
-            ],
-            "input_paths" => nothing,
-            "targets" => [Dict("colname" => "Iws", "transform" => "")],
-            "target_paths" => nothing
+            "type" => "", "order_by" => ["No"], "inputs" => ["TEMP", "PRES"], "targets" => ["Iws"],
         )
     end
     card2 = Pipelines.Card(metadata)

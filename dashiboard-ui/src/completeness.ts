@@ -1,4 +1,5 @@
 import type { PipelineNode } from "./stores";
+import { STEP_SEPARATOR } from "./selector";
 
 // What the UI can answer about a definition on its own, without asking the server.
 //
@@ -63,6 +64,11 @@ export function checkNames(
   const out: { index: number; finding: Incompleteness }[] = [];
   nodes.forEach((node, index) => {
     const id = node.id ?? "";
+    // A chain step is typed `node|product`, so the mark cannot be part of a name: the card could
+    // never be passed through by it.
+    if (id.includes(STEP_SEPARATOR)) {
+      out.push({ index, finding: { message: `A name cannot contain "${STEP_SEPARATOR}".` } });
+    }
     if (seen.has(id)) {
       out.push({
         index,

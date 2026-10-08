@@ -19,6 +19,22 @@ StreamlinerCore.get_nsamples
 StreamlinerCore.Template
 ```
 
+## Funnels
+
+A funnel decides which rows and columns a model is fed. Its schema and its construction from a
+document both come from its fields; a funnel that wraps another is written flat, the wrapped
+funnel's fields beside its own.
+
+```@docs
+StreamlinerCore.DBFunnel
+StreamlinerCore.funnel_IR
+StreamlinerCore.make_funnel
+StreamlinerCore.flat_IR
+StreamlinerCore.split_config
+StreamlinerCore.TransformError
+StreamlinerCore.output_fields
+```
+
 ## Parser
 
 ```@docs

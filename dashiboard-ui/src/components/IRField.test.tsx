@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, cleanup, fireEvent } from '@solidjs/testing-library';
-import { flush } from 'solid-js';
+import { createSignal, flush } from 'solid-js';
 import { IRField } from './IRField';
 import { defaultsFor, type Defs, type IRNode } from '../ir';
 import payload from '../fixtures/card-ir.json';
@@ -282,5 +282,321 @@ describe('IRField, a lone selector', () => {
     const back = mountCard('rescale', { type: 'rescale', partition: { cols: 'PRES', through: ['rescale'] } });
     // The chip says it, in the typed notation, with the panel folded.
     expect(back.container.querySelector('[data-chip="cols:PRES@rescale"]')).not.toBeNull();
+  });
+});
+
+// One field's options depending on another's value: a streamliner's `select` offers the fields of
+// the model chosen, and is not drawn while there is nothing to choose between.
+describe('IRField, options that depend on a sibling', () => {
+  const rule = (model: string, fields: string[]) => ({
+    if: { properties: { model: { properties: { type: { const: model } } } }, required: ['model'] },
+    then: { properties: { select: { items: { type: 'string', enum: fields } } } },
+  });
+  const branch = { type: 'object', properties: [], additionalProperties: false };
+  const node: IRNode = {
+    type: 'object',
+    properties: [
+      { key: 'model', required: true, value: { type: 'tagged_object', options: ['fuzzy', 'dense'], objects: { fuzzy: branch, dense: branch } } },
+      { key: 'select', required: false, value: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true } },
+    ],
+    constraints: [rule('fuzzy', ['prediction', 'logvar']), rule('dense', ['prediction'])],
+  };
+  const mountWith = (value: unknown, onChange: (v: unknown) => void = () => {}) =>
+    render(() => <IRField node={node} defs={defs} label="fit" idPrefix="n" value={value} onChange={onChange} />);
+  // Every option is a pill, on or off: nothing to scroll, and what is taken reads at a glance.
+  const pills = (c: HTMLElement) => [...c.querySelectorAll<HTMLButtonElement>('#n-fit-select [data-option]')];
+  const taken = (c: HTMLElement) => pills(c).map((p) => p.getAttribute('aria-pressed') === 'true');
+
+  it('offers the chosen model\'s fields, all taken while none is named', () => {
+    const { container } = mountWith({ model: { type: 'fuzzy' } });
+    expect(pills(container).map((p) => p.getAttribute('data-option'))).toEqual(['prediction', 'logvar']);
+    expect(taken(container)).toEqual([true, true]);
+  });
+
+  it('shows what the document names', () => {
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['logvar'] });
+    expect(taken(container)).toEqual([false, true]);
+  });
+
+  it('draws nothing for a model with one field, or before a model is chosen', () => {
+    expect(pills(mountWith({ model: { type: 'dense' } }).container)).toEqual([]);
+    cleanup();
+    expect(pills(mountWith({}).container)).toEqual([]);
+  });
+
+  // Left in place it would be refused by the server at a control the form no longer draws.
+  it('drops a selection the newly chosen model cannot honour', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['logvar'] }, (v) => { written = v; });
+    const variant = container.querySelector('#n-fit-model-variant') as HTMLSelectElement;
+    variant.value = 'dense';
+    fireEvent.change(variant); await flush();
+    expect(written).toEqual({ model: { type: 'dense' } });
+  });
+
+  it('keeps a selection the newly chosen model still has', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['prediction'] }, (v) => { written = v; });
+    const variant = container.querySelector('#n-fit-model-variant') as HTMLSelectElement;
+    variant.value = 'dense';
+    fireEvent.change(variant); await flush();
+    expect(written).toEqual({ model: { type: 'dense' }, select: ['prediction'] });
+  });
+
+  it('writes an explicit list once the selection changes', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' } }, (v) => { written = v; });
+    fireEvent.click(pills(container)[0]); await flush();
+    expect(written).toEqual({ model: { type: 'fuzzy' }, select: ['logvar'] });
+  });
+
+  // The order written is the order offered, whichever pill was pressed last.
+  it('writes what is taken in the order it is offered', async () => {
+    let written: unknown = null;
+    const { container } = mountWith({ model: { type: 'fuzzy' }, select: ['logvar'] }, (v) => { written = v; });
+    fireEvent.click(pills(container)[0]); await flush();
+    expect(written).toEqual({ model: { type: 'fuzzy' }, select: ['prediction', 'logvar'] });
+  });
+});
+
+describe('IRField, a variant with one option', () => {
+  const branch = { type: 'object', properties: [{ key: 'width', required: true, value: { type: 'integer' } }], additionalProperties: false };
+  const one: IRNode = { type: 'tagged_object', options: [''], objects: { '': branch }, default_option: '' };
+  const two: IRNode = { type: 'tagged_object', options: ['', 'time'], objects: { '': branch, time: branch }, default_option: '' };
+  const mountVariant = (node: IRNode, value: unknown, onChange: (v: unknown) => void = () => {}) =>
+    render(() => <IRField node={node} defs={defs} label="funnel" idPrefix="n" value={value} onChange={onChange} />);
+
+  it('draws the branch and no chooser', () => {
+    const { container } = mountVariant(one, undefined);
+    expect(container.querySelector('#n-funnel-variant')).toBeNull();
+    expect(container.querySelector('#n-funnel-funnel-width')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/choose/);
+  });
+
+  it('writes the branch\'s fields without a type', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(one, undefined, (v) => { written = v; });
+    const input = container.querySelector('#n-funnel-funnel-width') as HTMLInputElement;
+    input.value = '3'; fireEvent.change(input); await flush();
+    expect(written).toEqual({ width: 3 });
+  });
+
+  it('calls the blank option "default" when there is a choice, and draws its branch unasked', () => {
+    const { container } = mountVariant(two, undefined);
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    expect([...chooser.options].map((o) => [o.value, o.textContent])).toEqual([['', 'default'], ['time', 'time']]);
+    expect(chooser.className).not.toMatch(/border-warning/);
+    expect(container.querySelector('#n-funnel-funnel-width')).not.toBeNull();
+  });
+
+  it('names another option when it is chosen, and the default by leaving the name out', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(two, { width: 2 }, (v) => { written = v; });
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    chooser.value = 'time'; fireEvent.change(chooser); await flush();
+    expect(written).toEqual({ type: 'time', width: 2 });         // both branches declare `width`
+    cleanup();
+    const again = mountVariant(two, { type: 'time', width: 2 }, (v) => { written = v; });
+    const back = again.container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    back.value = ''; fireEvent.change(back); await flush();
+    expect(written).toEqual({ width: 2 });                         // the default is still not named
+  });
+
+  // What both branches declare survives the switch: a filled `width` stays when `time` is chosen.
+  it('keeps the shared fields when another option is chosen', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(two, { width: 7 }, (v) => { written = v; });
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    chooser.value = 'time'; fireEvent.change(chooser); await flush();
+    expect(written).toEqual({ type: 'time', width: 7 });
+  });
+
+  // One option that takes no settings is nothing to show at all.
+  it('draws nothing for a lone option with no fields', () => {
+    const empty: IRNode = { type: 'tagged_object', options: [''], objects: { '': { type: 'object', properties: [], additionalProperties: false } }, default_option: '' };
+    const { container } = render(() => <IRField node={empty} defs={defs} label="choice" idPrefix="n" value={undefined} onChange={() => {}} />);
+    expect(container.textContent).toBe('');
+  });
+
+  // A document may name an option this server does not have. Hiding the chooser would hide the
+  // only place that can be put right.
+  it('shows the chooser, and the name, when the document names something else', async () => {
+    let written: unknown = null;
+    const { container } = mountVariant(one, { type: 'time', width: 2 }, (v) => { written = v; });
+    const chooser = container.querySelector('#n-funnel-variant') as HTMLSelectElement;
+    expect(chooser).not.toBeNull();
+    expect(chooser.className).toMatch(/border-warning/);
+    expect(chooser.selectedOptions[0].textContent).toMatch(/time/);
+    expect(container.querySelector('#n-funnel-funnel-width')).toBeNull();
+    chooser.value = ''; fireEvent.change(chooser); await flush();
+    expect(written).toEqual({ width: 2 });                         // the default declares `width` too
+  });
+
+  // A lone option that has to be named is asked for when a loaded value does not name it.
+  it('asks for a lone option a loaded value does not name', () => {
+    const named: IRNode = { type: 'tagged_object', options: ['batched'], objects: { batched: branch } };
+    expect(mountVariant(named, undefined).container.querySelector('#n-funnel-variant')).toBeNull();
+    cleanup();
+    const { container } = mountVariant(named, { width: 1 });
+    expect((container.querySelector('#n-funnel-variant') as HTMLSelectElement).className).toMatch(/border-warning/);
+  });
+
+  it('still asks when there is a choice and no default', () => {
+    const open: IRNode = { type: 'tagged_object', options: ['a', 'b'], objects: { a: branch, b: branch } };
+    const { container } = mountVariant(open, undefined);
+    expect((container.querySelector('#n-funnel-variant') as HTMLSelectElement).className).toMatch(/border-warning/);
+    expect(container.querySelector('#n-funnel-funnel-width')).toBeNull();
+  });
+});
+
+// A map field draws a row per column of the list it belongs to: what the server says the list
+// resolves to, and what the author wrote plainly.
+describe('IRField, a map beside its list', () => {
+  const node: IRNode = {
+    type: 'object',
+    properties: [
+      { key: 'inputs', required: false, value: { $ref: '#/$defs/variables' } },
+      { key: 'input_transforms', required: false, value: { type: 'map', values: { type: 'string', enum: ['log', 'sqrt'] }, keys_from: 'inputs' } },
+    ],
+  };
+  const rows = (c: HTMLElement) => [...c.querySelectorAll('[data-row]')].map((r) => r.getAttribute('data-row'));
+  const mountMap = (value: unknown, extra: Record<string, unknown> = {}, onChange: (v: unknown) => void = () => {}) =>
+    render(() => <IRField node={node} defs={defs} label="funnel" idPrefix="n" value={value} onChange={onChange} {...extra} />);
+
+  it('lists what the server resolved', () => {
+    const { container } = mountMap({ inputs: [{ groups: 'g' }] }, { listsFor: (name: string) => (name === 'inputs' ? ['TEMP', 'PRES'] : null) });
+    expect(rows(container)).toEqual(['TEMP', 'PRES']);
+  });
+
+  it('lists the plain columns before the server has answered', () => {
+    const { container } = mountMap({ inputs: [{ cols: ['TEMP'] }, { groups: 'g' }] });
+    expect(rows(container)).toEqual(['TEMP']);
+  });
+
+  it('writes the choice into the map', async () => {
+    let written: unknown = null;
+    const value = { inputs: [{ cols: ['TEMP', 'PRES'] }] };
+    const { container } = mountMap(value, {}, (v) => { written = v; });
+    const control = container.querySelector('[data-row="PRES"] select') as HTMLSelectElement;
+    control.value = 'log'; fireEvent.change(control); await flush();
+    expect(written).toEqual({ ...value, input_transforms: { PRES: 'log' } });
+  });
+
+  it('shows no transform for a categorical column, and marks an entry the list has lost', () => {
+    const { container } = mountMap(
+      { inputs: [{ cols: 'TEMP' }], input_transforms: { GONE: 'log' } },
+      { listsFor: () => ['TEMP', 'cbwd'], isCategorical: (column: string) => column === 'cbwd' },
+    );
+    expect(container.querySelector('[data-row="cbwd"] select')).toBeNull();
+    expect(container.querySelector('[data-row="GONE"]')!.hasAttribute('data-stale')).toBe(true);
+  });
+});
+
+// A variant whose options are files — a model, a training — is picked like a file, with the
+// chosen file shown; its branch, the settings the file leaves open, is drawn as for any variant.
+describe('IRField, a variant whose options are files', () => {
+  const branch = { type: 'object', properties: [{ key: 'features', required: true, value: { type: 'integer' } }], additionalProperties: false };
+  const node: IRNode = { type: 'tagged_object', options: ['dense', 'fuzzy'], objects: { dense: branch, fuzzy: branch }, options_from: 'model' };
+  const texts = { dense: 'name = "basic"\n' };
+
+  it('draws the picker with the file, and still writes the type and the branch', async () => {
+    let written: unknown = null;
+    const refresh = vi.fn();
+    const { container } = render(() => (
+      <IRField node={node} defs={defs} label="model" idPrefix="n" value={{ type: 'dense', features: 2 }} onChange={(v) => { written = v; }}
+        configurationText={(kind, name) => (kind === 'model' ? texts[name as keyof typeof texts] ?? null : null)} refreshConfigurations={refresh} />
+    ));
+    expect(container.querySelector('details[data-configuration] pre')!.textContent).toBe(texts.dense);
+    const features = container.querySelector('#n-model-model-features') as HTMLInputElement;
+    features.value = '3'; fireEvent.change(features); await flush();
+    expect(written).toEqual({ type: 'dense', features: 3 });
+    const select = container.querySelector('#n-model-variant') as HTMLSelectElement;
+    select.value = 'fuzzy'; fireEvent.change(select); await flush();
+    expect(written).toEqual({ type: 'fuzzy', features: 2 });       // both models take `features`
+    fireEvent.click(container.querySelector('button[aria-label="refresh the model list"]')!);
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  // A configuration that leaves nothing open still has a file worth reading, and a list worth
+  // refreshing: it is not "nothing to show" the way a lone option with no settings is.
+  it('shows the lone file even when it leaves no setting open', () => {
+    const bare = { type: 'object', properties: [], additionalProperties: false };
+    const lone: IRNode = { type: 'tagged_object', options: ['fuzzy'], objects: { fuzzy: bare }, options_from: 'model' };
+    const { container } = render(() => (
+      <IRField node={lone} defs={defs} label="model" idPrefix="n" value={{ type: 'fuzzy' }} onChange={() => {}}
+        configurationText={() => 'name = "fuzzy"\n'} />
+    ));
+    expect(container.querySelector('details[data-configuration] pre')!.textContent).toBe('name = "fuzzy"\n');
+    expect(container.querySelector('button[aria-label="refresh the model list"]')).not.toBeNull();
+  });
+
+  it('shows the lone file without a chooser', () => {
+    const lone: IRNode = { ...node, options: ['dense'], objects: { dense: branch } };
+    const { container } = render(() => (
+      <IRField node={lone} defs={defs} label="model" idPrefix="n" value={{ type: 'dense' }} onChange={() => {}}
+        configurationText={() => texts.dense} />
+    ));
+    expect(container.querySelector('#n-model-variant')).toBeNull();
+    expect(container.querySelector('details[data-configuration] pre')!.textContent).toBe(texts.dense);
+  });
+});
+
+// A list of plain values is a box of comma-separated values, with the allowed ones below it to
+// click; what the definition holds is read off the `writes` line.
+describe('IRField, a list typed as values', () => {
+  const prop = (card: IRNode, key: string) => (card.properties as { key: string; value: IRNode }[]).find((p) => p.key === key)!.value;
+  const tilesBranch = (prop(cards.split, 'method') as { objects: { [o: string]: IRNode } }).objects.tiles;
+  const mount = (node: IRNode, initial: unknown, label: string) => {
+    const [value, setValue] = createSignal<unknown>(initial);
+    const view = render(() => (
+      <IRField node={node} defs={defs} label={label} idPrefix="n" value={value()} onChange={setValue} />
+    ));
+    return { ...view, value };
+  };
+  const box = (c: HTMLElement) => c.querySelector('input[data-list]') as HTMLInputElement;
+  const writes = (c: HTMLElement) => [...c.querySelectorAll('[data-writes]')].map((e) => e.textContent);
+
+  it('starts empty with a placeholder, and the allowed values below to click', async () => {
+    const { container, value } = mount(tilesBranch, { repeat: 5, tail: 0 }, 'method');
+    expect(box(container).placeholder).toBe('values separated by commas');
+    const bubbles = [...container.querySelectorAll('[data-list-option]')].map((e) => e.textContent);
+    expect(bubbles).toEqual(['1', '2']);
+    fireEvent.click(container.querySelector('[data-list-option="1"]')!); await flush();
+    fireEvent.click(container.querySelector('[data-list-option="1"]')!); await flush();
+    fireEvent.click(container.querySelector('[data-list-option="2"]')!); await flush();
+    expect(box(container).value).toBe('1, 1, 2');
+    expect((value() as { tiles: unknown }).tiles).toEqual([1, 1, 2]);
+    expect(writes(container)).toEqual(['writes repeat = 5, tail = 0, tiles = [1, 1, 2]']);
+  });
+
+  it('writes nothing for a value outside the set, and says which', async () => {
+    const { container, value } = mount(tilesBranch, { tiles: [1, 2], repeat: 1, tail: 0 }, 'method');
+    expect(box(container).value).toBe('1, 2');
+    fireEvent.input(box(container), { target: { value: '1, 1, 3' } }); await flush();
+    expect((value() as { tiles: unknown }).tiles).toEqual([1, 2]);
+    expect(container.querySelector('[data-list-error]')!.textContent).toBe('3 is not one of 1, 2');
+    expect(box(container).className).toMatch(/border-warning/);
+  });
+
+  it('types free numbers with no values to click', async () => {
+    const node: IRNode = { type: 'object', properties: [{ key: 'weights', required: true, value: { type: 'array', items: { type: 'number' }, minItems: 1 } }] };
+    const { container, value } = mount(node, {}, 'dissimilarity');
+    expect(container.querySelector('[data-list-option]')).toBeNull();
+    fireEvent.input(box(container), { target: { value: '1, 0.5, 2' } }); await flush();
+    expect(value()).toEqual({ weights: [1, 0.5, 2] });
+    expect(writes(container)).toEqual(['writes weights = [1, 0.5, 2]']);
+  });
+
+  it('gives a list that is a field of the card itself its own line', async () => {
+    const { container } = mount(cards.trivial, { outputs: ['score', 'rank'] }, 'trivial');
+    expect(box(container).value).toBe('score, rank');
+    expect(writes(container)).toEqual(['writes outputs = ["score", "rank"]']);
+  });
+
+  it('keeps a set as pills', () => {
+    const select: IRNode = { type: 'array', items: { type: 'string', enum: ['prediction', 'logvar'] }, uniqueItems: true };
+    const { container } = render(() => <IRField node={select} defs={defs} label="select" idPrefix="n" value={['prediction']} onChange={() => {}} />);
+    expect(container.querySelector('input[data-list]')).toBeNull();
+    expect(container.querySelector('[data-option="logvar"]')).not.toBeNull();
   });
 });

@@ -41,7 +41,15 @@ function column_type(k::AbstractString, unique_values::AbstractDict)
     return isnothing(vals) ? Float32 : eltype(vals)
 end
 
-function compute_unique_values(data::FunneledData)
+"""
+    compute_unique_values(data::FunneledData; skip_absent = false)
+
+The distinct values of each non-numeric column the funnel reads, from the training rows: what a
+one-hot encoding of that column is built from. A column the table does not have is an
+`ArgumentError`, unless `skip_absent` is `true`: then it is left out, which is what a check made
+before earlier cards have written their columns asks for.
+"""
+function compute_unique_values(data::FunneledData; skip_absent::Bool = false)
     (; table_spec, funnel, partition) = data
     (; repository, table, schema) = table_spec
     inputs, constant_inputs = get_inputs(funnel), get_constant_inputs(funnel)
@@ -54,6 +62,10 @@ function compute_unique_values(data::FunneledData)
     idxs = indexin(Symbol.(cols), collect(schm.names))
 
     for (i, k) in zip(idxs, cols)
+        if isnothing(i)
+            skip_absent && continue
+            throw(ArgumentError("`$(k)` is not a column of `$(table)`"))
+        end
         T = schm.types[i]
         if !(nonmissingtype(T) <: Number) # TODO: what to do with booleans?
             cond = get_partition_cond(partition, 1)

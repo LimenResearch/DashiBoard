@@ -1011,8 +1011,8 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
         catch e
             e
         end
-        # Never trained.
-        untrained = refusal(card, Pipelines.CardState())
+        # Never trained: a node holds no model until `train!`.
+        untrained = refusal(card, nothing)
         @test untrained isa ArgumentError && occursin("not been trained", untrained.msg)
         # Trained without a partition: no row is set aside to validate on, so training succeeds
         # but keeps no model, and the refusal names `partition`.

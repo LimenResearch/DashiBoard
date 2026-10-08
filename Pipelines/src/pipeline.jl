@@ -34,6 +34,8 @@ get_output_vars(p::Pipeline) = get_output_vars(p.enriched_digraph)
 
 graphviz(io::IO, p::Pipeline) = graphviz(io, p.enriched_digraph, p.nodes)
 
+# FIXME: we will not allow to pass a produced column as a string to deduce from its suffix in the future
+# Therefore `unproduced_references` should become obsolete and the error messaged should be resolvable by dag
 """
     unproduced_references(p::Pipeline, available)
 

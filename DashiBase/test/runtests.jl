@@ -173,9 +173,11 @@ end
     # fall back to `show` — defined as `JSON.json` — recursing without bound. Reachable in
     # practice through `ArrayIR{Any}()`, which resolves its `items` to a `TrivialIR`.
     @test JSON.json(DashiBase.TrivialIR()) == "{}"
-    @test JSON.json(ArrayIR{Any}(); omit_null = true) == """{"type":"array","items":{}}"""
+    @test JSON.json(ArrayIR{Int}(items = IntegerIR()); omit_null = true) ==
+        """{"type":"array","items":{"type":"integer"}}"""
     # and it agrees with what json_schema emits for the same node
-    @test DashiBase.json_schema(ArrayIR{Any}()) == Dict{String, Any}("type" => "array", "items" => Dict())
+    @test DashiBase.json_schema(ArrayIR{Int}(items = IntegerIR())) ==
+        Dict{String, Any}("type" => "array", "items" => Dict("type" => "integer"))
 end
 
 @testset "every IR node is self-describing" begin

@@ -80,7 +80,7 @@ end
     title::Maybe{String} = nothing
     description::Maybe{String} = nothing
     default::Maybe{Vector{T}} = nothing
-    items::IR
+    items::Maybe{IR} = nothing
     minItems::Maybe{Int} = nothing
     maxItems::Maybe{Int} = nothing
     # `true` when a value makes sense at most once: a set, which a form offers as on/off choices.
@@ -88,7 +88,8 @@ end
     uniqueItems::Maybe{Bool} = nothing
 end
 
-function ArrayIR{T}(; items::IR = IR_from_type(T, nothing), kwargs...) where {T, IR <: AbstractIR}
+function ArrayIR{T}(; items::Maybe{AbstractIR} = nothing, kwargs...) where {T}
+    IR = isnothing(items) ? Union{} : typeof(items)
     return ArrayIR{T, IR}(; items, kwargs...)
 end
 

@@ -189,8 +189,8 @@ end
 
 # Why a card holds no model, and what to do. The partition values are StreamlinerCore's
 # `DataPartition`: 1 trains, 2 validates — what a split card writes.
-function no_model_message(sc::StreamlinerCard, state::CardState)
-    get(state.metadata, "trained", false) === true || return "this card has not been trained."
+function no_model_message(sc::StreamlinerCard, metadata::AbstractDict)
+    get(metadata, "trained", false) === true || return "this card has not been trained."
     cause = isnothing(sc.partition) ?
         "the card has no `partition`, so no rows were set aside to validate on. Set `partition` to a " *
         "column that is 1 for the rows to train on and 2 for the rows to validate on, such as a split card writes" :
@@ -208,7 +208,10 @@ function evaluate(
         schema::Maybe{AbstractString} = nothing
     )
 
-    isnothing(content) && throw(ArgumentError("Model was not successfully trained"))
+    # No model means either the card was never trained, or it was and training kept none: a model
+    # is kept only if its loss on the validation rows improved. The training metadata tells the two
+    # apart, and the second has a cause the author can act on.
+    isnothing(content) && throw(ArgumentError(no_model_message(sc, metadata)))
 
     (; model, training, funnel) = sc
     select = selected_products(sc)

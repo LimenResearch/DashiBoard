@@ -41,9 +41,16 @@ function release_numbers(d::MultiDict, k::AbstractString, is::AbstractVector)
     return
 end
 
+# `opened` remembers every connection the pool has handed out, idle, in use or drained, so that
+# `close` can release the database file: the pool itself only knows the idle ones. Weak references
+# let a connection that is dropped be collected as before.
 struct Connections
     pool::Pool{Nothing, DuckDB.Connection}
-    Connections(limit::Integer = 4096) = new(Pool{Nothing, DuckDB.Connection}(Int(limit)))
+    opened::Vector{WeakRef}
+    lock::ReentrantLock
+    function Connections(limit::Integer = 4096)
+        return new(Pool{Nothing, DuckDB.Connection}(Int(limit)), WeakRef[], ReentrantLock())
+    end
 end
 
 function Base.show(io::IO, connections::Connections)
@@ -51,8 +58,17 @@ function Base.show(io::IO, connections::Connections)
     return
 end
 
+function open_connection(connections::Connections, db::DuckDB.DB)
+    con = DBInterface.connect(db)
+    @lock connections.lock begin
+        filter!(ref -> !isnothing(ref.value), connections.opened)
+        push!(connections.opened, WeakRef(con))
+    end
+    return con
+end
+
 function acquire_connection(connections::Connections, db::DuckDB.DB)
-    return acquire(() -> DBInterface.connect(db), connections.pool, isvalid = isopen)
+    return acquire(() -> open_connection(connections, db), connections.pool, isvalid = isopen)
 end
 
 function release_connection(connections::Connections, con::DuckDB.Connection)
@@ -60,6 +76,18 @@ function release_connection(connections::Connections, con::DuckDB.Connection)
 end
 
 drain_connections!(connections::Connections) = drain!(connections.pool)
+
+function Base.close(connections::Connections)
+    drain!(connections.pool)
+    @lock connections.lock begin
+        for ref in connections.opened
+            con = ref.value
+            isnothing(con) || close(con)
+        end
+        empty!(connections.opened)
+    end
+    return
+end
 
 struct Repository
     id::UInt64
@@ -154,6 +182,21 @@ release_connection(repository::Repository, con) = release_connection(repository.
 Make existing connections from the pool `repository.connections` no longer reusable.
 """
 drain_connections!(repository::Repository) = drain_connections!(repository.connections)
+
+"""
+    close(repository::Repository)
+
+Close every connection `repository` has opened, whether idle, in use or drained, and then its
+database. A database stored in a file can then be moved or deleted, which Windows refuses while
+any connection to it is open.
+
+Close a repository only once no query on it is running.
+"""
+function Base.close(repository::Repository)
+    close(repository.connections)
+    close(repository.db)
+    return
+end
 
 """
     with_connection(f, repository::Repository, [N])

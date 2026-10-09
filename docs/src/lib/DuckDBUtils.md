@@ -12,6 +12,7 @@ get_catalog
 acquire_connection
 release_connection
 drain_connections!
+close(::Repository)
 with_appender
 with_connection
 with_table_name

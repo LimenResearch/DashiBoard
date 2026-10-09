@@ -140,7 +140,7 @@ end
 
 mktempdir() do dir
     spec = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "spec.json"))
-    repo = Repository(joinpath(dir, "db.duckdb"))
+    repo = Repository()
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(dir, "pollution.csv")
@@ -265,4 +265,5 @@ mktempdir() do dir
         node3 = Pipelines.Node(Card(d["zscore"]), label = "custom3")
         @test node3.label == "custom3"
     end
+    DBInterface.close!(repo.db) #TODO: update with proper close!(Repository)
 end

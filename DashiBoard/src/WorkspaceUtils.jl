@@ -9,7 +9,7 @@
 # A module of its own, on the standard library alone: the launcher reads a workspace and builds
 # the environment its extensions need *before* the server's packages are loaded, so that the
 # server starts inside that environment and what is loaded is what was resolved.
-module Workspace
+module WorkspaceUtils
 
 using TOML: TOML
 using Pkg: Pkg
@@ -257,4 +257,4 @@ function extension_environment(workspace::AbstractString, sources::AbstractDict;
     return env
 end
 
-end # module Workspace
+end # module WorkspaceUtils

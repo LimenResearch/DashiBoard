@@ -699,13 +699,12 @@ end
     end
 
     function gauss_train_test(node::Node)
-        card, state = get_card(node), get_state(node)
+        card, params = get_card(node), get_model(node)
         expected_means = range(0, step = 1 / card.n_components, length = card.n_components)
         expected_sigma = step(expected_means) * card.lambda
         expected_d = card.method.max
         expected_keys = vcat(["μ_$i" for i in 1:card.n_components], ["σ", "d"])
 
-        params = Pipelines.jlddeserialize(state.content)
         @test isempty(setdiff(expected_keys, keys(params)))
         @test all([params["μ_$i"] == [v] for (i, v) in enumerate(expected_means)])
         @test params["σ"][1] ≈ expected_sigma
@@ -817,8 +816,8 @@ end
     @test Pipelines.get_node_outputs(node) == ["Iws_hat"]
 
     Pipelines.train!(repo, node, "partition", "No")
-    state = get_state(node)
-    res = state.metadata
+    (; metadata) = get_model(node)
+    res = metadata
     @test res["iteration"] == 4
     @test !res["resumed"]
     @test length(res["stats"][1]) == length(res["stats"][2]) == 2
@@ -846,8 +845,8 @@ end
 
     node = Node(card)
     Pipelines.train!(repo, node, "partition", "No")
-    state = get_state(node)
-    res = state.metadata
+    (; metadata) = get_model(node)
+    res = metadata
     @test res["iteration"] == 4
     @test !res["resumed"]
     @test length(res["stats"][1]) == length(res["stats"][2]) == 2
@@ -856,7 +855,6 @@ end
 
     node = Node(card)
     Pipelines.train_evaljoin!(repo, node, "partition" => "prediction", "No")
-    state = get_state(node)
     origin = DBInterface.execute(DataFrame, repo, "FROM partition")
     result = DBInterface.execute(DataFrame, repo, "FROM prediction")
     @test names(result) == [
@@ -866,7 +864,7 @@ end
     @test all(x -> x isa AbstractString, result.cbwd_hat)
     @test nrow(origin) == nrow(result)
 
-    stats = Pipelines.report(repo, card, state)
+    stats = Pipelines.report(repo, card, get_model(node))
     @test stats["training"]["accuracy"] ≈ 0.34 atol = 1.0e-2
     @test stats["validation"]["accuracy"] ≈ 0.36 atol = 1.0e-2
     @test stats["training"]["logitcrossentropy"] ≈ 2.82 atol = 1.0e-2
@@ -1013,8 +1011,8 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
         catch e
             e
         end
-        # Never trained.
-        untrained = refusal(card, Pipelines.CardState())
+        # Never trained: a node holds no model until `train!`.
+        untrained = refusal(card, nothing)
         @test untrained isa ArgumentError && occursin("not been trained", untrained.msg)
         # Trained without a partition: no row is set aside to validate on, so training succeeds
         # but keeps no model, and the refusal names `partition`.

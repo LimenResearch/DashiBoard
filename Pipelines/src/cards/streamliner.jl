@@ -179,21 +179,17 @@ function train(
             end
         end
         path = SC.output_path(dir)
-        # TODO: where to keep stats tensor?
-        jldopen(path, "a") do file
-            file["stats"] = SC.stats_tensor(result, dir)
-            file["unique_values"] = data.unique_values
-        end
         content = SC.has_weights(result) ? read(path) : nothing
         metadata = to_config(result)
-        return CardState(; content, metadata)
+        stats = SC.stats_tensor(result, dir)
+        unique_values = data.unique_values
+        return (; content, metadata, stats, unique_values)
     end
 end
 
-# Why a card holds no model, and what to do. The partition values are StreamlinerCore's
+# Why training kept no weights, and what to do. The partition values are StreamlinerCore's
 # `DataPartition`: 1 trains, 2 validates — what a split card writes.
-function no_model_message(sc::StreamlinerCard, state::CardState)
-    get(state.metadata, "trained", false) === true || return "this card has not been trained."
+function no_weights_message(sc::StreamlinerCard)
     cause = isnothing(sc.partition) ?
         "the card has no `partition`, so no rows were set aside to validate on. Set `partition` to a " *
         "column that is 1 for the rows to train on and 2 for the rows to validate on, such as a split card writes" :
@@ -202,19 +198,25 @@ function no_model_message(sc::StreamlinerCard, state::CardState)
     return "training kept no model to predict with: $(cause)."
 end
 
+# A node holds no model until it is trained.
+function evaluate(
+        ::Repository, ::StreamlinerCard, ::Nothing, ::Pair, ::AbstractPrimaryKey;
+        schema::Maybe{AbstractString} = nothing
+    )
+    throw(ArgumentError("this card has not been trained."))
+end
+
 function evaluate(
         repository::Repository,
         sc::StreamlinerCard,
-        state::CardState,
+        (; content, unique_values), # rm metadata from unpacking to properly handle the untrained card case
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
     )
 
-    # No model means either the card was never trained, or it was and training kept none: a model
-    # is kept only if its loss on the validation rows improved. The training metadata tells the two
-    # apart, and the second has a cause the author can act on.
-    isnothing(state.content) && throw(ArgumentError(no_model_message(sc, state)))
+    # Training keeps weights only if the loss on the validation rows improved.
+    isnothing(content) && throw(ArgumentError(no_weights_message(sc)))
 
     (; model, training, funnel) = sc
     select = selected_products(sc)
@@ -224,10 +226,7 @@ function evaluate(
 
     return mktempdir() do dir
         path = SC.output_path(dir)
-        write(path, state.content)
-        unique_values = jldopen(path) do file
-            file["unique_values"]
-        end
+        write(path, content)
 
         data = FunneledData(
             Val(1), funnel, table_spec;
@@ -248,11 +247,10 @@ function evaluate(
     end
 end
 
-function report(::Repository, sc::StreamlinerCard, state::CardState)
+function report(::Repository, sc::StreamlinerCard, (; stats))
     (; loss, metrics) = sc.model
     syms = vcat([metricname(loss)], collect(Symbol, metricname.(metrics)))
     names = string.(syms)
-    stats = jlddeserialize(state.content, "stats")
     training = Dict(zip(names, stats[:, 1, end]))
     validation = Dict(zip(names, stats[:, 2, end]))
     return Dict("training" => training, "validation" => validation)

@@ -1,4 +1,4 @@
-using Pipelines: Node, invert, get_card, get_state
+using Pipelines: Node, invert, get_card, get_model, set_model!, get_state, set_state!
 using Pipelines, DataIngestion, DuckDBUtils, StreamlinerCore
 using Graphs: topological_sort, nv, edges
 using DBInterface, DataFrames, Graphs, JSON, Downloads
@@ -18,6 +18,7 @@ include("evaluation.jl")
 include("schemas.jl")
 include("cards.jl")
 include("products.jl")
+include("stateful.jl")
 include("parametric_cards.jl")
 include("metadata.jl")
 include("utils.jl")

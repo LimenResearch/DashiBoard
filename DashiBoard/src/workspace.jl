@@ -1,11 +1,11 @@
 # The parts of a workspace that need the server's own packages: sorting a plain folder into the
 # layout, which has to tell a table from a document from a configuration, and loading the
 # extensions a workspace names. Reading a workspace and building its environment are in
-# `Workspace.jl`, which needs neither.
+# `WorkspaceUtils.jl`, which needs neither.
 
-include("Workspace.jl")
+include("WorkspaceUtils.jl")
 
-using .Workspace: Workspace, KINDS, RESERVED, WORKSPACE_FILE, tidy_path, read_workspace_file,
+using .WorkspaceUtils: WorkspaceUtils, KINDS, RESERVED, WORKSPACE_FILE, tidy_path, read_workspace_file,
     resolve_pointers, missing_directories, server_defaults, extension_sources, locate_sources,
     extension_environment, environment_path
 

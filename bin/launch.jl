@@ -25,8 +25,8 @@ const PACKAGE = let path = Base.find_package("DashiBoard")
     isnothing(path) && error("DashiBoard is not in this environment; run with `--project=DashiBoard`")
     dirname(dirname(path))
 end
-include(joinpath(PACKAGE, "src", "Workspace.jl"))
-using .Workspace: Workspace
+include(joinpath(PACKAGE, "src", "WorkspaceUtils.jl"))
+using .WorkspaceUtils: WorkspaceUtils
 
 # The command line. `ArgParse` is loaded here, by the stage that reads a command line.
 function arguments(ARGS)
@@ -108,20 +108,20 @@ function (@main)(ARGS)
         return 0
     end
 
-    file = Workspace.read_workspace_file(workspace)
+    file = WorkspaceUtils.read_workspace_file(workspace)
     flags = Dict{String, Any}(k => v for (k, v) in d if !isnothing(v))
-    (; dirs, fell_back) = Workspace.resolve_pointers(workspace, file, flags)
-    missing_dirs = Workspace.missing_directories(dirs)
+    (; dirs, fell_back) = WorkspaceUtils.resolve_pointers(workspace, file, flags)
+    missing_dirs = WorkspaceUtils.missing_directories(dirs)
     isempty(missing_dirs) || error(
         "no such directory: " * join(("the $(kind) directory `$(path)`" for (kind, path) in missing_dirs), ", ")
     )
-    defaults = Workspace.server_defaults(file)
+    defaults = WorkspaceUtils.server_defaults(file)
     host = something(d["host"], defaults.host, "127.0.0.1")
     port = something(d["port"], defaults.port, 8080)
-    sources = Workspace.locate_sources(workspace, Workspace.extension_sources(file, flags))
+    sources = WorkspaceUtils.locate_sources(workspace, WorkspaceUtils.extension_sources(file, flags))
 
     if !isempty(sources)
-        env = Workspace.extension_environment(workspace, sources)
+        env = WorkspaceUtils.extension_environment(workspace, sources)
         return relaunch(
             env, Dict(
                 "workspace" => abspath(workspace), "host" => host, "port" => port, "sources" => sources,

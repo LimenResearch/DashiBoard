@@ -17,6 +17,7 @@ using Test
         path = joinpath(dir, "test_db.duckdb")
         r = Repository(path, limit = 100)
         @test sprint(show, r) == "Repository(DuckDB.DB(\"$(path)\"), Connections(limit = 100))"
+        DBInterface.close!(r.db) #TODO: create method for DBInterface.close!(r)
     end
 end
 
@@ -168,6 +169,7 @@ end
         tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.external_view;")
         @test tbl.i == Int64[]
         @test tbl.j == Int64[]
+        DBInterface.execute(Returns(nothing), r, "DETACH my_db;")
     end
 
     res = DuckDBUtils.replace_table(r, From("tbl"), "tbl2"; schema = "schm")
@@ -180,11 +182,11 @@ end
     @test_throws DuckDB.QueryException DBInterface.execute(Tables.columntable, r, "FROM schm.tbl;")
 
     DuckDBUtils.query(Returns(nothing), r, "CREATE SCHEMA schm2; CREATE TABLE schm2.tbl(i BIGINT);")
-    ns = DBInterface.execute(res -> map(row -> row.name, res), r, "SHOW TABLES FROM schm2")
+    ns = DBInterface.execute(res -> map(row -> row.table_name, res), r, "SELECT table_name FROM information_schema.tables WHERE table_schema = 'schm2';")
     @test ns == ["tbl"]
     @test_throws DuckDB.QueryException DuckDBUtils.transaction(r, "CREATE TABLE schm2.tbl;")
     DuckDBUtils.transaction(r, "CREATE TABLE schm2.tbl2(i BIGINT); CREATE TABLE schm2.tbl3(i BIGINT);")
-    ns = DBInterface.execute(res -> map(row -> row.name, res), r, "SHOW TABLES FROM schm2")
+    ns = DBInterface.execute(res -> map(row -> row.table_name, res), r, "SELECT table_name FROM information_schema.tables WHERE table_schema = 'schm2';")
     @test issetequal(ns, ["tbl", "tbl2", "tbl3"])
 end
 
@@ -234,6 +236,7 @@ end
             res3 = DuckDBUtils.export_table(r, "FROM my_db.tbl", path3)
             @test res3 == (; Count = 0)
             @test read(path3, String) == "i,j\n"
+            DBInterface.execute(Returns(nothing), r, "DETACH my_db;")
         end
     end
 end

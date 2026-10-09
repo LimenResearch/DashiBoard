@@ -178,13 +178,13 @@ function train(
         vars = input_and_target_vars(rc)
         pair_wise_group_by(repository, source, group_by, vars, stats...; schema, rc.partition)
     end
-    return CardState(content = jldserialize(tbl))
+    return tbl
 end
 
 function evaluate(
         repository::Repository,
         rc::RescaleCard,
-        state::CardState,
+        stats_tbl,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing,
@@ -201,7 +201,6 @@ function evaluate(
         @. outputs => transform(inputs)
     end
 
-    stats_tbl = jlddeserialize(state.content)
     selection = vcat([id_var => Get(id_var)], rescaled)
 
     if isempty(stats)

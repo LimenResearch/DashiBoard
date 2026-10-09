@@ -2,7 +2,7 @@ module DashiBoard
 
 public launch
 # What `bin/launch.jl` calls to prepare a workspace and the extensions it names.
-public init_workspace, load_extensions, provenance, Workspace
+public init_workspace, load_extensions, provenance, WorkspaceUtils
 
 using Base: Fix1, Fix2
 

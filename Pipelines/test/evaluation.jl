@@ -267,4 +267,7 @@ mktempdir() do dir
         node3 = Pipelines.Node(Card(d["zscore"]), label = "custom3")
         @test node3.label == "custom3"
     end
+
+    # Release the file before `mktempdir` deletes it, which Windows refuses while it is open.
+    close(repo)
 end

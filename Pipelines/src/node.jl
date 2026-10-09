@@ -240,8 +240,9 @@ end
 """
     to_outputs(os::AbstractOutputSpec, names = get_names(os))::Vector{String}
 
-The column names a card declaring `os` writes. Pass `names` to ask the same of a subset — what a
-`through` chain carrying part of a node's vocabulary comes out as.
+The column names a card declaring `os` writes.
+If `names::AbstractVector{<:AbstractString}` is given, restrict to columns derived from
+input columns `names`.
 """
 function to_outputs(os::AbstractOutputSpec, names::AbstractVector{<:AbstractString} = get_names(os))
     (; suffix, number) = os
@@ -340,7 +341,7 @@ function to_outputs(
         )
         named
     end
-    return foldl(append!, (to_outputs(g.spec, cols) for g in chosen); init = String[])
+    return flat_stringlist(g -> to_outputs(g.spec, cols), chosen)
 end
 
 function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString}, ::Maybe{AbstractVector})
@@ -389,8 +390,9 @@ keeps of the node.
 """
 function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
     groups = output_spec(get_card(n), get_invert(n))
-    isnothing(groups) && return to_outputs(n, nothing)   # throws: the card declares nothing
-    return foldl(append!, (to_outputs(g.spec) for g in named_products(n, groups, products)); init = String[])
+    # the `nothing` case throws: the card declares nothing
+    named = isnothing(groups) ? nothing : named_products(n, groups, products)
+    return to_outputs(n, named)
 end
 
 """
@@ -426,8 +428,8 @@ end
 
 Everything `n` writes: each product's outputs, in the order the card declares them.
 """
-function to_outputs(::Node, groups::AbstractVector{OutputGroup})
-    return foldl(append!, (to_outputs(g.spec) for g in groups); init = String[])
+function to_outputs(n::Node, groups::AbstractVector{OutputGroup})
+    return flat_stringlist(g -> to_outputs(g.spec), groups)
 end
 
 # Every card declares what it writes. Reaching this is a card that forgot, and saying so here

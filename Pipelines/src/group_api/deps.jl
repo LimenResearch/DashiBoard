@@ -132,7 +132,7 @@ get_cols(::Context, inputs::Source, ::Nothing) = inputs.cols
 get_cols(c::Context, inputs::Computed, ::Nothing) = reduce(vcat, view(c.outputs, inputs.idxs))
 # Only nodes reach here: `Deps` refuses `products` on anything else.
 function get_cols(c::Context, inputs::Computed, products::AbstractVector{<:AbstractString})
-    return foldl(append!, (narrowed_outputs(c.nodes[i], products) for i in inputs.idxs); init = String[])
+    return flat_stringlist(i -> narrowed_outputs(c.nodes[i], products), inputs.idxs)
 end
 get_cols(c::Context, deps::Deps) =
     pass_through(get_cols(c, deps.inputs, deps.products), deps.through, c.nodes)

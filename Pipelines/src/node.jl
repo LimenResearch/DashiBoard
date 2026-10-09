@@ -292,8 +292,6 @@ function Base.showerror(io::IO, err::ThroughError)
             join(err.cols, ", "), " cannot pass through it"
         )
     end
-    set_state!(node, state′)
-    return v
 end
 
 """

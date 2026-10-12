@@ -42,6 +42,33 @@ module StructTest
     end
 end
 
+module MethodTest
+    using StructUtils: @kwarg
+    using DashiBase: DashiBase, AbstractMethod, ArrayIR, @options
+
+    abstract type Scaling <: AbstractMethod end
+
+    @kwarg struct Identity <: Scaling end
+
+    @kwarg struct Fixed <: Scaling
+        factor::Float64
+    end
+
+    @kwarg struct PerColumn <: Scaling
+        factors::Vector{Float64}
+    end
+
+    const SCALINGS = Dict{String, Type}("identity" => Identity, "fixed" => Fixed, "per_column" => PerColumn)
+
+    @options Scaling SCALINGS
+
+    # Written by hand: only that the list needs at least one entry. What an entry can be is left
+    # for DashiBase to work out from the field's type.
+    @kwarg struct Combined
+        steps::Vector{Scaling} & (dashi = ArrayIR{Scaling}(minItems = 1),)
+    end
+end
+
 @testset "auto_property" begin
     instances = enum_instances(StructTest.Fruit)
     @test instances == ["apple", "orange", "kiwi"]
@@ -258,4 +285,17 @@ end
 @testset "a variant whose default is an instance" begin
     ir = only(ObjectIR(StructTest.Drawing).properties).value
     @test ir.default_option == "square"
+end
+
+@testset "a hand-written rule on a list of methods" begin
+    steps = only(ObjectIR(MethodTest.Combined).properties).value
+    @test steps.minItems == 1
+    @test steps.items isa DashiBase.TaggedObjectIR
+    choices = steps.items.objects
+    @test issetequal(keys(choices), ["identity", "fixed", "per_column"])
+    @test isempty(choices["identity"].properties)
+    factor = only(choices["fixed"].properties)
+    @test factor.key == "factor" && factor.value isa DashiBase.NumericIR
+    factors = only(choices["per_column"].properties)
+    @test factors.key == "factors" && factors.value isa ArrayIR
 end

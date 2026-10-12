@@ -73,22 +73,17 @@ end
     var"$ref"::String
 end
 
-@kwarg struct ArrayIR{T, IR <: AbstractIR} <: AbstractIR
+@kwarg struct ArrayIR{T} <: AbstractIR
     type::String = "array"
     title::Maybe{String} = nothing
     description::Maybe{String} = nothing
     default::Maybe{Vector{T}} = nothing
-    items::Maybe{IR} = nothing
+    items::Maybe{AbstractIR} = nothing
     minItems::Maybe{Int} = nothing
     maxItems::Maybe{Int} = nothing
     # `true` when a value makes sense at most once: a set, which a form offers as on/off choices.
     # Left out, repeats are meant and a form takes the values as a sequence.
     uniqueItems::Maybe{Bool} = nothing
-end
-
-function ArrayIR{T}(; items::Maybe{AbstractIR} = nothing, kwargs...) where {T}
-    IR = isnothing(items) ? Union{} : typeof(items)
-    return ArrayIR{T, IR}(; items, kwargs...)
 end
 
 @kwarg struct ObjectIR <: AbstractIR
@@ -156,22 +151,22 @@ function json_schema(to::TaggedObjectIR)
     return omit_null!(schema)
 end
 
-struct OneOrManyIR{T, IR <: AbstractIR} <: AbstractIR
+struct OneOrManyIR{T} <: AbstractIR
     # `type` is not decoration: a renderer dispatches on it and `choose_IR` deserialises on it.
     # Without it this node arrived as a bare `{array, eltype}` that nothing could identify, while
     # every other node in the vocabulary announced itself.
     type::String
-    array::ArrayIR{T, IR}
+    array::ArrayIR{T}
     eltype::String
-    function OneOrManyIR{T, IR}(array::ArrayIR{T, IR}, eltype::AbstractString) where {T, IR <: AbstractIR}
+    function OneOrManyIR{T}(array::ArrayIR{T}, eltype::AbstractString) where {T}
         eltype == "array" && throw(ArgumentError("`eltype == \"array\"` is not supported"))
-        return new{T, IR}("one_or_many", array, eltype)
+        return new{T}("one_or_many", array, eltype)
     end
 end
 
-function OneOrManyIR{T}(; items::IR, eltype::AbstractString = items.type, kwargs...) where {T, IR <: AbstractIR}
+function OneOrManyIR{T}(; items::AbstractIR, eltype::AbstractString = items.type, kwargs...) where {T}
     array = ArrayIR{T}(; items, kwargs...)
-    return OneOrManyIR{T, IR}(array, eltype)
+    return OneOrManyIR{T}(array, eltype)
 end
 
 function json_schema(o::OneOrManyIR)
@@ -233,7 +228,7 @@ end
 json_schema(m::MapIR) = StringDict("type" => "object", "additionalProperties" => json_schema(m.values))
 
 const IR_DICT = Dict{String, Type}(
-    "boolean" => IntegerIR,
+    "boolean" => BooleanIR,
     "integer" => IntegerIR,
     "number" => NumberIR,
     "string" => StringIR,

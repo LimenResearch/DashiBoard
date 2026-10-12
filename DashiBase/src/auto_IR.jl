@@ -10,7 +10,8 @@ function merge_IR(i1::AbstractIR, i2::I) where {I <: AbstractIR}
         i1
     else
         nt1, nt2 = to_nt(i1), to_nt(i2)
-        StructUtils.make(I, map(find_value, nt1, nt2))
+        nt = map(find_value, nt1, nt2)
+        I(; nt...)
     end
 end
 

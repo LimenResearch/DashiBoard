@@ -51,7 +51,7 @@ const DEPS_KINDS = ("nodes", "groups", "cols")
 get_through(d::AbstractDict)::Vector{Any} = get(d, "through", Any[])
 
 Step(dp::DepsParser, id::AbstractString) = Step(dp.node_idxs[id], nothing)
-Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], collect(String, d["products"]))
+Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], d["products"])
 
 is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(in(DEPS_KINDS), keys(d)) == 1
 
@@ -61,7 +61,7 @@ function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
     inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
     # Products are a node's to name, so they narrow a node selection only.
-    products = haskey(d, "products") ? collect(String, d["products"]) : nothing
+    products = get(d, "products", nothing)
     isnothing(products) || key == "nodes" || throw(
         ArgumentError("`products` narrows a `nodes` selection; this one selects `$(key)`")
     )

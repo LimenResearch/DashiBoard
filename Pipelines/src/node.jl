@@ -228,6 +228,9 @@ end
 
 OutputGroup(spec::AbstractOutputSpec) = OutputGroup(nothing, spec)
 
+is_transform(g::OutputGroup) = g.spec isa VariableTransformSpec
+has_name(g::OutputGroup) = !isnothing(g.name)
+
 function _to_outputs(
         names::AbstractVector{<:AbstractString},
         suffix::Maybe{AbstractString},
@@ -320,15 +323,16 @@ function to_outputs(
     )
 
     chosen = if isnothing(products)
-        transforms = filter(g -> g.spec isa VariableTransformSpec, groups)
-        isempty(transforms) && throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
+        transforms = filter(is_transform, groups)
+        if isempty(transforms) && !isempty(groups)
+            throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
+        end
         transforms
     else
         named = named_products(n, groups, products, cols)
         # All or nothing: a step is refused rather than narrowed to the products that can carry it.
-        for g in named
-            g.spec isa VariableTransformSpec ||
-                throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
+        if !all(is_transform, named)
+            throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
         end
         named
     end
@@ -336,10 +340,6 @@ function to_outputs(
         cols ⊆ g.spec.cols || throw(ThroughError(n.id, cols, g.spec.cols, :not_carried))
     end
     return flat_stringlist(g -> to_outputs(g.spec, cols), chosen)
-end
-
-function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString}, ::Maybe{AbstractVector})
-    return throw(ThroughError(n.id, collect(String, cols), nothing, :undeclared))
 end
 
 """
@@ -368,7 +368,7 @@ function named_products(
         cols::AbstractVector{<:AbstractString} = String[]
     )
     allunique(products) || throw(ThroughError(n.id, cols, nothing, :repeated_product))
-    d = OrderedDict{String, OutputGroup}(g.name => g for g in groups if !isnothing(g.name))
+    d = OrderedDict{String, OutputGroup}(g.name => g for g in groups if has_name(g))
     return map(products) do name
         # FIXME: `name` is not mentioned in the error message
         get(d, name) do
@@ -385,8 +385,7 @@ keeps of the node.
 """
 function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
     groups = output_spec(get_card(n), get_invert(n))
-    # the `nothing` case throws: the card declares nothing
-    named = isnothing(groups) ? nothing : named_products(n, groups, products)
+    named = named_products(n, groups, products)
     return to_outputs(n, named)
 end
 
@@ -399,8 +398,7 @@ card whose one output has no name.
 function product_outputs(node::Node)
     groups = output_spec(get_card(node), get_invert(node))
     T = @NamedTuple{product::String, outputs::Vector{String}}
-    isnothing(groups) && return T[]
-    return T[T((g.name, to_outputs(g.spec))) for g in groups if !isnothing(g.name)]
+    return T[T((g.name, to_outputs(g.spec))) for g in groups if has_name(g)]
 end
 
 """
@@ -413,11 +411,7 @@ when nothing can pass through.
 function through_options(node::Node)
     groups = output_spec(get_card(node), get_invert(node))
     T = @NamedTuple{product::Maybe{String}, cols::Vector{String}, suffix::Maybe{String}, number::Maybe{Int}}
-    isnothing(groups) && return T[]
-    return T[
-        T((g.name, g.spec.cols, g.spec.suffix, g.spec.number))
-            for g in groups if g.spec isa VariableTransformSpec
-    ]
+    return T[T((g.name, g.spec.cols, g.spec.suffix, g.spec.number)) for g in groups if is_transform(g)]
 end
 
 """
@@ -427,10 +421,4 @@ Everything `n` writes: each product's outputs, in the order the card declares th
 """
 function to_outputs(n::Node, groups::AbstractVector{OutputGroup})
     return flat_stringlist(g -> to_outputs(g.spec), groups)
-end
-
-# Every card declares what it writes. Reaching this is a card that forgot, and saying so here
-# beats its outputs quietly going missing from the pipeline.
-function to_outputs(n::Node, ::Nothing)
-    return throw(ArgumentError("The card of node `$(n.id)` does not declare what it writes"))
 end

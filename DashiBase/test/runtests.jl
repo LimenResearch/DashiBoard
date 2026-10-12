@@ -1,5 +1,7 @@
 using Test, DashiBase
-using DashiBase: auto_property, enum_instances, IntegerIR, StringIR, ArrayIR, ObjectIR, OneOrManyIR, Maybe
+using DashiBase: auto_property, enum_instances,
+    TrivialIR, IntegerIR, StringIR,
+    ArrayIR, ObjectIR, OneOrManyIR, Maybe
 using JSON: JSON
 using JSONSchema: JSONSchema, Schema
 
@@ -23,6 +25,47 @@ module StructTest
 
     @kwarg struct MyStruct3
         x::Bool = true
+    end
+
+    abstract type Shape end
+
+    @kwarg struct Circle <: Shape
+        radius::Float64 = 1.0
+    end
+    @kwarg struct Square <: Shape
+        side::Float64 = 1.0
+    end
+    DashiBase.@options Shape Dict("circle" => Circle, "square" => Square)
+
+    @kwarg struct Drawing
+        shape::Shape = Square()
+    end
+end
+
+module MethodTest
+    using StructUtils: @kwarg
+    using DashiBase: DashiBase, AbstractMethod, ArrayIR, @options
+
+    abstract type Scaling <: AbstractMethod end
+
+    @kwarg struct Identity <: Scaling end
+
+    @kwarg struct Fixed <: Scaling
+        factor::Float64
+    end
+
+    @kwarg struct PerColumn <: Scaling
+        factors::Vector{Float64}
+    end
+
+    const SCALINGS = Dict{String, Type}("identity" => Identity, "fixed" => Fixed, "per_column" => PerColumn)
+
+    @options Scaling SCALINGS
+
+    # Written by hand: only that the list needs at least one entry. What an entry can be is left
+    # for DashiBase to work out from the field's type.
+    @kwarg struct Combined
+        steps::Vector{Scaling} & (dashi = ArrayIR{Scaling}(minItems = 1),)
     end
 end
 
@@ -169,13 +212,12 @@ end
 end
 
 @testset "IR serialises to JSON" begin
-    # `TrivialIR` has no fields, so JSON's struct path does not apply and serialisation used to
-    # fall back to `show` — defined as `JSON.json` — recursing without bound. Reachable in
-    # practice through `ArrayIR{Any}()`, which resolves its `items` to a `TrivialIR`.
-    @test JSON.json(DashiBase.TrivialIR()) == "{}"
-    @test JSON.json(ArrayIR{Any}(); omit_null = true) == """{"type":"array","items":{}}"""
-    # and it agrees with what json_schema emits for the same node
-    @test DashiBase.json_schema(ArrayIR{Any}()) == Dict{String, Any}("type" => "array", "items" => Dict())
+    @test JSON.json(TrivialIR()) == "{\"type\":\"trivial\"}"
+    @test DashiBase.json_schema(TrivialIR()) == Dict{String, Any}()
+    @test JSON.json(ArrayIR{Any}(items = TrivialIR()); omit_null = true) ==
+        """{"type":"array","items":{"type":"trivial"}}"""
+    @test DashiBase.json_schema(ArrayIR{Any}(items = TrivialIR())) ==
+        Dict{String, Any}("type" => "array", "items" => Dict())
 end
 
 @testset "every IR node is self-describing" begin
@@ -237,4 +279,23 @@ end
     # The schema is unchanged by it: it checks the same documents.
     @test !haskey(DashiBase.json_schema(tagged), "options_from")
     @test DashiBase.json_schema(tagged) == DashiBase.json_schema(DashiBase.TaggedObjectIR(objects = Dict("dense" => branch)))
+end
+
+# A variant whose default is an instance names the option that instance belongs to.
+@testset "a variant whose default is an instance" begin
+    ir = only(ObjectIR(StructTest.Drawing).properties).value
+    @test ir.default_option == "square"
+end
+
+@testset "a hand-written rule on a list of methods" begin
+    steps = only(ObjectIR(MethodTest.Combined).properties).value
+    @test steps.minItems == 1
+    @test steps.items isa DashiBase.TaggedObjectIR
+    choices = steps.items.objects
+    @test issetequal(keys(choices), ["identity", "fixed", "per_column"])
+    @test isempty(choices["identity"].properties)
+    factor = only(choices["fixed"].properties)
+    @test factor.key == "factor" && factor.value isa DashiBase.NumericIR
+    factors = only(choices["per_column"].properties)
+    @test factors.key == "factors" && factors.value isa ArrayIR
 end

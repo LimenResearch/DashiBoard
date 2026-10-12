@@ -10,7 +10,8 @@ function merge_IR(i1::AbstractIR, i2::I) where {I <: AbstractIR}
         i1
     else
         nt1, nt2 = to_nt(i1), to_nt(i2)
-        StructUtils.make(I, map(find_value, nt1, nt2))
+        nt = map(find_value, nt1, nt2)
+        I(; nt...)
     end
 end
 
@@ -19,7 +20,7 @@ end
 _eltype(::Type{V}) where {V <: Maybe{AbstractVector}} = Any
 _eltype(::Type{V}) where {V <: Maybe{AbstractVector{T}}} where {T} = T
 
-function IR_from_type(T::Type, _default)::AbstractIR
+function IR_from_type(T::Type, _default = nothing)::AbstractIR
     if T <: Nothing
         throw(ArgumentError("Type `Nothing` not supported, did you mean `Union{T, Nothing}`?"))
     end
@@ -33,7 +34,8 @@ function IR_from_type(T::Type, _default)::AbstractIR
         (T <: Maybe{AbstractString}) ? StringIR(; default) :
         (T <: Maybe{Symbol}) ? StringIR(; default) :
         (T <: Maybe{Enum}) ? StringIR(; default, enum = enum_instances(T)) :
-        (T <: Maybe{AbstractVector}) ? ArrayIR{_eltype(T)}(; default) :
+        (T <: Maybe{AbstractVector}) ? (S = _eltype(T); ArrayIR{S}(; items = IR_from_type(S), default)) :
+        # FIXME: set default here as well
         TrivialIR()
 end
 

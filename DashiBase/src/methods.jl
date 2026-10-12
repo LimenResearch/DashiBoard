@@ -46,7 +46,7 @@ macro options(T, methods, default = nothing)
                 $(esc(default))
             elseif isnothing($(esc(default)))
                 # `methods` maps a name to a *type*; `_default` is an *instance*.
-                findfirst(Fix1(isa, T), m)
+                findfirst(Fix1(isa, _default), m)
             elseif _default isa m[$(esc(default))]
                 $(esc(default))
             else

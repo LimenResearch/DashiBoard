@@ -374,11 +374,11 @@ function named_products(
         cols::AbstractVector{<:AbstractString} = String[]
     )
     allunique(products) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_product))
-    names = String[g.name for g in groups if !isnothing(g.name)]
+    d = OrderedDict{String, OutputGroup}(g.name => g for g in groups if !isnothing(g.name))
     return map(products) do name
-        i = findfirst(g -> g.name == name, groups)
-        isnothing(i) && throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_product; products = names))
-        groups[i]
+        get(d, name) do
+            throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_product; products = collect(keys(d))))
+        end
     end
 end
 

@@ -114,8 +114,7 @@ end
 
 Return the lists of variables produced as output by a given `node`.
 """
-get_node_outputs(node::Node)::Vector{String} =
-    to_outputs(node, output_spec(get_card(node), get_invert(node)))
+get_node_outputs(node::Node)::Vector{String} = to_outputs(node, output_spec(node))
 
 invertible(n::Node) = invertible(get_card(n))
 
@@ -345,15 +344,18 @@ end
 """
     output_spec(card, invert::Bool)
 
-What `card` writes, as a list of [`OutputGroup`](@ref)s, or `nothing` when it does not declare one.
+What `card` writes, as a list of [`OutputGroup`](@ref)s.
 This is what a card type defines to say what it writes.
 
 A card that cannot be inverted answers the same in both directions, so only an invertible card
-needs to look at `invert`.
+needs to look at `invert`. Non-invertible cards should overload the `output_spec(card)` method.
 """
-output_spec(::Card) = nothing
+function output_spec end
 
-output_spec(c::Card, invert::Bool) = invert ? nothing : output_spec(c)
+function output_spec(n::Node)
+    card, invert = get_card(n), get_invert(n)
+    return invertible(card) ? output_spec(card, invert) : output_spec(card)
+end
 
 """
     named_products(n, groups, products, cols = String[])::Vector{OutputGroup}
@@ -384,7 +386,7 @@ The columns `n` writes for the products named, in that order: what a node select
 keeps of the node.
 """
 function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
-    groups = output_spec(get_card(n), get_invert(n))
+    groups = output_spec(n)
     named = named_products(n, groups, products)
     return to_outputs(n, named)
 end
@@ -396,7 +398,7 @@ Each product `node` writes, with its columns: what a node selection may narrow i
 card whose one output has no name.
 """
 function product_outputs(node::Node)
-    groups = output_spec(get_card(node), get_invert(node))
+    groups = output_spec(node)
     T = @NamedTuple{product::String, outputs::Vector{String}}
     return T[T((g.name, to_outputs(g.spec))) for g in groups if has_name(g)]
 end
@@ -409,7 +411,7 @@ order the card declares them, naming the columns it accepts and the rule that re
 when nothing can pass through.
 """
 function through_options(node::Node)
-    groups = output_spec(get_card(node), get_invert(node))
+    groups = output_spec(node)
     T = @NamedTuple{product::Maybe{String}, cols::Vector{String}, suffix::Maybe{String}, number::Maybe{Int}}
     return T[T((g.name, g.spec.cols, g.spec.suffix, g.spec.number)) for g in groups if is_transform(g)]
 end

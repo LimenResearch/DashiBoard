@@ -123,7 +123,7 @@ end
 function pass_through(cols::AbstractVector, steps::AbstractVector{Step}, nodes::AbstractVector)
     return foldl(steps, init = cols) do x, step
         node = nodes[get_node_idx(step)]
-        to_outputs(node, output_spec(get_card(node), get_invert(node)), x, step.products)
+        to_outputs(node, output_spec(node), x, step.products)
     end
 end
 

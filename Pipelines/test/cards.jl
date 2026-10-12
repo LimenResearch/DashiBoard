@@ -874,11 +874,11 @@ end
 # Which shape of specification each card declares. The three shapes mean different things to a
 # `through` chain, so a change that silently reclassifies a card has to fail here.
 @testset "output specifications" begin
-    only_spec(card, invert = false) = only(Pipelines.output_spec(card, invert)).spec
+    only_spec(card, args...) = only(Pipelines.output_spec(card, args...)).spec
 
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "gaussian_encoding.json"))
     gc = Pipelines.Card(d["dayofweek"])
-    groups = Pipelines.output_spec(gc, false)
+    groups = Pipelines.output_spec(gc)
     @test groups isa Vector{Pipelines.OutputGroup}
     # One product, so it needs no name.
     @test isnothing(only(groups).name)
@@ -911,7 +911,7 @@ end
         Pipelines.TRAINING_DIR => joinpath(@__DIR__, "static", "training"),
         Pipelines.Card(d["basic"])
     )
-    @test [g.name for g in Pipelines.output_spec(sc, false)] == ["prediction"]
+    @test [g.name for g in Pipelines.output_spec(sc)] == ["prediction"]
     @test Pipelines.get_node_outputs(Node(sc)) == ["Iws_hat"]
 end
 
@@ -995,7 +995,7 @@ StreamlinerCore.output_fields(::typeof(twohead)) = (:prediction, :spread)
         # A model's fields are its card's products, and nothing said means all of them.
         card = Pipelines.Card(config())
         @test Pipelines.products(card) == ["prediction", "spread"]
-        @test [g.name for g in Pipelines.output_spec(card, false)] == ["prediction", "spread"]
+        @test [g.name for g in Pipelines.output_spec(card)] == ["prediction", "spread"]
         node = Node(card)
         @test Pipelines.get_node_outputs(node) == ["Iws_hat", "Iws_spread"]
 

@@ -4,7 +4,7 @@
     # Nothing said: every product. The first takes `suffix`, the others their own name.
     card = Pipelines.Card(Dict("type" => "twofold", "inputs" => ["TEMP"]))
     @test Pipelines.selected_products(card) == all
-    groups = Pipelines.output_spec(card, false)
+    groups = Pipelines.output_spec(card)
     @test [g.name for g in groups] == all
     @test Pipelines.get_node_outputs(Node(card)) == ["TEMP_double", "TEMP_triple"]
 
@@ -14,7 +14,7 @@
 
     # Selecting narrows, keeps the order written, and still names the single product left.
     card = Pipelines.Card(Dict("type" => "twofold", "inputs" => ["TEMP"], "select" => ["triple"]))
-    @test [g.name for g in Pipelines.output_spec(card, false)] == ["triple"]
+    @test [g.name for g in Pipelines.output_spec(card)] == ["triple"]
     @test Pipelines.get_node_outputs(Node(card)) == ["TEMP_triple"]
     card = Pipelines.Card(Dict("type" => "twofold", "inputs" => ["TEMP"], "select" => ["triple", "double"]))
     @test Pipelines.get_node_outputs(Node(card)) == ["TEMP_triple", "TEMP_double"]

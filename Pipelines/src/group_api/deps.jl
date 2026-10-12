@@ -15,6 +15,8 @@ struct Step
     products::Maybe{Vector{String}}
 end
 
+get_node_idx(step::Step) = step.node
+
 struct Deps
     inputs::Union{Source, Computed}
     # The products of the selected nodes asked for by name, or `nothing` for all they write.
@@ -49,7 +51,7 @@ const DEPS_KINDS = ("nodes", "groups", "cols")
 get_through(d::AbstractDict)::Vector{Any} = get(d, "through", Any[])
 
 Step(dp::DepsParser, id::AbstractString) = Step(dp.node_idxs[id], nothing)
-Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], collect(String, d["products"]))
+Step(dp::DepsParser, d::AbstractDict) = Step(dp.node_idxs[d["node"]], d["products"])
 
 is_deps(d::AbstractDict) = keys(d) ⊆ DEPS_NAMES && count(in(DEPS_KINDS), keys(d)) == 1
 
@@ -59,14 +61,14 @@ function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
     idx_dict = key == "nodes" ? dp.node_idxs : key == "groups" ? dp.group_idxs : nothing
     inputs = isnothing(idx_dict) ? Source(val) : Computed(Int[idx_dict[k] for k in val])
     # Products are a node's to name, so they narrow a node selection only.
-    products = haskey(d, "products") ? collect(String, d["products"]) : nothing
+    products = get(d, "products", nothing)
     isnothing(products) || key == "nodes" || throw(
         ArgumentError("`products` narrows a `nodes` selection; this one selects `$(key)`")
     )
     through = Step[Step(dp, step) for step in get_through(d)]
 
     update!(dp, inputs, i)
-    append_edges!(dp, Int[step.node for step in through], i)
+    append_edges!(dp, get_node_idx.(through), i)
 
     return Deps(inputs, products, through)
 end
@@ -118,12 +120,11 @@ end
 # Fold the chain: each node renames what the one before it handed on, through the products the
 # step asked for, and refuses a value they do not transform. This is what makes a `through` list
 # checkable rather than a name built on hope.
-function pass_through(x::AbstractVector, steps::AbstractVector{Step}, nodes::AbstractVector)
-    for step in steps
-        node = nodes[step.node]
-        x = to_outputs(node, output_spec(get_card(node), get_invert(node)), x, step.products)
+function pass_through(cols::AbstractVector, steps::AbstractVector{Step}, nodes::AbstractVector)
+    return foldl(steps, init = cols) do x, step
+        node = nodes[get_node_idx(step)]
+        to_outputs(node, output_spec(node), x, step.products)
     end
-    return x
 end
 
 # Nested column computations
@@ -132,7 +133,7 @@ get_cols(::Context, inputs::Source, ::Nothing) = inputs.cols
 get_cols(c::Context, inputs::Computed, ::Nothing) = reduce(vcat, view(c.outputs, inputs.idxs))
 # Only nodes reach here: `Deps` refuses `products` on anything else.
 function get_cols(c::Context, inputs::Computed, products::AbstractVector{<:AbstractString})
-    return foldl(append!, (narrowed_outputs(c.nodes[i], products) for i in inputs.idxs); init = String[])
+    return flat_stringlist(i -> narrowed_outputs(c.nodes[i], products), inputs.idxs)
 end
 get_cols(c::Context, deps::Deps) =
     pass_through(get_cols(c, deps.inputs, deps.products), deps.through, c.nodes)

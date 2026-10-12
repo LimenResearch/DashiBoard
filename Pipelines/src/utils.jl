@@ -11,6 +11,8 @@ end
 
 to_maybestring(s::Maybe{AbstractString})::Maybe{String} = s
 
+flat_stringlist(f::F, iter) where {F} = mapfoldl(f, append!, iter, init = String[])
+
 # Card computation utils
 
 select_columns(args...) = Select(args = Get.(union(args...)))

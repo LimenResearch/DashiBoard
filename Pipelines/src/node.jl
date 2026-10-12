@@ -114,8 +114,7 @@ end
 
 Return the lists of variables produced as output by a given `node`.
 """
-get_node_outputs(node::Node)::Vector{String} =
-    to_outputs(node, output_spec(get_card(node), get_invert(node)))
+get_node_outputs(node::Node)::Vector{String} = to_outputs(node, output_spec(node))
 
 invertible(n::Node) = invertible(get_card(n))
 
@@ -228,6 +227,9 @@ end
 
 OutputGroup(spec::AbstractOutputSpec) = OutputGroup(nothing, spec)
 
+is_transform(g::OutputGroup) = g.spec isa VariableTransformSpec
+has_name(g::OutputGroup) = !isnothing(g.name)
+
 function _to_outputs(
         names::AbstractVector{<:AbstractString},
         suffix::Maybe{AbstractString},
@@ -240,8 +242,9 @@ end
 """
     to_outputs(os::AbstractOutputSpec, names = get_names(os))::Vector{String}
 
-The column names a card declaring `os` writes. Pass `names` to ask the same of a subset — what a
-`through` chain carrying part of a node's vocabulary comes out as.
+The column names a card declaring `os` writes.
+If `names::AbstractVector{<:AbstractString}` is given, restrict to columns derived from
+input columns `names`.
 """
 function to_outputs(os::AbstractOutputSpec, names::AbstractVector{<:AbstractString} = get_names(os))
     (; suffix, number) = os
@@ -317,48 +320,42 @@ function to_outputs(
         n::Node, groups::AbstractVector{OutputGroup},
         cols::AbstractVector{<:AbstractString}, products::Maybe{AbstractVector}
     )
-    transforms = [g for g in groups if g.spec isa VariableTransformSpec]
-    carries(g) = cols ⊆ g.spec.cols
-    accepted(gs) = unique!(foldl(append!, (g.spec.cols for g in gs); init = String[]))
 
     chosen = if isnothing(products)
-        isempty(transforms) && throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
-        carriers = filter(carries, transforms)
-        isempty(carriers) && throw(
-            ThroughError(n.id, setdiff(cols, accepted(transforms)), accepted(transforms), :not_carried)
-        )
-        carriers
+        transforms = filter(is_transform, groups)
+        if isempty(transforms) && !isempty(groups)
+            throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
+        end
+        transforms
     else
         named = named_products(n, groups, products, cols)
         # All or nothing: a step is refused rather than narrowed to the products that can carry it.
-        for g in named
-            g.spec isa VariableTransformSpec ||
-                throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
+        if !all(is_transform, named)
+            throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
         end
-        all(carries, named) || throw(
-            ThroughError(n.id, setdiff(cols, accepted(named)), accepted(named), :not_carried)
-        )
         named
     end
-    return foldl(append!, (to_outputs(g.spec, cols) for g in chosen); init = String[])
-end
-
-function to_outputs(n::Node, ::Nothing, cols::AbstractVector{<:AbstractString}, ::Maybe{AbstractVector})
-    return throw(ThroughError(n.id, collect(String, cols), nothing, :undeclared))
+    for g in chosen
+        cols ⊆ g.spec.cols || throw(ThroughError(n.id, cols, g.spec.cols, :not_carried))
+    end
+    return flat_stringlist(g -> to_outputs(g.spec, cols), chosen)
 end
 
 """
     output_spec(card, invert::Bool)
 
-What `card` writes, as a list of [`OutputGroup`](@ref)s, or `nothing` when it does not declare one.
+What `card` writes, as a list of [`OutputGroup`](@ref)s.
 This is what a card type defines to say what it writes.
 
 A card that cannot be inverted answers the same in both directions, so only an invertible card
-needs to look at `invert`.
+needs to look at `invert`. Non-invertible cards should overload the `output_spec(card)` method.
 """
-output_spec(::Card) = nothing
+function output_spec end
 
-output_spec(c::Card, invert::Bool) = invert ? nothing : output_spec(c)
+function output_spec(n::Node)
+    card, invert = get_card(n), get_invert(n)
+    return invertible(card) ? output_spec(card, invert) : output_spec(card)
+end
 
 """
     named_products(n, groups, products, cols = String[])::Vector{OutputGroup}
@@ -372,12 +369,13 @@ function named_products(
         n::Node, groups::AbstractVector{OutputGroup}, products::AbstractVector,
         cols::AbstractVector{<:AbstractString} = String[]
     )
-    allunique(products) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_product))
-    names = String[g.name for g in groups if !isnothing(g.name)]
+    allunique(products) || throw(ThroughError(n.id, cols, nothing, :repeated_product))
+    d = OrderedDict{String, OutputGroup}(g.name => g for g in groups if has_name(g))
     return map(products) do name
-        i = findfirst(g -> g.name == name, groups)
-        isnothing(i) && throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_product; products = names))
-        groups[i]
+        # FIXME: `name` is not mentioned in the error message
+        get(d, name) do
+            throw(ThroughError(n.id, cols, nothing, :no_such_product; products = collect(keys(d))))
+        end
     end
 end
 
@@ -388,9 +386,9 @@ The columns `n` writes for the products named, in that order: what a node select
 keeps of the node.
 """
 function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
-    groups = output_spec(get_card(n), get_invert(n))
-    isnothing(groups) && return to_outputs(n, nothing)   # throws: the card declares nothing
-    return foldl(append!, (to_outputs(g.spec) for g in named_products(n, groups, products)); init = String[])
+    groups = output_spec(n)
+    named = named_products(n, groups, products)
+    return to_outputs(n, named)
 end
 
 """
@@ -400,9 +398,9 @@ Each product `node` writes, with its columns: what a node selection may narrow i
 card whose one output has no name.
 """
 function product_outputs(node::Node)
-    groups = output_spec(get_card(node), get_invert(node))
-    isnothing(groups) && return NamedTuple[]
-    return [(; product = g.name, outputs = to_outputs(g.spec)) for g in groups if !isnothing(g.name)]
+    groups = output_spec(node)
+    T = @NamedTuple{product::String, outputs::Vector{String}}
+    return T[T((g.name, to_outputs(g.spec))) for g in groups if has_name(g)]
 end
 
 """
@@ -413,12 +411,9 @@ order the card declares them, naming the columns it accepts and the rule that re
 when nothing can pass through.
 """
 function through_options(node::Node)
-    groups = output_spec(get_card(node), get_invert(node))
-    isnothing(groups) && return NamedTuple[]
-    return [
-        (; product = g.name, g.spec.cols, g.spec.suffix, g.spec.number)
-            for g in groups if g.spec isa VariableTransformSpec
-    ]
+    groups = output_spec(node)
+    T = @NamedTuple{product::Maybe{String}, cols::Vector{String}, suffix::Maybe{String}, number::Maybe{Int}}
+    return T[T((g.name, g.spec.cols, g.spec.suffix, g.spec.number)) for g in groups if is_transform(g)]
 end
 
 """
@@ -426,12 +421,6 @@ end
 
 Everything `n` writes: each product's outputs, in the order the card declares them.
 """
-function to_outputs(::Node, groups::AbstractVector{OutputGroup})
-    return foldl(append!, (to_outputs(g.spec) for g in groups); init = String[])
-end
-
-# Every card declares what it writes. Reaching this is a card that forgot, and saying so here
-# beats its outputs quietly going missing from the pipeline.
-function to_outputs(n::Node, ::Nothing)
-    return throw(ArgumentError("The card of node `$(n.id)` does not declare what it writes"))
+function to_outputs(n::Node, groups::AbstractVector{OutputGroup})
+    return flat_stringlist(g -> to_outputs(g.spec), groups)
 end

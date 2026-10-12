@@ -26,6 +26,20 @@ module StructTest
     @kwarg struct MyStruct3
         x::Bool = true
     end
+
+    abstract type Shape end
+
+    @kwarg struct Circle <: Shape
+        radius::Float64 = 1.0
+    end
+    @kwarg struct Square <: Shape
+        side::Float64 = 1.0
+    end
+    DashiBase.@options Shape Dict("circle" => Circle, "square" => Square)
+
+    @kwarg struct Drawing
+        shape::Shape = Square()
+    end
 end
 
 @testset "auto_property" begin
@@ -238,4 +252,10 @@ end
     # The schema is unchanged by it: it checks the same documents.
     @test !haskey(DashiBase.json_schema(tagged), "options_from")
     @test DashiBase.json_schema(tagged) == DashiBase.json_schema(DashiBase.TaggedObjectIR(objects = Dict("dense" => branch)))
+end
+
+# A variant whose default is an instance names the option that instance belongs to.
+@testset "a variant whose default is an instance" begin
+    ir = only(ObjectIR(StructTest.Drawing).properties).value
+    @test ir.default_option == "square"
 end

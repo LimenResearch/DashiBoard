@@ -329,12 +329,12 @@ function to_outputs(
         transforms
     else
         named = named_products(n, groups, products, cols)
-        # All or nothing: a step is refused rather than narrowed to the products that can carry it.
         if !all(is_transform, named)
             throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
         end
         named
     end
+    # We error if a selected group lacks some of the requested `cols`
     for g in chosen
         cols ⊆ g.spec.cols || throw(ThroughError(n.id, cols, g.spec.cols, :not_carried))
     end

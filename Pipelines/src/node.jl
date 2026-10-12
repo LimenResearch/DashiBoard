@@ -318,28 +318,22 @@ function to_outputs(
         n::Node, groups::AbstractVector{OutputGroup},
         cols::AbstractVector{<:AbstractString}, products::Maybe{AbstractVector}
     )
-    transforms = [g for g in groups if g.spec isa VariableTransformSpec]
-    carries(g) = cols ⊆ g.spec.cols
-    accepted(gs) = unique!(foldl(append!, (g.spec.cols for g in gs); init = String[]))
 
     chosen = if isnothing(products)
-        isempty(transforms) && throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
-        carriers = filter(carries, transforms)
-        isempty(carriers) && throw(
-            ThroughError(n.id, setdiff(cols, accepted(transforms)), accepted(transforms), :not_carried)
-        )
-        carriers
+        transforms = filter(g -> g.spec isa VariableTransformSpec, groups)
+        isempty(transforms) && throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
+        transforms
     else
         named = named_products(n, groups, products, cols)
         # All or nothing: a step is refused rather than narrowed to the products that can carry it.
         for g in named
             g.spec isa VariableTransformSpec ||
-                throw(ThroughError(n.id, collect(String, cols), nothing, :names_own_outputs))
+                throw(ThroughError(n.id, cols, nothing, :names_own_outputs))
         end
-        all(carries, named) || throw(
-            ThroughError(n.id, setdiff(cols, accepted(named)), accepted(named), :not_carried)
-        )
         named
+    end
+    for g in chosen
+        cols ⊆ g.spec.cols || throw(ThroughError(n.id, cols, g.spec.cols, :not_carried))
     end
     return flat_stringlist(g -> to_outputs(g.spec, cols), chosen)
 end
@@ -373,11 +367,12 @@ function named_products(
         n::Node, groups::AbstractVector{OutputGroup}, products::AbstractVector,
         cols::AbstractVector{<:AbstractString} = String[]
     )
-    allunique(products) || throw(ThroughError(n.id, collect(String, cols), nothing, :repeated_product))
+    allunique(products) || throw(ThroughError(n.id, cols, nothing, :repeated_product))
     d = OrderedDict{String, OutputGroup}(g.name => g for g in groups if !isnothing(g.name))
     return map(products) do name
+        # FIXME: `name` is not mentioned in the error message
         get(d, name) do
-            throw(ThroughError(n.id, collect(String, cols), nothing, :no_such_product; products = collect(keys(d))))
+            throw(ThroughError(n.id, cols, nothing, :no_such_product; products = collect(keys(d))))
         end
     end
 end
@@ -403,8 +398,9 @@ card whose one output has no name.
 """
 function product_outputs(node::Node)
     groups = output_spec(get_card(node), get_invert(node))
-    isnothing(groups) && return NamedTuple[]
-    return [(; product = g.name, outputs = to_outputs(g.spec)) for g in groups if !isnothing(g.name)]
+    T = @NamedTuple{product::String, outputs::Vector{String}}
+    isnothing(groups) && return T[]
+    return T[T((g.name, to_outputs(g.spec))) for g in groups if !isnothing(g.name)]
 end
 
 """
@@ -416,9 +412,10 @@ when nothing can pass through.
 """
 function through_options(node::Node)
     groups = output_spec(get_card(node), get_invert(node))
-    isnothing(groups) && return NamedTuple[]
-    return [
-        (; product = g.name, g.spec.cols, g.spec.suffix, g.spec.number)
+    T = @NamedTuple{product::Maybe{String}, cols::Vector{String}, suffix::Maybe{String}, number::Maybe{Int}}
+    isnothing(groups) && return T[]
+    return T[
+        T((g.name, g.spec.cols, g.spec.suffix, g.spec.number))
             for g in groups if g.spec isa VariableTransformSpec
     ]
 end

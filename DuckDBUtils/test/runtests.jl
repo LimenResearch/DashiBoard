@@ -17,7 +17,7 @@ using Test
         path = joinpath(dir, "test_db.duckdb")
         r = Repository(path, limit = 100)
         @test sprint(show, r) == "Repository(DuckDB.DB(\"$(path)\"), Connections(limit = 100))"
-        DBInterface.close!(r.db) #TODO: create method for DBInterface.close!(r)
+        DBInterface.close!(r)
     end
 end
 
@@ -39,6 +39,40 @@ end
     con4 = acquire_connection(r)
     @test con4 === con3
     release_connection(r, con4)
+end
+
+@testset "close" begin
+    tryreadlink(path) = try
+        readlink(path)
+    catch
+        nothing
+    end
+
+    mktempdir() do dir
+        path = joinpath(dir, "closing.duckdb")
+        r = Repository(path)
+        DBInterface.execute(Returns(nothing), r, "CREATE TABLE t AS SELECT 1 AS x")
+        drained = acquire_connection(r)
+        release_connection(r, drained)
+        drain_connections!(r)
+        idle = acquire_connection(r)
+        release_connection(r, idle)
+        DBInterface.close!(r)
+        # Every connection the repository opened is closed, whether idle or drained,
+        # and so is the database: nothing holds the file any more.
+        @test !isopen(idle) && !isopen(drained)
+        @test !isopen(r.db)
+        if Sys.islinux()
+            held = filter(readdir("/proc/self/fd"; join = true)) do fd
+                startswith(something(tryreadlink(fd), ""), path)
+            end
+            @test isempty(held)
+        end
+        # The file is intact and opens again.
+        r = Repository(path)
+        @test DBInterface.execute(Tables.columntable, r, "FROM t").x == [1]
+        DBInterface.close!(r)
+    end
 end
 
 @testset "acquisition_utils" begin

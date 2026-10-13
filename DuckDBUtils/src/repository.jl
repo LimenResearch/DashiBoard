@@ -98,6 +98,8 @@ function drain_connections!(connections::Connections)
     return
 end
 
+DBInterface.close!(connections::Connections) = drain_connections!(connections)
+
 struct Repository
     id::UInt64
     db::DuckDB.DB
@@ -160,6 +162,12 @@ function Base.show(io::IO, repository::Repository)
     print(io, ", ")
     show(io, repository.connections)
     print(io, ")")
+    return
+end
+
+function DBInterface.close!(repository::Repository)
+    DBInterface.close!(repository.connections)
+    DBInterface.close!(repository.db)
     return
 end
 

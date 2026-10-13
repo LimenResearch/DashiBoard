@@ -270,5 +270,5 @@ mktempdir() do dir
         node3 = Pipelines.Node(Card(d["zscore"]), label = "custom3")
         @test node3.label == "custom3"
     end
-    DBInterface.close!(repo.db) #TODO: update with proper close!(Repository)
+    DBInterface.close!(repo)
 end

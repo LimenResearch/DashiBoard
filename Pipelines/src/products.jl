@@ -82,5 +82,5 @@ what an absent `select` means, so a form shows every product chosen without know
 """
 function select_IR(products::AbstractVector{<:AbstractString})
     # A product is written once, so the list is a set.
-    return ArrayIR{String}(items = StringIR(enum = products), minItems = 1, default = collect(String, products), uniqueItems = true)
+    return ArrayIR(items = StringIR(enum = products), minItems = 1, default = collect(String, products), uniqueItems = true)
 end

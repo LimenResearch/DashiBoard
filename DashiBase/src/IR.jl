@@ -73,11 +73,11 @@ end
     var"$ref"::String
 end
 
-@kwarg struct ArrayIR{T} <: AbstractIR
+@kwarg struct ArrayIR <: AbstractIR
     type::String = "array"
     title::Maybe{String} = nothing
     description::Maybe{String} = nothing
-    default::Maybe{Vector{T}} = nothing
+    default::Maybe{AbstractVector} = nothing
     items::Maybe{AbstractIR} = nothing
     minItems::Maybe{Int} = nothing
     maxItems::Maybe{Int} = nothing
@@ -151,22 +151,22 @@ function json_schema(to::TaggedObjectIR)
     return omit_null!(schema)
 end
 
-struct OneOrManyIR{T} <: AbstractIR
+struct OneOrManyIR <: AbstractIR
     # `type` is not decoration: a renderer dispatches on it and `choose_IR` deserialises on it.
     # Without it this node arrived as a bare `{array, eltype}` that nothing could identify, while
     # every other node in the vocabulary announced itself.
     type::String
-    array::ArrayIR{T}
+    array::ArrayIR
     eltype::String
-    function OneOrManyIR{T}(array::ArrayIR{T}, eltype::AbstractString) where {T}
+    function OneOrManyIR(array::ArrayIR, eltype::AbstractString)
         eltype == "array" && throw(ArgumentError("`eltype == \"array\"` is not supported"))
-        return new{T}("one_or_many", array, eltype)
+        return new("one_or_many", array, eltype)
     end
 end
 
-function OneOrManyIR{T}(; items::AbstractIR, eltype::AbstractString = items.type, kwargs...) where {T}
-    array = ArrayIR{T}(; items, kwargs...)
-    return OneOrManyIR{T}(array, eltype)
+function OneOrManyIR(; items::AbstractIR, eltype::AbstractString = items.type, kwargs...)
+    array = ArrayIR(; items, kwargs...)
+    return OneOrManyIR(array, eltype)
 end
 
 function json_schema(o::OneOrManyIR)

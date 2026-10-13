@@ -45,7 +45,7 @@ describe('the mapping covers the IR Julia actually serves', () => {
     // predicate, so a third one has to be added here deliberately instead of slipping in.
     const unconstrained = (node: Record<string, unknown>) => {
       const keys = Object.keys(node).sort();
-      // `ArrayIR{Any}()` serialises its items as `{}`.
+      // `ArrayIR()` serialises its items as `{}`.
       if (keys.length === 0) return true;
       // An *open* object with nothing described: the server accepts arbitrary keys here, so this
       // says "undescribed", not "no settings". A closed one with no properties is the opposite —
@@ -67,7 +67,7 @@ describe('the mapping covers the IR Julia actually serves', () => {
         unknown.push(key);
       }
     }
-    // glm and mixed_model formulas use ArrayIR{Any}(), whose items serialise as {}. mixed_model
+    // glm and mixed_model formulas use ArrayIR(), whose items serialise as {}. mixed_model
     // is not registered by default, so glm is the only one of those — and Pipelines carries a
     // "make more specific" TODO for exactly this. streamliner is *not* here: its funnel is
     // described by the funnel's own fields, and its `model` and `training` by the

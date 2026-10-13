@@ -140,7 +140,7 @@ describe('widgetFor', () => {
   });
 
   it('maps a typeless node to unknown rather than guessing', () => {
-    // ArrayIR{Any}() serialises its items as {} -- glm and mixed_model formulas both do this,
+    // ArrayIR() serialises its items as {} -- glm and mixed_model formulas both do this,
     // and the Julia side carries a "make more specific" TODO for it.
     expect(widgetFor({}, defs)).toEqual({ kind: 'unknown' });
     expect(widgetFor({ type: 'array', items: {} }, defs)).toEqual({

@@ -19,7 +19,7 @@ function through_step_IR()
     named = ObjectIR(
         properties = [
             Property("node" => NODE_DEF),
-            Property("products" => ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1)),
+            Property("products" => ArrayIR(items = StringIR(minLength = 1), minItems = 1)),
         ]
     )
     return EitherIR(["string" => NODE_DEF, "object" => named])
@@ -29,13 +29,13 @@ end
 # with a potential `through: list[str | {node, products}]` attribute
 function variable_item_IR()
     properties = [
-        Property("nodes" => OneOrManyIR{String}(; items = NODE_DEF, eltype = "string"), required = false),
-        Property("groups" => OneOrManyIR{String}(; items = GROUP_DEF, eltype = "string"), required = false),
-        Property("cols" => OneOrManyIR{String}(; items = COL_DEF, eltype = "string"), required = false),
+        Property("nodes" => OneOrManyIR(; items = NODE_DEF, eltype = "string"), required = false),
+        Property("groups" => OneOrManyIR(; items = GROUP_DEF, eltype = "string"), required = false),
+        Property("cols" => OneOrManyIR(; items = COL_DEF, eltype = "string"), required = false),
         # Which products of the selected nodes to keep. Not enumerable here — they depend on the
         # node — so an unknown one is caught when the selection is resolved, as for a chain step.
-        Property("products" => ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1), required = false),
-        Property("through" => ArrayIR{Any}(; items = through_step_IR(), default = []), required = false),
+        Property("products" => ArrayIR(items = StringIR(minLength = 1), minItems = 1), required = false),
+        Property("through" => ArrayIR(; items = through_step_IR(), default = []), required = false),
     ]
     oneOf = [
         StringDict("required" => ["nodes"]),
@@ -62,8 +62,8 @@ function ir_definitions(variable_config::VariableConfig)
         "group" => StringIR(enum = variable_config.groups),
         "col" => StringIR(enum = variable_config.cols),
         "variable" => variable_item_IR(),
-        "variables" => ArrayIR{AbstractDict}(items = variable_item_IR()),
-        "nonempty_variables" => ArrayIR{AbstractDict}(items = variable_item_IR(), minItems = 1),
+        "variables" => ArrayIR(items = variable_item_IR()),
+        "nonempty_variables" => ArrayIR(items = variable_item_IR(), minItems = 1),
     )
 end
 

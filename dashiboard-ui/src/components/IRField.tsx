@@ -688,7 +688,7 @@ export function IRField(props: IRFieldProps) {
           // The IR does not constrain this field, so there is nothing honest to draw. Saying so
           // beats a JSON textarea that invites input the schema will reject — and it makes the
           // gap visible where it belongs. Reachable today only through glm's formula, where
-          // Pipelines uses ArrayIR{Any}() with a "make more specific" TODO.
+          // Pipelines uses ArrayIR() with a "make more specific" TODO.
           // A map belongs beside the list its keys come from, so its object draws it; alone it
           // has no columns to offer a row for.
           case "map":

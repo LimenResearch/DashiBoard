@@ -89,9 +89,9 @@ end
 
 function drain_connections!(connections::Connections)
     (; lock, values) = connections
-    c = DuckDB.Connection[]
+    local c::Vector{DuckDB.Connection}
     @lock lock begin
-        append!(c, values)
+        c = copy(values)
         empty!(values)
     end
     foreach(DBInterface.close!, c)

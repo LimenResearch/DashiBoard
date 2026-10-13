@@ -42,24 +42,61 @@ function release_numbers(d::MultiDict, k::AbstractString, is::AbstractVector)
 end
 
 struct Connections
-    pool::Pool{Nothing, DuckDB.Connection}
-    Connections(limit::Integer = 4096) = new(Pool{Nothing, DuckDB.Connection}(Int(limit)))
+    lock::ReentrantLock
+    values::Vector{DuckDB.Connection}
+    semaphore::Semaphore
+    limit::Int
+    function Connections(limit::Integer = 4096)
+        lock = ReentrantLock()
+        values = DuckDB.Connection[]
+        semaphore = Semaphore(limit)
+        return new(lock, values, semaphore, limit)
+    end
 end
 
 function Base.show(io::IO, connections::Connections)
-    print(io, "Connections(limit = ", Pools.limit(connections.pool), ")")
+    print(io, "Connections(limit = ", connections.limit, ")")
     return
 end
 
+function _acquire((; lock, values)::Connections, db::DuckDB.DB)
+    while true
+        candidate = @lock lock isempty(values) ? nothing : pop!(values)
+        isnothing(candidate) && break
+        isopen(candidate) && return candidate
+    end
+    return DBInterface.connect(db)
+end
+
 function acquire_connection(connections::Connections, db::DuckDB.DB)
-    return acquire(() -> DBInterface.connect(db), connections.pool, isvalid = isopen)
+    acquire(connections.semaphore)
+    return try
+        _acquire(connections, db)
+    catch
+        release(connections.semaphore)
+        rethrow()
+    end
 end
 
 function release_connection(connections::Connections, con::DuckDB.Connection)
-    return release(connections.pool, con)
+    (; lock, values, semaphore) = connections
+    @lock lock begin
+        release(semaphore)
+        push!(values, con)
+    end
+    return
 end
 
-drain_connections!(connections::Connections) = drain!(connections.pool)
+function drain_connections!(connections::Connections)
+    (; lock, values) = connections
+    c = DuckDB.Connection[]
+    @lock lock begin
+        append!(c, values)
+        empty!(values)
+    end
+    foreach(DBInterface.close!, c)
+    return
+end
 
 struct Repository
     id::UInt64
@@ -152,6 +189,7 @@ release_connection(repository::Repository, con) = release_connection(repository.
     drain_connections!(repository::Repository)
 
 Make existing connections from the pool `repository.connections` no longer reusable.
+These connections will also be closed.
 """
 drain_connections!(repository::Repository) = drain_connections!(repository.connections)
 

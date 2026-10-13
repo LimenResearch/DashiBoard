@@ -26,7 +26,7 @@ public render_params, in_schema, query, transaction
 
 public get_scratch_space, get_scratch_file
 
-using Base: front, Fix1, Fix2
+using Base: front, Fix1, Fix2, acquire, release, Semaphore
 using Scratch: @get_scratch!
 
 using FunSQL: reflect, render, pack, SQLNode, SQLCatalog, SQLDialect, LIT
@@ -41,7 +41,6 @@ using DuckDB: DuckDB,
     end_row
 
 using DBInterface: DBInterface
-using ConcurrentUtilities: Pool, acquire, release, drain!, Pools
 using Tables: Tables
 using OrderedCollections: OrderedDict
 

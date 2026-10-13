@@ -12,15 +12,15 @@
     group_idxs = Dict("weather" => 5)
 
     @test nds[1]["card"]["group_by"][1].inputs.cols == ["cbwd"]
-    @test nds[1]["card"]["inputs"][1].inputs.idxs == [group_idxs["weather"]]
+    @test nds[1]["card"]["inputs"][1].inputs.groups == [group_idxs["weather"]]
     @test nds[1]["card"]["inputs"][2].inputs.cols == ["No"]
-    @test nds[1]["card"]["partition"].inputs.idxs == [node_idxs["partition"]]
+    @test nds[1]["card"]["partition"].inputs.nodes == [Pipelines.SubNode(node_idxs["partition"], nothing)]
 
     @test nds[2]["card"]["inputs"][1].inputs.cols == ["No"]
 
-    @test nds[3]["card"]["inputs"][1].inputs.idxs == [node_idxs["log"]]
-    @test nds[3]["card"]["inputs"][2].inputs.idxs == [group_idxs["weather"]]
-    @test [step.node for step in nds[3]["card"]["inputs"][2].through] == [node_idxs["rescale"]]
+    @test nds[3]["card"]["inputs"][1].inputs.nodes == [Pipelines.SubNode(node_idxs["log"], nothing)]
+    @test nds[3]["card"]["inputs"][2].inputs.groups == [group_idxs["weather"]]
+    @test nds[3]["card"]["inputs"][2].through == [Pipelines.SubNode(node_idxs["rescale"], nothing)]
 
     @test nds[4]["card"]["order_by"][1].inputs.cols == ["No"]
 
@@ -206,7 +206,7 @@ end
     @test irs["node"].enum == ["log"]
     # and its one-or-many fields are now identifiable by a renderer
     nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
-    @test nodes_entry.value.type == "one_or_many"
+    @test nodes_entry.value.type == "either"
     # A chain step is a node id or `{node, products}`, and the schema tells them apart by type.
     through = only(p for p in irs["variable"].properties if p.key == "through").value
     @test through.items.type == "either"
@@ -383,7 +383,10 @@ end
     @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
 
     # A node selection may ask for some of what the node writes, by name, in the order written.
-    pick(products; node = both) = resolve([Dict("nodes" => "both", "products" => products)]; extra = node)
+    pick(products; node = both) = resolve(
+        [Dict("nodes" => [Dict("node" => "both", "products" => products)])];
+        extra = node
+    )
     @test resolve([Dict("nodes" => "both")]; extra = both) == ["PRES_double", "PRES_triple"]
     @test pick(["triple"]) == ["PRES_triple"]
     @test pick(["triple", "double"]) == ["PRES_triple", "PRES_double"]
@@ -401,15 +404,13 @@ end
 
     # A narrowed node can still be passed on, and the chain is handed only what was kept.
     e = @test_throws Pipelines.ThroughError resolve(
-        [Dict("nodes" => "both", "products" => ["triple"], "through" => ["rescale"])]; extra = both
+        [Dict("nodes" => Dict("node" => "both", "products" => ["triple"]), "through" => ["rescale"])];
+        extra = both
     )
     @test e.value.cols == ["PRES_triple"]
 
-    # `products` narrows a node selection and nothing else.
-    @test_throws ArgumentError resolve([Dict("cols" => "PRES", "products" => ["x"])])
-
     # Inside a group the refusal addresses the group.
-    e = @test_throws Pipelines.ThroughError resolve_group([Dict("nodes" => "log", "products" => ["x"])])
+    e = @test_throws Pipelines.ThroughError resolve_group([Dict("nodes" => Dict("node" => "log", "products" => ["x"]))])
     @test e.value.pointer == "/groups/weather"
 
     # What each node offers to be narrowed to: its products, with their columns.

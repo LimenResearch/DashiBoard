@@ -65,7 +65,7 @@ module MethodTest
     # Written by hand: only that the list needs at least one entry. What an entry can be is left
     # for DashiBase to work out from the field's type.
     @kwarg struct Combined
-        steps::Vector{Scaling} & (dashi = ArrayIR{Scaling}(minItems = 1),)
+        steps::Vector{Scaling} & (dashi = ArrayIR(minItems = 1),)
     end
 end
 
@@ -175,9 +175,9 @@ end
     @test !isvalid(Dict("x" => 1), schema3)
 end
 
-@testset "ArratIR" begin
+@testset "ArrayIR" begin
     obj = ObjectIR(StructTest.MyStruct)
-    arr = ArrayIR{StructTest.MyStruct}(items = obj, minItems = 2)
+    arr = ArrayIR(items = obj, minItems = 2)
     schema = DashiBase.json_schema(arr) |> Schema
     d = Dict("x" => 1, "y" => "a")
     d1 = Dict("y" => "c")
@@ -186,7 +186,7 @@ end
     @test isvalid([d, d], schema)
     @test !isvalid([d, d1], schema)
 
-    one_or_many = OneOrManyIR{StructTest.MyStruct}(items = obj, maxItems = 2)
+    one_or_many = OneOrManyIR(items = obj, maxItems = 2)
     schema = DashiBase.json_schema(one_or_many) |> Schema
     @test isvalid(d, schema)
     @test !isvalid(d1, schema)
@@ -195,18 +195,18 @@ end
     @test isvalid([d, d], schema)
     @test !isvalid([d, d, d], schema)
 
-    @test_throws ArgumentError OneOrManyIR{StructTest.MyStruct}(items = arr)
+    @test_throws ArgumentError OneOrManyIR(items = arr)
 end
 
 # A list says when a value makes sense at most once; a form draws such a set as on/off choices
 # and anything else as a sequence, where repeats are meant.
 @testset "uniqueItems" begin
-    set = ArrayIR{String}(items = StringIR(enum = ["a", "b"]), uniqueItems = true)
+    set = ArrayIR(items = StringIR(enum = ["a", "b"]), uniqueItems = true)
     @test DashiBase.json_schema(set)["uniqueItems"] == true
     schema = DashiBase.json_schema(set) |> Schema
     @test isvalid(["a", "b"], schema)
     @test !isvalid(["a", "a"], schema)
-    sequence = ArrayIR{Int}(items = IntegerIR(enum = [1, 2]))
+    sequence = ArrayIR(items = IntegerIR(enum = [1, 2]))
     @test !haskey(DashiBase.json_schema(sequence), "uniqueItems")
     @test isvalid([1, 1, 2], DashiBase.json_schema(sequence) |> Schema)
 end
@@ -214,9 +214,9 @@ end
 @testset "IR serialises to JSON" begin
     @test JSON.json(TrivialIR()) == "{\"type\":\"trivial\"}"
     @test DashiBase.json_schema(TrivialIR()) == Dict{String, Any}()
-    @test JSON.json(ArrayIR{Any}(items = TrivialIR()); omit_null = true) ==
+    @test JSON.json(ArrayIR(items = TrivialIR()); omit_null = true) ==
         """{"type":"array","items":{"type":"trivial"}}"""
-    @test DashiBase.json_schema(ArrayIR{Any}(items = TrivialIR())) ==
+    @test DashiBase.json_schema(ArrayIR(items = TrivialIR())) ==
         Dict{String, Any}("type" => "array", "items" => Dict())
 end
 
@@ -224,7 +224,7 @@ end
     # A renderer dispatches on `type`, and `choose_IR` deserialises on it. `OneOrManyIR` used to
     # carry neither, so a one-or-many field -- the node the group dialect leans on hardest --
     # arrived as {array, eltype} that nothing could identify.
-    one_or_many = OneOrManyIR{String}(items = StringIR(), eltype = "string")
+    one_or_many = OneOrManyIR(items = StringIR(), eltype = "string")
     @test one_or_many.type == "one_or_many"
     @test JSON.parse(JSON.json(one_or_many; omit_null = true))["type"] == "one_or_many"
 

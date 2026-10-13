@@ -51,7 +51,7 @@ Squared Euclidean distance with one positive weight per coordinate
 """
 @kwarg struct WeightedSqEuclideanMethod <: DissimilarityMethod
     weights::Vector{Float64} & (
-        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
@@ -102,7 +102,7 @@ Euclidean distance with one positive weight per coordinate
 """
 @kwarg struct WeightedEuclideanMethod <: SimpleMetricMethod
     weights::Vector{Float64} & (
-        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
@@ -115,7 +115,7 @@ City-block distance with one positive weight per coordinate
 """
 @kwarg struct WeightedCityblockMethod <: SimpleMetricMethod
     weights::Vector{Float64} & (
-        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
 end
 
@@ -128,7 +128,7 @@ card's `inputs` in length and order.
 """
 @kwarg struct WeightedMinkowskiMethod <: SimpleMetricMethod
     weights::Vector{Float64} & (
-        dashi = ArrayIR{Float64}(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
+        dashi = ArrayIR(items = NumberIR(exclusiveMinimum = 0), minItems = 1),
     )
     p::Float64 = 2.0 & (dashi = NumberIR(minimum = 1),)
 end

@@ -71,7 +71,7 @@ export type Widget =
    * list: `keysFrom` says which sibling field they come from.
    */
   | { kind: "map"; values: (string | number)[]; keysFrom?: string }
-  // A node the IR does not constrain. Reachable today: `ArrayIR{Any}()` serialises its items as
+  // A node the IR does not constrain. Reachable today: `ArrayIR()` serialises its items as
   // `{}`, which the glm and mixed_model formula IRs both do.
   | { kind: "unknown" };
 
@@ -227,7 +227,7 @@ export function widgetFor(node: IRNode, defs: Defs): Widget {
       // built by `EmptyTaggedObjectIR(...; additionalProperties = true)` under a standing
       // "make schema more specific" TODO in `Pipelines/src/cards/streamliner.jl`. Calling that an
       // object with no settings draws a form saying there is nothing to fill in, which is the
-      // opposite of true — so it is reported as undescribed, the same as `ArrayIR{Any}`.
+      // opposite of true — so it is reported as undescribed, the same as `ArrayIR`.
       if (properties.length === 0 && n.additionalProperties === true) return { kind: "unknown" };
       const kinds = selectorKinds(n);
       if (kinds !== null) {

@@ -34,7 +34,7 @@ function IR_from_type(T::Type, _default = nothing)::AbstractIR
         (T <: Maybe{AbstractString}) ? StringIR(; default) :
         (T <: Maybe{Symbol}) ? StringIR(; default) :
         (T <: Maybe{Enum}) ? StringIR(; default, enum = enum_instances(T)) :
-        (T <: Maybe{AbstractVector}) ? (S = _eltype(T); ArrayIR{S}(; items = IR_from_type(S), default)) :
+        (T <: Maybe{AbstractVector}) ? (S = _eltype(T); ArrayIR(; items = IR_from_type(S), default)) :
         # FIXME: set default here as well
         TrivialIR()
 end

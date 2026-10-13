@@ -16,8 +16,8 @@ Return the shared `\$defs` entries as IR nodes, for a renderer to resolve `Refer
 function ir_definitions(variables::AbstractVector)
     return StringDict(
         "variable" => StringIR(enum = variables),
-        "variables" => ArrayIR{String}(items = VARIABLE_DEF, default = String[]),
-        "nonempty_variables" => ArrayIR{String}(items = VARIABLE_DEF, minItems = 1),
+        "variables" => ArrayIR(items = VARIABLE_DEF, default = String[]),
+        "nonempty_variables" => ArrayIR(items = VARIABLE_DEF, minItems = 1),
     )
 end
 

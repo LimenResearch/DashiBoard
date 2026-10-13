@@ -14,7 +14,7 @@ get_sql(m::PercentileMethod) = Fun.case(Agg.percent_rank() .≤ m.percentile, 1,
 
 @kwarg struct TilesMethod <: OrderedSplittingMethod
     tiles::Vector{Int} & (
-        dashi = ArrayIR{Int}(items = IntegerIR(enum = [1, 2]), minItems = 1),
+        dashi = ArrayIR(items = IntegerIR(enum = [1, 2]), minItems = 1),
     )
     repeat::Int = 1 & (dashi = IntegerIR(minimum = 1),)
     tail::Int = 0 & (dashi = IntegerIR(minimum = 0),)

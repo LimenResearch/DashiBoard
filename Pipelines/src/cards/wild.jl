@@ -96,7 +96,7 @@ function WildCardIR(settings::Any)
         Property("order_by" => VARIABLES_DEF, required = false)
     end
 
-    output_array = ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1)
+    output_array = ArrayIR(items = StringIR(minLength = 1), minItems = 1)
     output_properties = if settings.needs_targets
         Property[
             Property("targets" => NONEMPTY_VARIABLES_DEF, required = true),

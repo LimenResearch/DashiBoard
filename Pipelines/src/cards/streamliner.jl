@@ -23,7 +23,7 @@ is left out. The prediction is written under `suffix`, any other field under its
     suffix::String = "hat" & (dashi = StringIR(minLength = 1),)
     # A product is written once, so the list is a set.
     select::Maybe{Vector{String}} = nothing & (
-        dashi = ArrayIR{String}(items = StringIR(minLength = 1), minItems = 1, uniqueItems = true),
+        dashi = ArrayIR(items = StringIR(minLength = 1), minItems = 1, uniqueItems = true),
     )
 end
 

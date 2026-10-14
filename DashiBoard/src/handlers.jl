@@ -869,22 +869,21 @@ function evaluate_pipeline(spec::AbstractDict)
 
     probe =
         (;
-            valid = isempty(absent) && isempty(unfit),
-            # The probe's second way of being invalid, and the same kind as the first: a reference
-            # nothing produces is a fault of the document, found by resolving rather than by running.
-            kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
-            cols,
-            nodes,
-            referable = may_refer,
-            source_vars = Pipelines.get_source_vars(pipeline),
-            output_vars = Pipelines.get_output_vars(pipeline),
-            errors = String[],
-            # Always present, so a client can read one shape rather than branch on which half of the
-            # route answered.
-            # Errors first, then warnings: a client reading the list top-down sees what blocks the
-            # run before what merely deserves a look.
-            issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
-        )
+        valid = isempty(absent) && isempty(unfit),
+        # The probe's second way of being invalid, and the same kind as the first: a reference
+        # nothing produces is a fault of the document, found by resolving rather than by running.
+        kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
+        cols,
+        nodes,
+        referable = may_refer,
+        source_vars = Pipelines.get_source_vars(pipeline),
+        output_vars = Pipelines.get_output_vars(pipeline),
+        errors = String[],
+        # Always present, so a client can read one shape rather than branch on which half of the
+        # route answered.
+        # Errors first, then warnings: a client reading the list top-down sees what blocks the
+        # run before what merely deserves a look.
+        issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
     )
 
     return ProbedThunk(probe) do

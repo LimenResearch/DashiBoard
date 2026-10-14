@@ -39,13 +39,12 @@ function launch(
     HTTP.register!(router, "POST", "/write-configuration", HTTP.streamhandler(write_configuration))
     for (name, kind, content, shape) in KIND_ROUTES
         reader, writer = shape === :document ? (read_document, write_document) : (read_configuration, write_configuration)
-        HTTP.register!(router, "POST", "/read-$(name)", HTTP.streamhandler(kind_handler(reader, kind, content)))
-        HTTP.register!(router, "POST", "/write-$(name)", HTTP.streamhandler(kind_handler(writer, kind, content)))
+        HTTP.register!(router, "POST", "/read-$(name)", HTTP.streamhandler(KindHandler(reader, kind, content)))
+        HTTP.register!(router, "POST", "/write-$(name)", HTTP.streamhandler(KindHandler(writer, kind, content)))
     end
     HTTP.register!(router, "POST", "/load-files", HTTP.streamhandler(load_files))
     HTTP.register!(router, "POST", "/get-card-ir", HTTP.streamhandler(get_card_ir))
     HTTP.register!(router, "POST", "/validate-card", HTTP.streamhandler(validate_card))
-    HTTP.register!(router, "POST", "/probe-pipeline", HTTP.streamhandler(probe_pipeline))
     HTTP.register!(router, "POST", "/evaluate-pipeline", HTTP.streamhandler(evaluate_pipeline))
     HTTP.register!(router, "POST", "/fetch-data", fetch_data)
     HTTP.register!(router, "GET", "/get-processed-data", get_processed_data)

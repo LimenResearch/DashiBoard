@@ -229,7 +229,7 @@ were asked for is refused here, with a sentence, rather than loaded into the wro
 """
 read_document(spec::AbstractDict) = read_document(spec, workspace_directory())
 
-function read_document(spec::AbstratDict, base::AbstractString; what = "the workspace")
+function read_document(spec::AbstractDict, base::AbstractString; what = "the workspace")
     path, kind = spec["path"], spec["kind"]
     full = resolve_in(base, path; what)
     isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
@@ -396,23 +396,19 @@ function write_configuration(spec::AbstractDict, base::AbstractString; what = "t
     end
 end
 
-function load_files(req::HTTP.Request)
-    spec = json_read(req)
+function load_files(spec::AbstractDict)
     # Checked here, not in `DataIngestion.parse_paths`, which joins `..` without looking and is
     # not ours to change: a client names files by the relative paths `list-files` gave it, and a
     # path that leaves the data directory is refused before anything is read.
-    try
-        foreach(resolve_in_data_dir, spec["files"])
-    catch exception
-        return json_response(failure_report("load", exception))
+    foreach(resolve_in_data_dir, spec["files"])
+    return function ()
+        DataIngestion.load_files(REPOSITORY[], spec)
+        return DataIngestion.summarize(REPOSITORY[], "source")
     end
-    DataIngestion.load_files(REPOSITORY[], spec)
-    summaries = DataIngestion.summarize(REPOSITORY[], "source")
-    return json_response(summaries)
 end
 
 """
-    get_card_ir(req)
+    get_card_ir(spec)
 
 The card descriptions a form is built from, in two halves: `cards`, the IR of every registered
 card type, and `defs`, the shared vocabularies (`cols`, `nodes`, `groups`) the cards refer to.
@@ -421,8 +417,7 @@ The request carries the three vocabularies, since which nodes and groups can be 
 depends on the document being edited. `include` names the halves wanted (default: both); `cards`
 never changes while the server runs, so a client asks for `defs` alone after the first time.
 """
-function get_card_ir(req::HTTP.Request)
-    spec = json_read(req)
+function get_card_ir(spec::AbstractDict)
     # An absent vocabulary is `nothing`, which means "unconstrained"; an empty list would mean
     # "nothing is allowed".
     maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
@@ -430,23 +425,23 @@ function get_card_ir(req::HTTP.Request)
     # by hand: `Set{String}("defs")` would iterate its characters and throw.
     wanted = get(spec, "include", ["defs", "cards"])
     wanted isa AbstractString && (wanted = [wanted])
-    wanted isa AbstractVector || return json_response(
-        failure_report("request", ArgumentError("`include` must be a string or a list of strings"))
-    )
-    include = Set{String}(wanted)
-    parts = Pair{Symbol, Any}[]
-    if "defs" in include
-        variable_config = Pipelines.VariableConfig(
-            nodes = maybe_strings("nodes"),
-            groups = maybe_strings("groups"),
-            cols = maybe_strings("cols"),
-        )
-        push!(parts, :defs => Pipelines.ir_definitions(variable_config))
+    wanted isa AbstractVector || throw(ArgumentError("`include` must be a string or a list of strings"))
+    return function ()
+        include = Set{String}(wanted)
+        parts = Dict{Symbol, Any}[]
+        if "defs" in include
+            variable_config = Pipelines.VariableConfig(
+                nodes = maybe_strings("nodes"),
+                groups = maybe_strings("groups"),
+                cols = maybe_strings("cols"),
+            )
+            parts[:defs] = Pipelines.ir_definitions(variable_config)
+        end
+        if "cards" in include
+            parts[:cards] = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
+        end
+        return parts
     end
-    if "cards" in include
-        push!(parts, :cards => Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS)))
-    end
-    return json_response((; parts...); omit_null = true)
 end
 
 """
@@ -669,7 +664,7 @@ function model_issues(repository, pipeline, table::AbstractString)
 end
 
 """
-    validate_card(req)
+    validate_card(spec)
 
 Check one card against its own schema, without resolving a document.
 
@@ -686,24 +681,20 @@ document-relative and the client reads them exactly as it reads the probe's.
 What it cannot answer stays with the probe: unproduced references, duplicate ids, cycles — every
 question that needs the other cards.
 """
-function validate_card(req::HTTP.Request)
-    spec = json_read(req)
-    maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
+function validate_card(spec::AbstractDict)
+    maybe_strings(key)::Maybe{Vector{String}} = get(spec, key, nothing)
     variable_config = Pipelines.VariableConfig(
         nodes = maybe_strings("nodes"),
         groups = maybe_strings("groups"),
         cols = maybe_strings("cols"),
     )
-    return try
-        issues = Pipelines.card_issues(
-            spec["card"], variable_config; base = get(spec, "base", "")
-        )
-        json_response((; valid = isempty(issues), issues); omit_null = true)
-    catch exception
-        exception isa Exception || rethrow()
-        # An unknown card type has no schema to build, and a malformed request has no card. Both
-        # are faults of what was sent, so they answer in the same envelope as everything else.
-        json_response(failure_report("pipeline", exception))
+    issues = Pipelines.card_issues(
+        spec["card"], variable_config; base = get(spec, "base", "")
+    )
+    # An unknown card type has no schema to build, and a malformed request has no card. Both
+    # are faults of what was sent, so they answer in the same envelope as everything else.
+    return function ()
+        return (; valid = isempty(issues), issues)
     end
 end
 
@@ -894,8 +885,9 @@ function probe_pipeline(req::HTTP.Request)
     )
 end
 
+# FIXME: why does evaluate do `train_evaljoin`? Shouldn't we have separate `train` and `evaluate` endpoints?
 """
-    evaluate_pipeline(req)
+    evaluate_pipeline(spec)
 
 Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
 selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
@@ -904,36 +896,20 @@ This route also takes the flat `{filters, cards}` shape, which it accepted befor
 Both are kept: the UI authors the group dialect, and the group vocabulary is what its variable
 picker exists to write.
 """
-function evaluate_pipeline(req::HTTP.Request)
-    spec = json_read(req)
-
+function evaluate_pipeline(spec::AbstractDict)
     # Running is the one step nothing static can vet. The probe answers everything that can be
     # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
     # more components than there are columns, a model that will not converge — and it surfaces only
-    # by being run. Uncaught, the exception escaped to HTTP.jl, which answered with a bare 500
-    # carrying zero bytes and no CORS header: the client could not show the error because it was
-    # never sent one, and could not tell a failed run from a run that never happened.
-    #
-    # Answered in the probe's shape — 200 with `valid` — deliberately. A failed run is a fact about
-    # the document and its data, which is the same reasoning `probe_pipeline` states, and one shape
-    # means a client reads both replies the same way. The cost is that a genuine server fault also
-    # arrives as `valid = false`; `@error` keeps the stacktrace where an operator will find it,
-    # which the old bare 500 at least did by accident.
-    # Everything up to a built pipeline, in one `pipeline`-kind guard: filtering, materialising
-    # the selection, and construction itself. A client that probes first will rarely see this
-    # branch — but the route is public and cannot assume it was asked politely. `filters` is read
-    # with a default for the same reason: it was indexed directly, so a body without the key
-    # answered with the same bare 500 this whole change exists to remove.
-    pipeline = try
-        filters = Filter.(get(spec, "filters", []))
-        orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
-        DataIngestion.select(REPOSITORY[], filters, orig => "selection")
+    # by being run.
+    filters = Filter.(get(spec, "filters", []))
+    orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
 
+    return function ()
+        DataIngestion.select(REPOSITORY[], filters, orig => "selection")
         # The columns available *to* the pipeline, so the group API can validate references
         # against them rather than accepting a name that does not exist and failing later in SQL.
         available = DataIngestion.summarize(REPOSITORY[], "selection")
         cols = String[summary.name for summary in available]
-
         groups = get(spec, "groups", Dict{String, Any}())
         # Before building: see `empty_group_issues` for why construction cannot report this itself.
         # No `cols` in this envelope, unlike the probe's: a failure on this route has never carried
@@ -943,34 +919,17 @@ function evaluate_pipeline(req::HTTP.Request)
         if !isempty(empty)
             # With the cards' own schema failures, as the probe answers (`card_schema_issues`).
             issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
-            return json_response(
-                (;
-                    valid = false, kind = "pipeline",
-                    errors = [issue.message for issue in issues], issues,
-                )
-            )
+            throw(issues) # FIXME: throw correct thing
         end
-        Pipelines.Pipeline(spec["nodes"], groups, cols)
-    catch exception
-        exception isa Exception || rethrow()
-        @error "evaluate-pipeline: could not build the pipeline" exception =
-            (exception, catch_backtrace())
-        return json_response(build_failure(spec["nodes"], get(spec, "groups", Dict{String, Any}()), exception))
-    end
+        pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
 
-    # A model that cannot be built for its funnel is a fault of the document, said as the probe
-    # says it, before anything is trained.
-    unfit = model_issues(REPOSITORY[], pipeline, "selection")
-    if !isempty(unfit)
-        return json_response(
-            (;
-                valid = false, kind = "pipeline",
-                errors = [issue.message for issue in unfit], issues = unfit,
-            )
-        )
-    end
+        # A model that cannot be built for its funnel is a fault of the document, said as the probe
+        # says it, before anything is trained.
+        unfit = model_issues(REPOSITORY[], pipeline, "selection")
+        if !isempty(unfit)
+            throw(unfit) # FIXME: throw correct thing
+        end
 
-    return try
         p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
 
         nodes = pipeline.nodes
@@ -980,13 +939,7 @@ function evaluate_pipeline(req::HTTP.Request)
         graph = sprint(Pipelines.graphviz, p)
         # Recomputed: the pipeline has added its output columns since `available` was taken.
         summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-        json_response((; valid = true, summaries, visualization, graph, report))
-    catch exception
-        exception isa Exception || rethrow()
-        # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
-        # the backtrace whether the cause was the data or a bug of ours.
-        @error "evaluate-pipeline: the run failed" exception = (exception, catch_backtrace())
-        json_response(failure_report("execution", exception))
+        return (; valid = true, summaries, visualization, graph, report)
     end
 end
 
@@ -1027,8 +980,7 @@ function finite_projection(repository, table::AbstractString)
     )
 end
 
-function fetch_data(stream::HTTP.Stream)
-    spec = json_read(stream)
+function fetch_data(stream, spec::AbstractDict)
     table = spec["processed"] ? "selection" : "source"
     ns = Set{String}(colnames(REPOSITORY[], table))
     limit::Int, offset::Int = spec["limit"], spec["offset"]
@@ -1036,34 +988,38 @@ function fetch_data(stream::HTTP.Stream)
     sorters = Sorter.(sort_model)
     sorter_nodes = [Get(s.colname) |> s.sort for s in sorters if s.colname in ns]
 
-    mktempdir() do dir
-        path = joinpath(dir, "data.json")
-        q = From(table) |> finite_projection(REPOSITORY[], table) |>
-            Order(by = sorter_nodes) |> Limit(; limit, offset)
-        export_table(
-            REPOSITORY[], q, path;
-            format = "json", array = true
-        )
+    return function ()
+        mktempdir() do dir
+            path = joinpath(dir, "data.json")
+            q = From(table) |> finite_projection(REPOSITORY[], table) |>
+                Order(by = sorter_nodes) |> Limit(; limit, offset)
+            export_table(
+                REPOSITORY[], q, path;
+                format = "json", array = true
+            )
 
-        nrows = DBInterface.execute(
-            to_nrow,
-            REPOSITORY[],
-            From(table) |> Group() |> Select("Count" => Agg.count())
-        )
+            nrows = DBInterface.execute(
+                to_nrow,
+                REPOSITORY[],
+                From(table) |> Group() |> Select("Count" => Agg.count())
+            )
 
-        stream_data(
-            stream, path, "application/json";
-            pre = "{\"values\":", post = string(",\"length\":", nrows, "}")
-        )
+            stream_data(
+                stream, path, "application/json";
+                pre = "{\"values\":", post = string(",\"length\":", nrows, "}")
+            )
+        end
+        return
     end
-    return
 end
 
-function get_processed_data(stream::HTTP.Stream)
-    mktempdir() do dir
-        path = joinpath(dir, "processed-data.csv")
-        export_table(REPOSITORY[], From("selection"), path)
-        stream_data(stream, path, "text/csv")
+function get_processed_data(stream, ::AbstractDict)
+    return function ()
+        mktempdir() do dir
+            path = joinpath(dir, "processed-data.csv")
+            export_table(REPOSITORY[], From("selection"), path)
+            stream_data(stream, path, "text/csv")
+        end
+        return
     end
-    return
 end

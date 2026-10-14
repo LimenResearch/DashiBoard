@@ -40,6 +40,7 @@ using FunSQL: SQLNode,
     Desc,
     Fun
 
+using DashiBase: ProbedThunk
 using DuckDBUtils: Repository, export_table, to_nrow, colnames
 
 # `finite_projection` (handlers.jl) reads a table's column types out of `information_schema`, and

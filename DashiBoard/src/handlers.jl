@@ -766,8 +766,18 @@ function overwrite_warnings(pipeline, cols::AbstractVector)
     return warnings
 end
 
+# FIXME: why does evaluate do `train_evaljoin`? Shouldn't we have separate `train` and `evaluate` endpoints?
 """
-    probe_pipeline(req)
+    evaluate_pipeline(spec)
+
+Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
+selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
+
+This route also takes the flat `{filters, cards}` shape, which it accepted before groups existed.
+Both are kept: the UI authors the group dialect, and the group vocabulary is what its variable
+picker exists to write.
+
+## Probing before evaluation
 
 Resolve a document without running it: which columns each node consumes and emits, and any it
 references that nothing produces.
@@ -790,12 +800,9 @@ A schema failure additionally comes back as `issues` — a JSON Pointer into the
 failing keyword, and what would have been accepted — which is the vehicle a form needs to
 address the offending control rather than print a sentence above it.
 """
-function probe_pipeline(req::HTTP.Request)
-    spec = json_read(req)
+function evaluate_pipeline(spec::AbstractDict)
     cols = colnames(REPOSITORY[], "source")
     groups = get(spec, "groups", Dict{String, Any}())
-    # Sent with every answer below, so a picker offers an item only what cannot make a loop.
-    may_refer = referable(spec["nodes"], groups)
 
     # Before building: see `empty_group_issues` for why construction cannot report this itself.
     # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
@@ -803,23 +810,19 @@ function probe_pipeline(req::HTTP.Request)
     empty = empty_group_issues(groups)
     if !isempty(empty)
         issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
-        return json_response(
-            (;
-                valid = false, kind = "pipeline", cols,
-                errors = [issue.message for issue in issues], issues, referable = may_refer,
-            )
-        )
+        throw(issues) # FIXME: throw correct thing
     end
 
-    pipeline = try
-        Pipelines.Pipeline(spec["nodes"], groups, cols)
-    catch exception
-        exception isa Exception || rethrow()
-        # Always `pipeline`: this route resolves and never runs, so a fault it can see is by
-        # construction a fault of the document. Deliberately not logged — the probe fires on every
-        # edit, and most edits are documents the author has not finished writing yet.
-        return json_response((; build_failure(spec["nodes"], groups, exception)..., cols, referable = may_refer))
-    end
+    # Running is the one step nothing static can vet. The probe answers everything that can be
+    # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
+    # more components than there are columns, a model that will not converge — and it surfaces only
+    # by being run.
+    filters = Filter.(get(spec, "filters", []))
+    pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
+    # FIXME: if the problem is the loop, `Pipelines.Pipeline` should throw an informative error,
+    # it should not be hacked here
+    # Sent with every answer below, so a picker offers an item only what cannot make a loop.
+    # may_refer = referable(spec["nodes"], groups)
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
     # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.
@@ -864,7 +867,7 @@ function probe_pipeline(req::HTTP.Request)
         )
     end
 
-    return json_response(
+    probe =
         (;
             valid = isempty(absent) && isempty(unfit),
             # The probe's second way of being invalid, and the same kind as the first: a reference
@@ -883,58 +886,15 @@ function probe_pipeline(req::HTTP.Request)
             issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
         )
     )
-end
 
-# FIXME: why does evaluate do `train_evaljoin`? Shouldn't we have separate `train` and `evaluate` endpoints?
-"""
-    evaluate_pipeline(spec)
-
-Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
-selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
-
-This route also takes the flat `{filters, cards}` shape, which it accepted before groups existed.
-Both are kept: the UI authors the group dialect, and the group vocabulary is what its variable
-picker exists to write.
-"""
-function evaluate_pipeline(spec::AbstractDict)
-    # Running is the one step nothing static can vet. The probe answers everything that can be
-    # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
-    # more components than there are columns, a model that will not converge — and it surfaces only
-    # by being run.
-    filters = Filter.(get(spec, "filters", []))
-    orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
-
-    return function ()
+    return ProbedThunk(probe) do
+        orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
         DataIngestion.select(REPOSITORY[], filters, orig => "selection")
         # The columns available *to* the pipeline, so the group API can validate references
         # against them rather than accepting a name that does not exist and failing later in SQL.
-        available = DataIngestion.summarize(REPOSITORY[], "selection")
-        cols = String[summary.name for summary in available]
-        groups = get(spec, "groups", Dict{String, Any}())
-        # Before building: see `empty_group_issues` for why construction cannot report this itself.
-        # No `cols` in this envelope, unlike the probe's: a failure on this route has never carried
-        # one — `failure_report` is `(; valid, kind, errors, issues)` — and the run's client asks
-        # the probe for the column list.
-        empty = empty_group_issues(groups)
-        if !isempty(empty)
-            # With the cards' own schema failures, as the probe answers (`card_schema_issues`).
-            issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
-            throw(issues) # FIXME: throw correct thing
-        end
-        pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
-
-        # A model that cannot be built for its funnel is a fault of the document, said as the probe
-        # says it, before anything is trained.
-        unfit = model_issues(REPOSITORY[], pipeline, "selection")
-        if !isempty(unfit)
-            throw(unfit) # FIXME: throw correct thing
-        end
-
         p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
-
-        nodes = pipeline.nodes
-        report = Pipelines.report(REPOSITORY[], nodes)
-        vs = Pipelines.visualize(REPOSITORY[], nodes)
+        report = Pipelines.report(REPOSITORY[], pipeline.nodes)
+        vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
         visualization = stringify_visualization.(vs)
         graph = sprint(Pipelines.graphviz, p)
         # Recomputed: the pipeline has added its output columns since `available` was taken.

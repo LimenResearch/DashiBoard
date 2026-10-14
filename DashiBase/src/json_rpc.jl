@@ -148,6 +148,17 @@ function apply_handlers(handlers::AbstractDict, reqs::AbstractVector)
     return isempty(filtered_res) ? nothing : filtered_res
 end
 
+probe(x) = nothing
+
+struct ProbedThunk{T, P}
+   thunk::T
+   probe::P
+end
+
+(p::ProbedThunk)() = p.thunk()
+
+probe(p::ProbedThunk) = p.probe
+
 # Middleware
 
 function apply_middleware(middleware, handlers::AbstractDict)
@@ -157,4 +168,4 @@ function apply_middleware(middleware, handlers::AbstractDict)
 end
 
 # Runs `handler` for validation but replaces thunk with a trivial `Returns(nothing)`
-probe_middleware(handler) = Returns(Returns(nothing)) ∘ handler
+probe_middleware(handler) = Returns ∘ probe ∘ handler

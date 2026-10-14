@@ -184,8 +184,7 @@ sharing one directory (a flat workspace) list each file once, under the kind its
 What does not parse, is hidden, or is neither table nor document is not listed. A directory that
 does not exist answers nothing for its kind and warns, rather than fail the whole listing.
 """
-function list_files(req::HTTP.Request)
-    _ = json_read(req)
+function list_files(::AbstractDict)
     files = @NamedTuple{path::String, kind::String}[]
     misplaced = @NamedTuple{path::String, kind::String, found::String}[]
     bases = Dict{String, Vector{Symbol}}()
@@ -211,11 +210,14 @@ function list_files(req::HTTP.Request)
     sort!(files, by = file -> (file.kind, file.path))
     sort!(misplaced, by = file -> (file.kind, file.path))
     folders = (; table = folder_label(:data), cards = folder_label(:pipeline), filters = folder_label(:filter))
-    return json_response((; files, misplaced, folders))
+
+    return function ()
+        return (; files, misplaced, folders)
+    end
 end
 
 """
-    read_document(req)
+    read_document(spec)
 
 A cards or filters document from the workspace: `{valid: true, document}`, or the failure
 envelope every other route uses, with the server's sentence. Wrapped rather than returned bare,
@@ -225,25 +227,21 @@ The counterpart of the browser's file dialog, which read a local file the server
 showed the whole disk. `kind` is what the client expects: a filters file picked where cards
 were asked for is refused here, with a sentence, rather than loaded into the wrong store.
 """
-read_document(req::HTTP.Request) = read_document(req, workspace_directory())
+read_document(spec::AbstractDict) = read_document(spec, workspace_directory())
 
-function read_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind = spec["path"], spec["kind"]
-        full = resolve_in(base, path; what)
-        isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
-        document = parse_document(full)
-        document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
-        (; valid = true, document)
-    catch exception
-        failure_report("document", exception)
+function read_document(spec::AbstratDict, base::AbstractString; what = "the workspace")
+    path, kind = spec["path"], spec["kind"]
+    full = resolve_in(base, path; what)
+    isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
+    document = parse_document(full)
+    document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
+    return function ()
+        return (; valid = true, document)
     end
-    return json_response(answer)
 end
 
 """
-    write_document(req)
+    write_document(spec)
 
 Save a cards or filters document into the workspace, as indented JSON: `{valid: true, path}`
 or the failure envelope. What keeps a document where it can be loaded again: a download leaves
@@ -253,25 +251,21 @@ Refuses: a path outside the directory; a name that does not end in `.json` (TOML
 written); a document whose shape is not `kind`'s; an existing file, unless `overwrite` is `true`.
 A folder named on the way is made: a client that says where a file goes means it.
 """
-write_document(req::HTTP.Request) = write_document(req, workspace_directory())
+write_document(spec::AbstractDict) = write_document(spec, workspace_directory())
 
-function write_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind, document = spec["path"], spec["kind"], spec["document"]
-        full = resolve_in(base, writable(path); what)
-        lowercase(last(splitext(full))) == ".json" ||
-            throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
-        document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
-        (isfile(full) && get(spec, "overwrite", false) !== true) &&
-            throw(ArgumentError("`$(path)` already exists"))
+function write_document(spec::AbstractDict, base::AbstractString; what = "the workspace")
+    path, kind, document = spec["path"], spec["kind"], spec["document"]
+    full = resolve_in(base, writable(path); what)
+    lowercase(last(splitext(full))) == ".json" ||
+        throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
+    document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
+    (isfile(full) && get(spec, "overwrite", false) !== true) &&
+        throw(ArgumentError("`$(path)` already exists"))
+    return function ()
         mkpath(dirname(full))
         write(full, JSON.json(document; pretty = true))
-        (; valid = true, path)
-    catch exception
-        failure_report("document", exception)
+        return (; valid = true, path)
     end
-    return json_response(answer)
 end
 
 # The routes the form saves and reads with: one per kind, a path relative to that kind's own
@@ -310,76 +304,68 @@ function kind_path(kind::Symbol, path::AbstractString)
     return resolve_in(pointer(kind), path; what = "the $(kind) directory")
 end
 
+struct KindHandler{F}
+    handler::F
+    kind::Symbol
+    content::String
+end
+
 # A request for a kind route, rewritten as one for the general route it stands on: the kind
 # filled in, and the path checked against the layout's folder names, resolved under the kind's
 # directory and handed on relative to that directory, which becomes the general route's base.
-function with_kind(req::HTTP.Request, kind::Symbol, content::AbstractString)
-    spec = json_read(req)
+function (kh::KindHandler)(spec::AbstractDict)
+    (; handler, kind, content) = kh
     path = spec["path"]
     base = pointer(kind)
     full = kind_path(kind, path)
-    spec["kind"] = content
-    spec["path"] = relpath(full, base)
-    return HTTP.Request(req.method, req.target, req.headers, JSON.json(spec)), base, "the $(kind) directory"
-end
-
-function kind_handler(handler, kind::Symbol, content::AbstractString)
-    return function (req::HTTP.Request)
-        rewritten, base, what = try
-            with_kind(req, kind, content)
-        catch exception
-            return json_response(failure_report("document", exception))
-        end
-        return handler(rewritten, base; what)
-    end
+    spec′ = merge(spec, Dict("kind" => content, "path" => relpath(full, base)))
+    what = "the $(kind) directory"
+    return handler(spec′, base; what)
 end
 
 """
-    list_configurations(req)
+    list_configurations(spec)
 
 The model and training configurations a card may name, each with what it holds:
 `{model: [{name, path, text, properties}], training: [...]}`. `name` is what a card's `type`
 says — a path from the directory without the extension — and `text` is the file as written, for
 a form to show beside the name rather than make the author open it.
 """
-function list_configurations(req::HTTP.Request)
-    _ = json_read(req)
+function list_configurations(::AbstractDict)
     describe(kind) = map(StreamlinerCore.available_streamliner_configs(pointer(kind), string(kind))) do name
         path = string(name, ".toml")
         full = joinpath(pointer(kind), path)
         parsed = TOML.parsefile(full)
         return (; name, path, text = read(full, String), properties = get(parsed, "properties", Any[]))
     end
-    return json_response((; model = describe(:model), training = describe(:training)))
+    return function ()
+        return (; model = describe(:model), training = describe(:training))
+    end
 end
 
 """
-    read_configuration(req)
+    read_configuration(spec)
 
 A model or a training configuration: `{valid: true, text, parsed}` — the TOML as written, for
 a form to show, and parsed, for it to read — or the failure envelope. `kind` is `model` or
 `training` and must be what the file is.
 """
-read_configuration(req::HTTP.Request) = read_configuration(req, workspace_directory())
+read_configuration(spec::AbstractDict) = read_configuration(spec, workspace_directory())
 
-function read_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind = spec["path"], spec["kind"]
-        full = resolve_in(base, path; what)
-        isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
-        text = read(full, String)
-        parsed = TOML.parse(text)
-        configuration_kind(parsed) == kind || throw(ArgumentError("`$(path)` is not a $(kind) configuration"))
-        (; valid = true, text, parsed)
-    catch exception
-        failure_report("configuration", exception)
+function read_configuration(spec::AbstractDict, base::AbstractString; what = "the workspace")
+    path, kind = spec["path"], spec["kind"]
+    full = resolve_in(base, path; what)
+    isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
+    text = read(full, String)
+    parsed = TOML.parse(text)
+    configuration_kind(parsed) == kind || throw(ArgumentError("`$(path)` is not a $(kind) configuration"))
+    return function ()
+        return (; valid = true, text, parsed)
     end
-    return json_response(answer)
 end
 
 """
-    write_configuration(req)
+    write_configuration(spec)
 
 Save a model or a training configuration as the TOML text given: `{valid: true, path}` or the
 failure envelope. The text is parsed to check it is TOML and is the `kind` it is said to be;
@@ -388,30 +374,26 @@ it is written as sent, comments and all, since the file is what an author reads 
 Refuses as `write_document` does: a path outside the directory, a name not ending in `.toml`,
 an existing file unless `overwrite` is `true`.
 """
-write_configuration(req::HTTP.Request) = write_configuration(req, workspace_directory())
+write_configuration(spec::AbstractDict) = write_configuration(spec, workspace_directory())
 
-function write_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind, text = spec["path"], spec["kind"], spec["text"]
-        full = resolve_in(base, writable(path); what)
-        lowercase(last(splitext(full))) == ".toml" ||
-            throw(ArgumentError("configurations are saved as TOML: `$(path)` does not end in .toml"))
-        parsed = try
-            TOML.parse(text)
-        catch err
-            throw(ArgumentError("this is not TOML: $(sprint(showerror, err))"))
-        end
-        configuration_kind(parsed) == kind || throw(ArgumentError("this is not a $(kind) configuration"))
-        (isfile(full) && get(spec, "overwrite", false) !== true) &&
-            throw(ArgumentError("`$(path)` already exists"))
-        mkpath(dirname(full))
-        write(full, text)
-        (; valid = true, path)
-    catch exception
-        failure_report("configuration", exception)
+function write_configuration(spec::AbstractDict, base::AbstractString; what = "the workspace")
+    path, kind, text = spec["path"], spec["kind"], spec["text"]
+    full = resolve_in(base, writable(path); what)
+    lowercase(last(splitext(full))) == ".toml" ||
+        throw(ArgumentError("configurations are saved as TOML: `$(path)` does not end in .toml"))
+    parsed = try
+        TOML.parse(text)
+    catch err
+        throw(ArgumentError("this is not TOML: $(sprint(showerror, err))"))
     end
-    return json_response(answer)
+    configuration_kind(parsed) == kind || throw(ArgumentError("this is not a $(kind) configuration"))
+    (isfile(full) && get(spec, "overwrite", false) !== true) &&
+        throw(ArgumentError("`$(path)` already exists"))
+    mkpath(dirname(full))
+    write(full, text)
+    return function ()
+        return (; valid = true, path)
+    end
 end
 
 function load_files(req::HTTP.Request)
@@ -675,11 +657,13 @@ function model_issues(repository, pipeline, table::AbstractString)
             nothing
         end
         isnothing(issue) && continue
-        push!(issues, (;
-            pointer = "/nodes/$(i - 1)/card/model", reason = "model", severity = "error",
-            found = nothing, allowed = nothing, missing = String[], related = String[],
-            message = issue.message,
-        ))
+        push!(
+            issues, (;
+                pointer = "/nodes/$(i - 1)/card/model", reason = "model", severity = "error",
+                found = nothing, allowed = nothing, missing = String[], related = String[],
+                message = issue.message,
+            )
+        )
     end
     return issues
 end
@@ -773,16 +757,18 @@ function overwrite_warnings(pipeline, cols::AbstractVector)
         outputs = Pipelines.get_node_outputs(node)
         clashing = [name for name in outputs if name in seen]
         if !isempty(clashing)
-            push!(warnings, (;
-                pointer = "/nodes/$(i - 1)/card",
-                reason = "overwrites",
-                severity = "warning",
-                found = nothing,
-                allowed = nothing,
-                missing = String[],
-                related = String[],
-                message = join(("`$(name)` already exists and will be replaced" for name in clashing), "; "),
-            ))
+            push!(
+                warnings, (;
+                    pointer = "/nodes/$(i - 1)/card",
+                    reason = "overwrites",
+                    severity = "warning",
+                    found = nothing,
+                    allowed = nothing,
+                    missing = String[],
+                    related = String[],
+                    message = join(("`$(name)` already exists and will be replaced" for name in clashing), "; "),
+                )
+            )
         end
         union!(seen, outputs)
     end
@@ -826,10 +812,12 @@ function probe_pipeline(req::HTTP.Request)
     empty = empty_group_issues(groups)
     if !isempty(empty)
         issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
-        return json_response((;
-            valid = false, kind = "pipeline", cols,
-            errors = [issue.message for issue in issues], issues, referable = may_refer,
-        ))
+        return json_response(
+            (;
+                valid = false, kind = "pipeline", cols,
+                errors = [issue.message for issue in issues], issues, referable = may_refer,
+            )
+        )
     end
 
     pipeline = try
@@ -885,23 +873,25 @@ function probe_pipeline(req::HTTP.Request)
         )
     end
 
-    return json_response((;
-        valid = isempty(absent) && isempty(unfit),
-        # The probe's second way of being invalid, and the same kind as the first: a reference
-        # nothing produces is a fault of the document, found by resolving rather than by running.
-        kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
-        cols,
-        nodes,
-        referable = may_refer,
-        source_vars = Pipelines.get_source_vars(pipeline),
-        output_vars = Pipelines.get_output_vars(pipeline),
-        errors = String[],
-        # Always present, so a client can read one shape rather than branch on which half of the
-        # route answered.
-        # Errors first, then warnings: a client reading the list top-down sees what blocks the
-        # run before what merely deserves a look.
-        issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
-    ))
+    return json_response(
+        (;
+            valid = isempty(absent) && isempty(unfit),
+            # The probe's second way of being invalid, and the same kind as the first: a reference
+            # nothing produces is a fault of the document, found by resolving rather than by running.
+            kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
+            cols,
+            nodes,
+            referable = may_refer,
+            source_vars = Pipelines.get_source_vars(pipeline),
+            output_vars = Pipelines.get_output_vars(pipeline),
+            errors = String[],
+            # Always present, so a client can read one shape rather than branch on which half of the
+            # route answered.
+            # Errors first, then warnings: a client reading the list top-down sees what blocks the
+            # run before what merely deserves a look.
+            issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
+        )
+    )
 end
 
 """
@@ -953,10 +943,12 @@ function evaluate_pipeline(req::HTTP.Request)
         if !isempty(empty)
             # With the cards' own schema failures, as the probe answers (`card_schema_issues`).
             issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
-            return json_response((;
-                valid = false, kind = "pipeline",
-                errors = [issue.message for issue in issues], issues,
-            ))
+            return json_response(
+                (;
+                    valid = false, kind = "pipeline",
+                    errors = [issue.message for issue in issues], issues,
+                )
+            )
         end
         Pipelines.Pipeline(spec["nodes"], groups, cols)
     catch exception
@@ -970,10 +962,12 @@ function evaluate_pipeline(req::HTTP.Request)
     # says it, before anything is trained.
     unfit = model_issues(REPOSITORY[], pipeline, "selection")
     if !isempty(unfit)
-        return json_response((;
-            valid = false, kind = "pipeline",
-            errors = [issue.message for issue in unfit], issues = unfit,
-        ))
+        return json_response(
+            (;
+                valid = false, kind = "pipeline",
+                errors = [issue.message for issue in unfit], issues = unfit,
+            )
+        )
     end
 
     return try
@@ -1025,10 +1019,12 @@ function finite_projection(repository, table::AbstractString)
         "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '$(table)'",
     )
     floaty = Set(("DOUBLE", "FLOAT", "REAL"))
-    return Select((
-        name => (type in floaty ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name))
-            for (name, type) in zip(types.column_name, types.data_type)
-    )...)
+    return Select(
+        (
+            name => (type in floaty ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name))
+                for (name, type) in zip(types.column_name, types.data_type)
+        )...
+    )
 end
 
 function fetch_data(stream::HTTP.Stream)

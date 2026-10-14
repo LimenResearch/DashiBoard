@@ -31,8 +31,7 @@ public get_source_vars, get_output_vars, unproduced_references, get_id, issue_re
 # Public for other package users FIXME: resolve without public in other DashiBase modules
 public ThroughError, ProductError, through_options, OutputGroup,
     output_spec, OutputSpec, VariableTransformSpec,
-    named_products, narrowed_outputs, product_outputs,
-    model_issue,
+    named_products, product_outputs, model_issue,
     products, selected_products, product_groups, select_IR, resolved_lists
 
 public train!, evaljoin, train_evaljoin!

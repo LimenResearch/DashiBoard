@@ -141,10 +141,7 @@ end
 get_cols(::Context, inputs::Cols) = inputs.cols
 get_cols(c::Context, inputs::Groups) = reduce(vcat, view(c.outputs, inputs.groups))
 function get_cols(c::Context, inputs::Nodes)
-    return flat_stringlist(inputs.nodes) do s
-        node, products = c.nodes[s.node], s.products
-        isnothing(products) ? get_node_outputs(node) : narrowed_outputs(node, products)
-    end
+    return flat_stringlist(s -> narrowed_outputs(c.nodes[s.node], s.products), inputs.nodes)
 end
 get_cols(c::Context, deps::Deps) = pass_through(get_cols(c, deps.inputs), deps.through, c.nodes)
 

@@ -1,23 +1,25 @@
-using Pipelines: @kwarg
+module StatefulTest
+    using Pipelines: @kwarg, Pipelines
 
-# A card whose evaluation depends on how often it has been evaluated before: the state is the
-# count, and each evaluation writes it and hands back the next one.
-@kwarg struct CountingCard <: Pipelines.StandardCard
-    inputs::Vector{String} & (dashi = Pipelines.VARIABLES_DEF,)
-end
+    # A card whose evaluation depends on how often it has been evaluated before: the state is the
+    # count, and each evaluation writes it and hands back the next one.
+    @kwarg struct CountingCard <: Pipelines.StandardCard
+        inputs::Vector{String} & (dashi = Pipelines.VARIABLES_DEF,)
+    end
 
-Pipelines.SourceVariables(c::CountingCard) = Pipelines.SourceVariables(; c.inputs)
-Pipelines.output_spec(::CountingCard) = [Pipelines.OutputGroup(Pipelines.OutputSpec(["evaluations"]))]
-Pipelines._train(::CountingCard, t, id_var) = nothing
-(::CountingCard)(count, t, id_var) = Pipelines.SimpleTable(
-    id_var => t[id_var], "evaluations" => fill(count, length(t[id_var]))
-)
-function Pipelines.evaluate(repository::Repository, c::CountingCard, model, state, sd::Pair, id_var; kwargs...)
-    count = something(state, 0) + 1
-    cols = Pipelines.evaluate(repository, c, count, sd, id_var; kwargs...)
-    return cols, count
+    Pipelines.SourceVariables(c::CountingCard) = Pipelines.SourceVariables(; c.inputs)
+    Pipelines.output_spec(::CountingCard) = [Pipelines.OutputGroup(Pipelines.OutputSpec(["evaluations"]))]
+    Pipelines._train(::CountingCard, t, id_var) = nothing
+    function (::CountingCard)(_, count, t, id_var)
+        count′ = something(count, 0) + 1
+        table = Pipelines.SimpleTable(
+            id_var => t[id_var], "evaluations" => fill(count′, length(t[id_var]))
+        )
+        return table, count′
+    end
+
+    Pipelines.register_card("counting" => Pipelines.CardSpec(CountingCard, "Counting"))
 end
-Pipelines.register_card("counting" => Pipelines.CardSpec(CountingCard, "Counting"))
 
 @testset "stateful card" begin
     node = Node(Pipelines.Card(Dict("type" => "counting", "inputs" => ["TEMP"])))

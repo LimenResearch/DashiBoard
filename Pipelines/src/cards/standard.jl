@@ -22,10 +22,16 @@ function train(
     return model
 end
 
+function (c::StandardCard)(model, state, t, id_var)
+    table = c(model, t, id_var)
+    return table, state
+end
+
 function evaluate(
         repository::Repository,
         c::StandardCard,
         model,
+        state,
         (source, destination)::Pair,
         id_var::AbstractPrimaryKey;
         schema::Maybe{AbstractString} = nothing
@@ -38,8 +44,9 @@ function evaluate(
         select_columns([id_var], vars.group_by, vars.helpers, vars.inputs)
     t = DBInterface.execute(fromtable, repository, q; schema)
 
-    pred_table = c(model, t, id_var)
-    load_table(repository, pred_table, destination; schema)
-    cols = String[string(k) for k in Tables.columnnames(Tables.columns(pred_table))]
-    return setdiff(cols, [id_var])
+    table, state′ = c(model, state, t, id_var)
+    load_table(repository, table, destination; schema)
+    colnames = Iterators.map(string, Tables.columnnames(Tables.columns(table)))
+    output_cols = collect(String, Iterators.filter(!=(id_var), colnames))
+    return output_cols, state′
 end

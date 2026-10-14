@@ -16,5 +16,6 @@ include("IR.jl")
 include("auto_IR.jl")
 include("definitions.jl")
 include("methods.jl")
+include("json_rpc.jl")
 
 end # module DashiBase

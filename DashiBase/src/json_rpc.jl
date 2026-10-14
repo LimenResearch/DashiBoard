@@ -1,0 +1,160 @@
+@enum(
+    JSONErrorCode,
+    parse_error = −32700,
+    invalid_request = −32600,
+    method_not_found = −32601,
+    invalid_params = −32602,
+    internal_error = −32603,
+)
+
+const DEFAULT_MESSAGES = Dict{JSONErrorCode, String}(
+    parse_error => "Parse error",
+    invalid_request => "Invalid Request",
+    method_not_found => "Method not found",
+    invalid_params => "Invalid params",
+    internal_error => "Internal error"
+)
+
+function explicit_error_message(f::F, code::JSONErrorCode) where {F}
+    return sprint() do io
+        print(io, "*")
+        print(io, DEFAULT_MESSAGES[code])
+        println(io, "*")
+        f(io)
+    end
+end
+
+function explicit_error_message(code::JSONErrorCode, error::Exception)
+    return explicit_error_message(Base.Fix2(showerror, error), code)
+end
+
+function explicit_error_message(code::JSONErrorCode, msg::AbstractString)
+    return explicit_error_message(Base.Fix2(print, msg), code)
+end
+
+@kwarg struct JSONRequest
+    version::VersionNumber = v"2.0"
+    id::Union{Int, Nothing} = nothing
+    method::String
+    params::Any
+end
+
+@kwarg struct JSONSuccess
+    version::VersionNumber = v"2.0"
+    id::Union{Int, Nothing} = nothing
+    result::Any
+end
+
+struct JSONError
+    code::Int
+    message::String
+end
+
+function json_error(code::JSONErrorCode, info::Union{Exception, AbstractString})
+    return JSONError(Int(code), explicit_error_message(code, info))
+end
+
+@kwarg struct JSONFailure
+    version::VersionNumber = v"2.0"
+    id::Union{Int, Nothing} = nothing
+    error::JSONError
+end
+
+macro return_failure(x)
+    return quote
+        local v = $(esc(x))
+        v isa JSONFailure ? (return v) : v
+    end
+end
+
+function parse_json(s::AbstractString)
+    try
+        JSON.parse(s)
+    catch e
+        error = json_error(parse_error, e)
+        return JSONFailure(; error)
+    end
+end
+
+function _get_request(d::AbstractDict)
+    id = get(d, "id", nothing)
+    return try
+        make(JSONRequest, d)
+    catch e
+        error = json_error(invalid_request, e)
+        JSONFailure(; id, error)
+    end
+end
+
+get_request(d::AbstractDict) = _get_request(d)
+
+function get_request(v::AbstractVector)
+    return if isempty(v)
+        error = json_error(invalid_request, "Pass at least one request.")
+        JSONFailure(; error)
+    else
+        map(_get_request, v)
+    end
+end
+
+function get_request(_::Any)
+    error = json_error(invalid_request, "Pass an object or list of objects as a request.")
+    return JSONFailure(; error)
+end
+
+function get_method(handlers::AbstractDict, req::JSONRequest)
+    return get(handlers, req.method) do
+        error = json_error(method_not_found, "Method $(req.method) not found")
+        JSONFailure(; req.id, error)
+    end
+end
+
+function validate_method(method, req)
+    return try
+        method(req.params)
+    catch e
+        error = json_error(invalid_params, e)
+        JSONFailure(; req.id, error)
+    end
+end
+
+function handle_request(instance, req::JSONRequest)
+    return try
+        result = instance()
+        JSONSuccess(; req.id, result)
+    catch e
+        error = json_error(internal_error, e)
+        JSONFailure(; req.id, error)
+    end
+end
+
+function apply_handlers(handlers::AbstractDict, s::AbstractString)
+    x = @return_failure parse_json(s)
+    return apply_handlers(handlers, get_request(x))
+end
+
+apply_handlers(::AbstractDict, failure::JSONFailure) = failure
+
+function apply_handlers(handlers::AbstractDict, req::JSONRequest)
+    method = @return_failure get_method(handlers, req)
+    instance = @return_failure validate_method(method, req)
+    res = @return_failure handle_request(instance, req)
+    return isnothing(res.id) ? nothing : res
+end
+
+function apply_handlers(handlers::AbstractDict, reqs::AbstractVector)
+    res = map(Base.Fix1(apply_handlers, handlers), reqs)
+    filtered_res = filter(!isnothing, res)
+    return isempty(filtered_res) ? nothing : filtered_res
+end
+
+# Middleware
+
+function apply_middleware(middleware, handlers::AbstractDict)
+    handlers′ = StringDict(handlers)
+    map!(middleware, values(handlers′))
+    return handlers′
+end
+
+# Runs `handler` for validation but replaces thunk with a trivial `Returns(nothing)`
+probe_middleware(handler) = Returns(Returns(nothing)) ∘ handler

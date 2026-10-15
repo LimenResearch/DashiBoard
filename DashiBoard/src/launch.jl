@@ -1,3 +1,55 @@
+function get_handlers(
+        workspace::AbstractString;
+        data_dir::AbstractString = workspace,
+        pipeline_dir::AbstractString = workspace,
+        filter_dir::AbstractString = workspace,
+        model_dir::AbstractString = workspace,
+        training_dir::AbstractString = workspace,
+        parser::Pipelines.Parser = Pipelines.default_parser(),
+        extensions::AbstractDict = Dict{String, Any}(),
+        extension_of::AbstractDict = Dict{String, String}()
+    )
+
+    handlers = StringDict()
+
+    handlers["list-files"] = list_files
+    handlers["read-document"] = read_document
+    handlers["write-document"] = write_document
+    handlers["list-configurations"] = list_configurations
+    handlers["bundle-pipeline"] = bundle_pipeline
+    handlers["read-configuration"] = read_configuration
+    handlers["write-configuration"] = write_configuration
+
+    for (name, kind, content, shape) in KIND_ROUTES
+        reader, writer = shape === :document ? (read_document, write_document) : (read_configuration, write_configuration)
+        handlers["read-$(name)"] = KindHandler(reader, kind, content)
+        handlers["write-$(name)"] = KindHandler(writer, kind, content)
+    end
+
+    handlers["load-files"] = load_files
+    handlers["get-card-ir"] = get_card_ir
+    handlers["validate-card"] = validate_card
+    handlers["evaluate-pipeline"] = evaluate_pipeline
+
+    handlers["fetch-data"] = fetch_data # FIXME: these are stream handlers!
+    handlers["get-processed-data"] = get_processed_data # FIXME: these are stream handlers!
+
+    middleware = DashiBase.ScopedMiddleware(
+        Pipelines.PARSER => parser,
+        Pipelines.MODEL_DIR => model_dir,
+        Pipelines.TRAINING_DIR => training_dir,
+        DataIngestion.DATA_DIR => data_dir,
+        WORKSPACE => workspace,
+        PIPELINE_DIR => pipeline_dir,
+        FILTER_DIR => filter_dir,
+        EXTENSIONS => extensions,
+        EXTENSION_OF => extension_of,
+    )
+
+    return handlers, middleware
+end
+
+
 """
     launch(workspace; host, port, async, data_dir, pipeline_dir, filter_dir, model_dir, training_dir, parser)
 

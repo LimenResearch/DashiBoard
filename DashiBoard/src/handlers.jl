@@ -168,7 +168,7 @@ function folder_label(kind::Symbol)
 end
 
 """
-    list_files(req)
+    list_files(_)
 
 Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}],
 folders: {table, cards, filters}}` — `folders` being where each kind is listed from and saved

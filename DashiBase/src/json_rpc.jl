@@ -159,6 +159,15 @@ end
 
 probe(p::ProbedThunk) = p.probe
 
+struct ScopedThunk{T, P <: Tuple}
+    thunk::T
+    pairs::P
+end
+
+(s::ScopedThunk)() = @with s.pairs... s.thunk()
+
+probe(s::ScopedThunk) = @with s.pairs... probe(s.thunk)
+
 # Middleware
 
 function apply_middleware(middleware, handlers::AbstractDict)
@@ -169,3 +178,11 @@ end
 
 # Runs `handler` for validation but replaces thunk with a trivial `Returns(nothing)`
 probe_middleware(handler) = Returns ∘ probe ∘ handler
+
+struct ScopedMiddleware{T <: Tuple{Vararg{Pair}}}
+    pairs::T
+end
+
+ScopedMiddleware(pairs::Pair...) = ScopedMiddleware(pairs)
+
+(sm::ScopedMiddleware)(handler) = spec -> ScopedThunk(@with(sm.pairs..., handler(spec)), sm.pairs)

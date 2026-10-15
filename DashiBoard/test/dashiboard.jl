@@ -1,4 +1,6 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
+using StructUtils: StructUtils
+using DashiBase: apply_handlers, JSONRequest
 using ZipArchives: ZipReader, zip_names, zip_readentry
 using TOML: TOML
 using Sockets: Sockets
@@ -172,6 +174,7 @@ end
 end
 
 mktempdir() do data_dir
+    data_dir = mktempdir()
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(data_dir, "pollution.csv")
@@ -214,153 +217,159 @@ mktempdir() do data_dir
     model_dir = joinpath(static_directory, "model")
     training_dir = joinpath(static_directory, "training")
 
-    # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
-    # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
-    # runs ExperimentTracking on 8081 — so a hardcoded 8080 made this suite unrunnable whenever
-    # the dev stack was up.
-    function first_free_port(range)
-        for p in range
-            socket = try
-                Sockets.listen(Sockets.localhost, p)
-            catch
-                continue # in use
+    # Every file route confines itself to a pointer: the scoped value `launch` sets for its
+    # kind, or the working directory where nothing was set. Read here the way a handler
+    # reads them, inside the scope.
+    @testset "pointers" begin
+        @with(
+            DataIngestion.DATA_DIR => data_dir, DashiBoard.WORKSPACE => data_dir,
+            DashiBoard.PIPELINE_DIR => data_dir, DashiBoard.FILTER_DIR => "",
+            Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+            begin
+                @test DashiBoard.pointer(:data) == normpath(abspath(data_dir))
+                @test DashiBoard.pointer(:pipeline) == normpath(abspath(data_dir))
+                @test DashiBoard.pointer(:filter) == pwd()
+                @test DashiBoard.pointer(:model) == normpath(abspath(model_dir))
+                @test DashiBoard.pointer(:training) == normpath(abspath(training_dir))
+                @test DashiBoard.workspace_directory() == normpath(abspath(data_dir))
             end
-            # Small window between closing the probe and `launch` binding; fine for a test.
-            close(socket)
-            return p
-        end
-        error("no free port in $(range)")
+        )
+        # Pipelines' directories have no default: unset, they read as the working directory too.
+        @test DashiBoard.pointer(:model) == pwd()
+        @test_throws ArgumentError DashiBoard.pointer(:nowhere)
     end
 
-    port = first_free_port(8080:8280)
-    server = DashiBoard.launch(
+    handlers, middleware = DashiBoard.get_handlers(
         data_dir;
-        port = port,
-        async = true,
         model_dir,
         training_dir
     )
 
-    @testset "request" begin
-        # Every file route confines itself to a pointer: the scoped value `launch` sets for its
-        # kind, or the working directory where nothing was set. Read here the way a handler
-        # reads them, inside the scope.
-        @testset "pointers" begin
-            @with(
-                DataIngestion.DATA_DIR => data_dir, DashiBoard.WORKSPACE => data_dir,
-                DashiBoard.PIPELINE_DIR => data_dir, DashiBoard.FILTER_DIR => "",
-                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
-                begin
-                    @test DashiBoard.pointer(:data) == normpath(abspath(data_dir))
-                    @test DashiBoard.pointer(:pipeline) == normpath(abspath(data_dir))
-                    @test DashiBoard.pointer(:filter) == pwd()
-                    @test DashiBoard.pointer(:model) == normpath(abspath(model_dir))
-                    @test DashiBoard.pointer(:training) == normpath(abspath(training_dir))
-                    @test DashiBoard.workspace_directory() == normpath(abspath(data_dir))
-                end
-            )
-            # Pipelines' directories have no default: unset, they read as the working directory too.
-            @test DashiBoard.pointer(:model) == pwd()
-            @test_throws ArgumentError DashiBoard.pointer(:nowhere)
+    map!(middleware, values(handlers))
+
+    roundtrip(x) = JSON.parse(JSON.json(x))
+
+    function post(method, params)
+        req =  JSONRequest(; method, params, id = 0)
+        return roundtrip(apply_handlers(handlers, req))
+    end
+
+    @testset "files" begin
+        # The listing names every file the UI may pick, with what it is. A JSON is told from
+        # a table by content, so the kind survives a rename; what does not parse, what is
+        # hidden and what is neither table nor document are not listed.
+        listed = post("list-files", Dict())["result"]
+        @test listed["misplaced"] == []
+        # With everything at the root, there is no folder to name.
+        @test listed["folders"] == Dict("table" => "", "cards" => "", "filters" => "")
+        @test [(f["path"], f["kind"]) for f in listed["files"]] == [
+            ("cards.json", "cards"),
+            ("cards.toml", "cards"),
+            ("filters.json", "filters"),
+            ("pollution.csv", "table"),
+            (joinpath("sub", "table.json"), "table"),
+        ]
+
+        # `load-files` joined `..` without looking; a path outside the data directory is now
+        # a failure envelope, not a read.
+        escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
+        @test haskey(escaped, "error")
+        @test occursin("outside the data directory", escaped["error"]["message"])
+
+        # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
+        # found; nothing outside the directory, nothing that is not there.
+        from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
+        from_toml = post("read-document", Dict("path" => "cards.toml", "kind" => "cards"))
+        @test haskey(from_json, "result")
+        @test from_json["result"]["document"]["nodes"][1]["id"] == "r"
+        @test from_toml["result"]["document"]["nodes"][1]["card"]["type"] == "rescale"
+        @test isempty(from_toml["result"]["document"]["groups"])
+
+        wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
+        @test haskey(wrong_kind, "error")
+        @test occursin("not a cards document", wrong_kind["error"]["message"])
+
+        for path in ("../cards.json", joinpath(data_dir, "cards.json"))
+            outside = post("read-document", Dict("path" => path, "kind" => "cards"))
+            @test haskey(outside, "error")
+            @test occursin("outside the workspace", outside["error"]["message"])
         end
 
+        missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
+        @test occursin("does not exist", missing_file["error"]["message"])
+
+        unparsable = post("read-document", Dict("path" => "broken.json", "kind" => "cards"))
+        @test haskey(unparsable, "error")
+
+        # Writing: a document round-trips inside the directory; an existing file is kept
+        # unless the author says replace; the shape must match the kind; JSON only.
+        doc = from_json["result"]["document"]
+        save(path, kind, overwrite) = post("write-document", Dict("path" => path, "kind" => kind, "document" => doc, "overwrite" => overwrite))
+        saved = save("sub/mine.json", "cards", false)
+        @test haskey(saved, "result")
+        @test saved["result"]["path"] == "sub/mine.json"
+        @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["result"]["files"]]
+        @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["result"]["document"] == doc
+
+        @test occursin("already exists", save("sub/mine.json", "cards", false)["error"]["message"])
+        @test haskey(save("sub/mine.json", "cards", true), "result")
+
+        @test occursin("not a filters document", save("f.json", "filters", false)["error"]["message"])
+        @test occursin("outside the workspace", save("../x.json", "cards", false)["error"]["message"])
+        @test occursin(".json", save("x.toml", "cards", false)["error"]["message"])
+        # A folder named on the way is made: a client that says where a file goes means it.
+        @test haskey(save("new/folder/x.json", "cards", false), "result")
+        @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
+        @test !isfile(joinpath(data_dir, "f.json"))
+
+        # A model or a training configuration goes the same way, as TOML, checked for the
+        # kind it is said to be.
+        model_text = read(joinpath(model_dir, "dense.toml"), String)
+        written = post("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))
+        @test haskey(written, "result") && written["result"]["path"] == "anywhere/m.toml"
+        back = post("read-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model"))
+        @test haskey(back, "result") && back["result"]["text"] == model_text && back["result"]["parsed"]["name"] == "basic"
+        @test occursin("not a training", post("write-configuration", Dict("path" => "t.toml", "kind" => "training", "text" => model_text))["error"]["message"])
+        @test occursin(".toml", post("write-configuration", Dict("path" => "m.json", "kind" => "model", "text" => model_text))["error"]["message"])
+        @test occursin("TOML", post("write-configuration", Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml"))["error"]["message"])
+        @test occursin("outside the workspace", post("write-configuration", Dict("path" => "../m.toml", "kind" => "model", "text" => model_text))["error"]["message"])
+        @test occursin("already exists", post("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["error"]["message"])
+
+        # What the launcher reads and runs is not a client's to write: the workspace file names
+        # packages the next launch installs and loads, and hidden folders hold its environment.
+        planted = "[loss]\n[extensions]\nX = { url = \"https://example.org/X.jl\" }\n"
+        for path in ("dashiboard.toml", "sub/dashiboard.toml", ".dashiboard/x.toml", "sub/.hidden/x.toml")
+            refused = post("write-configuration", Dict("path" => path, "kind" => "model", "text" => planted, "overwrite" => true))
+            @test haskey(refused, "error")
+            @test !ispath(joinpath(data_dir, path))
+        end
+        @test haskey(save(".hidden/x.json", "cards", true), "error")
+        @test !ispath(joinpath(data_dir, ".hidden"))
+    end
+
+    @testset "request" begin
+        # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
+        # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
+        # runs ExperimentTracking on 8081 — so a hardcoded 8080 made this suite unrunnable whenever
+        # the dev stack was up.
+        function first_free_port(range)
+            for p in range
+                socket = try
+                    Sockets.listen(Sockets.localhost, p)
+                catch
+                    continue # in use
+                end
+                # Small window between closing the probe and `launch` binding; fine for a test.
+                close(socket)
+                return p
+            end
+            error("no free port in $(range)")
+        end
+
+        port = first_free_port(8080:8280)
         url = "http://127.0.0.1:$(port)/"
 
-        @testset "files" begin
-            post(route, body) = JSON.parse(HTTP.post(url * route, body = JSON.json(body), status_exception = false).body)
 
-            # The listing names every file the UI may pick, with what it is. A JSON is told from
-            # a table by content, so the kind survives a rename; what does not parse, what is
-            # hidden and what is neither table nor document are not listed.
-            listed = post("list-files", Dict())
-            @test listed["misplaced"] == []
-            # With everything at the root, there is no folder to name.
-            @test listed["folders"] == Dict("table" => "", "cards" => "", "filters" => "")
-            @test [(f["path"], f["kind"]) for f in listed["files"]] == [
-                ("cards.json", "cards"),
-                ("cards.toml", "cards"),
-                ("filters.json", "filters"),
-                ("pollution.csv", "table"),
-                (joinpath("sub", "table.json"), "table"),
-            ]
-
-            # `load-files` joined `..` without looking; a path outside the data directory is now
-            # a failure envelope, not a read.
-            escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
-            @test escaped["valid"] == false
-            @test occursin("outside the data directory", only(escaped["errors"]))
-
-
-            # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
-            # found; nothing outside the directory, nothing that is not there.
-            from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
-            from_toml = post("read-document", Dict("path" => "cards.toml", "kind" => "cards"))
-            @test from_json["valid"] == true
-            @test from_json["document"]["nodes"][1]["id"] == "r"
-            @test from_toml["document"]["nodes"][1]["card"]["type"] == "rescale"
-            @test isempty(from_toml["document"]["groups"])
-
-            wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
-            @test wrong_kind["valid"] == false
-            @test wrong_kind["kind"] == "document"
-            @test occursin("not a cards document", only(wrong_kind["errors"]))
-
-            for path in ("../cards.json", joinpath(data_dir, "cards.json"))
-                outside = post("read-document", Dict("path" => path, "kind" => "cards"))
-                @test outside["valid"] == false
-                @test occursin("outside the workspace", only(outside["errors"]))
-            end
-            missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
-            @test occursin("does not exist", only(missing_file["errors"]))
-            unparsable = post("read-document", Dict("path" => "broken.json", "kind" => "cards"))
-            @test unparsable["valid"] == false
-
-            # Writing: a document round-trips inside the directory; an existing file is kept
-            # unless the author says replace; the shape must match the kind; JSON only.
-            doc = from_json["document"]
-            save(path, kind, overwrite) = post("write-document", Dict("path" => path, "kind" => kind, "document" => doc, "overwrite" => overwrite))
-            saved = save("sub/mine.json", "cards", false)
-            @test saved["valid"] == true
-            @test saved["path"] == "sub/mine.json"
-            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["files"]]
-            @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["document"] == doc
-
-            @test occursin("already exists", only(save("sub/mine.json", "cards", false)["errors"]))
-            @test save("sub/mine.json", "cards", true)["valid"] == true
-
-            @test occursin("not a filters document", only(save("f.json", "filters", false)["errors"]))
-            @test occursin("outside the workspace", only(save("../x.json", "cards", false)["errors"]))
-            @test occursin(".json", only(save("x.toml", "cards", false)["errors"]))
-            # A folder named on the way is made: a client that says where a file goes means it.
-            @test save("new/folder/x.json", "cards", false)["valid"] == true
-            @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
-            @test !isfile(joinpath(data_dir, "f.json"))
-
-            # A model or a training configuration goes the same way, as TOML, checked for the
-            # kind it is said to be.
-            model_text = read(joinpath(model_dir, "dense.toml"), String)
-            config(route, body) = post(route, body)
-            written = config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))
-            @test written["valid"] == true && written["path"] == "anywhere/m.toml"
-            back = config("read-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model"))
-            @test back["valid"] == true && back["text"] == model_text && back["parsed"]["name"] == "basic"
-            @test occursin("not a training", only(config("write-configuration", Dict("path" => "t.toml", "kind" => "training", "text" => model_text))["errors"]))
-            @test occursin(".toml", only(config("write-configuration", Dict("path" => "m.json", "kind" => "model", "text" => model_text))["errors"]))
-            @test occursin("TOML", only(config("write-configuration", Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml"))["errors"]))
-            @test occursin("outside the workspace", only(config("write-configuration", Dict("path" => "../m.toml", "kind" => "model", "text" => model_text))["errors"]))
-            @test occursin("already exists", only(config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["errors"]))
-
-            # What the launcher reads and runs is not a client's to write: the workspace file names
-            # packages the next launch installs and loads, and hidden folders hold its environment.
-            planted = "[loss]\n[extensions]\nX = { url = \"https://example.org/X.jl\" }\n"
-            for path in ("dashiboard.toml", "sub/dashiboard.toml", ".dashiboard/x.toml", "sub/.hidden/x.toml")
-                refused = config("write-configuration", Dict("path" => path, "kind" => "model", "text" => planted, "overwrite" => true))
-                @test refused["valid"] == false
-                @test !ispath(joinpath(data_dir, path))
-            end
-            @test save(".hidden/x.json", "cards", true)["valid"] == false
-            @test !ispath(joinpath(data_dir, ".hidden"))
-        end
 
         # What each configuration name means, for a form to show beside the name.
         @testset "configurations" begin

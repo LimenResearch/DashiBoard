@@ -347,6 +347,17 @@ mktempdir() do data_dir
         @test !ispath(joinpath(data_dir, ".hidden"))
     end
 
+    # What each configuration name means, for a form to show beside the name.
+    @testset "configurations" begin
+        listed = post("list-configurations", Dict())
+        @test [m["name"] for m in listed["result"]["model"]] == ["classifier", "dense"]
+        dense = only(m for m in listed["result"]["model"] if m["name"] == "dense")
+        @test dense["path"] == "dense.toml"
+        @test dense["text"] == read(joinpath(model_dir, "dense.toml"), String)
+        @test dense["properties"][1]["key"] == "features"
+        @test [t["name"] for t in listed["result"]["training"]] == ["batched"]
+    end
+
     @testset "request" begin
         # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
         # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
@@ -368,19 +379,6 @@ mktempdir() do data_dir
 
         port = first_free_port(8080:8280)
         url = "http://127.0.0.1:$(port)/"
-
-
-
-        # What each configuration name means, for a form to show beside the name.
-        @testset "configurations" begin
-            listed = JSON.parse(HTTP.post(url * "list-configurations", body = "{}").body)
-            @test [m["name"] for m in listed["model"]] == ["classifier", "dense"]
-            dense = only(m for m in listed["model"] if m["name"] == "dense")
-            @test dense["path"] == "dense.toml"
-            @test dense["text"] == read(joinpath(model_dir, "dense.toml"), String)
-            @test dense["properties"][1]["key"] == "features"
-            @test [t["name"] for t in listed["training"]] == ["batched"]
-        end
 
         # The probe and a run ask whether each streamliner model can be built for its funnel, and
         # say so at the card's `model`. The served models all fit, so this uses its own.

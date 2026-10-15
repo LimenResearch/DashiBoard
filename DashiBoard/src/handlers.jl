@@ -647,6 +647,7 @@ function model_issues(repository, pipeline, table::AbstractString)
             Pipelines.model_issue(repository, card, table)
         catch exception
             exception isa Exception || rethrow()
+            # TODO: do we really want to use `@error` here?
             @error "could not check whether the model of node $(i - 1) fits its funnel" exception =
                 (exception, catch_backtrace())
             nothing

@@ -1,5 +1,4 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
-using StructUtils: StructUtils
 using DashiBase: apply_handlers, JSONRequest
 using ZipArchives: ZipReader, zip_names, zip_readentry
 using TOML: TOML
@@ -174,7 +173,6 @@ end
 end
 
 mktempdir() do data_dir
-    data_dir = mktempdir()
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(data_dir, "pollution.csv")
@@ -246,6 +244,9 @@ mktempdir() do data_dir
     )
 
     map!(middleware, values(handlers))
+
+    probe_handlers = copy(handlers)
+    map!(DashiBase.probe_middleware, values(probe_handlers))
 
     roundtrip(x) = JSON.parse(JSON.json(x))
 
@@ -358,6 +359,62 @@ mktempdir() do data_dir
         @test [t["name"] for t in listed["result"]["training"]] == ["batched"]
     end
 
+    # The probe and a run ask whether each streamliner model can be built for its funnel, and
+    # say so at the card's `model`. The served models all fit, so this uses its own.
+    @testset "a model that cannot be built" begin
+        mktempdir() do dir
+            cp(joinpath(model_dir, "dense.toml"), joinpath(dir, "dense.toml"))
+            write(joinpath(dir, "conv.toml"), """
+                name = "basic"
+                [components]
+                model = [{ name = "conv", kernel = [3], pad = [1], features = { "-v" = "features" } }, { name = "conv", kernel = [3], pad = [1] }]
+                [loss]
+                name = "mse"
+                agg = "mean"
+                [[properties]]
+                key = "features"
+                type = "integer"
+                """)
+            fit(model) = Dict(
+                "id" => "fit", "card" => Dict(
+                    "type" => "streamliner", "model" => Dict("type" => model, "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                )
+            )
+            cols = DataIngestion.summarize(repo, "selection")
+            names = String[c.name for c in cols]
+            built(model) = @with(
+                Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                Pipelines.Pipeline([fit(model)], Dict{String, Any}(), names)
+            )
+            # A model that fails to build for another reason is not this check's to report:
+            # the probe answers, and the run reports it as it reports any failure.
+            write(joinpath(dir, "boom.toml"), """
+                name = "boom"
+                [components]
+                model = []
+                [loss]
+                name = "mse"
+                agg = "mean"
+                """)
+            boom_parser = Pipelines.default_parser(
+                plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("boom" => BoomModel))]
+            )
+            boom = @with(
+                Pipelines.PARSER => boom_parser, Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                Pipelines.Pipeline([merge(fit("boom"), Dict("card" => merge(fit("boom")["card"], Dict("model" => Dict("type" => "boom")))))], Dict{String, Any}(), names)
+            )
+            @test isempty(@with(Pipelines.PARSER => boom_parser, DashiBoard.model_issues(repo, boom, "selection")))
+
+            issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
+            @test issue.pointer == "/nodes/0/card/model"
+            @test issue.reason == "model" && issue.severity == "error"
+            @test occursin("cannot be built for this funnel", issue.message)
+            @test isempty(DashiBoard.model_issues(repo, built("dense"), "selection"))
+        end
+    end
+
     @testset "request" begin
         # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
         # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
@@ -380,61 +437,6 @@ mktempdir() do data_dir
         port = first_free_port(8080:8280)
         url = "http://127.0.0.1:$(port)/"
 
-        # The probe and a run ask whether each streamliner model can be built for its funnel, and
-        # say so at the card's `model`. The served models all fit, so this uses its own.
-        @testset "a model that cannot be built" begin
-            mktempdir() do dir
-                cp(joinpath(model_dir, "dense.toml"), joinpath(dir, "dense.toml"))
-                write(joinpath(dir, "conv.toml"), """
-                    name = "basic"
-                    [components]
-                    model = [{ name = "conv", kernel = [3], pad = [1], features = { "-v" = "features" } }, { name = "conv", kernel = [3], pad = [1] }]
-                    [loss]
-                    name = "mse"
-                    agg = "mean"
-                    [[properties]]
-                    key = "features"
-                    type = "integer"
-                    """)
-                fit(model) = Dict(
-                    "id" => "fit", "card" => Dict(
-                        "type" => "streamliner", "model" => Dict("type" => model, "features" => 2),
-                        "training" => Dict("type" => "batched", "iterations" => 1),
-                        "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
-                    )
-                )
-                cols = DataIngestion.summarize(repo, "selection")
-                names = String[c.name for c in cols]
-                built(model) = @with(
-                    Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
-                    Pipelines.Pipeline([fit(model)], Dict{String, Any}(), names)
-                )
-                # A model that fails to build for another reason is not this check's to report:
-                # the probe answers, and the run reports it as it reports any failure.
-                write(joinpath(dir, "boom.toml"), """
-                    name = "boom"
-                    [components]
-                    model = []
-                    [loss]
-                    name = "mse"
-                    agg = "mean"
-                    """)
-                boom_parser = Pipelines.default_parser(
-                    plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("boom" => BoomModel))]
-                )
-                boom = @with(
-                    Pipelines.PARSER => boom_parser, Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
-                    Pipelines.Pipeline([merge(fit("boom"), Dict("card" => merge(fit("boom")["card"], Dict("model" => Dict("type" => "boom")))))], Dict{String, Any}(), names)
-                )
-                @test isempty(@with(Pipelines.PARSER => boom_parser, DashiBoard.model_issues(repo, boom, "selection")))
-
-                issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
-                @test issue.pointer == "/nodes/0/card/model"
-                @test issue.reason == "model" && issue.severity == "error"
-                @test occursin("cannot be built for this funnel", issue.message)
-                @test isempty(DashiBoard.model_issues(repo, built("dense"), "selection"))
-            end
-        end
 
         # Each node says what a selection may narrow it to: its products, with their columns. A
         # streamliner names even its one product, so another card can ask for it by name.

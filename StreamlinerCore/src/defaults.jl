@@ -160,11 +160,14 @@ end
 const PARSER = ScopedValue{Parser}(DEFAULT_PARSER)
 
 """
-    default_parser(; plugins::AbstractVector{Parser}=Parser[])
+    default_parser(; plugins::AbstractVector = Parser[])
 
 Return a `parser::`[`Parser`](@ref) object that includes StreamlinerCore defaults
 together with optional `plugins`.
 """
-function default_parser(; plugins::AbstractVector{Parser} = Parser[])
+function default_parser(; plugins::AbstractVector = Parser[])
+    if !(eltype(plugins) <: Parser) && !all(Fix2(isa, Parser), plugins)
+        throw(ArgumentError("All `plugins` must be of type `Parser`"))
+    end
     return foldl(combine!, plugins, init = copy(DEFAULT_PARSER))
 end

@@ -840,16 +840,18 @@ end
         @test occursin("Binder Error", metadata["errors"][1])
     end
 
-    # The other kind on the same route. A client that probes first would never send this, but
-    # the route is public and cannot assume it was asked politely: two unnamed nodes both
-    # resolve to "" and the dependency graph rejects the pair, before anything runs.
-    body = read(joinpath(@__DIR__, "static", "probe-noid.json"), String)
-    resp = HTTP.post(url * "evaluate-pipeline", body = body, status_exception = false)
-    @test resp.status == 200
-    failed = JSON.parse(resp.body)
-    @test failed["valid"] == false
-    @test failed["kind"] == "pipeline"
-    @test occursin("id", only(failed["errors"]))
+    @testset "skip-probe" begin
+        # The other kind on the same route. A client that probes first would never send this, but
+        # the route is public and cannot assume it was asked politely: two unnamed nodes both
+        # resolve to "" and the dependency graph rejects the pair, before anything runs.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-noid.json"))
+        resp = post("evaluate-pipeline", params)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["metadata"]
+        @test !metadata["valid"]
+        @test metadata["kind"] == "pipeline"
+        @test occursin("id", only(metadata["errors"]))
+    end
 
     # A loop is a fault of the document, not of any one card, and Graphs.jl's sentence for it
     # names nothing. The handlers name the members: an issue that points at no item

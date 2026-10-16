@@ -830,11 +830,7 @@ function evaluate_pipeline(spec::AbstractDict)
         # construction a fault of the document. Deliberately not logged — the probe fires on every
         # edit, and most edits are documents the author has not finished writing yet.
         failure = (; build_failure(_nodes, groups, exception)..., cols, referable = may_refer)
-        return DashiBase.JSONError(
-            Int(DashiBase.invalid_params),
-            "",
-            StructUtils.make(StringDict, failure)
-        )
+        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
     end
     # Sent with every answer below, so a picker offers an item only what cannot make a loop.
 

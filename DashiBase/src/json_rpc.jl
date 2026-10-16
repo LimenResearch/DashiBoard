@@ -15,6 +15,10 @@ const DEFAULT_MESSAGES = Dict{JSONErrorCode, String}(
     internal_error => "Internal error"
 )
 
+struct StructuredException <: Exception
+    metadata::StringDict
+end
+
 function explicit_error_message(f::F, code::JSONErrorCode) where {F}
     return sprint() do io
         print(io, "*")
@@ -53,6 +57,10 @@ end
 
 function json_error(code::JSONErrorCode, info::Union{Exception, AbstractString})
     return JSONError(Int(code), explicit_error_message(code, info))
+end
+
+function json_error(code::JSONErrorCode, info::StructuredException)
+    return JSONError(Int(code), "Structured Exception", info.metadata)
 end
 
 @kwarg struct JSONFailure
@@ -117,10 +125,6 @@ function validate_method(method, req)
         error = json_error(invalid_params, e)
         JSONFailure(; req.id, error)
     end
-end
-
-function handle_request(error::JSONError, req::JSONRequest)
-    return JSONFailure(; req.id, error)
 end
 
 function handle_request(instance, req::JSONRequest)

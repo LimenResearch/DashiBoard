@@ -548,46 +548,51 @@ end
         # @test parsed["kind"] == "pipeline" FIXME! Do we need kind?
     end
 
-    # Probing constructs without executing, so a chain that cannot resolve is a fault the
-    # probe reports rather than a crash. `through = ["r", "r"]` asks `r` to carry `TEMP_a`,
-    # which it does not read — it reads `TEMP` — so the pipeline refuses to build and the
-    # answer names the node responsible.
-    params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-bad.json"))
-    resp = post_probe("evaluate-pipeline", params)
-    @test resp.status == 200
-    probe = JSON.parse(resp.body)
-    @test probe["valid"] == false
-    @test probe["kind"] == "pipeline"
-    # It arrives in the same shape as a schema failure, so a form reads one list: the card to
-    # address, what the chain asked for, and what the offending node would have accepted.
-    issue = only(probe["issues"])
-    @test issue["reason"] == "through"
-    @test issue["pointer"] == "/nodes/1/card"
-    @test issue["found"] == ["TEMP_a"]
-    @test issue["allowed"] == ["TEMP"]
-    @test issue["products"] == []
-    @test occursin("Node `r` does not read TEMP_a", issue["message"])
-    # The vocabularies a picker offers from survive the failure, so a form can still correct
-    # the chain rather than going blank.
-    @test "TEMP" in probe["cols"]
-    @test haskey(probe, "referable")
+    @testset "probe-bad" begin
+        # Probing constructs without executing, so a chain that cannot resolve is a fault the
+        # probe reports rather than a crash. `through = ["r", "r"]` asks `r` to carry `TEMP_a`,
+        # which it does not read — it reads `TEMP` — so the pipeline refuses to build and the
+        # answer names the node responsible.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-bad.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["metadata"]
+        @test !metadata["valid"]
+        @test metadata["kind"] == "pipeline"
+        # It arrives in the same shape as a schema failure, so a form reads one list: the card to
+        # address, what the chain asked for, and what the offending node would have accepted.
+        issue = only(metadata["issues"])
+        @test issue["reason"] == "through"
+        @test issue["pointer"] == "/nodes/1/card"
+        @test issue["found"] == ["TEMP_a"]
+        @test issue["allowed"] == ["TEMP"]
+        @test issue["products"] == []
+        @test occursin("Node `r` does not read TEMP_a", issue["message"])
+        # The vocabularies a picker offers from survive the failure, so a form can still correct
+        # the chain rather than going blank.
+        @test "TEMP" in metadata["cols"]
+        @test haskey(metadata, "referable")
+    end
 
-    # Each node says how a value may pass through it, one entry per product. A rescale has one,
-    # unnamed, so a picker offers the node and nothing to choose within it.
-    body = JSON.json((;
-        nodes = [(; id = "r", card = Dict(
-            "type" => "rescale", "method" => Dict("type" => "zscore"),
-            "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
-        ))],
-        groups = Dict{String, Any}(),
-    ))
-    probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
-    product = only(only(probe["nodes"])["through"])
-    @test product["product"] === nothing
-    @test product["cols"] == ["TEMP"]
-    @test product["suffix"] == "a"
+    @testset "probe-product" begin
+        # Each node says how a value may pass through it, one entry per product. A rescale has one,
+        # unnamed, so a picker offers the node and nothing to choose within it.
+        params = Dict(
+            "nodes" => [Dict("id" => "r", "card" => Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
+            ))],
+            "groups" => Dict{String, Any}(),
+        )
+        resp = post_probe("evaluate-pipeline", params)
+        result = resp["result"]
+        product = only(only(result["nodes"])["through"])
+        @test isnothing(product["product"])
+        @test product["cols"] == ["TEMP"]
+        @test product["suffix"] == "a"
 
-    @test only(probe["nodes"])["lists"] == Dict{String, Any}()
+        @test only(result["nodes"])["lists"] == Dict{String, Any}()
+    end
 
     # A card whose lists a form has to spell out says what they resolved to: here the inputs
     # come from a group and the target through another node.

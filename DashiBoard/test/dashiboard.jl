@@ -255,6 +255,11 @@ mktempdir() do data_dir
         return roundtrip(apply_handlers(handlers, req))
     end
 
+    function post_probe(method, params)
+        req =  JSONRequest(; method, params, id = 0)
+        return roundtrip(apply_handlers(probe_handlers, req))
+    end
+
     @testset "files" begin
         # The listing names every file the UI may pick, with what it is. A JSON is told from
         # a table by content, so the kind survives a rename; what does not parse, what is
@@ -432,14 +437,13 @@ mktempdir() do data_dir
             )
         )
         params = Dict("nodes" => [_fit, _reader], "groups" => Dict{String, Any}())
-        # FIXME!!! `may_refer` should be moved to Pipelines for correct errors!
-        probe = apply_handlers(probe_handlers,JSONRequest(method = "evaluate-pipeline", params = params, id = 1))
-        node(id) = only(n for n in probe["nodes"] if n["id"] == id)
+        probe = post_probe("evaluate-pipeline", params)
+
+        node(id) = only(n for n in probe["result"]["nodes"] if n["id"] == id)
         @test node("fit")["products"] == [Dict("product" => "prediction", "outputs" => ["PRES_hat"])]
         @test node("reader")["inputs"] == ["PRES_hat"]
         @test node("reader")["products"] == []
     end
-
 
     @testset "request" begin
         # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
@@ -462,7 +466,6 @@ mktempdir() do data_dir
 
         port = first_free_port(8080:8280)
         url = "http://127.0.0.1:$(port)/"
-
 
         # A pipeline downloads as a workspace: the document, the configurations it names, and
         # which extensions it needs.

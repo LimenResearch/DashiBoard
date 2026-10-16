@@ -804,33 +804,34 @@ address the offending control rather than print a sentence above it.
 function evaluate_pipeline(spec::AbstractDict)
     cols = colnames(REPOSITORY[], "source")
     groups = get(spec, "groups", Dict{String, Any}())
+    _nodes = get(spec, "nodes", [])
+    _filters = get(spec, "filters", [])
 
     # Before building: see `empty_group_issues` for why construction cannot report this itself.
     # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
     # first as in the document.
     empty = empty_group_issues(groups)
     if !isempty(empty)
-        issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
+        issues = vcat(empty, card_schema_issues(_nodes, groups, cols))
         throw(issues) # FIXME: throw correct thing
     end
+    may_refer = referable(_nodes, groups)
 
     # Running is the one step nothing static can vet. The probe answers everything that can be
     # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
     # more components than there are columns, a model that will not converge — and it surfaces only
     # by being run.
-    filters = Filter.(get(spec, "filters", []))
-    pipeline = Pipelines.Pipeline(spec["nodes"], groups, cols)
-    # FIXME: if the problem is the loop, `Pipelines.Pipeline` should throw an informative error,
-    # it should not be hacked here
+    filters = Filter.(_filters)
+    pipeline = Pipelines.Pipeline(_nodes, groups, cols)
     # Sent with every answer below, so a picker offers an item only what cannot make a loop.
-    # may_refer = referable(spec["nodes"], groups)
+    may_refer = referable(_nodes, groups)
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
     # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.
     unfit = model_issues(REPOSITORY[], pipeline, "source")
     # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
     # this the third answer to "what is this node called" in three files.
-    ids = Pipelines.get_id.(spec["nodes"])
+    ids = Pipelines.get_id.(_nodes)
 
     # The second source of pointed failures. An unproduced reference is addressed at *node*
     # granularity, not at the selector item that named it: resolution returns the column list and

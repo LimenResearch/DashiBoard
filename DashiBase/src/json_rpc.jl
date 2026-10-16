@@ -45,9 +45,10 @@ end
     result::Any
 end
 
-struct JSONError
+@defaults struct JSONError
     code::Int
     message::String
+    metadata::Maybe{StringDict} = nothing
 end
 
 function json_error(code::JSONErrorCode, info::Union{Exception, AbstractString})
@@ -116,6 +117,10 @@ function validate_method(method, req)
         error = json_error(invalid_params, e)
         JSONFailure(; req.id, error)
     end
+end
+
+function handle_request(error::JSONError, req::JSONRequest)
+    return JSONFailure(; req.id, error)
 end
 
 function handle_request(instance, req::JSONRequest)

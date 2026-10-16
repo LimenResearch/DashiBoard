@@ -545,14 +545,15 @@ end
         resp = post("validate-card", params)
         @test haskey(resp, "error")
         @test occursin("not found", resp["error"]["message"])
+        # @test parsed["kind"] == "pipeline" FIXME! Do we need kind?
     end
 
     # Probing constructs without executing, so a chain that cannot resolve is a fault the
     # probe reports rather than a crash. `through = ["r", "r"]` asks `r` to carry `TEMP_a`,
     # which it does not read — it reads `TEMP` — so the pipeline refuses to build and the
     # answer names the node responsible.
-    body = read(joinpath(@__DIR__, "static", "probe-bad.json"), String)
-    resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
+    params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-bad.json"))
+    resp = post_probe("evaluate-pipeline", params)
     @test resp.status == 200
     probe = JSON.parse(resp.body)
     @test probe["valid"] == false
@@ -1076,7 +1077,7 @@ end
             "Content-Length" => string(length(resp.body)),
         ]
     end
-    
+
     end
 
     close(server)

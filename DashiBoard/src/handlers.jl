@@ -822,9 +822,21 @@ function evaluate_pipeline(spec::AbstractDict)
     # more components than there are columns, a model that will not converge — and it surfaces only
     # by being run.
     filters = Filter.(_filters)
-    pipeline = Pipelines.Pipeline(_nodes, groups, cols)
+    pipeline = try
+        Pipelines.Pipeline(_nodes, groups, cols)
+    catch exception
+        exception isa Exception || rethrow()
+        # Always `pipeline`: this route resolves and never runs, so a fault it can see is by
+        # construction a fault of the document. Deliberately not logged — the probe fires on every
+        # edit, and most edits are documents the author has not finished writing yet.
+        failure = (; build_failure(_nodes, groups, exception)..., cols, referable = may_refer)
+        return DashiBase.JSONError(
+            Int(DashiBase.invalid_params),
+            "",
+            StructUtils.make(StringDict, failure)
+        )
+    end
     # Sent with every answer below, so a picker offers an item only what cannot make a loop.
-    may_refer = referable(_nodes, groups)
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
     # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.

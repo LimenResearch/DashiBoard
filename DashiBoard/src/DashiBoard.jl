@@ -14,6 +14,8 @@ using Dates: Dates
 
 using Scratch: @get_scratch!
 
+using StructUtils: StructUtils
+
 using JSON: JSON
 
 using TOML: TOML

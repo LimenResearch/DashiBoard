@@ -682,49 +682,21 @@ end
         @test all(n -> isempty(n["unproduced"]), result["nodes"])
     end
 
-    body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
-    resp = HTTP.post(url * "fetch-data", body = body)
-    tbl = JSON.parse(resp.body)
-    df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
-    @test tbl["length"] == nrow(df)
-    @test [row["No"] for row in tbl["values"]] == df.No[11:60]
-    @test resp.headers == [
-        DashiBoard.CORS_RES_HEADERS...,
-        "Content-Type" => "application/json",
-        "Content-Length" => string(length(resp.body)),
-    ]
-
-    HTTP.open("GET", url * "get-processed-data") do stream
-        r = startread(stream)
-        @test r.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "text/csv",
-            "Content-Length" => "336104",
-        ]
-
-        s = read(stream, String)
-        @test ncodeunits(s) == 336104
-        l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
-        @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
-        @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
+    @testset "empty-cards" begin
+        # A14: a document with no cards. Filter-only is a legitimate run (filter, run, look), and
+        # the probe of an empty document is what the UI sends when the last card is removed.
+        # Placed before the failing-run block below: this run succeeds and leaves `selection`
+        # equal to `source`, which that block's CSV assertion tolerates.
+        params = Dict("filters" => [], "nodes" => [], "groups" => Dict{String, Any}())
+        resp = post_probe("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        @test resp["result"]["valid"]
+        resp = post("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        empty_run = resp["result"]
+        @test empty_run["valid"]
+        @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
     end
-    resp = HTTP.options(url * "get-processed-data")
-    @test resp.headers == [
-        DashiBoard.CORS_OPTIONS_HEADERS...,
-        "Content-Length" => "0",
-    ]
-
-    # A14: a document with no cards. Filter-only is a legitimate run (filter, run, look), and
-    # the probe of an empty document is what the UI sends when the last card is removed.
-    # Placed before the failing-run block below: this run succeeds and leaves `selection`
-    # equal to `source`, which that block's CSV assertion tolerates.
-    body = JSON.json((; filters = [], nodes = [], groups = Dict{String, Any}()))
-    resp = HTTP.post(url * "probe-pipeline", body = body)
-    @test JSON.parse(resp.body)["valid"] == true
-    resp = HTTP.post(url * "evaluate-pipeline", body = body)
-    empty_run = JSON.parse(resp.body)
-    @test empty_run["valid"] == true
-    @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
 
     # Groups but no cards: the usual authoring order is groups first, so this is what the UI's
     # continuous probe sends for most of the time a document is being written. It has to
@@ -1092,6 +1064,39 @@ end
             "Content-Length" => string(length(resp.body)),
         ]
     end
+
+    body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
+    resp = HTTP.post(url * "fetch-data", body = body)
+    tbl = JSON.parse(resp.body)
+    df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
+    @test tbl["length"] == nrow(df)
+    @test [row["No"] for row in tbl["values"]] == df.No[11:60]
+    @test resp.headers == [
+        DashiBoard.CORS_RES_HEADERS...,
+        "Content-Type" => "application/json",
+        "Content-Length" => string(length(resp.body)),
+    ]
+
+    HTTP.open("GET", url * "get-processed-data") do stream
+        r = startread(stream)
+        @test r.headers == [
+            DashiBoard.CORS_RES_HEADERS...,
+            "Content-Type" => "text/csv",
+            "Content-Length" => "336104",
+        ]
+
+        s = read(stream, String)
+        @test ncodeunits(s) == 336104
+        l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
+        @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
+        @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
+    end
+    resp = HTTP.options(url * "get-processed-data")
+    @test resp.headers == [
+        DashiBoard.CORS_OPTIONS_HEADERS...,
+        "Content-Length" => "0",
+    ]
+
 
     end
 

@@ -428,17 +428,17 @@ function get_card_ir(spec::AbstractDict)
     wanted isa AbstractVector || throw(ArgumentError("`include` must be a string or a list of strings"))
     return function ()
         include = Set{String}(wanted)
-        parts = Dict{Symbol, Any}[]
+        parts = StringDict()
         if "defs" in include
             variable_config = Pipelines.VariableConfig(
                 nodes = maybe_strings("nodes"),
                 groups = maybe_strings("groups"),
                 cols = maybe_strings("cols"),
             )
-            parts[:defs] = Pipelines.ir_definitions(variable_config)
+            parts["defs"] = Pipelines.ir_definitions(variable_config)
         end
         if "cards" in include
-            parts[:cards] = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
+            parts["cards"] = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
         end
         return parts
     end

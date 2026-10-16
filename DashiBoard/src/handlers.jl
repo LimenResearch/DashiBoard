@@ -905,14 +905,23 @@ function evaluate_pipeline(spec::AbstractDict)
         DataIngestion.select(REPOSITORY[], filters, orig => "selection")
         # The columns available *to* the pipeline, so the group API can validate references
         # against them rather than accepting a name that does not exist and failing later in SQL.
-        p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
-        report = Pipelines.report(REPOSITORY[], pipeline.nodes)
-        vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
-        visualization = stringify_visualization.(vs)
-        graph = sprint(Pipelines.graphviz, p)
-        # Recomputed: the pipeline has added its output columns since `available` was taken.
-        summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-        return (; valid = true, summaries, visualization, graph, report)
+        return try
+            p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+            report = Pipelines.report(REPOSITORY[], pipeline.nodes)
+            vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
+            visualization = stringify_visualization.(vs)
+            graph = sprint(Pipelines.graphviz, p)
+            # Recomputed: the pipeline has added its output columns since `available` was taken.
+            summaries = DataIngestion.summarize(REPOSITORY[], "selection")
+            (; valid = true, summaries, visualization, graph, report)
+        catch exception
+            exception isa Exception || rethrow()
+            # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
+            # the backtrace whether the cause was the data or a bug of ours.
+            @error "evaluate-pipeline: the run failed" exception = (exception, catch_backtrace())
+            failure = failure_report("execution", exception)
+            throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+        end
     end
 end
 

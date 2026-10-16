@@ -780,72 +780,65 @@ end
         @test !isempty(metadata["errors"])
     end
 
-    # A13: two cards emitting the same column name. The second silently replaced the first's
-    # output (and a source column would be replaced the same way — `rescale TEMP suffix =
-    # "rescaled"` over a source with `TEMP_rescaled`, measured 2026-09-13 and on 1M rows
-    # 2026-09-16). A warning, not a rejection: overwriting can be meant.
-    same_name = JSON.json((;
-        filters = [],
-        nodes = [
-            (; id = "one", card = Dict("type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
-            (; id = "two", card = Dict("type" => "rescale", "method" => Dict("type" => "minmax"),
-                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
-        ],
-        groups = Dict{String, Any}(),
-    ))
-    resp = HTTP.post(url * "probe-pipeline", body = same_name)
-    probed = JSON.parse(resp.body)
-    @test probed["valid"] == true
-    warning = only(i for i in probed["issues"] if i["reason"] == "overwrites")
-    @test warning["severity"] == "warning"
-    @test warning["pointer"] == "/nodes/1/card"
-    @test occursin("TEMP_z", warning["message"])
-    resp = HTTP.post(url * "evaluate-pipeline", body = same_name)
-    @test JSON.parse(resp.body)["valid"] == true
+    @testset "overwrite" begin
+        # A13: two cards emitting the same column name. The second silently replaced the first's
+        # output (and a source column would be replaced the same way — `rescale TEMP suffix =
+        # "rescaled"` over a source with `TEMP_rescaled`.
+        # A warning, not a rejection: overwriting can be meant.
+        same_name = Dict(
+            "filters" => [],
+            "nodes" => [
+                Dict("id" => "one", "card" => Dict("type" => "rescale", "method" => Dict("type" => "zscore"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+                Dict("id" => "two", "card" => Dict("type" => "rescale", "method" => Dict("type" => "minmax"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+            ],
+            "groups" => Dict{String, Any}(),
+        )
+        resp = post_probe("evaluate-pipeline", same_name)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        @test result["valid"]
+        warning = only(i for i in result["issues"] if i["reason"] == "overwrites")
+        @test warning["severity"] == "warning"
+        @test warning["pointer"] == "/nodes/1/card"
+        @test occursin("TEMP_z", warning["message"])
+        resp = post("evaluate-pipeline", same_name)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        @test result["valid"]
+    end
 
-    # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
-    # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
-    # Julia's parser accepts those tokens, so this asserts on the text.
-    DBInterface.execute(Returns(nothing), DashiBoard.REPOSITORY[],
-        "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s")
-    body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
-    resp = HTTP.post(url * "fetch-data", body = body)
-    page = String(resp.body)
-    @test !occursin("NaN", page) && !occursin("Infinity", page)
-    @test JSON.parse(page)["values"][1]["bad"] === nothing
-    @test JSON.parse(page)["values"][1]["good"] == 2.5
-
-    # ---- keep last: this one runs a pipeline that fails ----
-    #
-    # A failed run still rebuilds `selection` from `source` before it dies, so it
-    # drops every column the successful pipeline added. Anything asserting on that
-    # table — the CSV export above, for instance — has to have run already.
-    # A run that the schema accepts and the data defeats: PCA cannot take three components
-    # from one column. Nothing static can catch it — the probe says `valid: true` — so the
-    # only place it can be reported is the response to the run itself. Before this, the
-    # exception escaped the handler and HTTP.jl answered with a bare 500 carrying zero bytes
-    # and no CORS header, so the client had nothing to show and no way to tell a failed run
-    # from one that had never happened.
-    body = read(joinpath(@__DIR__, "static", "evaluate-bad.json"), String)
-    resp = HTTP.post(url * "probe-pipeline", body = body)
-    @test JSON.parse(resp.body)["valid"] == true   # static checks pass; this is a runtime fault
-    resp = HTTP.post(url * "evaluate-pipeline", body = body)
-    @test resp.status == 200
-    failed = JSON.parse(resp.body)
-    @test failed["valid"] == false
-    # `execution`, not `pipeline`: the document built fine and the *run* is what died. The
-    # split is on which call threw, which is observable, rather than on whose fault it is,
-    # which is not.
-    @test failed["kind"] == "execution"
-    @test !isempty(failed["errors"])
-    # The message is the cause, not the wrapper. Before unwrapping, this said
-    # "TaskFailedException" followed by forty lines of scheduler stacktrace, and the sentence
-    # naming the actual fault was buried two levels inside it.
-    @test !occursin("TaskFailedException", failed["errors"][1])
-    @test occursin("Binder Error", failed["errors"][1])
-    # and the response is still a normal one, so a browser can read it
-    @test ("Access-Control-Allow-Origin" => "*") in resp.headers
+    @testset "runtime-error" begin
+        # A failed run still rebuilds `selection` from `source` before it dies, so it
+        # drops every column the successful pipeline added. Anything asserting on that
+        # table — the CSV export above, for instance — has to have run already.
+        # A run that the schema accepts and the data defeats: PCA cannot take three components
+        # from one column. Nothing static can catch it — the probe says `valid: true` — so the
+        # only place it can be reported is the response to the run itself. Before this, the
+        # exception escaped the handler and HTTP.jl answered with a bare 500 carrying zero bytes
+        # and no CORS header, so the client had nothing to show and no way to tell a failed run
+        # from one that had never happened.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "evaluate-bad.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        @test result["valid"] # static checks pass; this is a runtime fault
+        resp = post("evaluate-pipeline", params)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["metadata"]
+        @test !metadata["valid"]
+        # `execution`, not `pipeline`: the document built fine and the *run* is what died. The
+        # split is on which call threw, which is observable, rather than on whose fault it is,
+        # which is not.
+        @test metadata["kind"] == "execution"
+        @test !isempty(metadata["errors"])
+        # The message is the cause, not the wrapper. Before unwrapping, this said
+        # "TaskFailedException" followed by forty lines of scheduler stacktrace, and the sentence
+        # naming the actual fault was buried two levels inside it.
+        @test !occursin("TaskFailedException", metadata["errors"][1])
+        @test occursin("Binder Error", metadata["errors"][1])
+    end
 
     # The other kind on the same route. A client that probes first would never send this, but
     # the route is public and cannot assume it was asked politely: two unnamed nodes both
@@ -1061,6 +1054,10 @@ end
         "Content-Length" => string(length(resp.body)),
     ]
 
+    # In a faulty pipeline the response is still a normal one, so a browser can read it
+    @test ("Access-Control-Allow-Origin" => "*") in resp.headers
+
+
     @testset "load" begin
         body = read(joinpath(@__DIR__, "static", "load.json"), String)
         resp = HTTP.post(url * "load-files", body = body)
@@ -1084,6 +1081,18 @@ end
         "Content-Type" => "application/json",
         "Content-Length" => string(length(resp.body)),
     ]
+
+    # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
+    # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+    # Julia's parser accepts those tokens, so this asserts on the text.
+    DBInterface.execute(Returns(nothing), DashiBoard.REPOSITORY[],
+        "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s")
+    body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
+    resp = HTTP.post(url * "fetch-data", body = body)
+    page = String(resp.body)
+    @test !occursin("NaN", page) && !occursin("Infinity", page)
+    @test JSON.parse(page)["values"][1]["bad"] === nothing
+    @test JSON.parse(page)["values"][1]["good"] == 2.5
 
     HTTP.open("GET", url * "get-processed-data") do stream
         r = startread(stream)

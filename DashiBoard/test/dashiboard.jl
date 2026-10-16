@@ -707,6 +707,7 @@ end
             "groups" => Dict("g" => [Dict("cols" => "TEMP")]),
         )
         resp = post_probe("evaluate-pipeline", groups_only)
+        @test haskey(resp, "result")
         @test resp["result"]["valid"]
     end
 

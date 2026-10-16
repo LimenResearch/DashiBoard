@@ -631,15 +631,16 @@ end
         @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
     end
 
-    # A step naming a product the node does not have is a pointed issue, with what it has.
-    body = read(joinpath(@__DIR__, "static", "probe-groups.json"), String)
-    resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
-    probe = JSON.parse(resp.body)
-    issue = only(probe["issues"])
-    @test issue["reason"] == "through"
-    @test issue["pointer"] == "/nodes/1/card"
-    @test issue["products"] == []
-    @test occursin("has no named products", issue["message"])
+    @testset "probe-group" begin
+        # A step naming a product the node does not have is a pointed issue, with what it has.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-groups.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        issue = only(resp["error"]["metadata"]["issues"])
+        @test issue["reason"] == "through"
+        @test issue["pointer"] == "/nodes/1/card"
+        @test issue["products"] == []
+        @test occursin("has no named products", issue["message"])
+    end
 
     # A probe reports rather than throws — for *every* way a document can be malformed,
     # not only schema failures. Two nodes with no `id` both resolve to "", which the

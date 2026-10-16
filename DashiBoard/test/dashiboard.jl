@@ -896,19 +896,21 @@ end
     # What a card or a group may refer to without making a loop: everything but itself and
     # what depends on it. Sent with the probe so a picker offers only that.
     @testset "referable" begin
-        rescale(id, input) = (; id, card = Dict(
+        rescale(id, input) = Dict("id" => id, "card" => Dict(
             "type" => "rescale", "method" => Dict("type" => "zscore"),
             "inputs" => [input], "suffix" => id,
         ))
-        probe(nodes, groups) = JSON.parse(HTTP.post(url * "probe-pipeline",
-            body = JSON.json((; filters = [], nodes, groups))).body)
+        probe(nodes, groups) = post_probe(
+            "evaluate-pipeline",
+            Dict("filters" => [], "nodes" => nodes, "groups" => groups)
+        )
 
         # a ← b ← c, and a group g that reads b
         chain = probe(
             [rescale("a", Dict("cols" => "TEMP")), rescale("b", Dict("nodes" => "a")), rescale("c", Dict("nodes" => "b"))],
             Dict("g" => [Dict("nodes" => "b")]),
         )
-        r = chain["referable"]
+        r = chain["result"]["referable"]
         @test r["nodes"][1] == Dict("nodes" => [], "groups" => [])             # everything depends on a
         @test r["nodes"][2] == Dict("nodes" => ["a"], "groups" => [])
         @test r["nodes"][3] == Dict("nodes" => ["a", "b"], "groups" => ["g"])
@@ -916,12 +918,14 @@ end
 
         # still answered for a document that does not build: a loop
         looped = probe([rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a"))], Dict{String, Any}())
-        @test looped["valid"] == false
-        @test looped["referable"]["nodes"] == [Dict("nodes" => [], "groups" => []), Dict("nodes" => [], "groups" => [])]
+        @test haskey(looped, "error")
+        metadata = looped["error"]["metadata"]
+        @test metadata["valid"] == false
+        @test metadata["referable"]["nodes"] == [Dict("nodes" => [], "groups" => []), Dict("nodes" => [], "groups" => [])]
 
         # and absent when the graph itself cannot be built
         twins = probe([rescale("a", Dict("cols" => "TEMP")), rescale("a", Dict("cols" => "TEMP"))], Dict{String, Any}())
-        @test twins["referable"] === nothing
+        @test isnothing(twins["error"]["metadata"]["referable"])
     end
 
     @testset "request" begin

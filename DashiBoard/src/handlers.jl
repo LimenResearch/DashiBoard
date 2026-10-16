@@ -879,7 +879,7 @@ function evaluate_pipeline(spec::AbstractDict)
 
     probe =
         (;
-        valid = isempty(absent) && isempty(unfit),
+        valid = isempty(absent) && isempty(unfit), # TODO: shouldn't we throw earlier instead?
         # The probe's second way of being invalid, and the same kind as the first: a reference
         # nothing produces is a fault of the document, found by resolving rather than by running.
         kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",

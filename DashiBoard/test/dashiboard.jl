@@ -594,39 +594,42 @@ end
         @test only(result["nodes"])["lists"] == Dict{String, Any}()
     end
 
-    # A card whose lists a form has to spell out says what they resolved to: here the inputs
-    # come from a group and the target through another node.
-    fit(funnel) = JSON.json((;
-        nodes = [
-            (; id = "r", card = Dict(
-                "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [Dict("cols" => "PRES")], "suffix" => "z",
-            )),
-            (; id = "fit", card = Dict(
-                "type" => "streamliner",
-                "model" => Dict("type" => "dense", "features" => 2),
-                "training" => Dict("type" => "batched", "iterations" => 1),
-                "funnel" => merge(
-                    Dict{String, Any}(
-                        "order_by" => [Dict("cols" => "No")],
-                        "inputs" => [Dict("groups" => "g")],
-                        "targets" => [Dict("cols" => "PRES", "through" => ["r"])],
+    @testset "variable-transforms" begin
+        # A card whose lists a form has to spell out says what they resolved to: here the inputs
+        # come from a group and the target through another node.
+        fit(funnel) = Dict(
+            "nodes" => [
+                Dict("id" => "r", "card" => Dict(
+                    "type" => "rescale", "method" => Dict("type" => "zscore"),
+                    "inputs" => [Dict("cols" => "PRES")], "suffix" => "z",
+                )),
+                Dict("id" => "fit", "card" => Dict(
+                    "type" => "streamliner",
+                    "model" => Dict("type" => "dense", "features" => 2),
+                    "training" => Dict("type" => "batched", "iterations" => 1),
+                    "funnel" => merge(
+                        Dict{String, Any}(
+                            "order_by" => [Dict("cols" => "No")],
+                            "inputs" => [Dict("groups" => "g")],
+                            "targets" => [Dict("cols" => "PRES", "through" => ["r"])],
+                        ),
+                        funnel
                     ),
-                    funnel
-                ),
-            )),
-        ],
-        groups = Dict{String, Any}("g" => [Dict("cols" => ["TEMP", "Iws"])]),
-    ))
-    probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = fit(Dict("input_transforms" => Dict("Iws" => "log")))).body)
-    @test probe["valid"]
-    @test probe["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
+                )),
+            ],
+            "groups" => Dict{String, Any}("g" => [Dict("cols" => ["TEMP", "Iws"])]),
+        )
+        resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("Iws" => "log"))))
+        result = resp["result"]
+        @test result["valid"]
+        @test result["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
 
-    # A transform for a column the list does not reach is a pointed issue at its entry.
-    resp = HTTP.post(url * "probe-pipeline", body = fit(Dict("input_transforms" => Dict("GONE" => "log"))), status_exception = false)
-    issue = only(JSON.parse(resp.body)["issues"])
-    @test issue["reason"] == "transforms"
-    @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
+        # A transform for a column the list does not reach is a pointed issue at its entry.
+        resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("GONE" => "log"))))
+        issue = only(resp["error"]["metadata"]["issues"])
+        @test issue["reason"] == "transforms"
+        @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
+    end
 
     # A step naming a product the node does not have is a pointed issue, with what it has.
     body = read(joinpath(@__DIR__, "static", "probe-groups.json"), String)

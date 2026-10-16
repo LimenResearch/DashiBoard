@@ -642,46 +642,45 @@ end
         @test occursin("has no named products", issue["message"])
     end
 
-    # A probe reports rather than throws — for *every* way a document can be malformed,
-    # not only schema failures. Two nodes with no `id` both resolve to "", which the
-    # dependency graph rejects as a duplicate; that used to escape as a 500, leaving the
-    # form with nothing to render and no reason.
-    body = read(joinpath(@__DIR__, "static", "probe-noid.json"), String)
-    resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
-    @test resp.status == 200
-    probe = JSON.parse(resp.body)
-    @test probe["valid"] == false
-    # The probe never runs anything, so every fault it can see is a `pipeline` one — said
-    # explicitly rather than left to be inferred from which route answered.
-    @test probe["kind"] == "pipeline"
-    @test occursin("id", only(probe["errors"]))
+    @testset "probe-noid" begin
+        # A probe reports rather than throws — for *every* way a document can be malformed,
+        # not only schema failures. Two nodes with no `id` both resolve to "", which the
+        # dependency graph rejects as a duplicate; that used to escape as a 500, leaving the
+        # form with nothing to render and no reason.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-noid.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        metadata = resp["error"]["metadata"]
+        @test !metadata["valid"]
+        # The probe never runs anything, so every fault it can see is a `pipeline` one — said
+        # explicitly rather than left to be inferred from which route answered.
+        @test metadata["kind"] == "pipeline"
+        @test occursin("id", only(metadata["errors"]))
+    end
 
-    # A7: a schema failure comes back as data, addressed by JSON Pointer into the document,
-    # carrying what would have been accepted — so a form can point at the control and offer a
-    # correction rather than print a sentence. The second input is the bad one, which is also
-    # what pins the index conversion: JSONSchema.jl counts from one, JSON Pointer from zero.
-    body = read(joinpath(@__DIR__, "static", "probe-badvalue.json"), String)
-    resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
-    @test resp.status == 200
-    probe = JSON.parse(resp.body)
-    @test probe["valid"] == false
-    issue = only(probe["issues"])
-    @test issue["pointer"] == "/nodes/0/card/inputs/1/cols"
-    @test issue["reason"] == "enum"
-    @test issue["found"] == "NOSUCHCOLUMN"
-    @test "TEMP" in issue["allowed"]
+    @testset "probe-bad-value" begin
+        # A7: a schema failure comes back as data, addressed by JSON Pointer into the document,
+        # carrying what would have been accepted — so a form can point at the control and offer a
+        # correction rather than print a sentence. The second input is the bad one, which is also
+        # what pins the index conversion: JSONSchema.jl counts from one, JSON Pointer from zero.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-badvalue.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        metadata = resp["error"]["metadata"]
+        @test !metadata["valid"]
+        issue = only(metadata["issues"])
+        @test issue["pointer"] == "/nodes/0/card/inputs/1/cols"
+        @test issue["reason"] == "enum"
+        @test issue["found"] == "NOSUCHCOLUMN"
+        @test "TEMP" in issue["allowed"]
+    end
 
-    # A well-formed document probes clean.
-    body = read(joinpath(@__DIR__, "static", "pipeline-groups.json"), String)
-    resp = HTTP.post(url * "probe-pipeline", body = body)
-    probe = JSON.parse(resp.body)
-    @test probe["valid"] == true
-    @test all(n -> isempty(n["unproduced"]), probe["nodes"])
-    @test resp.headers == [
-        DashiBoard.CORS_RES_HEADERS...,
-        "Content-Type" => "application/json",
-        "Content-Length" => string(length(resp.body)),
-    ]
+    @testset "probe-clean" begin
+        # A well-formed document probes clean.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline-groups.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        @test all(n -> isempty(n["unproduced"]), result["nodes"])
+    end
 
     body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
     resp = HTTP.post(url * "fetch-data", body = body)
@@ -1073,6 +1072,13 @@ end
     @test resp.headers == [
         DashiBoard.CORS_OPTIONS_HEADERS...,
         "Content-Length" => "0",
+    ]
+
+    # probe request
+    @test resp.headers == [
+        DashiBoard.CORS_RES_HEADERS...,
+        "Content-Type" => "application/json",
+        "Content-Length" => string(length(resp.body)),
     ]
 
     @testset "load" begin

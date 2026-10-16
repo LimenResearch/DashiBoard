@@ -806,6 +806,7 @@ function evaluate_pipeline(spec::AbstractDict)
     groups = get(spec, "groups", Dict{String, Any}())
     _nodes = get(spec, "nodes", [])
     _filters = get(spec, "filters", [])
+    may_refer = referable(_nodes, groups)
 
     # Before building: see `empty_group_issues` for why construction cannot report this itself.
     # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
@@ -813,9 +814,12 @@ function evaluate_pipeline(spec::AbstractDict)
     empty = empty_group_issues(groups)
     if !isempty(empty)
         issues = vcat(empty, card_schema_issues(_nodes, groups, cols))
-        throw(issues) # FIXME: throw correct thing
+        failure = (;
+            valid = false, kind = "pipeline", cols,
+            errors = [issue.message for issue in issues], issues, referable = may_refer,
+        )
+        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
     end
-    may_refer = referable(_nodes, groups)
 
     # Running is the one step nothing static can vet. The probe answers everything that can be
     # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for

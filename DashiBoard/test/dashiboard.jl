@@ -696,81 +696,89 @@ end
         empty_run = resp["result"]
         @test empty_run["valid"]
         @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
+
+        # Groups but no cards: the usual authoring order is groups first, so this is what the UI's
+        # continuous probe sends for most of the time a document is being written. It has to
+        # resolve — `group_outputs = c.outputs[1:end]` over zero nodes — or the author gets no
+        # live finding on their groups until the first card exists.
+        groups_only = Dict(
+            "filters" => [],
+            "nodes" => [],
+            "groups" => Dict("g" => [Dict("cols" => "TEMP")]),
+        )
+        resp = post_probe("evaluate-pipeline", groups_only)
+        @test resp["result"]["valid"]
     end
 
-    # Groups but no cards: the usual authoring order is groups first, so this is what the UI's
-    # continuous probe sends for most of the time a document is being written. It has to
-    # resolve — `group_outputs = c.outputs[1:end]` over zero nodes — or the author gets no
-    # live finding on their groups until the first card exists.
-    groups_only = JSON.json((;
-        filters = [],
-        nodes = [],
-        groups = Dict("g" => [Dict("cols" => "TEMP")]),
-    ))
-    resp = HTTP.post(url * "probe-pipeline", body = groups_only)
-    @test JSON.parse(resp.body)["valid"] == true
-
-    # An empty group is a document the schema accepts (`weather = []` constructs) that
-    # resolves to zero columns; a card reading it used to die inside the card constructor
-    # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
-    # smoke check 5). The probe and the run both name the group instead.
-    reads_empty = JSON.json((;
-        filters = [],
-        nodes = [(; id = "z", card = Dict(
-            "type" => "rescale", "method" => Dict("type" => "zscore"),
-            "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
-        ))],
-        groups = Dict("empty" => []),
-    ))
-    for route in ("probe-pipeline", "evaluate-pipeline")
-        resp = HTTP.post(url * route, body = reads_empty)
-        answer = JSON.parse(resp.body)
-        @test answer["valid"] == false
-        @test answer["kind"] == "pipeline"
-        issue = only(answer["issues"])
-        @test issue["pointer"] == "/groups/empty"
-        @test issue["reason"] == "empty"
-        @test issue["severity"] == "error"
-        @test occursin("empty", issue["message"])
-        @test !occursin("UndefKeywordError", join(answer["errors"]))
-    end
-    # An empty group used to end the reply: the cards were never looked at, so a document
-    # with an empty group *and* a broken card named the group only, and the card turned red
-    # one fix and one question later (seen in a browser, 2026-09-21, loading a document).
-    # Both are told in one answer, the group first as in the document.
-    empty_and_broken = JSON.json((;
-        filters = [],
-        nodes = [
-            (; id = "fine", card = Dict(
+    @testset "empty-group" begin
+        # An empty group is a document the schema accepts (`weather = []` constructs) that
+        # resolves to zero columns; a card reading it used to die inside the card constructor
+        # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
+        # smoke check 5). The probe and the run both name the group instead.
+        reads_empty = Dict(
+            "filters" => [],
+            "nodes" => [Dict("id" => "z", "card" => Dict(
                 "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z",
-            )),
-            (; id = "broken", card = Dict("type" => "rescale")),
-        ],
-        groups = Dict("empty" => []),
-    ))
-    for route in ("probe-pipeline", "evaluate-pipeline")
-        answer = JSON.parse(HTTP.post(url * route, body = empty_and_broken).body)
-        @test answer["valid"] == false
-        @test answer["kind"] == "pipeline"
-        @test [(issue["pointer"], issue["reason"]) for issue in answer["issues"]] ==
-            [("/groups/empty", "empty"), ("/nodes/1/card", "required")]
-        @test length(answer["errors"]) == 2
-        @test !occursin("UndefKeywordError", join(answer["errors"]))
+                "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
+            ))],
+            "groups" => Dict("empty" => []),
+        )
+        for f in (post_probe, post)
+            resp = f("evaluate-pipeline", reads_empty)
+            @test haskey(resp, "error")
+            metadata = resp["error"]["metadata"]
+            @test !metadata["valid"]
+            @test metadata["kind"] == "pipeline"
+            issue = only(metadata["issues"])
+            @test issue["pointer"] == "/groups/empty"
+            @test issue["reason"] == "empty"
+            @test issue["severity"] == "error"
+            @test occursin("empty", issue["message"])
+            @test !occursin("UndefKeywordError", join(metadata["errors"]))
+        end
+
+        # An empty group used to end the reply: the cards were never looked at, so a document
+        # with an empty group *and* a broken card named the group only, and the card turned red
+        # one fix and one question later (seen in a browser, 2026-09-21, loading a document).
+        # Both are told in one answer, the group first as in the document.
+        empty_and_broken = Dict(
+            "filters" => [],
+            "nodes" => [
+                Dict("id" => "fine", "card" => Dict(
+                    "type" => "rescale", "method" => Dict("type" => "zscore"),
+                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z",
+                )),
+                Dict("id" => "broken", "card" => Dict("type" => "rescale")),
+            ],
+            "groups" => Dict("empty" => []),
+        )
+        for f in (post_probe, post)
+            resp = f("evaluate-pipeline", empty_and_broken)
+            @test haskey(resp, "error")
+            metadata = resp["error"]["metadata"]
+            @test !metadata["valid"]
+            @test metadata["kind"] == "pipeline"
+            @test [(issue["pointer"], issue["reason"]) for issue in metadata["issues"]] ==
+                [("/groups/empty", "empty"), ("/nodes/1/card", "required")]
+            @test length(metadata["errors"]) == 2
+            @test !occursin("UndefKeywordError", join(metadata["errors"]))
+        end
+
+        # Every issue says how bad it is; a schema failure is an error.
+        two_broken = Dict(
+            "filters" => [],
+            "nodes" => [Dict("id" => "a", "card" => Dict("type" => "cluster")),
+                     Dict("id" => "b", "card" => Dict("type" => "split"))],
+            "groups" => Dict{String, Any}(),
+        )
+        resp = post("evaluate-pipeline", two_broken)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["metadata"]
+        @test !metadata["valid"] && metadata["kind"] == "pipeline"
+        @test [i["pointer"] for i in metadata["issues"]] == ["/nodes/0/card", "/nodes/1/card"]
+        @test all(i["severity"] == "error" for i in metadata["issues"])
+        @test !isempty(metadata["errors"])
     end
-    # Every issue says how bad it is; a schema failure is an error.
-    two_broken = JSON.json((;
-        filters = [],
-        nodes = [(; id = "a", card = Dict("type" => "cluster")),
-                 (; id = "b", card = Dict("type" => "split"))],
-        groups = Dict{String, Any}(),
-    ))
-    resp = HTTP.post(url * "evaluate-pipeline", body = two_broken)
-    failed = JSON.parse(resp.body)
-    @test failed["valid"] == false && failed["kind"] == "pipeline"
-    @test [i["pointer"] for i in failed["issues"]] == ["/nodes/0/card", "/nodes/1/card"]
-    @test all(i["severity"] == "error" for i in failed["issues"])
-    @test !isempty(failed["errors"])
 
     # A13: two cards emitting the same column name. The second silently replaced the first's
     # output (and a source column would be replaced the same way — `rescale TEMP suffix =

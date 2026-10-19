@@ -137,12 +137,12 @@ function bundle_pipeline(spec::AbstractDict)
     # readable leaves the form saving an empty file or blaming the connection.
     isempty(issues) || throw(BundleError(issues))
 
-    return function (fn)
+    return function (path)
         d = EXTENSIONS[]
         extensions = Dict{String, Any}(
             ext => d[ext] for ext in needed_extensions(cards) if haskey(d, ext)
         )
-        ZipWriter(fn) do zip
+        ZipWriter(path) do zip
             zip_newfile(zip, "pipeline/$(name).json")
             JSON.json(zip, cards; pretty = true)
 

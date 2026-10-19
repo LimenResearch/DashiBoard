@@ -941,13 +941,12 @@ function fetch_data(stream, spec::AbstractDict)
     end
 end
 
-function get_processed_data(stream, ::AbstractDict)
-    return function ()
-        mktempdir() do dir
-            path = joinpath(dir, "processed-data.csv")
-            export_table(REPOSITORY[], From("selection"), path)
-            stream_data(stream, path, "text/csv")
-        end
-        return
+function get_processed_data(::AbstractDict)
+    return function (path)
+        # TODO add required format as request parameter
+        _, ext = splitext(path)
+        ext == ".csv" || throw(ArgumentError("Only csv export is supported at the moment"))
+        export_table(REPOSITORY[], From("selection"), path)
+        return ["Content-Type" => "text/csv", "Content-Length" => string(filesize(path))]
     end
 end

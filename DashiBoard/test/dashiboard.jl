@@ -266,7 +266,7 @@ mktempdir() do data_dir
     # A pipeline downloads as a workspace: the document, the configurations it names, and
     # which extensions it needs.
     @testset "bundle" begin
-        fn1 = joinpath(data_dir, "bundle1.zip")
+        path1 = joinpath(data_dir, "bundle1.zip")
         fit = Dict(
             "id" => "fit", "card" => Dict(
                 "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
@@ -276,32 +276,30 @@ mktempdir() do data_dir
         )
         doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
         filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
-        resp = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc, "filters" => filters), fn1)
-        headers = Dict(resp["result"])
-        @test headers["Content-Type"] == "application/zip"
-        @test occursin("mine.zip", headers["Content-Disposition"])
+        resp = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc, "filters" => filters), path1)
+        @test resp["result"]["Content-Type"] == "application/zip"
+        @test occursin("mine.zip", resp["result"]["Content-Disposition"])
 
         # A name outside ASCII travels in the form a header can carry.
-        fn2 = joinpath(data_dir, "bundle2.zip")
-        accented = post("bundle-pipeline", Dict("name" => "prova è", "cards" => doc), fn2)
-        headers = Dict(accented["result"])
-        @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", headers["Content-Disposition"])
+        path2 = joinpath(data_dir, "bundle2.zip")
+        accented = post("bundle-pipeline", Dict("name" => "prova è", "cards" => doc), path2)
+        @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", accented["result"]["Content-Disposition"])
 
-        zip = ZipReader(read(fn1))
+        zip = ZipReader(read(path1))
         @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
         @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
         @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
         # Nothing here came from an extension, so none is named.
         @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
 
-        fn3 = joinpath(data_dir, "bundle3.zip")
-        without = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc), fn3)
-        @test !("filter/mine.json" in zip_names(ZipReader(read(fn3))))
+        path3 = joinpath(data_dir, "bundle3.zip")
+        post("bundle-pipeline", Dict("name" => "mine", "cards" => doc), path3)
+        @test !("filter/mine.json" in zip_names(ZipReader(read(path3))))
 
         # A configuration the document names but the directory lacks is a pointed issue.
-        fn4 = joinpath(data_dir, "bundle4.zip")
+        path4 = joinpath(data_dir, "bundle4.zip")
         missing_conf = deepcopy(doc); missing_conf["nodes"][1]["card"]["model"]["type"] = "nosuch"
-        refused = post("bundle-pipeline", Dict("name" => "mine", "cards" => missing_conf), fn4)
+        refused = post("bundle-pipeline", Dict("name" => "mine", "cards" => missing_conf), path4)
         @test haskey(refused, "error")
         report = refused["error"]["metadata"]
         @test !report["valid"]
@@ -310,19 +308,19 @@ mktempdir() do data_dir
         # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
         # that cannot be a file's, a configuration named outside its folder, a request with
         # no document.
-        fn = joinpath(data_dir, "bundle.zip")
+        path = joinpath(data_dir, "bundle.zip")
         for name in ("run:2", "../up", "a/b", "", "quo\"te")
-            bad = post("bundle-pipeline", Dict("name" => name, "cards" => doc), fn)
+            bad = post("bundle-pipeline", Dict("name" => name, "cards" => doc), path)
             @test haskey(bad, "error")
             @test !bad["error"]["metadata"]["valid"]
         end
 
         outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
-        bad = post("bundle-pipeline", Dict("name" => "mine", "cards" => outside), fn)
+        bad = post("bundle-pipeline", Dict("name" => "mine", "cards" => outside), path)
         @test haskey(bad, "error")
         @test !bad["error"]["metadata"]["valid"]
 
-        bad = post("bundle-pipeline", Dict("name" => "mine"), fn)
+        bad = post("bundle-pipeline", Dict("name" => "mine"), path)
         @test haskey(bad, "error")
         @test !bad["error"]["metadata"]["valid"]
     end
@@ -357,9 +355,9 @@ mktempdir() do data_dir
                         @test DashiBoard.needed_extensions(doc) == ["Other"]
                     end
                 end
-                fn = joinpath(data_dir, "buffer_bundle.zip")
-                DashiBoard.bundle_pipeline(Dict("cards" => doc, "name" => "x"))(fn)
-                toml = TOML.parse(zip_readentry(ZipReader(read(fn)), "dashiboard.toml", String))
+                path = joinpath(data_dir, "buffer_bundle.zip")
+                DashiBoard.bundle_pipeline(Dict("cards" => doc, "name" => "x"))(path)
+                toml = TOML.parse(zip_readentry(ZipReader(read(path)), "dashiboard.toml", String))
                 @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
             end
         )
@@ -647,6 +645,15 @@ mktempdir() do data_dir
         # A4: the graph renders, and names the group rather than its resolved columns
         @test startswith(result["graph"], "digraph G{")
         @test occursin("\"wind\"", result["graph"])
+
+        path = joinpath(data_dir, "download.csv")
+        resp = post("get-processed-data", Dict(), path)
+        @test resp["result"] == Dict("Content-Type" => "text/csv", "Content-Length" => "336104")
+        s = read(path, String)
+        @test ncodeunits(s) == 336104
+        l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
+        @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
+        @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
     end
 
     @testset "validate-card" begin
@@ -1101,10 +1108,7 @@ end
 
 error("aa")
 @testset "request" begin
-    # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
-    # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
-    # runs ExperimentTracking on 8081 — so a hardcoded 8080 made this suite unrunnable whenever
-    # the dev stack was up.
+    # Take the first free port rather than hardcoding one.
     function first_free_port(range)
         for p in range
             socket = try
@@ -1185,20 +1189,6 @@ page = String(resp.body)
 @test JSON.parse(page)["values"][1]["bad"] === nothing
 @test JSON.parse(page)["values"][1]["good"] == 2.5
 
-HTTP.open("GET", url * "get-processed-data") do stream
-    r = startread(stream)
-    @test r.headers == [
-        DashiBoard.CORS_RES_HEADERS...,
-        "Content-Type" => "text/csv",
-        "Content-Length" => "336104",
-    ]
-
-    s = read(stream, String)
-    @test ncodeunits(s) == 336104
-    l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
-    @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
-    @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
-end
 resp = HTTP.options(url * "get-processed-data")
 @test resp.headers == [
     DashiBoard.CORS_OPTIONS_HEADERS...,

@@ -153,6 +153,46 @@ end
 
 # Handler transformation
 
+"""
+    failure_report(kind::Symbol, exception)
+
+The body both pipeline routes answer with when they cannot do what was asked.
+
+`kind` says *where* it broke, not whose fault it is: `"pipeline"` for a document that could not be
+turned into a pipeline — a schema failure, a duplicate id, a cycle — and `"execution"` for one that
+built and then died while running. That split is on which call threw, which is observable;
+"is this the author's mistake or ours" is not, and a field that claims to know would be guessing.
+
+A client reads the two the same way and means different things by them: a `pipeline` failure sends
+the author back to the cards, an `execution` failure back to the data.
+"""
+function failure_report(kind::Symbol, exception::Exception)
+    # Four kinds of failure carry a JSON Pointer into the document, so the form can address the
+    # control and, where it is known, offer a correction: a schema failure, a `through` chain the
+    # pipeline refused to resolve, a product selection a card cannot write, and a transform for a
+    # column a funnel does not have. Anything else — a cyclic graph, a
+    # duplicate id, a binder error from DuckDB — has only its message.
+    # Validation collects, so one schema failure and twenty arrive in the same shape; a chain
+    # fails on the first one, so it arrives singular and is wrapped to match.
+    issues = if exception isa Pipelines.SchemaValidationErrors
+        Pipelines.issue_report(exception)
+    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, StreamlinerCore.TransformError}
+        [Pipelines.issue_report(exception)]
+    else
+        []
+    end
+    return (;
+        valid = false, kind,
+        errors = [sprint(showerror, cause) for cause in root_causes(exception)],
+        issues,
+    )
+end
+
+function throw_failure(kind::Symbol, exception::Exception)
+    failure = StructUtils.make(StringDict, failure_report(kind, exception))
+    throw(DashiBase.StructuredException(failure))
+end
+
 struct KindHandler{F}
     handler::F
     kind::Symbol
@@ -164,10 +204,29 @@ end
 # directory and handed on relative to that directory, which becomes the general route's base.
 function (kh::KindHandler)(spec::AbstractDict)
     (; handler, kind, content) = kh
-    path = spec["path"]
-    base = pointer(kind)
-    full = kind_path(kind, path)
-    spec′ = merge(spec, Dict("kind" => content, "path" => relpath(full, base)))
-    what = "the $(kind) directory"
+    local spec′, base, what
+    try
+        path = spec["path"]
+        base = pointer(kind)
+        full = kind_path(kind, path)
+        spec′ = merge(spec, Dict("kind" => content, "path" => relpath(full, base)))
+        what = "the $(kind) directory"
+    catch exception
+        throw_failure(:document, exception)
+    end
     return handler(spec′, base; what)
+end
+
+struct StructuredHandler{F}
+    handler::F
+    kind::Symbol
+end
+
+function (sh::StructuredHandler)(spec::AbstractDict)
+    (; handler, kind) = sh
+    return try
+        handler(spec)
+    catch exception
+        throw_failure(kind, exception)
+    end
 end

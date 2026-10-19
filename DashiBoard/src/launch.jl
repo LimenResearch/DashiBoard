@@ -13,12 +13,12 @@ function get_handlers(
     handlers = StringDict()
 
     handlers["list-files"] = list_files
-    handlers["read-document"] = read_document
-    handlers["write-document"] = write_document
+    handlers["read-document"] = StructuredHandler(read_document, :document)
+    handlers["write-document"] = StructuredHandler(write_document, :document)
     handlers["list-configurations"] = list_configurations
     handlers["bundle-pipeline"] = bundle_pipeline
-    handlers["read-configuration"] = read_configuration
-    handlers["write-configuration"] = write_configuration
+    handlers["read-configuration"] = StructuredHandler(read_configuration, :configuration)
+    handlers["write-configuration"] = StructuredHandler(write_configuration, :configuration)
 
     for (name, kind, content, shape) in KIND_ROUTES
         reader, writer = shape === :document ? (read_document, write_document) : (read_configuration, write_configuration)
@@ -26,9 +26,9 @@ function get_handlers(
         handlers["write-$(name)"] = KindHandler(writer, kind, content)
     end
 
-    handlers["load-files"] = load_files
+    handlers["load-files"] = StructuredHandler(load_files, :load)
     handlers["get-card-ir"] = get_card_ir
-    handlers["validate-card"] = validate_card
+    handlers["validate-card"] = StructuredHandler(validate_card, :pipeline)
     handlers["evaluate-pipeline"] = evaluate_pipeline
 
     handlers["fetch-data"] = fetch_data # FIXME: these are stream handlers!

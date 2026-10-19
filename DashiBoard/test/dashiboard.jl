@@ -261,6 +261,8 @@ mktempdir() do data_dir
         return roundtrip(apply_handlers(probe_handlers, req))
     end
 
+    only_error(metadata::AbstractDict) = only(metadata["errors"])
+
     @testset "files" begin
         # The listing names every file the UI may pick, with what it is. A JSON is told from
         # a table by content, so the kind survives a rename; what does not parse, what is
@@ -281,7 +283,7 @@ mktempdir() do data_dir
         # a failure envelope, not a read.
         escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
         @test haskey(escaped, "error")
-        @test occursin("outside the data directory", escaped["error"]["message"])
+        @test occursin("outside the data directory", escaped["error"]["metadata"] |> only_error)
 
         # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
         # found; nothing outside the directory, nothing that is not there.
@@ -294,16 +296,16 @@ mktempdir() do data_dir
 
         wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
         @test haskey(wrong_kind, "error")
-        @test occursin("not a cards document", wrong_kind["error"]["message"])
+        @test occursin("not a cards document", wrong_kind["error"]["metadata"] |> only_error)
 
         for path in ("../cards.json", joinpath(data_dir, "cards.json"))
             outside = post("read-document", Dict("path" => path, "kind" => "cards"))
             @test haskey(outside, "error")
-            @test occursin("outside the workspace", outside["error"]["message"])
+            @test occursin("outside the workspace", outside["error"]["metadata"] |> only_error)
         end
 
         missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
-        @test occursin("does not exist", missing_file["error"]["message"])
+        @test occursin("does not exist", missing_file["error"]["metadata"] |> only_error)
 
         unparsable = post("read-document", Dict("path" => "broken.json", "kind" => "cards"))
         @test haskey(unparsable, "error")
@@ -318,12 +320,12 @@ mktempdir() do data_dir
         @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["result"]["files"]]
         @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["result"]["document"] == doc
 
-        @test occursin("already exists", save("sub/mine.json", "cards", false)["error"]["message"])
+        @test occursin("already exists", save("sub/mine.json", "cards", false)["error"]["metadata"] |> only_error)
         @test haskey(save("sub/mine.json", "cards", true), "result")
 
-        @test occursin("not a filters document", save("f.json", "filters", false)["error"]["message"])
-        @test occursin("outside the workspace", save("../x.json", "cards", false)["error"]["message"])
-        @test occursin(".json", save("x.toml", "cards", false)["error"]["message"])
+        @test occursin("not a filters document", save("f.json", "filters", false)["error"]["metadata"] |> only_error)
+        @test occursin("outside the workspace", save("../x.json", "cards", false)["error"]["metadata"] |> only_error)
+        @test occursin(".json", save("x.toml", "cards", false)["error"]["metadata"] |> only_error)
         # A folder named on the way is made: a client that says where a file goes means it.
         @test haskey(save("new/folder/x.json", "cards", false), "result")
         @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
@@ -336,11 +338,36 @@ mktempdir() do data_dir
         @test haskey(written, "result") && written["result"]["path"] == "anywhere/m.toml"
         back = post("read-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model"))
         @test haskey(back, "result") && back["result"]["text"] == model_text && back["result"]["parsed"]["name"] == "basic"
-        @test occursin("not a training", post("write-configuration", Dict("path" => "t.toml", "kind" => "training", "text" => model_text))["error"]["message"])
-        @test occursin(".toml", post("write-configuration", Dict("path" => "m.json", "kind" => "model", "text" => model_text))["error"]["message"])
-        @test occursin("TOML", post("write-configuration", Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml"))["error"]["message"])
-        @test occursin("outside the workspace", post("write-configuration", Dict("path" => "../m.toml", "kind" => "model", "text" => model_text))["error"]["message"])
-        @test occursin("already exists", post("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["error"]["message"])
+        @test occursin(
+            "not a training", post(
+                "write-configuration",
+                Dict("path" => "t.toml", "kind" => "training", "text" => model_text)
+            )["error"]["metadata"] |> only_error
+        )
+        @test occursin(
+            ".toml", post(
+                "write-configuration",
+                Dict("path" => "m.json", "kind" => "model", "text" => model_text)
+            )["error"]["metadata"] |> only_error
+        )
+        @test occursin(
+            "TOML", post(
+                "write-configuration",
+                Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml")
+            )["error"]["metadata"] |> only_error
+        )
+        @test occursin(
+            "outside the workspace", post(
+                "write-configuration",
+                Dict("path" => "../m.toml", "kind" => "model", "text" => model_text)
+            )["error"]["metadata"] |> only_error
+        )
+        @test occursin(
+            "already exists", post(
+                "write-configuration",
+                Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text)
+            )["error"]["metadata"] |> only_error
+        )
 
         # What the launcher reads and runs is not a client's to write: the workspace file names
         # packages the next launch installs and loads, and hidden folders hold its environment.
@@ -497,7 +524,7 @@ mktempdir() do data_dir
         # Anything else is refused in the usual envelope, with a sentence, not with a bare 500.
         resp = post("get-card-ir", Dict("include" => 3))
         @test haskey(resp, "error")
-        @test occursin("include", resp["error"]["message"])
+        @test occursin("include", resp["error"]["metadata"] |> only_error)
     end
 
     @testset "pipeline-groups" begin
@@ -548,8 +575,9 @@ mktempdir() do data_dir
         params = Dict("card" => Dict("type" => "nosuchcard"), "cols" => ["TEMP"])
         resp = post("validate-card", params)
         @test haskey(resp, "error")
-        @test occursin("not found", resp["error"]["message"])
-        # @test parsed["kind"] == "pipeline" FIXME! Do we need kind?
+        metadata = resp["error"]["metadata"]
+        @test occursin("not found", only_error(metadata))
+        @test metadata["kind"] == "pipeline"
     end
 
     @testset "probe-bad" begin

@@ -406,7 +406,7 @@ function get_card_ir(spec::AbstractDict)
     # by hand: `Set{String}("defs")` would iterate its characters and throw.
     wanted = get(spec, "include", ["defs", "cards"])
     wanted isa AbstractString && (wanted = [wanted])
-    wanted isa AbstractVector || throw(ArgumentError("`include` must be a string or a list of strings"))
+    wanted isa AbstractVector || throw_failure(:request, ArgumentError("`include` must be a string or a list of strings"))
     return function ()
         include = Set{String}(wanted)
         parts = StringDict()
@@ -451,41 +451,6 @@ function root_causes(exception)::Vector{Exception}
         # A task can fail with a value that is not an `Exception`; say so rather than throw here.
         return Exception[ErrorException(sprint(show, exception))]
     end
-end
-
-"""
-    failure_report(kind, exception)
-
-The body both pipeline routes answer with when they cannot do what was asked.
-
-`kind` says *where* it broke, not whose fault it is: `"pipeline"` for a document that could not be
-turned into a pipeline — a schema failure, a duplicate id, a cycle — and `"execution"` for one that
-built and then died while running. That split is on which call threw, which is observable;
-"is this the author's mistake or ours" is not, and a field that claims to know would be guessing.
-
-A client reads the two the same way and means different things by them: a `pipeline` failure sends
-the author back to the cards, an `execution` failure back to the data.
-"""
-function failure_report(kind::AbstractString, exception::Exception)
-    # Four kinds of failure carry a JSON Pointer into the document, so the form can address the
-    # control and, where it is known, offer a correction: a schema failure, a `through` chain the
-    # pipeline refused to resolve, a product selection a card cannot write, and a transform for a
-    # column a funnel does not have. Anything else — a cyclic graph, a
-    # duplicate id, a binder error from DuckDB — has only its message.
-    # Validation collects, so one schema failure and twenty arrive in the same shape; a chain
-    # fails on the first one, so it arrives singular and is wrapped to match.
-    issues = if exception isa Pipelines.SchemaValidationErrors
-        Pipelines.issue_report(exception)
-    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, StreamlinerCore.TransformError}
-        [Pipelines.issue_report(exception)]
-    else
-        []
-    end
-    return (;
-        valid = false, kind,
-        errors = [sprint(showerror, cause) for cause in root_causes(exception)],
-        issues,
-    )
 end
 
 """
@@ -597,7 +562,7 @@ wrong while looking (two nodes with one id make `dependency_graph` itself throw)
 plain report, which already carries that sentence.
 """
 function build_failure(nodes::AbstractVector, groups::AbstractDict, exception::Exception)
-    report = failure_report("pipeline", exception)
+    report = failure_report(:pipeline, exception)
     isempty(report.issues) || return report
     loops = try
         loop_issues(nodes, groups)
@@ -900,7 +865,7 @@ function evaluate_pipeline(spec::AbstractDict)
             # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
             # the backtrace whether the cause was the data or a bug of ours.
             @error "evaluate-pipeline: the run failed" exception = (exception, catch_backtrace())
-            failure = failure_report("execution", exception)
+            failure = failure_report(:execution, exception)
             throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
         end
     end

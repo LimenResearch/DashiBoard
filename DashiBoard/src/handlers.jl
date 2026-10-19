@@ -304,25 +304,6 @@ function kind_path(kind::Symbol, path::AbstractString)
     return resolve_in(pointer(kind), path; what = "the $(kind) directory")
 end
 
-struct KindHandler{F}
-    handler::F
-    kind::Symbol
-    content::String
-end
-
-# A request for a kind route, rewritten as one for the general route it stands on: the kind
-# filled in, and the path checked against the layout's folder names, resolved under the kind's
-# directory and handed on relative to that directory, which becomes the general route's base.
-function (kh::KindHandler)(spec::AbstractDict)
-    (; handler, kind, content) = kh
-    path = spec["path"]
-    base = pointer(kind)
-    full = kind_path(kind, path)
-    spec′ = merge(spec, Dict("kind" => content, "path" => relpath(full, base)))
-    what = "the $(kind) directory"
-    return handler(spec′, base; what)
-end
-
 """
     list_configurations(spec)
 

@@ -1,5 +1,5 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
-using DashiBase: apply_handlers, JSONRequest
+using DashiBase: apply_handlers, JSONRequest, DashiBase
 using ZipArchives: ZipReader, zip_names, zip_readentry
 using TOML: TOML
 using Sockets: Sockets
@@ -84,7 +84,8 @@ Pipelines.register_wild_card(:trivial, "Trivial"; settings)
             FakeStream(HTTP.Request("POST", "/fast"), HTTP.Response(200))
         )
     end
-    for _ in channel; end # let the channel-bound task finish
+    for _ in channel
+    end # let the channel-bound task finish
     slow_at, slow_n = stamp(only(slow.logs)).captures
     fast_at, fast_n = stamp(only(fast.logs)).captures
     @test parse(Int, slow_n) < parse(Int, fast_n)   # the slow one arrived first
@@ -172,8 +173,7 @@ end
     @test JSON.parse(body)["b"]["x"] === nothing
 end
 
-# mktempdir() do data_dir
-    data_dir = mktempdir()
+mktempdir() do data_dir
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(data_dir, "pollution.csv")
@@ -252,12 +252,12 @@ end
     roundtrip(x) = JSON.parse(JSON.json(x))
 
     function post(method, params)
-        req =  JSONRequest(; method, params, id = 0)
+        req = JSONRequest(; method, params, id = 0)
         return roundtrip(apply_handlers(handlers, req))
     end
 
     function post_probe(method, params)
-        req =  JSONRequest(; method, params, id = 0)
+        req = JSONRequest(; method, params, id = 0)
         return roundtrip(apply_handlers(probe_handlers, req))
     end
 
@@ -370,7 +370,8 @@ end
     @testset "a model that cannot be built" begin
         mktempdir() do dir
             cp(joinpath(model_dir, "dense.toml"), joinpath(dir, "dense.toml"))
-            write(joinpath(dir, "conv.toml"), """
+            write(
+                joinpath(dir, "conv.toml"), """
                 name = "basic"
                 [components]
                 model = [{ name = "conv", kernel = [3], pad = [1], features = { "-v" = "features" } }, { name = "conv", kernel = [3], pad = [1] }]
@@ -380,7 +381,8 @@ end
                 [[properties]]
                 key = "features"
                 type = "integer"
-                """)
+                """
+            )
             fit(model) = Dict(
                 "id" => "fit", "card" => Dict(
                     "type" => "streamliner", "model" => Dict("type" => model, "features" => 2),
@@ -396,14 +398,16 @@ end
             )
             # A model that fails to build for another reason is not this check's to report:
             # the probe answers, and the run reports it as it reports any failure.
-            write(joinpath(dir, "boom.toml"), """
+            write(
+                joinpath(dir, "boom.toml"), """
                 name = "boom"
                 [components]
                 model = []
                 [loss]
                 name = "mse"
                 agg = "mean"
-                """)
+                """
+            )
             boom_parser = Pipelines.default_parser(
                 plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("boom" => BoomModel))]
             )
@@ -578,10 +582,14 @@ end
         # Each node says how a value may pass through it, one entry per product. A rescale has one,
         # unnamed, so a picker offers the node and nothing to choose within it.
         params = Dict(
-            "nodes" => [Dict("id" => "r", "card" => Dict(
-                "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
-            ))],
+            "nodes" => [
+                Dict(
+                    "id" => "r", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
+                    )
+                ),
+            ],
             "groups" => Dict{String, Any}(),
         )
         resp = post_probe("evaluate-pipeline", params)
@@ -599,23 +607,27 @@ end
         # come from a group and the target through another node.
         fit(funnel) = Dict(
             "nodes" => [
-                Dict("id" => "r", "card" => Dict(
-                    "type" => "rescale", "method" => Dict("type" => "zscore"),
-                    "inputs" => [Dict("cols" => "PRES")], "suffix" => "z",
-                )),
-                Dict("id" => "fit", "card" => Dict(
-                    "type" => "streamliner",
-                    "model" => Dict("type" => "dense", "features" => 2),
-                    "training" => Dict("type" => "batched", "iterations" => 1),
-                    "funnel" => merge(
-                        Dict{String, Any}(
-                            "order_by" => [Dict("cols" => "No")],
-                            "inputs" => [Dict("groups" => "g")],
-                            "targets" => [Dict("cols" => "PRES", "through" => ["r"])],
+                Dict(
+                    "id" => "r", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "PRES")], "suffix" => "z",
+                    )
+                ),
+                Dict(
+                    "id" => "fit", "card" => Dict(
+                        "type" => "streamliner",
+                        "model" => Dict("type" => "dense", "features" => 2),
+                        "training" => Dict("type" => "batched", "iterations" => 1),
+                        "funnel" => merge(
+                            Dict{String, Any}(
+                                "order_by" => [Dict("cols" => "No")],
+                                "inputs" => [Dict("groups" => "g")],
+                                "targets" => [Dict("cols" => "PRES", "through" => ["r"])],
+                            ),
+                            funnel
                         ),
-                        funnel
-                    ),
-                )),
+                    )
+                ),
             ],
             "groups" => Dict{String, Any}("g" => [Dict("cols" => ["TEMP", "Iws"])]),
         )
@@ -718,10 +730,14 @@ end
         # smoke check 5). The probe and the run both name the group instead.
         reads_empty = Dict(
             "filters" => [],
-            "nodes" => [Dict("id" => "z", "card" => Dict(
-                "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
-            ))],
+            "nodes" => [
+                Dict(
+                    "id" => "z", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
+                    )
+                ),
+            ],
             "groups" => Dict("empty" => []),
         )
         for f in (post_probe, post)
@@ -745,10 +761,12 @@ end
         empty_and_broken = Dict(
             "filters" => [],
             "nodes" => [
-                Dict("id" => "fine", "card" => Dict(
-                    "type" => "rescale", "method" => Dict("type" => "zscore"),
-                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z",
-                )),
+                Dict(
+                    "id" => "fine", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z",
+                    )
+                ),
                 Dict("id" => "broken", "card" => Dict("type" => "rescale")),
             ],
             "groups" => Dict("empty" => []),
@@ -768,8 +786,10 @@ end
         # Every issue says how bad it is; a schema failure is an error.
         two_broken = Dict(
             "filters" => [],
-            "nodes" => [Dict("id" => "a", "card" => Dict("type" => "cluster")),
-                     Dict("id" => "b", "card" => Dict("type" => "split"))],
+            "nodes" => [
+                Dict("id" => "a", "card" => Dict("type" => "cluster")),
+                Dict("id" => "b", "card" => Dict("type" => "split")),
+            ],
             "groups" => Dict{String, Any}(),
         )
         resp = post("evaluate-pipeline", two_broken)
@@ -789,10 +809,18 @@ end
         same_name = Dict(
             "filters" => [],
             "nodes" => [
-                Dict("id" => "one", "card" => Dict("type" => "rescale", "method" => Dict("type" => "zscore"),
-                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
-                Dict("id" => "two", "card" => Dict("type" => "rescale", "method" => Dict("type" => "minmax"),
-                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+                Dict(
+                    "id" => "one", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z"
+                    )
+                ),
+                Dict(
+                    "id" => "two", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "minmax"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z"
+                    )
+                ),
             ],
             "groups" => Dict{String, Any}(),
         )
@@ -859,10 +887,12 @@ end
     # (`pointer = ""`), with the members under `related` and in the message. Seen in a
     # browser on 2026-09-18 with the bare sentence written on every card that was asked.
     @testset "loops" begin
-        rescale(id, input) = Dict("id" => id, "card" => Dict(
-            "type" => "rescale", "method" => Dict("type" => "zscore"),
-            "inputs" => [input], "suffix" => id,
-        ))
+        rescale(id, input) = Dict(
+            "id" => id, "card" => Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [input], "suffix" => id,
+            )
+        )
         looped = Dict(
             "filters" => [],
             "nodes" => [rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a")), rescale("c", Dict("cols" => "TEMP"))],
@@ -897,10 +927,12 @@ end
     # What a card or a group may refer to without making a loop: everything but itself and
     # what depends on it. Sent with the probe so a picker offers only that.
     @testset "referable" begin
-        rescale(id, input) = Dict("id" => id, "card" => Dict(
-            "type" => "rescale", "method" => Dict("type" => "zscore"),
-            "inputs" => [input], "suffix" => id,
-        ))
+        rescale(id, input) = Dict(
+            "id" => id, "card" => Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [input], "suffix" => id,
+            )
+        )
         probe(nodes, groups) = post_probe(
             "evaluate-pipeline",
             Dict("filters" => [], "nodes" => nodes, "groups" => groups)
@@ -921,327 +953,329 @@ end
         looped = probe([rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a"))], Dict{String, Any}())
         @test haskey(looped, "error")
         metadata = looped["error"]["metadata"]
-        @test metadata["valid"] == false
+        @test !metadata["valid"]
         @test metadata["referable"]["nodes"] == [Dict("nodes" => [], "groups" => []), Dict("nodes" => [], "groups" => [])]
 
         # and absent when the graph itself cannot be built
         twins = probe([rescale("a", Dict("cols" => "TEMP")), rescale("a", Dict("cols" => "TEMP"))], Dict{String, Any}())
         @test isnothing(twins["error"]["metadata"]["referable"])
     end
+end
 
-    @testset "request" begin
-        # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
-        # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
-        # runs ExperimentTracking on 8081 — so a hardcoded 8080 made this suite unrunnable whenever
-        # the dev stack was up.
-        function first_free_port(range)
-            for p in range
-                socket = try
-                    Sockets.listen(Sockets.localhost, p)
-                catch
-                    continue # in use
-                end
-                # Small window between closing the probe and `launch` binding; fine for a test.
-                close(socket)
-                return p
+error("aa")
+@testset "request" begin
+    # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
+    # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
+    # runs ExperimentTracking on 8081 — so a hardcoded 8080 made this suite unrunnable whenever
+    # the dev stack was up.
+    function first_free_port(range)
+        for p in range
+            socket = try
+                Sockets.listen(Sockets.localhost, p)
+            catch
+                continue # in use
             end
-            error("no free port in $(range)")
+            # Small window between closing the probe and `launch` binding; fine for a test.
+            close(socket)
+            return p
         end
+        error("no free port in $(range)")
+    end
 
-        port = first_free_port(8080:8280)
-        url = "http://127.0.0.1:$(port)/"
+    port = first_free_port(8080:8280)
+    url = "http://127.0.0.1:$(port)/"
 
-        # A pipeline downloads as a workspace: the document, the configurations it names, and
-        # which extensions it needs.
-        @testset "bundle" begin
-            fit = Dict(
-                "id" => "fit", "card" => Dict(
-                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
-                    "training" => Dict("type" => "batched", "iterations" => 1),
-                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
-                )
+    # A pipeline downloads as a workspace: the document, the configurations it names, and
+    # which extensions it needs.
+    @testset "bundle" begin
+        fit = Dict(
+            "id" => "fit", "card" => Dict(
+                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "training" => Dict("type" => "batched", "iterations" => 1),
+                "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
             )
-            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
-            filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
-            resp = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc, filters)))
-            @test HTTP.header(resp, "Content-Type") == "application/zip"
-            @test occursin("mine.zip", HTTP.header(resp, "Content-Disposition"))
-            # A name outside ASCII travels in the form a header can carry.
-            accented = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "prova è", cards = doc)))
-            @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", HTTP.header(accented, "Content-Disposition"))
-            zip = ZipReader(Vector{UInt8}(resp.body))
-            @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
-            @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
-            @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
-            # Nothing here came from an extension, so none is named.
-            @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
-            without = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc)))
-            @test !("filter/mine.json" in zip_names(ZipReader(Vector{UInt8}(without.body))))
-            # A configuration the document names but the directory lacks is a pointed issue.
-            missing = deepcopy(doc); missing["nodes"][1]["card"]["model"]["type"] = "nosuch"
-            refused = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = missing)), status_exception = false)
-            @test HTTP.header(refused, "Content-Type") == "application/json"
-            report = JSON.parse(refused.body)
-            @test report["valid"] == false
-            @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
-
-            # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
-            # that cannot be a file's, a configuration named outside its folder, a request with
-            # no document.
-            bundle(body) = HTTP.post(url * "bundle-pipeline", body = JSON.json(body), status_exception = false)
-            for name in ("run:2", "../up", "a/b", "", "quo\"te")
-                bad = bundle((; name, cards = doc))
-                @test bad.status == 200 && HTTP.header(bad, "Content-Type") == "application/json"
-                @test JSON.parse(bad.body)["valid"] == false
-            end
-            outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
-            bad = bundle((; name = "mine", cards = outside))
-            @test HTTP.header(bad, "Content-Type") == "application/json" && JSON.parse(bad.body)["valid"] == false
-            bad = bundle((; name = "mine"))
-            @test bad.status == 200 && JSON.parse(bad.body)["valid"] == false
-        end
-
-        # With a provenance table, the bundle names exactly the extensions the document uses.
-        @testset "bundle names its extensions" begin
-            fit = Dict(
-                "id" => "fit", "card" => Dict(
-                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
-                    "training" => Dict("type" => "batched", "iterations" => 1),
-                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
-                                     "input_transforms" => Dict("TEMP" => "log")),
-                )
-            )
-            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
-            @with(
-                DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
-                DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
-                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
-                begin
-                    @test DashiBoard.needed_extensions(doc) == ["Fake"]
-                    # A funnel contributes its type and its transforms, nothing else.
-                    entries = DashiBoard.registry_entries(doc)
-                    @test "funnel:" in entries && "transform:log" in entries
-                    @test !any(startswith("loader:"), entries)
-                    # Not only the architecture: a layer, a loss or an optimizer a configuration
-                    # names may come from an extension too, and the pipeline needs it as much.
-                    for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
-                        @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
-                            @test DashiBoard.needed_extensions(doc) == ["Other"]
-                        end
-                    end
-                    bytes = DashiBoard.bundle_pipeline(doc, nothing, "x")
-                    toml = TOML.parse(zip_readentry(ZipReader(bytes), "dashiboard.toml", String))
-                    @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
-                end
-            )
-        end
-    end
-
-
-    # The only place the response headers and the OPTIONS preflight are asserted, so this
-    # covers CORS for every route rather than for this one.
-    #
-    # Before the `String(resp.body)` below, not after: `String(::Vector{UInt8})` takes
-    # ownership of the buffer and leaves it empty, so a `length(resp.body)` that follows it
-    # reads 0 and the Content-Length assertion fails against its own response.
-    @test resp.headers == [
-        DashiBoard.CORS_RES_HEADERS...,
-        "Content-Type" => "application/json",
-        "Content-Length" => string(length(resp.body)),
-    ]
-
-    resp = HTTP.options(url * "get-card-ir")
-    @test resp.headers == [
-        DashiBoard.CORS_OPTIONS_HEADERS...,
-        "Content-Length" => "0",
-    ]
-
-    # probe request
-    @test resp.headers == [
-        DashiBoard.CORS_RES_HEADERS...,
-        "Content-Type" => "application/json",
-        "Content-Length" => string(length(resp.body)),
-    ]
-
-    # In a faulty pipeline the response is still a normal one, so a browser can read it
-    @test ("Access-Control-Allow-Origin" => "*") in resp.headers
-
-
-    @testset "load" begin
-        body = read(joinpath(@__DIR__, "static", "load.json"), String)
-        resp = HTTP.post(url * "load-files", body = body)
-        summaries = JSON.parse(resp.body)
-        @test summaries[end]["name"] == "Ir"
-        @test resp.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "application/json",
-            "Content-Length" => string(length(resp.body)),
-        ]
-    end
-
-    body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
-    resp = HTTP.post(url * "fetch-data", body = body)
-    tbl = JSON.parse(resp.body)
-    df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
-    @test tbl["length"] == nrow(df)
-    @test [row["No"] for row in tbl["values"]] == df.No[11:60]
-    @test resp.headers == [
-        DashiBoard.CORS_RES_HEADERS...,
-        "Content-Type" => "application/json",
-        "Content-Length" => string(length(resp.body)),
-    ]
-
-    # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
-    # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
-    # Julia's parser accepts those tokens, so this asserts on the text.
-    DBInterface.execute(Returns(nothing), DashiBoard.REPOSITORY[],
-        "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s")
-    body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
-    resp = HTTP.post(url * "fetch-data", body = body)
-    page = String(resp.body)
-    @test !occursin("NaN", page) && !occursin("Infinity", page)
-    @test JSON.parse(page)["values"][1]["bad"] === nothing
-    @test JSON.parse(page)["values"][1]["good"] == 2.5
-
-    HTTP.open("GET", url * "get-processed-data") do stream
-        r = startread(stream)
-        @test r.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "text/csv",
-            "Content-Length" => "336104",
-        ]
-
-        s = read(stream, String)
-        @test ncodeunits(s) == 336104
-        l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
-        @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
-        @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
-    end
-    resp = HTTP.options(url * "get-processed-data")
-    @test resp.headers == [
-        DashiBoard.CORS_OPTIONS_HEADERS...,
-        "Content-Length" => "0",
-    ]
-
-
-    end
-
-    close(server)
-
-    # A data directory that does not exist used to make every listing throw: a 500 with an
-    # empty body, logged as 200 (see `LoggingMiddleware`), and an empty picker with no reason.
-    @testset "a missing data directory" begin
-        nowhere_port = first_free_port(8281:8380)
-        nowhere = DashiBoard.launch(
-            joinpath(data_dir, "does-not-exist");
-            port = nowhere_port, async = true, model_dir, training_dir
         )
-        resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
-        @test resp.status == 200
-        listed = JSON.parse(resp.body)
-        @test listed["files"] == [] && listed["misplaced"] == []
-        close(nowhere)
-    end
+        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+        filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
+        resp = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc, filters)))
+        @test HTTP.header(resp, "Content-Type") == "application/zip"
+        @test occursin("mine.zip", HTTP.header(resp, "Content-Disposition"))
+        # A name outside ASCII travels in the form a header can carry.
+        accented = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "prova è", cards = doc)))
+        @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", HTTP.header(accented, "Content-Disposition"))
+        zip = ZipReader(Vector{UInt8}(resp.body))
+        @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
+        @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
+        @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
+        # Nothing here came from an extension, so none is named.
+        @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
+        without = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc)))
+        @test !("filter/mine.json" in zip_names(ZipReader(Vector{UInt8}(without.body))))
+        # A configuration the document names but the directory lacks is a pointed issue.
+        missing = deepcopy(doc); missing["nodes"][1]["card"]["model"]["type"] = "nosuch"
+        refused = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = missing)), status_exception = false)
+        @test HTTP.header(refused, "Content-Type") == "application/json"
+        report = JSON.parse(refused.body)
+        @test report["valid"] == false
+        @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
 
-    # A workspace with no folder for its configurations reads them from the root: only what is a
-    # configuration of the kind asked for counts, wherever else TOML files lie.
-    @testset "configurations in a flat workspace" begin
-        mktempdir() do ws
-            cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "m.toml"))
-            cp(joinpath(training_dir, "batched.toml"), joinpath(ws, "tr.toml"))
-            write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 1\n")
-            write(joinpath(ws, "broken.toml"), "= not toml")
-            mkpath(joinpath(ws, "quarantine")); cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "quarantine", "old.toml"))
-            flat_port = first_free_port(8581:8680)
-            flat = DashiBoard.launch(ws; port = flat_port, async = true)
-            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/list-configurations", body = "{}").body)
-            @test [m["name"] for m in listed["model"]] == ["m"]
-            @test [t["name"] for t in listed["training"]] == ["tr"]
-            ir = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/get-card-ir", body = JSON.json((; cols = ["a"], nodes = String[], groups = String[], include = ["cards"]))).body)
-            model = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "model")
-            @test model["value"]["options"] == ["m"]
-            close(flat)
+        # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
+        # that cannot be a file's, a configuration named outside its folder, a request with
+        # no document.
+        bundle(body) = HTTP.post(url * "bundle-pipeline", body = JSON.json(body), status_exception = false)
+        for name in ("run:2", "../up", "a/b", "", "quo\"te")
+            bad = bundle((; name, cards = doc))
+            @test bad.status == 200 && HTTP.header(bad, "Content-Type") == "application/json"
+            @test JSON.parse(bad.body)["valid"] == false
         end
+        outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
+        bad = bundle((; name = "mine", cards = outside))
+        @test HTTP.header(bad, "Content-Type") == "application/json" && JSON.parse(bad.body)["valid"] == false
+        bad = bundle((; name = "mine"))
+        @test bad.status == 200 && JSON.parse(bad.body)["valid"] == false
     end
 
-    # With a layout, a file is offered for what its folder says it is, as long as its content
-    # agrees; one whose content says otherwise is reported, not offered.
-    @testset "files by folder" begin
-        mktempdir() do ws
-            for d in ("data", "pipeline/sub", "filter"), p in (joinpath(ws, d),)
-                mkpath(p)
-            end
-            write(joinpath(ws, "data", "t.csv"), "a,b\n1,2\n")
-            write(joinpath(ws, "pipeline", "sub", "p.json"), JSON.json(cards_doc))
-            write(joinpath(ws, "pipeline", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
-            write(joinpath(ws, "pipeline", "note.md"), "neither a document nor a table")
-            write(joinpath(ws, "pipeline", "t2.csv"), "a,b\n1,2\n")
-            write(joinpath(ws, "filter", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
-            laid_port = first_free_port(8381:8480)
-            laid = DashiBoard.launch(
-                ws; port = laid_port, async = true, model_dir, training_dir,
-                data_dir = joinpath(ws, "data"), pipeline_dir = joinpath(ws, "pipeline"), filter_dir = joinpath(ws, "filter"),
+    # With a provenance table, the bundle names exactly the extensions the document uses.
+    @testset "bundle names its extensions" begin
+        fit = Dict(
+            "id" => "fit", "card" => Dict(
+                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "training" => Dict("type" => "batched", "iterations" => 1),
+                "funnel" => Dict(
+                    "order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
+                    "input_transforms" => Dict("TEMP" => "log")
+                ),
             )
-            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(laid_port)/list-files", body = "{}").body)
-            # Grouped by kind, then by path; what is neither table nor document is not mentioned.
-            @test [(f["path"], f["kind"]) for f in listed["files"]] == [
-                ("sub/p.json", "cards"), ("f.json", "filters"), ("t.csv", "table"),
-            ]
-            @test listed["misplaced"] == [
-                Dict("path" => "f.json", "kind" => "pipeline", "found" => "filters"),
-                Dict("path" => "t2.csv", "kind" => "pipeline", "found" => "table"),
-            ]
-
-            # The routes the form saves with: a path is relative to the kind's own folder, so
-            # one path saved as a pipeline and as a filters document lands in twin subfolders.
-            laid_url = "http://127.0.0.1:$(laid_port)/"
-            lpost(route, body) = JSON.parse(HTTP.post(laid_url * route, body = JSON.json(body), status_exception = false).body)
-            filters_doc = Dict("numerical" => Dict(), "categorical" => Dict())
-            @test lpost("write-pipeline", Dict("path" => "sub/mine.json", "document" => cards_doc))["valid"] == true
-            @test isfile(joinpath(ws, "pipeline", "sub", "mine.json"))
-            @test lpost("write-filters", Dict("path" => "sub/mine.json", "document" => filters_doc))["valid"] == true
-            @test isfile(joinpath(ws, "filter", "sub", "mine.json"))
-            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in lpost("list-files", Dict())["files"]]
-            @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["document"] == cards_doc
-            @test lpost("read-filters", Dict("path" => "sub/mine.json"))["document"] == filters_doc
-            # The folder is implied, so a path that spells it is turned away rather than nested —
-            # however it is spelt.
-            for path in ("pipeline/mine.json", "./pipeline/mine.json")
-                implied = lpost("write-pipeline", Dict("path" => path, "document" => cards_doc))
-                @test implied["valid"] == false && occursin("implied", only(implied["errors"]))
+        )
+        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+        @with(
+            DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
+            DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
+            Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+            begin
+                @test DashiBoard.needed_extensions(doc) == ["Fake"]
+                # A funnel contributes its type and its transforms, nothing else.
+                entries = DashiBoard.registry_entries(doc)
+                @test "funnel:" in entries && "transform:log" in entries
+                @test !any(startswith("loader:"), entries)
+                # Not only the architecture: a layer, a loss or an optimizer a configuration
+                # names may come from an extension too, and the pipeline needs it as much.
+                for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
+                    @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
+                        @test DashiBoard.needed_extensions(doc) == ["Other"]
+                    end
+                end
+                bytes = DashiBoard.bundle_pipeline(doc, nothing, "x")
+                toml = TOML.parse(zip_readentry(ZipReader(bytes), "dashiboard.toml", String))
+                @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
             end
-            # The layout's folder names are not subfolder names: such a subfolder is neither
-            # written to nor listed, and a read of it says why in a reader's words.
-            other = lpost("write-pipeline", Dict("path" => "training/x.json", "document" => cards_doc))
-            @test other["valid"] == false && occursin("layout", only(other["errors"]))
-            mkpath(joinpath(ws, "pipeline", "model")); write(joinpath(ws, "pipeline", "model", "p.json"), JSON.json(cards_doc))
-            @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["files"]])
-            unread = lpost("read-pipeline", Dict("path" => "model/p.json"))
-            @test unread["valid"] == false && occursin("layout", only(unread["errors"])) && !occursin("save", only(unread["errors"]))
-            @test lpost("read-pipeline", Dict("path" => "pipeline"))["valid"] == false
+        )
+    end
+end
 
-            # Each kind's folder, as the workspace sees it, for the form to say where it lists
-            # and saves; and a table is loaded from the data folder, not the workspace root.
-            @test lpost("list-files", Dict())["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
-            loaded = HTTP.post(laid_url * "load-files", body = JSON.json(Dict("name" => "t", "files" => ["t.csv"])))
-            @test [c["name"] for c in JSON.parse(loaded.body)] == ["a", "b"]
-            escaped = lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))
-            @test escaped["valid"] == false && occursin("pipeline", only(escaped["errors"]))
-            @test !isfile(joinpath(ws, "x.json"))
-            # A configuration the same way, into the model and training folders — here outside
-            # the workspace, which a kind route may reach and the general route may not.
-            elsewhere = mktempdir()
-            model_text = read(joinpath(model_dir, "dense.toml"), String)
-            aside_port = first_free_port(8481:8580)
-            aside = DashiBoard.launch(ws; port = aside_port, async = true, model_dir = elsewhere, training_dir)
-            apost(route, body) = JSON.parse(HTTP.post("http://127.0.0.1:$(aside_port)/" * route, body = JSON.json(body), status_exception = false).body)
-            @test apost("write-model", Dict("path" => "m.toml", "text" => model_text))["valid"] == true
-            @test isfile(joinpath(elsewhere, "m.toml"))
-            @test apost("read-model", Dict("path" => "m.toml"))["parsed"]["name"] == "basic"
-            @test apost("write-configuration", Dict("path" => joinpath(elsewhere, "n.toml"), "kind" => "model", "text" => model_text))["valid"] == false
-            @test apost("write-training", Dict("path" => "t.toml", "text" => model_text))["valid"] == false
-            close(aside)
-            close(laid)
+# The only place the response headers and the OPTIONS preflight are asserted, so this
+# covers CORS for every route rather than for this one.
+#
+# Before the `String(resp.body)` below, not after: `String(::Vector{UInt8})` takes
+# ownership of the buffer and leaves it empty, so a `length(resp.body)` that follows it
+# reads 0 and the Content-Length assertion fails against its own response.
+@test resp.headers == [
+    DashiBoard.CORS_RES_HEADERS...,
+    "Content-Type" => "application/json",
+    "Content-Length" => string(length(resp.body)),
+]
+
+resp = HTTP.options(url * "get-card-ir")
+@test resp.headers == [
+    DashiBoard.CORS_OPTIONS_HEADERS...,
+    "Content-Length" => "0",
+]
+
+# probe request
+@test resp.headers == [
+    DashiBoard.CORS_RES_HEADERS...,
+    "Content-Type" => "application/json",
+    "Content-Length" => string(length(resp.body)),
+]
+
+# In a faulty pipeline the response is still a normal one, so a browser can read it
+@test ("Access-Control-Allow-Origin" => "*") in resp.headers
+
+
+@testset "load" begin
+    body = read(joinpath(@__DIR__, "static", "load.json"), String)
+    resp = HTTP.post(url * "load-files", body = body)
+    summaries = JSON.parse(resp.body)
+    @test summaries[end]["name"] == "Ir"
+    @test resp.headers == [
+        DashiBoard.CORS_RES_HEADERS...,
+        "Content-Type" => "application/json",
+        "Content-Length" => string(length(resp.body)),
+    ]
+end
+
+body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
+resp = HTTP.post(url * "fetch-data", body = body)
+tbl = JSON.parse(resp.body)
+df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
+@test tbl["length"] == nrow(df)
+@test [row["No"] for row in tbl["values"]] == df.No[11:60]
+@test resp.headers == [
+    DashiBoard.CORS_RES_HEADERS...,
+    "Content-Type" => "application/json",
+    "Content-Length" => string(length(resp.body)),
+]
+
+# The rows take a different path — DuckDB writes the page as JSON itself, and its writer
+# emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+# Julia's parser accepts those tokens, so this asserts on the text.
+DBInterface.execute(
+    Returns(nothing), DashiBoard.REPOSITORY[],
+    "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s"
+)
+body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
+resp = HTTP.post(url * "fetch-data", body = body)
+page = String(resp.body)
+@test !occursin("NaN", page) && !occursin("Infinity", page)
+@test JSON.parse(page)["values"][1]["bad"] === nothing
+@test JSON.parse(page)["values"][1]["good"] == 2.5
+
+HTTP.open("GET", url * "get-processed-data") do stream
+    r = startread(stream)
+    @test r.headers == [
+        DashiBoard.CORS_RES_HEADERS...,
+        "Content-Type" => "text/csv",
+        "Content-Length" => "336104",
+    ]
+
+    s = read(stream, String)
+    @test ncodeunits(s) == 336104
+    l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
+    @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
+    @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
+end
+resp = HTTP.options(url * "get-processed-data")
+@test resp.headers == [
+    DashiBoard.CORS_OPTIONS_HEADERS...,
+    "Content-Length" => "0",
+]
+
+
+close(server)
+
+# A data directory that does not exist used to make every listing throw: a 500 with an
+# empty body, logged as 200 (see `LoggingMiddleware`), and an empty picker with no reason.
+@testset "a missing data directory" begin
+    nowhere_port = first_free_port(8281:8380)
+    nowhere = DashiBoard.launch(
+        joinpath(data_dir, "does-not-exist");
+        port = nowhere_port, async = true, model_dir, training_dir
+    )
+    resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
+    @test resp.status == 200
+    listed = JSON.parse(resp.body)
+    @test listed["files"] == [] && listed["misplaced"] == []
+    close(nowhere)
+end
+
+# A workspace with no folder for its configurations reads them from the root: only what is a
+# configuration of the kind asked for counts, wherever else TOML files lie.
+@testset "configurations in a flat workspace" begin
+    mktempdir() do ws
+        cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "m.toml"))
+        cp(joinpath(training_dir, "batched.toml"), joinpath(ws, "tr.toml"))
+        write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 1\n")
+        write(joinpath(ws, "broken.toml"), "= not toml")
+        mkpath(joinpath(ws, "quarantine")); cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "quarantine", "old.toml"))
+        flat_port = first_free_port(8581:8680)
+        flat = DashiBoard.launch(ws; port = flat_port, async = true)
+        listed = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/list-configurations", body = "{}").body)
+        @test [m["name"] for m in listed["model"]] == ["m"]
+        @test [t["name"] for t in listed["training"]] == ["tr"]
+        ir = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/get-card-ir", body = JSON.json((; cols = ["a"], nodes = String[], groups = String[], include = ["cards"]))).body)
+        model = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "model")
+        @test model["value"]["options"] == ["m"]
+        close(flat)
+    end
+end
+
+# With a layout, a file is offered for what its folder says it is, as long as its content
+# agrees; one whose content says otherwise is reported, not offered.
+@testset "files by folder" begin
+    mktempdir() do ws
+        for d in ("data", "pipeline/sub", "filter"), p in (joinpath(ws, d),)
+            mkpath(p)
         end
+        write(joinpath(ws, "data", "t.csv"), "a,b\n1,2\n")
+        write(joinpath(ws, "pipeline", "sub", "p.json"), JSON.json(cards_doc))
+        write(joinpath(ws, "pipeline", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
+        write(joinpath(ws, "pipeline", "note.md"), "neither a document nor a table")
+        write(joinpath(ws, "pipeline", "t2.csv"), "a,b\n1,2\n")
+        write(joinpath(ws, "filter", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
+        laid_port = first_free_port(8381:8480)
+        laid = DashiBoard.launch(
+            ws; port = laid_port, async = true, model_dir, training_dir,
+            data_dir = joinpath(ws, "data"), pipeline_dir = joinpath(ws, "pipeline"), filter_dir = joinpath(ws, "filter"),
+        )
+        listed = JSON.parse(HTTP.post("http://127.0.0.1:$(laid_port)/list-files", body = "{}").body)
+        # Grouped by kind, then by path; what is neither table nor document is not mentioned.
+        @test [(f["path"], f["kind"]) for f in listed["files"]] == [
+            ("sub/p.json", "cards"), ("f.json", "filters"), ("t.csv", "table"),
+        ]
+        @test listed["misplaced"] == [
+            Dict("path" => "f.json", "kind" => "pipeline", "found" => "filters"),
+            Dict("path" => "t2.csv", "kind" => "pipeline", "found" => "table"),
+        ]
+
+        # The routes the form saves with: a path is relative to the kind's own folder, so
+        # one path saved as a pipeline and as a filters document lands in twin subfolders.
+        laid_url = "http://127.0.0.1:$(laid_port)/"
+        lpost(route, body) = JSON.parse(HTTP.post(laid_url * route, body = JSON.json(body), status_exception = false).body)
+        filters_doc = Dict("numerical" => Dict(), "categorical" => Dict())
+        @test lpost("write-pipeline", Dict("path" => "sub/mine.json", "document" => cards_doc))["valid"] == true
+        @test isfile(joinpath(ws, "pipeline", "sub", "mine.json"))
+        @test lpost("write-filters", Dict("path" => "sub/mine.json", "document" => filters_doc))["valid"] == true
+        @test isfile(joinpath(ws, "filter", "sub", "mine.json"))
+        @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in lpost("list-files", Dict())["files"]]
+        @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["document"] == cards_doc
+        @test lpost("read-filters", Dict("path" => "sub/mine.json"))["document"] == filters_doc
+        # The folder is implied, so a path that spells it is turned away rather than nested —
+        # however it is spelt.
+        for path in ("pipeline/mine.json", "./pipeline/mine.json")
+            implied = lpost("write-pipeline", Dict("path" => path, "document" => cards_doc))
+            @test implied["valid"] == false && occursin("implied", only(implied["errors"]))
+        end
+        # The layout's folder names are not subfolder names: such a subfolder is neither
+        # written to nor listed, and a read of it says why in a reader's words.
+        other = lpost("write-pipeline", Dict("path" => "training/x.json", "document" => cards_doc))
+        @test other["valid"] == false && occursin("layout", only(other["errors"]))
+        mkpath(joinpath(ws, "pipeline", "model")); write(joinpath(ws, "pipeline", "model", "p.json"), JSON.json(cards_doc))
+        @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["files"]])
+        unread = lpost("read-pipeline", Dict("path" => "model/p.json"))
+        @test unread["valid"] == false && occursin("layout", only(unread["errors"])) && !occursin("save", only(unread["errors"]))
+        @test lpost("read-pipeline", Dict("path" => "pipeline"))["valid"] == false
+
+        # Each kind's folder, as the workspace sees it, for the form to say where it lists
+        # and saves; and a table is loaded from the data folder, not the workspace root.
+        @test lpost("list-files", Dict())["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
+        loaded = HTTP.post(laid_url * "load-files", body = JSON.json(Dict("name" => "t", "files" => ["t.csv"])))
+        @test [c["name"] for c in JSON.parse(loaded.body)] == ["a", "b"]
+        escaped = lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))
+        @test escaped["valid"] == false && occursin("pipeline", only(escaped["errors"]))
+        @test !isfile(joinpath(ws, "x.json"))
+        # A configuration the same way, into the model and training folders — here outside
+        # the workspace, which a kind route may reach and the general route may not.
+        elsewhere = mktempdir()
+        model_text = read(joinpath(model_dir, "dense.toml"), String)
+        aside_port = first_free_port(8481:8580)
+        aside = DashiBoard.launch(ws; port = aside_port, async = true, model_dir = elsewhere, training_dir)
+        apost(route, body) = JSON.parse(HTTP.post("http://127.0.0.1:$(aside_port)/" * route, body = JSON.json(body), status_exception = false).body)
+        @test apost("write-model", Dict("path" => "m.toml", "text" => model_text))["valid"] == true
+        @test isfile(joinpath(elsewhere, "m.toml"))
+        @test apost("read-model", Dict("path" => "m.toml"))["parsed"]["name"] == "basic"
+        @test apost("write-configuration", Dict("path" => joinpath(elsewhere, "n.toml"), "kind" => "model", "text" => model_text))["valid"] == false
+        @test apost("write-training", Dict("path" => "t.toml", "text" => model_text))["valid"] == false
+        close(aside)
+        close(laid)
     end
 end

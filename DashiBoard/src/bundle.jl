@@ -106,6 +106,8 @@ end
 
 Base.showerror(io::IO, err::BundleError) = print(io, join((issue.message for issue in err.issues), "; "))
 
+Pipelines.issue_report(err::BundleError) = err.issues
+
 # The name a download is filed under becomes file names in the zip and the name of the zip: it
 # has to be one plain name.
 function file_stem(name)
@@ -115,56 +117,51 @@ function file_stem(name)
     return String(name)
 end
 
+# FIXME: shouldn't these be nodes instead of cards?
 """
-    bundle_pipeline(cards, filters, name) -> Vector{UInt8}
+    bundle_pipeline(spec)
 
+`{name, cards, filters?}` → the zip as `application/zip`, named for download.
 The zip: `pipeline/<name>.json`, `filter/<name>.json` when `filters` is given, one file per
 configuration named under `model/` and `training/`, and a `dashiboard.toml` whose
 `[extensions]` is the launched table narrowed to what the document needs. Throws
 `BundleError` when a configuration is missing, with the issues to report.
 """
-function bundle_pipeline(cards::AbstractDict, filters::Union{AbstractDict, Nothing}, name::AbstractString)
-    name = file_stem(name)
+function bundle_pipeline(spec::AbstractDict)
+    cards::StringDict = spec["cards"]
+    filters::Maybe{StringDict} = get(spec, "filters", nothing)
+    _name::String = get(spec, "name", "pipeline")
+    name = file_stem(_name)
     configurations, issues = named_configurations(cards)
-    isempty(issues) || throw(BundleError(issues))
-    extensions = Dict{String, Any}(ext => EXTENSIONS[][ext] for ext in needed_extensions(cards) if haskey(EXTENSIONS[], ext))
-    io = IOBuffer()
-    ZipWriter(io) do zip
-        entry(path, content) = (zip_newfile(zip, path); write(zip, content))
-        entry("pipeline/$(name).json", JSON.json(cards; pretty = true))
-        isnothing(filters) || entry("filter/$(name).json", JSON.json(filters; pretty = true))
-        for (kind, config, path) in configurations
-            entry("$(kind)/$(config).toml", read(path))
-        end
-        buffer = IOBuffer()
-        TOML.print(buffer, Dict("extensions" => extensions))
-        entry("dashiboard.toml", take!(buffer))
-    end
-    return take!(io)
-end
-
-"""
-    bundle_pipeline(req)
-
-`{name, cards, filters?}` → the zip as `application/zip`, named for download; or the JSON
-failure envelope, with an issue pointed at each configuration the document names and the
-directory lacks, so the form can mark the card rather than show a half zip.
-"""
-function bundle_pipeline(req::HTTP.Request)
-    spec = json_read(req)
-    name = get(spec, "name", "pipeline")
     # Every way this can fail is said in the envelope: a download that answers with nothing
     # readable leaves the form saving an empty file or blaming the connection.
-    bytes = try
-        bundle_pipeline(spec["cards"], get(spec, "filters", nothing), file_stem(name))
-    catch exception
-        exception isa BundleError || return json_response(failure_report("bundle", exception))
-        return json_response((; valid = false, kind = "bundle", errors = [sprint(showerror, exception)], issues = exception.issues))
+    isempty(issues) || throw(BundleError(issues))
+
+    return function (fn)
+        d = EXTENSIONS[]
+        extensions = Dict{String, Any}(
+            ext => d[ext] for ext in needed_extensions(cards) if haskey(d, ext)
+        )
+        ZipWriter(fn) do zip
+            zip_newfile(zip, "pipeline/$(name).json")
+            JSON.json(zip, cards; pretty = true)
+
+            if !isnothing(filters)
+                zip_newfile(zip, "filter/$(name).json")
+                JSON.json(zip, filters; pretty = true)
+            end
+
+            for (kind, config, path) in configurations
+                zip_newfile(zip, "$(kind)/$(config).toml")
+                write(zip, read(path))
+            end
+
+            zip_newfile(zip, "dashiboard.toml")
+            TOML.print(zip, Dict("extensions" => extensions))
+        end
+
+        plain = all(isascii, name) ? name : "pipeline"
+        disposition = "attachment; filename=\"$(plain).zip\"; filename*=UTF-8''$(HTTP.escapeuri(name)).zip"
+        return ["Content-Type" => "application/zip", "Content-Disposition" => disposition]
     end
-    # The plain form for a name a header can carry as it is; the encoded one, which every current
-    # browser prefers, for the rest.
-    plain = all(isascii, name) ? name : "pipeline"
-    disposition = "attachment; filename=\"$(plain).zip\"; filename*=UTF-8''$(HTTP.escapeuri(name)).zip"
-    headers = vcat(CORS_RES_HEADERS, ["Content-Type" => "application/zip", "Content-Disposition" => disposition])
-    return HTTP.Response(200, headers = headers, body = bytes)
 end

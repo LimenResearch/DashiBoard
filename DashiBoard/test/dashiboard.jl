@@ -251,9 +251,9 @@ mktempdir() do data_dir
 
     roundtrip(x) = JSON.parse(JSON.json(x))
 
-    function post(method, params)
+    function post(method, params, args...)
         req = JSONRequest(; method, params, id = 0)
-        return roundtrip(apply_handlers(handlers, req))
+        return roundtrip(apply_handlers(handlers, req, args...))
     end
 
     function post_probe(method, params)
@@ -262,6 +262,108 @@ mktempdir() do data_dir
     end
 
     only_error(metadata::AbstractDict) = only(metadata["errors"])
+
+    # A pipeline downloads as a workspace: the document, the configurations it names, and
+    # which extensions it needs.
+    @testset "bundle" begin
+        fn1 = joinpath(data_dir, "bundle1.zip")
+        fit = Dict(
+            "id" => "fit", "card" => Dict(
+                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "training" => Dict("type" => "batched", "iterations" => 1),
+                "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+            )
+        )
+        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+        filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
+        resp = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc, "filters" => filters), fn1)
+        headers = Dict(resp["result"])
+        @test headers["Content-Type"] == "application/zip"
+        @test occursin("mine.zip", headers["Content-Disposition"])
+
+        # A name outside ASCII travels in the form a header can carry.
+        fn2 = joinpath(data_dir, "bundle2.zip")
+        accented = post("bundle-pipeline", Dict("name" => "prova è", "cards" => doc), fn2)
+        headers = Dict(accented["result"])
+        @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", headers["Content-Disposition"])
+
+        zip = ZipReader(read(fn1))
+        @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
+        @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
+        @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
+        # Nothing here came from an extension, so none is named.
+        @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
+
+        fn3 = joinpath(data_dir, "bundle3.zip")
+        without = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc), fn3)
+        @test !("filter/mine.json" in zip_names(ZipReader(read(fn3))))
+
+        # A configuration the document names but the directory lacks is a pointed issue.
+        fn4 = joinpath(data_dir, "bundle4.zip")
+        missing_conf = deepcopy(doc); missing_conf["nodes"][1]["card"]["model"]["type"] = "nosuch"
+        refused = post("bundle-pipeline", Dict("name" => "mine", "cards" => missing_conf), fn4)
+        @test haskey(refused, "error")
+        report = refused["error"]["metadata"]
+        @test !report["valid"]
+        @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
+
+        # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
+        # that cannot be a file's, a configuration named outside its folder, a request with
+        # no document.
+        fn = joinpath(data_dir, "bundle.zip")
+        for name in ("run:2", "../up", "a/b", "", "quo\"te")
+            bad = post("bundle-pipeline", Dict("name" => name, "cards" => doc), fn)
+            @test haskey(bad, "error")
+            @test !bad["error"]["metadata"]["valid"]
+        end
+
+        outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
+        bad = post("bundle-pipeline", Dict("name" => "mine", "cards" => outside), fn)
+        @test haskey(bad, "error")
+        @test !bad["error"]["metadata"]["valid"]
+
+        bad = post("bundle-pipeline", Dict("name" => "mine"), fn)
+        @test haskey(bad, "error")
+        @test !bad["error"]["metadata"]["valid"]
+    end
+
+    # With a provenance table, the bundle names exactly the extensions the document uses.
+    @testset "bundle names its extensions" begin
+        fit = Dict(
+            "id" => "fit", "card" => Dict(
+                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "training" => Dict("type" => "batched", "iterations" => 1),
+                "funnel" => Dict(
+                    "order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
+                    "input_transforms" => Dict("TEMP" => "log")
+                ),
+            )
+        )
+        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+        @with(
+            DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
+            DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
+            Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+            begin
+                @test DashiBoard.needed_extensions(doc) == ["Fake"]
+                # A funnel contributes its type and its transforms, nothing else.
+                entries = DashiBoard.registry_entries(doc)
+                @test "funnel:" in entries && "transform:log" in entries
+                @test !any(startswith("loader:"), entries)
+                # Not only the architecture: a layer, a loss or an optimizer a configuration
+                # names may come from an extension too, and the pipeline needs it as much.
+                for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
+                    @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
+                        @test DashiBoard.needed_extensions(doc) == ["Other"]
+                    end
+                end
+                fn = joinpath(data_dir, "buffer_bundle.zip")
+                DashiBoard.bundle_pipeline(Dict("cards" => doc, "name" => "x"))(fn)
+                toml = TOML.parse(zip_readentry(ZipReader(read(fn)), "dashiboard.toml", String))
+                @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
+            end
+        )
+    end
 
     @testset "files" begin
         # The listing names every file the UI may pick, with what it is. A JSON is told from
@@ -996,6 +1098,7 @@ mktempdir() do data_dir
     end
 end
 
+
 error("aa")
 @testset "request" begin
     # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
@@ -1019,92 +1122,7 @@ error("aa")
     port = first_free_port(8080:8280)
     url = "http://127.0.0.1:$(port)/"
 
-    # A pipeline downloads as a workspace: the document, the configurations it names, and
-    # which extensions it needs.
-    @testset "bundle" begin
-        fit = Dict(
-            "id" => "fit", "card" => Dict(
-                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
-                "training" => Dict("type" => "batched", "iterations" => 1),
-                "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
-            )
-        )
-        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
-        filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
-        resp = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc, filters)))
-        @test HTTP.header(resp, "Content-Type") == "application/zip"
-        @test occursin("mine.zip", HTTP.header(resp, "Content-Disposition"))
-        # A name outside ASCII travels in the form a header can carry.
-        accented = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "prova è", cards = doc)))
-        @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", HTTP.header(accented, "Content-Disposition"))
-        zip = ZipReader(Vector{UInt8}(resp.body))
-        @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
-        @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
-        @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
-        # Nothing here came from an extension, so none is named.
-        @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
-        without = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc)))
-        @test !("filter/mine.json" in zip_names(ZipReader(Vector{UInt8}(without.body))))
-        # A configuration the document names but the directory lacks is a pointed issue.
-        missing = deepcopy(doc); missing["nodes"][1]["card"]["model"]["type"] = "nosuch"
-        refused = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = missing)), status_exception = false)
-        @test HTTP.header(refused, "Content-Type") == "application/json"
-        report = JSON.parse(refused.body)
-        @test report["valid"] == false
-        @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
 
-        # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
-        # that cannot be a file's, a configuration named outside its folder, a request with
-        # no document.
-        bundle(body) = HTTP.post(url * "bundle-pipeline", body = JSON.json(body), status_exception = false)
-        for name in ("run:2", "../up", "a/b", "", "quo\"te")
-            bad = bundle((; name, cards = doc))
-            @test bad.status == 200 && HTTP.header(bad, "Content-Type") == "application/json"
-            @test JSON.parse(bad.body)["valid"] == false
-        end
-        outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
-        bad = bundle((; name = "mine", cards = outside))
-        @test HTTP.header(bad, "Content-Type") == "application/json" && JSON.parse(bad.body)["valid"] == false
-        bad = bundle((; name = "mine"))
-        @test bad.status == 200 && JSON.parse(bad.body)["valid"] == false
-    end
-
-    # With a provenance table, the bundle names exactly the extensions the document uses.
-    @testset "bundle names its extensions" begin
-        fit = Dict(
-            "id" => "fit", "card" => Dict(
-                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
-                "training" => Dict("type" => "batched", "iterations" => 1),
-                "funnel" => Dict(
-                    "order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
-                    "input_transforms" => Dict("TEMP" => "log")
-                ),
-            )
-        )
-        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
-        @with(
-            DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
-            DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
-            Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
-            begin
-                @test DashiBoard.needed_extensions(doc) == ["Fake"]
-                # A funnel contributes its type and its transforms, nothing else.
-                entries = DashiBoard.registry_entries(doc)
-                @test "funnel:" in entries && "transform:log" in entries
-                @test !any(startswith("loader:"), entries)
-                # Not only the architecture: a layer, a loss or an optimizer a configuration
-                # names may come from an extension too, and the pipeline needs it as much.
-                for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
-                    @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
-                        @test DashiBoard.needed_extensions(doc) == ["Other"]
-                    end
-                end
-                bytes = DashiBoard.bundle_pipeline(doc, nothing, "x")
-                toml = TOML.parse(zip_readentry(ZipReader(bytes), "dashiboard.toml", String))
-                @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
-            end
-        )
-    end
 end
 
 # The only place the response headers and the OPTIONS preflight are asserted, so this

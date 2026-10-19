@@ -16,7 +16,7 @@ function get_handlers(
     handlers["read-document"] = StructuredHandler(read_document, :document)
     handlers["write-document"] = StructuredHandler(write_document, :document)
     handlers["list-configurations"] = list_configurations
-    handlers["bundle-pipeline"] = bundle_pipeline
+    handlers["bundle-pipeline"] = StructuredHandler(bundle_pipeline, :bundle)
     handlers["read-configuration"] = StructuredHandler(read_configuration, :configuration)
     handlers["write-configuration"] = StructuredHandler(write_configuration, :configuration)
 

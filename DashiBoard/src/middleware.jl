@@ -174,7 +174,7 @@ function failure_report(kind::Symbol, exception::Exception)
     # duplicate id, a binder error from DuckDB — has only its message.
     # Validation collects, so one schema failure and twenty arrive in the same shape; a chain
     # fails on the first one, so it arrives singular and is wrapped to match.
-    issues = if exception isa Pipelines.SchemaValidationErrors
+    issues = if exception isa Union{Pipelines.SchemaValidationErrors, BundleError}
         Pipelines.issue_report(exception)
     elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, StreamlinerCore.TransformError}
         [Pipelines.issue_report(exception)]

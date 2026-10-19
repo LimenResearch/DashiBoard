@@ -127,9 +127,9 @@ function validate_method(method, req)
     end
 end
 
-function handle_request(instance, req::JSONRequest)
+function handle_request(instance, req::JSONRequest, path::Maybe{AbstractString} = nothing)
     return try
-        result = instance()
+        result = isnothing(path) ? instance() : instance(path)
         JSONSuccess(; req.id, result)
     catch e
         error = json_error(internal_error, e)
@@ -144,10 +144,10 @@ end
 
 apply_handlers(::AbstractDict, failure::JSONFailure) = failure
 
-function apply_handlers(handlers::AbstractDict, req::JSONRequest)
+function apply_handlers(handlers::AbstractDict, req::JSONRequest, path::Maybe{AbstractString} = nothing)
     method = @return_failure get_method(handlers, req)
     instance = @return_failure validate_method(method, req)
-    res = @return_failure handle_request(instance, req)
+    res = @return_failure handle_request(instance, req, path)
     return isnothing(res.id) ? nothing : res
 end
 
@@ -164,7 +164,7 @@ struct ProbedThunk{T, P}
    probe::P
 end
 
-(p::ProbedThunk)() = p.thunk()
+(p::ProbedThunk)(args...) = p.thunk(args...)
 
 probe(p::ProbedThunk) = p.probe
 
@@ -173,7 +173,7 @@ struct ScopedThunk{T, P <: Tuple}
     pairs::P
 end
 
-(s::ScopedThunk)() = @with s.pairs... s.thunk()
+(s::ScopedThunk)(args...) = @with s.pairs... s.thunk(args...)
 
 probe(s::ScopedThunk) = @with s.pairs... probe(s.thunk)
 

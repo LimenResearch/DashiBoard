@@ -285,6 +285,14 @@ mktempdir() do data_dir
         @test haskey(escaped, "error")
         @test occursin("outside the data directory", escaped["error"]["metadata"] |> only_error)
 
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
+        resp = post("load-files", params)
+        @test haskey(resp, "result")
+        summaries = resp["result"]
+        @test summaries[end]["name"] == "Ir"
+    end
+
+    @testset "document and configurations" begin
         # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
         # found; nothing outside the directory, nothing that is not there.
         from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
@@ -379,10 +387,8 @@ mktempdir() do data_dir
         end
         @test haskey(save(".hidden/x.json", "cards", true), "error")
         @test !ispath(joinpath(data_dir, ".hidden"))
-    end
 
-    # What each configuration name means, for a form to show beside the name.
-    @testset "configurations" begin
+        # What each configuration name means, for a form to show beside the name.
         listed = post("list-configurations", Dict())
         @test [m["name"] for m in listed["result"]["model"]] == ["classifier", "dense"]
         dense = only(m for m in listed["result"]["model"] if m["name"] == "dense")
@@ -1129,18 +1135,11 @@ resp = HTTP.options(url * "get-card-ir")
 # In a faulty pipeline the response is still a normal one, so a browser can read it
 @test ("Access-Control-Allow-Origin" => "*") in resp.headers
 
-
-@testset "load" begin
-    body = read(joinpath(@__DIR__, "static", "load.json"), String)
-    resp = HTTP.post(url * "load-files", body = body)
-    summaries = JSON.parse(resp.body)
-    @test summaries[end]["name"] == "Ir"
-    @test resp.headers == [
-        DashiBoard.CORS_RES_HEADERS...,
-        "Content-Type" => "application/json",
-        "Content-Length" => string(length(resp.body)),
-    ]
-end
+@test resp.headers == [
+    DashiBoard.CORS_RES_HEADERS...,
+    "Content-Type" => "application/json",
+    "Content-Length" => string(length(resp.body)),
+]
 
 body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
 resp = HTTP.post(url * "fetch-data", body = body)

@@ -127,10 +127,10 @@ function validate_method(method, req)
     end
 end
 
-function handle_request(instance, req::JSONRequest, path::Maybe{AbstractString} = nothing)
+function handle_request(instance, req::JSONRequest, path::Maybe{AbstractString})
     return try
-        result = isnothing(path) ? instance() : instance(path)
-        JSONSuccess(; req.id, result)
+        result, writer = isnothing(path) ? (instance(), nothing) : instance(path)
+        JSONSuccess(; req.id, result), writer
     catch e
         error = json_error(internal_error, e)
         JSONFailure(; req.id, error)
@@ -147,8 +147,8 @@ apply_handlers(::AbstractDict, failure::JSONFailure) = failure
 function apply_handlers(handlers::AbstractDict, req::JSONRequest, path::Maybe{AbstractString} = nothing)
     method = @return_failure get_method(handlers, req)
     instance = @return_failure validate_method(method, req)
-    res = @return_failure handle_request(instance, req, path)
-    return isnothing(res.id) ? nothing : res
+    res, writer = @return_failure handle_request(instance, req, path)
+    return isnothing(res.id) ? nothing : isnothing(path) ? res : (res, writer)
 end
 
 function apply_handlers(handlers::AbstractDict, reqs::AbstractVector)

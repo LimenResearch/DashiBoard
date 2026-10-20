@@ -258,9 +258,16 @@ mktempdir() do data_dir
 
     function post(method, params, path)
         req = JSONRequest(; method, params, id = 0)
-        res, writer = apply_handlers(handlers, req, path)
-        writer(path)
-        return roundtrip(res)
+        res = apply_handlers(handlers, req, path)
+        return if res isa Tuple
+            headers, writer = res
+            io = IOBuffer()
+            writer(io, path)
+            bytes = take!(io)
+            roundtrip(headers), bytes
+        else
+            roundtrip(res), nothing
+        end
     end
 
     function post_probe(method, params)
@@ -273,7 +280,8 @@ mktempdir() do data_dir
     # A pipeline downloads as a workspace: the document, the configurations it names, and
     # which extensions it needs.
     @testset "bundle" begin
-        path1 = joinpath(data_dir, "bundle1.zip")
+        path = joinpath(data_dir, "bundle.zip")
+
         fit = Dict(
             "id" => "fit", "card" => Dict(
                 "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
@@ -283,30 +291,27 @@ mktempdir() do data_dir
         )
         doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
         filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
-        resp = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc, "filters" => filters), path1)
+        resp, bytes = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc, "filters" => filters), path)
         @test resp["result"]["Content-Type"] == "application/zip"
         @test occursin("mine.zip", resp["result"]["Content-Disposition"])
 
         # A name outside ASCII travels in the form a header can carry.
-        path2 = joinpath(data_dir, "bundle2.zip")
-        accented = post("bundle-pipeline", Dict("name" => "prova è", "cards" => doc), path2)
+        accented, _ = post("bundle-pipeline", Dict("name" => "prova è", "cards" => doc), path)
         @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", accented["result"]["Content-Disposition"])
 
-        zip = ZipReader(read(path1))
+        zip = ZipReader(bytes)
         @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
         @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
         @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
         # Nothing here came from an extension, so none is named.
         @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
 
-        path3 = joinpath(data_dir, "bundle3.zip")
-        post("bundle-pipeline", Dict("name" => "mine", "cards" => doc), path3)
-        @test !("filter/mine.json" in zip_names(ZipReader(read(path3))))
+        _, bytes = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc), path)
+        @test !("filter/mine.json" in zip_names(ZipReader(bytes)))
 
         # A configuration the document names but the directory lacks is a pointed issue.
-        path4 = joinpath(data_dir, "bundle4.zip")
         missing_conf = deepcopy(doc); missing_conf["nodes"][1]["card"]["model"]["type"] = "nosuch"
-        refused = post("bundle-pipeline", Dict("name" => "mine", "cards" => missing_conf), path4)
+        refused, _ = post("bundle-pipeline", Dict("name" => "mine", "cards" => missing_conf), path)
         @test haskey(refused, "error")
         report = refused["error"]["metadata"]
         @test !report["valid"]
@@ -315,19 +320,18 @@ mktempdir() do data_dir
         # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
         # that cannot be a file's, a configuration named outside its folder, a request with
         # no document.
-        path = joinpath(data_dir, "bundle.zip")
         for name in ("run:2", "../up", "a/b", "", "quo\"te")
-            bad = post("bundle-pipeline", Dict("name" => name, "cards" => doc), path)
+            bad, _ = post("bundle-pipeline", Dict("name" => name, "cards" => doc), path)
             @test haskey(bad, "error")
             @test !bad["error"]["metadata"]["valid"]
         end
 
         outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
-        bad = post("bundle-pipeline", Dict("name" => "mine", "cards" => outside), path)
+        bad, _ = post("bundle-pipeline", Dict("name" => "mine", "cards" => outside), path)
         @test haskey(bad, "error")
         @test !bad["error"]["metadata"]["valid"]
 
-        bad = post("bundle-pipeline", Dict("name" => "mine"), path)
+        bad, _ = post("bundle-pipeline", Dict("name" => "mine"), path)
         @test haskey(bad, "error")
         @test !bad["error"]["metadata"]["valid"]
     end
@@ -654,9 +658,9 @@ mktempdir() do data_dir
         @test occursin("\"wind\"", result["graph"])
 
         path = joinpath(data_dir, "download.csv")
-        resp = post("get-processed-data", Dict(), path)
+        resp, bytes = post("get-processed-data", Dict(), path)
         @test resp["result"] == Dict("Content-Type" => "text/csv", "Content-Length" => "336104")
-        s = read(path, String)
+        s = String(bytes)
         @test ncodeunits(s) == 336104
         l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
         @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"

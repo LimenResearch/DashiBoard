@@ -163,6 +163,6 @@ function bundle_pipeline(spec::AbstractDict)
         plain = all(isascii, name) ? name : "pipeline"
         disposition = "attachment; filename=\"$(plain).zip\"; filename*=UTF-8''$(HTTP.escapeuri(name)).zip"
         headers = ["Content-Type" => "application/zip", "Content-Disposition" => disposition]
-        return headers, DashiBase.Writer()
+        return headers, Writer()
     end
 end

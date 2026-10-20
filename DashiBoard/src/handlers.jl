@@ -944,6 +944,7 @@ function get_processed_data(::AbstractDict)
         format = "csv"
         content_type = "text/csv"
         export_table(REPOSITORY[], From("selection"), path; format)
-        return ["Content-Type" => content_type, "Content-Length" => string(filesize(path))]
+        headers = ["Content-Type" => content_type, "Content-Length" => string(filesize(path))]
+        return headers, Writer()
     end
 end

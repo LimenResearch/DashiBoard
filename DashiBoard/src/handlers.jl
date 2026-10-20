@@ -401,7 +401,9 @@ never changes while the server runs, so a client asks for `defs` alone after the
 function get_card_ir(spec::AbstractDict)
     # An absent vocabulary is `nothing`, which means "unconstrained"; an empty list would mean
     # "nothing is allowed".
-    maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
+    nodes::Maybe{Vector{String}} = get(spec, "nodes", nothing)
+    groups::Maybe{Vector{String}} = get(spec, "groups", nothing)
+    cols::Maybe{Vector{String}} = get(spec, "cols", nothing)
     # `include` is a list, or one string standing for a list of one. The string has to be wrapped
     # by hand: `Set{String}("defs")` would iterate its characters and throw.
     wanted = get(spec, "include", ["defs", "cards"])
@@ -411,15 +413,11 @@ function get_card_ir(spec::AbstractDict)
         include = Set{String}(wanted)
         parts = StringDict()
         if "defs" in include
-            variable_config = Pipelines.VariableConfig(
-                nodes = maybe_strings("nodes"),
-                groups = maybe_strings("groups"),
-                cols = maybe_strings("cols"),
-            )
+            variable_config = Pipelines.VariableConfig(; nodes, groups, cols)
             parts["defs"] = Pipelines.ir_definitions(variable_config)
         end
         if "cards" in include
-            parts["cards"] = Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
+            parts["cards"] = StringDict(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
         end
         return parts
     end

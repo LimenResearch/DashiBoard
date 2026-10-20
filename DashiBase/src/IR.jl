@@ -2,7 +2,10 @@
 
 abstract type AbstractIR end
 
-Base.show(io::IO, s::AbstractIR) = JSON.json(io, s, omit_null = true)
+# TODO: consider using a custom style here as well
+JSON.omit_null(::Type{<:AbstractIR}) = true
+
+Base.show(io::IO, s::AbstractIR) = JSON.json(io, s)
 
 omit_null!(d::AbstractDict) = filter!(!isnothing ∘ last, d)
 

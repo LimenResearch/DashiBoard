@@ -105,7 +105,7 @@ stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
 """
-    to_json(d; omit_null = false)
+    to_json(d)
 
 Non-finite floats are written as `null`. `JSON.json` refuses `NaN` and `Inf` outright, so a run
 whose z-score of a zero-variance column is `NaN` on every row would be reported to the client as
@@ -114,8 +114,8 @@ an execution failure although the pipeline succeeded — only the response could
 the tokens it writes are not JSON and the browser's parser rejects them. `null` is what every
 JSON client already reads as "no value", and it is what the rows path (`fetch_data`) produces too.
 """
-function to_json(d; omit_null::Bool = false)
-    return JSON.json(d; omit_null, allownan = true, nan = "null", inf = "null", ninf = "null")
+function to_json(d)
+    return JSON.json(d; allownan = true, nan = "null", inf = "null", ninf = "null")
 end
 
 # Handler transformation

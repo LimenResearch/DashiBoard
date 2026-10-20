@@ -593,8 +593,7 @@ mktempdir() do data_dir
     @testset "card-ir" begin
         params = JSON.parsefile(joinpath(@__DIR__, "static", "card-ir.json"))
         resp = post("get-card-ir", params)
-        # nulls are omitted rather than shipped (FIXME!)
-        @test_broken !occursin(":null", JSON.json(resp))
+        @test !occursin(":null", JSON.json(resp))
         payload = resp["result"]
         @test sort(collect(keys(payload))) == ["cards", "defs"]
         @test length(payload["cards"]) == length(Pipelines.CARD_SPECS)

@@ -104,6 +104,7 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
         mv(joinpath(root, name), joinpath(quarantine, target))
         push!(quarantined, (name, reason))
         println(io, name, " → quarantine/", target == name ? "" : target, " (", reason, ")")
+        return
     end
     function loose(name)
         (startswith(name, ".") || name == WORKSPACE_FILE) && return false

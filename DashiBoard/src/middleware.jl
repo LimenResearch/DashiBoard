@@ -230,3 +230,17 @@ function (sh::StructuredHandler)(spec::AbstractDict)
         throw_failure(kind, exception)
     end
 end
+
+# Streaming helper
+
+@kwarg struct Writer
+    pre::Maybe{String} = nothing
+    post::Maybe{String} = nothing
+end
+
+function (w::Writer)(io::IO, path::AbstractString)
+    isnothing(w.pre) || print(io, w.pre)
+    open(Fix1(write, io), path)
+    isnothing(w.post) || print(io, w.post)
+    return
+end

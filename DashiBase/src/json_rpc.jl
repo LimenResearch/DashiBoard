@@ -160,8 +160,8 @@ end
 probe(x) = nothing
 
 struct ProbedThunk{T, P}
-   thunk::T
-   probe::P
+    thunk::T
+    probe::P
 end
 
 (p::ProbedThunk)(args...) = p.thunk(args...)

@@ -880,6 +880,12 @@ const ASC_DICT = Dict("asc" => Asc(), "desc" => Desc())
 
 Sorter(d::AbstractDict) = Sorter(d["colId"], ASC_DICT[d["sort"]])
 
+const FLOATY_SQL_TYPES = ("FLOAT", "DOUBLE")
+
+function finite_or_null(name, type)
+    return name => type in FLOATY_SQL_TYPES ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name)
+end
+
 """
     finite_projection(repository, table)
 
@@ -895,17 +901,10 @@ It changes how those rows sort: a non-finite value reaches the sort as `NULL` �
 in DuckDB — rather than as the `NaN` it used to be.
 """
 function finite_projection(repository, table::AbstractString)
-    types = DBInterface.execute(
-        DataFrame, repository,
-        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '$(table)'",
-    )
-    floaty = Set(("DOUBLE", "FLOAT", "REAL"))
-    return Select(
-        (
-            name => (type in floaty ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name))
-                for (name, type) in zip(types.column_name, types.data_type)
-        )...
-    )
+    q = "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '$(table)';"
+    (; column_name, data_type) = DBInterface.execute(Tables.columntable, repository, q)
+    args = finite_or_null.(column_name, data_type)
+    return Select(; args)
 end
 
 function fetch_data(stream, spec::AbstractDict)
@@ -916,37 +915,35 @@ function fetch_data(stream, spec::AbstractDict)
     sorters = Sorter.(sort_model)
     sorter_nodes = [Get(s.colname) |> s.sort for s in sorters if s.colname in ns]
 
-    return function ()
-        mktempdir() do dir
-            path = joinpath(dir, "data.json")
-            q = From(table) |> finite_projection(REPOSITORY[], table) |>
-                Order(by = sorter_nodes) |> Limit(; limit, offset)
-            export_table(
-                REPOSITORY[], q, path;
-                format = "json", array = true
-            )
+    return function (path)
+        q = From(table) |> finite_projection(REPOSITORY[], table) |>
+            Order(by = sorter_nodes) |> Limit(; limit, offset)
+        export_table(
+            REPOSITORY[], q, path′;
+            format = "json", array = true,
+            use_tmp_file = false
+        )
 
-            nrows = DBInterface.execute(
-                to_nrow,
-                REPOSITORY[],
-                From(table) |> Group() |> Select("Count" => Agg.count())
-            )
+        nrows = DBInterface.execute(
+            to_nrow,
+            REPOSITORY[],
+            From(table) |> Group() |> Select("Count" => Agg.count())
+        )
 
-            stream_data(
-                stream, path, "application/json";
-                pre = "{\"values\":", post = string(",\"length\":", nrows, "}")
-            )
+        return open(path, "w") do io
+            print(io, "{\"values\":")
+            write(io, io′)
+            print(io, ",\"length\":", nrows, "}")
         end
-        return
     end
 end
 
 function get_processed_data(::AbstractDict)
     return function (path)
         # TODO add required format as request parameter
-        _, ext = splitext(path)
-        ext == ".csv" || throw(ArgumentError("Only csv export is supported at the moment"))
-        export_table(REPOSITORY[], From("selection"), path)
-        return ["Content-Type" => "text/csv", "Content-Length" => string(filesize(path))]
+        format = "csv"
+        content_type = "text/csv"
+        export_table(REPOSITORY[], From("selection"), path; format)
+        return ["Content-Type" => content_type, "Content-Length" => string(filesize(path))]
     end
 end

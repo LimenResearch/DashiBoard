@@ -251,9 +251,16 @@ mktempdir() do data_dir
 
     roundtrip(x) = JSON.parse(JSON.json(x))
 
-    function post(method, params, args...)
+    function post(method, params)
         req = JSONRequest(; method, params, id = 0)
-        return roundtrip(apply_handlers(handlers, req, args...))
+        return roundtrip(apply_handlers(handlers, req))
+    end
+
+    function post(method, params, path)
+        req = JSONRequest(; method, params, id = 0)
+        res, writer = apply_handlers(handlers, req, path)
+        writer(path)
+        return roundtrip(res)
     end
 
     function post_probe(method, params)
@@ -1180,14 +1187,16 @@ df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
 # Julia's parser accepts those tokens, so this asserts on the text.
 DBInterface.execute(
     Returns(nothing), DashiBoard.REPOSITORY[],
-    "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s"
+    "CREATE OR REPLACE TABLE selection AS SELECT 'inf' AS invalid, 'NaN'::DOUBLE AS bad, 2.5 AS good, 'x' AS s"
 )
 body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
 resp = HTTP.post(url * "fetch-data", body = body)
 page = String(resp.body)
 @test !occursin("NaN", page) && !occursin("Infinity", page)
-@test JSON.parse(page)["values"][1]["bad"] === nothing
+@test isnothing(JSON.parse(page)["values"][1]["invalid"])
+@test isnothing(JSON.parse(page)["values"][1]["bad"])
 @test JSON.parse(page)["values"][1]["good"] == 2.5
+@test JSON.parse(page)["values"][1]["s"] == "x"
 
 resp = HTTP.options(url * "get-processed-data")
 @test resp.headers == [

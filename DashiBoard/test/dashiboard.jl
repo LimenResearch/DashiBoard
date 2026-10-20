@@ -293,6 +293,7 @@ mktempdir() do data_dir
         filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
         resp, bytes = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc, "filters" => filters), path)
         @test resp["result"]["Content-Type"] == "application/zip"
+        @test resp["result"]["Content-Length"] == string(length(bytes))
         @test occursin("mine.zip", resp["result"]["Content-Disposition"])
 
         # A name outside ASCII travels in the form a header can carry.
@@ -644,7 +645,7 @@ mktempdir() do data_dir
         @test occursin("include", resp["error"]["metadata"] |> only_error)
     end
 
-    @testset "pipeline-groups" begin
+    @testset "pipeline-groups and data download" begin
         # The group dialect: {filters, nodes, groups} with selector-form variable fields, which
         # is what the new UI authors. The flat {filters, cards} shape is gone from this route.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline-groups.json"))
@@ -665,6 +666,45 @@ mktempdir() do data_dir
         l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
         @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
         @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
+
+        path = joinpath(data_dir, "rows.json")
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "fetch.json"))
+        resp, bytes = post("fetch-data", params, path)
+        headers = resp["result"]
+        tbl = JSON.parse(bytes)
+        df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
+        @test tbl["length"] == nrow(df)
+        @test [row["No"] for row in tbl["values"]] == df.No[11:60]
+        @test headers == Dict(
+            "Content-Type" => "application/json",
+            "Content-Length" => string(length(bytes))
+        )
+
+        # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
+        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+        # Julia's parser accepts those tokens, so this asserts on the text.
+        DBInterface.execute(
+            Returns(nothing), DashiBoard.REPOSITORY[],
+            """
+            CREATE OR REPLACE TABLE selection AS
+                SELECT 'inf'::DOUBLE AS invalid, 'NaN'::DOUBLE AS bad, 2.5 AS good, 'x' AS s;
+            """
+        )
+        params = Dict(
+            "offset" => 0,
+            "limit" => 10,
+            "filterModel" => Dict(),
+            "sortModel" => [],
+            "processed" => true
+        )
+        resp, bytes = post("fetch-data", params, path)
+        tbl = JSON.parse(bytes)
+        page = String(bytes)
+        @test !occursin("NaN", page) && !occursin("Infinity", page)
+        @test isnothing(tbl["values"][1]["invalid"])
+        @test isnothing(tbl["values"][1]["bad"])
+        @test tbl["values"][1]["good"] == 2.5
+        @test tbl["values"][1]["s"] == "x"
     end
 
     @testset "validate-card" begin
@@ -1174,33 +1214,6 @@ resp = HTTP.options(url * "get-card-ir")
     "Content-Length" => string(length(resp.body)),
 ]
 
-body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
-resp = HTTP.post(url * "fetch-data", body = body)
-tbl = JSON.parse(resp.body)
-df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
-@test tbl["length"] == nrow(df)
-@test [row["No"] for row in tbl["values"]] == df.No[11:60]
-@test resp.headers == [
-    DashiBoard.CORS_RES_HEADERS...,
-    "Content-Type" => "application/json",
-    "Content-Length" => string(length(resp.body)),
-]
-
-# The rows take a different path — DuckDB writes the page as JSON itself, and its writer
-# emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
-# Julia's parser accepts those tokens, so this asserts on the text.
-DBInterface.execute(
-    Returns(nothing), DashiBoard.REPOSITORY[],
-    "CREATE OR REPLACE TABLE selection AS SELECT 'inf' AS invalid, 'NaN'::DOUBLE AS bad, 2.5 AS good, 'x' AS s"
-)
-body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
-resp = HTTP.post(url * "fetch-data", body = body)
-page = String(resp.body)
-@test !occursin("NaN", page) && !occursin("Infinity", page)
-@test isnothing(JSON.parse(page)["values"][1]["invalid"])
-@test isnothing(JSON.parse(page)["values"][1]["bad"])
-@test JSON.parse(page)["values"][1]["good"] == 2.5
-@test JSON.parse(page)["values"][1]["s"] == "x"
 
 resp = HTTP.options(url * "get-processed-data")
 @test resp.headers == [

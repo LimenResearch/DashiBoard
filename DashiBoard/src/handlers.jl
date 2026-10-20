@@ -907,7 +907,7 @@ function finite_projection(repository, table::AbstractString)
     return Select(; args)
 end
 
-function fetch_data(stream, spec::AbstractDict)
+function fetch_data(spec::AbstractDict)
     table = spec["processed"] ? "selection" : "source"
     ns = Set{String}(colnames(REPOSITORY[], table))
     limit::Int, offset::Int = spec["limit"], spec["offset"]
@@ -919,7 +919,7 @@ function fetch_data(stream, spec::AbstractDict)
         q = From(table) |> finite_projection(REPOSITORY[], table) |>
             Order(by = sorter_nodes) |> Limit(; limit, offset)
         export_table(
-            REPOSITORY[], q, path′;
+            REPOSITORY[], q, path;
             format = "json", array = true,
             use_tmp_file = false
         )
@@ -930,11 +930,10 @@ function fetch_data(stream, spec::AbstractDict)
             From(table) |> Group() |> Select("Count" => Agg.count())
         )
 
-        return open(path, "w") do io
-            print(io, "{\"values\":")
-            write(io, io′)
-            print(io, ",\"length\":", nrows, "}")
-        end
+        writer = Writer(pre = "{\"values\":", post = string(",\"length\":", nrows, "}"))
+        headers = ["Content-Type" => "application/json", "Content-Length" => content_length(writer, path)]
+
+        return headers, writer
     end
 end
 
@@ -943,8 +942,9 @@ function get_processed_data(::AbstractDict)
         # TODO add required format as request parameter
         format = "csv"
         content_type = "text/csv"
-        export_table(REPOSITORY[], From("selection"), path; format)
-        headers = ["Content-Type" => content_type, "Content-Length" => string(filesize(path))]
-        return headers, Writer()
+        export_table(REPOSITORY[], From("selection"), path; format, use_tmp_file = false)
+        writer = Writer()
+        headers = ["Content-Type" => content_type, "Content-Length" => content_length(writer, path)]
+        return headers, writer
     end
 end

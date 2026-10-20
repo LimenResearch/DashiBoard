@@ -162,7 +162,12 @@ function bundle_pipeline(spec::AbstractDict)
 
         plain = all(isascii, name) ? name : "pipeline"
         disposition = "attachment; filename=\"$(plain).zip\"; filename*=UTF-8''$(HTTP.escapeuri(name)).zip"
-        headers = ["Content-Type" => "application/zip", "Content-Disposition" => disposition]
-        return headers, Writer()
+        writer = Writer()
+        headers = [
+            "Content-Type" => "application/zip",
+            "Content-Length" => content_length(writer, path),
+            "Content-Disposition" => disposition,
+        ]
+        return headers, writer
     end
 end

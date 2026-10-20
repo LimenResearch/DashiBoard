@@ -130,27 +130,6 @@ function json_response(d; omit_null::Bool = false)
     return HTTP.Response(200, headers = headers, body = body)
 end
 
-function stream_data(
-        stream::HTTP.Stream, path::AbstractString, content_type::AbstractString;
-        pre::AbstractString = "", post::AbstractString = ""
-    )
-
-    nbytes = filesize(path) + ncodeunits(pre) + ncodeunits(post)
-
-    HTTP.setstatus(stream, 200)
-    foreach(Base.Fix1(HTTP.setheader, stream), CORS_RES_HEADERS)
-    HTTP.setheader(stream, "Content-Type" => content_type)
-    HTTP.setheader(stream, "Content-Length" => string(nbytes))
-
-    startwrite(stream)
-    print(stream, pre)
-    open(Fix1(write, stream), path)
-    print(stream, post)
-    closewrite(stream)
-    closeread(stream)
-    return
-end
-
 # Handler transformation
 
 """
@@ -243,4 +222,11 @@ function (w::Writer)(io::IO, path::AbstractString)
     open(Fix1(write, io), path)
     isnothing(w.post) || print(io, w.post)
     return
+end
+
+function content_length(w::Writer, path::AbstractString)
+    n = filesize(path)
+    isnothing(w.pre) || (n += ncodeunits(w.pre))
+    isnothing(w.post) || (n += ncodeunits(w.post))
+    return string(n)
 end

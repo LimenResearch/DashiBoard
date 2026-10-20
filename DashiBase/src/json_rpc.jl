@@ -137,12 +137,11 @@ function handle_request(instance, req::JSONRequest, path::Maybe{AbstractString})
     end
 end
 
-function apply_handlers(handlers::AbstractDict, s::AbstractString)
+function apply_handlers(handlers::AbstractDict, s::AbstractString, path::Maybe{AbstractString} = nothing)
     x = @return_failure parse_json(s)
-    return apply_handlers(handlers, get_request(x))
+    req = @return_failure get_request(x)
+    return isnothing(path) ? apply_handlers(handlers, req) : apply_handlers(handlers, req, path)
 end
-
-apply_handlers(::AbstractDict, failure::JSONFailure) = failure
 
 function apply_handlers(handlers::AbstractDict, req::JSONRequest, path::Maybe{AbstractString} = nothing)
     method = @return_failure get_method(handlers, req)

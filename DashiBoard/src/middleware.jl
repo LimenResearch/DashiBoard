@@ -104,18 +104,8 @@ end
 stringify_visualization(::Nothing) = nothing
 stringify_visualization(x) = sprint(show, MIME"image/svg+xml"(), x)
 
-function json_read(stream::HTTP.Stream)
-    return JSON.parse(read(stream, String))
-end
-
-function json_read(req::HTTP.Request)
-    return JSON.parse(String(req.body))
-end
-
 """
-    json_response(d; omit_null = false)
-
-A 200 with `d` as JSON and the CORS headers.
+    to_json(d; omit_null = false)
 
 Non-finite floats are written as `null`. `JSON.json` refuses `NaN` and `Inf` outright, so a run
 whose z-score of a zero-variance column is `NaN` on every row would be reported to the client as
@@ -124,13 +114,62 @@ an execution failure although the pipeline succeeded — only the response could
 the tokens it writes are not JSON and the browser's parser rejects them. `null` is what every
 JSON client already reads as "no value", and it is what the rows path (`fetch_data`) produces too.
 """
-function json_response(d; omit_null::Bool = false)
-    headers = vcat(CORS_RES_HEADERS, ["Content-Type" => "application/json"])
-    body = JSON.json(d; omit_null, allownan = true, nan = "null", inf = "null", ninf = "null")
-    return HTTP.Response(200, headers = headers, body = body)
+function to_json(d; omit_null::Bool = false)
+    return JSON.json(d; omit_null, allownan = true, nan = "null", inf = "null", ninf = "null")
 end
 
 # Handler transformation
+
+const JSON_HEADERS = [
+    "Content-Type" => "application/json",
+    "Accept" => "application/json",
+]
+
+struct JSONHandler
+    handlers::StringDict
+end
+
+function (h::JSONHandler)(req::HTTP.Request)
+    s = String(req.body)
+    # TODO: support list?
+    res::Union{JSONSuccess, JSONFailure, Nothing} = DashiBase.apply_handlers(h.handlers, s)
+    headers = JSON_HEADERS
+    return if isnothing(res)
+        HTTP.Response(204; headers)
+    else
+        HTTP.Response(200; headers, body = to_json(res))
+    end
+end
+
+struct JSONStreamHandler
+    handlers::StringDict
+end
+
+function (h::JSONStreamHandler)(stream::HTTP.Stream)
+    s = read(String, stream)
+    mktemp() do path, _
+        res = DashiBase.apply_handlers(h.handlers, s, path)
+        if res isa Tuple
+            headers, writer = res
+            foreach(Fix1(HTTP.setheader, stream), headers)
+            HTTP.setstatus(stream, 200)
+            startwrite(stream)
+            writer(stream, path)
+        elseif isnothing(res)
+            HTTP.setstatus(stream, 204)
+            foreach(Fix1(HTTP.setheader, stream), JSON_HEADERS)
+            startwrite(stream)
+        else
+            HTTP.setstatus(stream, 200) # Consider error status here
+            foreach(Fix1(HTTP.setheader, stream), JSON_HEADERS)
+            startwrite(stream)
+            write(stream, to_json(res))
+        end
+        closewrite(stream)
+        closeread(stream)
+    end
+    return
+end
 
 """
     failure_report(kind::Symbol, exception)

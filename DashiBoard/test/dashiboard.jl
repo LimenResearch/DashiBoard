@@ -162,15 +162,15 @@ end
     @test only(DashiBoard.root_causes(plain)) === plain
 end
 
-@testset "json_response and non-finite floats" begin
+@testset "to_json and non-finite floats" begin
     # A12: `JSON.json` refuses NaN and Inf, so a run whose z-score of a constant column was NaN
     # on every row was reported as an execution failure (measured on `constant = 42`, 2026-09-13
     # and 2026-09-16). `null` is what every JSON client reads as "no value".
-    resp = DashiBoard.json_response((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
-    body = String(resp.body)
-    @test !occursin("NaN", body) && !occursin("Infinity", body)
-    @test JSON.parse(body)["a"] == [1.0, nothing, nothing, nothing]
-    @test JSON.parse(body)["b"]["x"] === nothing
+    str = DashiBoard.to_json((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
+    d = JSON.parse(str)
+    @test !occursin("NaN", str) && !occursin("Infinity", str)
+    @test d["a"] == [1.0, nothing, nothing, nothing]
+    @test d["b"]["x"] === nothing
 end
 
 mktempdir() do data_dir
@@ -238,16 +238,11 @@ mktempdir() do data_dir
         @test_throws ArgumentError DashiBoard.pointer(:nowhere)
     end
 
-    handlers, middleware = DashiBoard.get_handlers(
+    handlers, stream_handlers, probe_handlers = DashiBoard.get_handlers(
         data_dir;
         model_dir,
         training_dir
     )
-
-    map!(middleware, values(handlers))
-
-    probe_handlers = copy(handlers)
-    map!(DashiBase.probe_middleware, values(probe_handlers))
 
     roundtrip(x) = JSON.parse(JSON.json(x))
 
@@ -258,7 +253,7 @@ mktempdir() do data_dir
 
     function post(method, params, path)
         req = JSONRequest(; method, params, id = 0)
-        res = apply_handlers(handlers, req, path)
+        res = apply_handlers(stream_handlers, req, path)
         return if res isa Tuple
             headers, writer = res
             io = IOBuffer()
@@ -1156,8 +1151,6 @@ mktempdir() do data_dir
     end
 end
 
-
-error("aa")
 @testset "request" begin
     # Take the first free port rather than hardcoding one.
     function first_free_port(range)

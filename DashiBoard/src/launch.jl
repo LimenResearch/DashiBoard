@@ -10,13 +10,12 @@ function get_handlers(
         extension_of::AbstractDict = Dict{String, String}()
     )
 
-    handlers = StringDict()
+    handlers, stream_handlers = StringDict(), StringDict()
 
     handlers["list-files"] = list_files
     handlers["read-document"] = StructuredHandler(read_document, :document)
     handlers["write-document"] = StructuredHandler(write_document, :document)
     handlers["list-configurations"] = list_configurations
-    handlers["bundle-pipeline"] = StructuredHandler(bundle_pipeline, :bundle)
     handlers["read-configuration"] = StructuredHandler(read_configuration, :configuration)
     handlers["write-configuration"] = StructuredHandler(write_configuration, :configuration)
 
@@ -31,8 +30,9 @@ function get_handlers(
     handlers["validate-card"] = StructuredHandler(validate_card, :pipeline)
     handlers["evaluate-pipeline"] = evaluate_pipeline
 
-    handlers["fetch-data"] = fetch_data # FIXME: these are stream handlers!
-    handlers["get-processed-data"] = get_processed_data # FIXME: these are stream handlers!
+    stream_handlers["bundle-pipeline"] = StructuredHandler(bundle_pipeline, :bundle)
+    stream_handlers["fetch-data"] = fetch_data
+    stream_handlers["get-processed-data"] = get_processed_data
 
     middleware = DashiBase.ScopedMiddleware(
         Pipelines.PARSER => parser,
@@ -46,9 +46,14 @@ function get_handlers(
         EXTENSION_OF => extension_of,
     )
 
-    return handlers, middleware
-end
+    map!(middleware, values(handlers))
+    map!(middleware, values(stream_handlers))
 
+    probe_handlers = copy(handlers)
+    map!(DashiBase.probe_middleware, values(probe_handlers))
+
+    return handlers, stream_handlers, probe_handlers
+end
 
 """
     launch(workspace; host, port, async, data_dir, pipeline_dir, filter_dir, model_dir, training_dir, parser)
@@ -77,48 +82,26 @@ function launch(
         extension_of::AbstractDict = Dict{String, String}()
     )
 
+    handlers, stream_handlers, probe_handlers = get_handlers(
+        workspace;
+        data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
+        parser, extensions, extension_of,
+    )
+
     router = HTTP.Router(
         HTTP.streamhandler(cors404),
         HTTP.streamhandler(cors405)
     )
 
-    HTTP.register!(router, "POST", "/list-files", HTTP.streamhandler(list_files))
-    HTTP.register!(router, "POST", "/read-document", HTTP.streamhandler(read_document))
-    HTTP.register!(router, "POST", "/write-document", HTTP.streamhandler(write_document))
-    HTTP.register!(router, "POST", "/list-configurations", HTTP.streamhandler(list_configurations))
-    HTTP.register!(router, "POST", "/bundle-pipeline", HTTP.streamhandler(bundle_pipeline))
-    HTTP.register!(router, "POST", "/read-configuration", HTTP.streamhandler(read_configuration))
-    HTTP.register!(router, "POST", "/write-configuration", HTTP.streamhandler(write_configuration))
-    for (name, kind, content, shape) in KIND_ROUTES
-        reader, writer = shape === :document ? (read_document, write_document) : (read_configuration, write_configuration)
-        HTTP.register!(router, "POST", "/read-$(name)", HTTP.streamhandler(KindHandler(reader, kind, content)))
-        HTTP.register!(router, "POST", "/write-$(name)", HTTP.streamhandler(KindHandler(writer, kind, content)))
-    end
-    HTTP.register!(router, "POST", "/load-files", HTTP.streamhandler(load_files))
-    HTTP.register!(router, "POST", "/get-card-ir", HTTP.streamhandler(get_card_ir))
-    HTTP.register!(router, "POST", "/validate-card", HTTP.streamhandler(validate_card))
-    HTTP.register!(router, "POST", "/evaluate-pipeline", HTTP.streamhandler(evaluate_pipeline))
-    HTTP.register!(router, "POST", "/fetch-data", fetch_data)
-    HTTP.register!(router, "GET", "/get-processed-data", get_processed_data)
+    HTTP.register!(router, "POST", "/rpc", HTTP.streamhandler(JSONHandler(handlers)))
+    HTTP.register!(router, "POST", "/rpc-probe", HTTP.streamhandler(JSONHandler(probe_handlers)))
+    HTTP.register!(router, "POST", "/rpc-stream", JSONStreamHandler(stream_handlers))
 
     # Logging outermost, so it sees what the CORS layer answers itself (an `OPTIONS` preflight)
     # and what the router rejects before any handler runs (a 404 or 405).
     cors_router = router |> CorsMiddleware |> LoggingMiddleware
 
-    return @with(
-        Pipelines.PARSER => parser,
-        Pipelines.MODEL_DIR => model_dir,
-        Pipelines.TRAINING_DIR => training_dir,
-        DataIngestion.DATA_DIR => data_dir,
-        WORKSPACE => workspace,
-        PIPELINE_DIR => pipeline_dir,
-        FILTER_DIR => filter_dir,
-        EXTENSIONS => extensions,
-        EXTENSION_OF => extension_of,
-        begin
-            # Said out loud, so whoever launched from a terminal knows the warm-up is over.
-            @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()
-            async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
-        end
-    )
+    # Said out loud, so whoever launched from a terminal knows the warm-up is over.
+    @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()
+    return async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
 end

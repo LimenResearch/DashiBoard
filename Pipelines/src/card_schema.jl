@@ -13,7 +13,7 @@ end
 Return the shared `\$defs` entries as IR nodes, for a renderer to resolve `ReferenceIR`s against.
 `schema_definitions` is this projected through `json_schema`, so the two cannot drift.
 """
-function ir_definitions(variables::AbstractVector)
+function ir_definitions(variables::Maybe{AbstractVector})
     return StringDict(
         "variable" => StringIR(enum = variables),
         "variables" => ArrayIR(items = VARIABLE_DEF, default = String[]),
@@ -67,4 +67,33 @@ function card_schema(key::AbstractString; additionalProperties::Bool = false)::S
     get!(schema, "title", spec.label)
     get!(schema, "additionalProperties", additionalProperties)
     return schema
+end
+
+"""
+    card_issues(card, variable_config; base = "", culprit = "card")
+
+Validate one card against its own schema, and report what failed as data.
+
+The targeted half of `validate_pipeline_schema`. A form editing a single card does not need a
+whole document resolved to learn that `method` has not been chosen — that question is answerable
+from the card and the vocabulary alone, and asking it this way costs one schema build instead of a
+graph walk over every other card.
+
+`base` is where the card sits in the document, so the pointers come back document-relative and a
+client reads them exactly as it reads a probe's. Left empty they are card-relative, which is what
+a caller holding one card in isolation wants.
+
+What it deliberately cannot answer: anything about the *graph*. Whether a referenced node actually
+produces the column named through it, whether two cards collide on an id, whether the whole thing
+is acyclic — all of those need the other cards, and `Pipeline` is where they are asked.
+"""
+function card_issues(
+        card::AbstractDict, variable_config::Any;
+        base::AbstractString = "", culprit = "card"
+    )
+    schema = JSONSchema.Schema(card_schema(card["type"], variable_config))
+    issue = JSONSchema.validate(card, schema)
+    errors = isnothing(issue) ? SchemaValidationError[] :
+        [schema_validation_error(culprit, base, card, issue)]
+    return map(issue_report, errors)
 end

@@ -73,6 +73,12 @@ function Node(d::AbstractDict; update::Bool = true)
     return Node(card; id, update, train, label)
 end
 
+function Node(d::AbstractDict, cols::Maybe{AbstractVector}; update::Bool = true)
+    issues = card_issues(d["card"], cols, base = "/card", culprit = "card in node")
+    isempty(issues) || throw(SchemaValidationErrors(issues))
+    return Node(d)
+end
+
 get_card(node::Node) = node.card
 get_update(node::Node) = node.update
 get_train(node::Node) = node.train

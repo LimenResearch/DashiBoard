@@ -82,6 +82,12 @@ julia> card.inputs
 """
 Card(d::AbstractDict) = construct(Card, d)
 
+function Card(card::AbstractDict, cols::Maybe{AbstractVector})
+    issues = card_issues(card, cols)
+    isempty(issues) || throw(SchemaValidationErrors(issues))
+    return Card(card)
+end
+
 """
     Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)
 

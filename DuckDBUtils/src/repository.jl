@@ -42,20 +42,12 @@ function release_numbers(d::MultiDict, k::AbstractString, is::AbstractVector)
 end
 
 struct Connections
-    lock::ReentrantLock
-    values::Vector{DuckDB.Connection}
-    semaphore::Semaphore
-    limit::Int
-    function Connections(limit::Integer = 4096)
-        lock = ReentrantLock()
-        values = DuckDB.Connection[]
-        semaphore = Semaphore(limit)
-        return new(lock, values, semaphore, limit)
-    end
+    pool::Pool{Nothing, DuckDB.Connection}
+    Connections(limit::Integer = 4096) = new(Pool{Nothing, DuckDB.Connection}(Int(limit)))
 end
 
 function Base.show(io::IO, connections::Connections)
-    print(io, "Connections(limit = ", connections.limit, ")")
+    print(io, "Connections(limit = ", Pools.limit(connections.pool), ")")
     return
 end
 
@@ -69,32 +61,15 @@ function _acquire((; lock, values)::Connections, db::DuckDB.DB)
 end
 
 function acquire_connection(connections::Connections, db::DuckDB.DB)
-    acquire(connections.semaphore)
-    return try
-        _acquire(connections, db)
-    catch
-        release(connections.semaphore)
-        rethrow()
-    end
+    return acquire(() -> DBInterface.connect(db), connections.pool, isvalid = isopen)
 end
 
 function release_connection(connections::Connections, con::DuckDB.Connection)
-    (; lock, values, semaphore) = connections
-    @lock lock begin
-        release(semaphore)
-        push!(values, con)
-    end
-    return
+    return release(connections.pool, con)
 end
 
 function drain_connections!(connections::Connections)
-    (; lock, values) = connections
-    local c::Vector{DuckDB.Connection}
-    @lock lock begin
-        c = copy(values)
-        empty!(values)
-    end
-    foreach(DBInterface.close!, c)
+    Pools.drain!(DBInterface.close!, connections.pool)
     return
 end
 

@@ -41,6 +41,7 @@ using DuckDB: DuckDB,
     end_row
 
 using DBInterface: DBInterface
+using ConcurrentUtilities: Pool, Pools
 using Tables: Tables
 using OrderedCollections: OrderedDict
 

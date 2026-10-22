@@ -659,7 +659,7 @@ describe('loading a cards document asks', () => {
                      return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
         : page === 'probe-pipeline' ? probe
         : page === 'validate-card' ? { valid: true, issues: [] }
-        : page === 'read-pipeline' ? { valid: true, document: doc }
+        : page === 'read-pipeline' ? { document: doc }
         : [],
       ),
     );
@@ -740,7 +740,7 @@ describe('loading a cards document that names what it does not have', () => {
                      const full = structuredClone(payload) as Record<string, unknown>;
                      return Object.fromEntries(inc.map((k) => [k, full[k]])); })()
         : page === 'probe-pipeline' ? CLEAN_PROBE
-        : page === 'read-pipeline' ? { valid: true, document: doc }
+        : page === 'read-pipeline' ? { document: doc }
         : [],
       ),
     );
@@ -1146,5 +1146,32 @@ describe('refreshing the configurations', () => {
     fireEvent.click(container.querySelector('button[aria-label="refresh the model list"]')!);
     await waitFor(() => expect(asked('get-card-ir', true)).toBe(2));
     await waitFor(() => expect(asked('list-configurations')).toBeGreaterThan(before));
+  });
+});
+
+describe('a refused card description or configuration list', () => {
+  const refusal = (message: string) => ({ error: { code: -32602, message, data: null } });
+
+  it('says what the server said, not that it could not be reached', async () => {
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'get-card-ir' ? refusal('`include` must be a string or a list of strings') : []));
+    const { container } = render(() => <Cards />);
+    await waitFor(() => expect(container.textContent).toContain('`include` must be'));
+    expect(container.textContent).not.toContain('Could not reach');
+  });
+
+  it('leaves the configurations empty rather than reading the refusal as a list', async () => {
+    const errors: unknown[] = [];
+    const onError = (e: PromiseRejectionEvent) => errors.push(e.reason);
+    window.addEventListener('unhandledrejection', onError);
+    postRequest.mockImplementation((page: string) =>
+      Promise.resolve(page === 'get-card-ir' ? structuredClone(payload)
+        : page === 'list-configurations' ? refusal('boom')
+        : page === 'probe-pipeline' ? CLEAN_PROBE : []));
+    render(() => <Cards />);
+    await waitFor(() => expect(postRequest.mock.calls.some((c) => c[0] === 'list-configurations')).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    window.removeEventListener('unhandledrejection', onError);
+    expect(errors).toEqual([]);
   });
 });

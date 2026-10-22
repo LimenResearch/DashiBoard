@@ -10,6 +10,7 @@ import "@ag-grid-community/styles/ag-grid.css";
 import "@ag-grid-community/styles/ag-theme-quartz.css";
 
 import { postRequest } from "../requests";
+import { isRpcError, type RpcError } from "../rpcError";
 
 // Colours and density come from the `.ag-theme-quartz` block in App.css, which maps ag-grid's
 // `--ag-*` variables onto our tokens. Nothing here should set a colour.
@@ -70,8 +71,8 @@ export function TableView(props: TableViewProps) {
             processed,
           },
           null,
-        ).then((data: FetchedRows | null) => {
-          if (!data) {
+        ).then((data: FetchedRows | RpcError | null) => {
+          if (!data || isRpcError(data)) {
             params.failCallback();
             return;
           }

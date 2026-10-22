@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { apiBase, setApiBase, getURL, postBlob } from './requests';
+import { apiBase, setApiBase, getURL, postBlob, postRequest } from './requests';
+import { failureOf, isRpcError } from './rpcError';
 
 describe('apiBase', () => {
   beforeEach(() => {
@@ -45,6 +46,57 @@ describe('apiBase', () => {
   });
 });
 
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+const sent = (call: unknown[]) => JSON.parse((call[1] as RequestInit).body as string);
+
+describe('postRequest', () => {
+  const fetchMock = vi.fn();
+  beforeEach(() => {
+    fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock);
+    setApiBase(null); document.querySelector('meta[name="dashi-api"]')?.remove();
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('sends a JSON-RPC request to /rpc and hands back the result', async () => {
+    fetchMock.mockResolvedValue(json({ jsonrpc: '2.0', id: 1, result: { files: [] } }));
+    expect(await postRequest('list-files', {}, null)).toEqual({ files: [] });
+    expect(fetchMock.mock.calls[0][0]).toBe('/rpc');
+    expect(sent(fetchMock.mock.calls[0])).toEqual({ jsonrpc: '2.0', id: expect.any(Number), method: 'list-files', params: {} });
+  });
+
+  it('probes through /rpc-probe, as the run route', async () => {
+    fetchMock.mockResolvedValue(json({ jsonrpc: '2.0', id: 1, result: {} }));
+    await postRequest('probe-pipeline', { nodes: [] }, null);
+    expect(fetchMock.mock.calls[0][0]).toBe('/rpc-probe');
+    expect(sent(fetchMock.mock.calls[0]).method).toBe('evaluate-pipeline');
+  });
+
+  it('hands back a failure as {error}, read through failureOf', async () => {
+    const error = { code: -32602, message: 'm', data: null };
+    fetchMock.mockResolvedValue(json({ jsonrpc: '2.0', id: 1, error }));
+    const got = await postRequest('list-files', {}, null);
+    expect(got).toEqual({ error });
+    expect(isRpcError(got) && failureOf(got)).toEqual({ errors: ['m'] });
+    const data = { kind: 'pipeline', errors: ['e'], issues: [] };
+    expect(failureOf({ error: { ...error, data } })).toEqual(data);
+  });
+
+  it('reads a streamed reply by its status', async () => {
+    fetchMock.mockResolvedValue(json({ values: [1], length: 1 }));
+    expect(await postRequest('fetch-data', {}, null)).toEqual({ values: [1], length: 1 });
+    expect(fetchMock.mock.calls[0][0]).toBe('/rpc-stream');
+    const error = { code: -32603, message: 'boom', data: null };
+    fetchMock.mockResolvedValue(json({ jsonrpc: '2.0', id: 1, error }, 500));
+    expect(await postRequest('fetch-data', {}, null)).toEqual({ error });
+  });
+
+  it('is its default when the server cannot be reached', async () => {
+    fetchMock.mockRejectedValue(new Error('down'));
+    expect(await postRequest('list-files', {}, 'def')).toBe('def');
+  });
+});
+
 describe('postBlob', () => {
   const fetchMock = vi.fn();
   beforeEach(() => { vi.stubGlobal('fetch', fetchMock); setApiBase('http://127.0.0.1:8080'); });
@@ -55,13 +107,14 @@ describe('postBlob', () => {
     fetchMock.mockResolvedValue(new Response(body, { headers: { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="mine.zip"' } }));
     const got = await postBlob('bundle-pipeline', { name: 'mine' });
     expect(got && 'blob' in got && got.filename).toBe('mine.zip');
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8080/bundle-pipeline');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8080/rpc-stream');
+    expect(sent(fetchMock.mock.calls[0]).method).toBe('bundle-pipeline');
   });
-  // The failure envelope is JSON, so the caller can read the sentence.
-  it('hands back the JSON when the server answered with one', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ valid: false, errors: ['no'] }), { headers: { 'Content-Type': 'application/json' } }));
-    const got = await postBlob('bundle-pipeline', {});
-    expect(got).toEqual({ json: { valid: false, errors: ['no'] } });
+  // A refusal comes back as the JSON-RPC error, with a failing status.
+  it('hands back the error when the server refused', async () => {
+    const error = { code: -32602, message: 'm', data: { errors: ['no'] } };
+    fetchMock.mockResolvedValue(json({ jsonrpc: '2.0', id: 1, error }, 400));
+    expect(await postBlob('bundle-pipeline', {})).toEqual({ error });
   });
   // An answer that is neither the file nor the server's own JSON — a proxy's 404 page, a bare
   // 500 — is no answer: saving it as a zip would hand the author a broken file.

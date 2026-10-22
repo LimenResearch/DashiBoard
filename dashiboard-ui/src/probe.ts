@@ -1,4 +1,5 @@
 import { postRequest } from "./requests";
+import { failureOf, isRpcError } from "./rpcError";
 import type { CardsStore, ProbeIssue, ProbeNode, ProbeStore } from "./stores";
 
 // One place to ask `POST /probe-pipeline`. The card Confirm, the continuous probe and — since the
@@ -47,5 +48,7 @@ export const usableProbe = (result: unknown): ProbeStore => {
  */
 export async function askProbe(document: CardsStore): Promise<ProbeStore | null> {
   const result = await postRequest("probe-pipeline", document, null);
+  // A document that does not build is refused, and the refusal carries the issues to mark.
+  if (isRpcError(result)) return usableProbe({ ...failureOf(result), valid: false });
   return result !== null && typeof result === "object" ? usableProbe(result) : null;
 }

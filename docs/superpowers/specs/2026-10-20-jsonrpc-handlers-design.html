@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON-RPC Handlers Spec</title>
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #66645e; --line: #e2dfd7;
+  --card: #ffffff; --accent: #2f5d8a; --ok: #2e7d4f; --warn: #a3651a; --bad: #a33a3a;
+  --code-bg: #f1eee7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161614; --fg: #e8e6e1; --muted: #a29f97; --line: #34322e;
+    --card: #1e1d1b; --accent: #8db6dd; --ok: #7cc49a; --warn: #e0a95c; --bad: #e08585;
+    --code-bg: #26251f;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161614; --fg: #e8e6e1; --muted: #a29f97; --line: #34322e;
+  --card: #1e1d1b; --accent: #8db6dd; --ok: #7cc49a; --warn: #e0a95c; --bad: #e08585;
+  --code-bg: #26251f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 1.7rem; margin: 0 0 4px; }
+h2 { font-size: 1.2rem; margin: 40px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 22px 0 6px; }
+p, li { max-width: 72ch; }
+.meta { color: var(--muted); font-size: .9rem; }
+code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code-bg);
+  padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow-x: auto; font-size: .85rem; }
+pre code { background: none; padding: 0; }
+.wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: 8px 0; }
+th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; }
+.callout { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  padding: 12px 16px; border-radius: 6px; margin: 16px 0; }
+.tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: 1px 6px; border-radius: 10px;
+  border: 1px solid currentColor; }
+.keep { color: var(--ok); } .trim { color: var(--warn); } .cut { color: var(--bad); } .rw { color: var(--accent); }
+.call { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>JSON-RPC handlers: finishing the port</h1>
+<p class="meta">Branch <code>pv/handlers</code> · based on <code>c72e2448</code> · 2026-10-20 · design spec, for planning</p>
+
+<div class="callout">
+<strong>The one idea.</strong> A handler validates its params and returns a thunk; the JSON-RPC layer
+runs the thunk and wraps the outcome as either <code>result</code> or <code>error</code>. That split
+is what lets tests call <code>DashiBase.apply_handlers</code> on a payload with no server. This work
+finishes the port: it makes the layer actually JSON-RPC 2.0, makes <code>result</code>/<code>error</code>
+the <em>only</em> success signal, settles HTTP status codes, moves the frontend onto the three
+endpoints, and cuts the test suite down to behaviour that matters.
+</div>
+
+<h2>1. Intent</h2>
+<p>The team lead reviewed the handlers and asked for a clean separation between <em>check</em>
+(build the thunk; throw on bad params) and <em>execution</em> (run the thunk), so issues can be
+debugged by executing a function on a payload. On this branch he already reshaped the handlers and
+the tests around <code>apply_handlers</code>, and limited live-server tests to one example each of
+<code>/rpc</code>, <code>/rpc-probe</code>, <code>/rpc-stream</code> plus CORS. What remains is listed
+below.</p>
+
+<h3>Goals</h3>
+<ol>
+<li>The server is a JSON-RPC 2.0 server, verified by tests that go through the string parser.</li>
+<li>No reply uses <code>valid</code> to say whether a <em>request</em> succeeded; that is
+<code>result</code> vs <code>error</code>.</li>
+<li>HTTP status codes are fixed: per-error on <code>/rpc-stream</code>, always 200 elsewhere.</li>
+<li>The frontend speaks JSON-RPC to the three endpoints.</li>
+<li>The test suite is substantively smaller: tautologies cut, broken tail rewritten without a server.</li>
+<li>ExperimentTracking drops its own copy of the JSON-RPC layer and uses DashiBase's, in the same piece of work.</li>
+</ol>
+
+<h3>Non-goals</h3>
+<ul>
+<li>Reworking handler logic, issue shapes, or the probe's semantics.</li>
+<li>New features or a new frontend architecture. The only route beside the three endpoints is the
+GET download in 4.3.</li>
+<li>String <code>id</code>s (the spec allows them; we deliberately accept integers only).</li>
+</ul>
+
+<h3>Anti-goals (a failure even if it works)</h3>
+<ul>
+<li>A large diff. Footprint is judged by lines added; the test suite should shrink by hundreds of lines.</li>
+<li>Any UI behaviour change visible to an author: same messages, same marks on cards, same Run behaviour.</li>
+<li>Tests that restate a definition (a constant equals itself, a field is what was just set, a literal's shape).</li>
+</ul>
+
+<h2>2. Constraints</h2>
+<ul>
+<li><strong>Minimal source changes.</strong> <code>DashiBase/src</code> and <code>DashiBoard/src</code>
+change only where a goal above requires it.</li>
+<li>Every Julia change outside <code>dashiboard-ui</code> carries its functional reason in a docstring
+or comment. Comments state purpose, not history (no dates, measurements, "used to").</li>
+<li>Docstrings that describe <code>{valid: true, …}</code> envelopes are updated to match.</li>
+<li>Nothing is committed by the builder; changes are left in the working tree for review.</li>
+</ul>
+
+<h2>3. Current state (verified)</h2>
+<p>Probed by calling <code>DashiBase.apply_handlers(handlers, ::String)</code> directly.</p>
+<div class="wrap"><table>
+<tr><th>#</th><th>Finding</th><th>Where</th></tr>
+<tr><td>1</td><td><strong>Blocker:</strong> every request string fails with
+<code>-32600 UndefVarError: make not defined</code>. Bare <code>make</code> instead of
+<code>StructUtils.make</code>. Hidden because tests construct <code>JSONRequest</code> directly.</td>
+<td><code>DashiBase/src/json_rpc.jl:91</code></td></tr>
+<tr><td>2</td><td>Replies carry <code>"version":"2.0.0"</code>; the spec requires
+<code>"jsonrpc":"2.0"</code>. Requests are not checked (<code>"jsonrpc":"1.0"</code> is answered).</td>
+<td><code>JSONRequest</code>, <code>JSONSuccess</code>, <code>JSONFailure</code></td></tr>
+<tr><td>3</td><td>A non-integer <code>id</code> throws <code>MethodError</code> while building the
+failure, so the client gets a bare 500.</td><td><code>_get_request</code></td></tr>
+<tr><td>4</td><td>Batches: <code>apply_handlers</code> handles a vector, but a vector containing an
+invalid element hits <code>apply_handlers(handlers, ::JSONFailure)</code> → <code>MethodError</code>;
+and <code>JSONHandler</code> type-asserts a single reply → 500. On <code>/rpc-stream</code> a batch
+also has no method to dispatch to.</td><td><code>json_rpc.jl</code>, <code>middleware.jl</code> <code>JSONHandler</code>/<code>JSONStreamHandler</code></td></tr>
+<tr><td>5</td><td>The error object's extra field is named <code>metadata</code>; the spec calls it
+<code>data</code>.</td><td><code>JSONError</code></td></tr>
+<tr><td>6</td><td>The frontend still posts to 14 per-route URLs (<code>/list-files</code>, …) that
+the server no longer serves.</td><td><code>dashiboard-ui/src/requests.ts</code>, <code>apiRoutes.ts</code></td></tr>
+<tr><td>7</td><td>The tail of <code>dashiboard.jl</code> (from line ~1153) cannot run: undefined
+<code>resp</code>/<code>server</code>/<code>data_dir</code> at top level, and dead URLs.
+<code>workspace.jl</code> lines ~232 and ~259 post to dead URLs (one spins until timeout, one passes vacuously).</td>
+<td><code>DashiBoard/test/</code></td></tr>
+<tr><td>8</td><td><code>DashiBase/test/runtests.jl</code> has no JSON-RPC tests.</td><td></td></tr>
+<tr><td>9</td><td>The CSV download is a plain link, <code>&lt;A href={getURL("get-processed-data")}&gt;</code>,
+which relied on main's <code>GET /get-processed-data</code>. That route no longer exists, and a link
+cannot send a JSON-RPC body.</td><td><code>dashiboard-ui/src/left-tabs/results.tsx:351</code></td></tr>
+<tr><td>10</td><td>Replies no longer carry <code>Access-Control-Allow-Origin: *</code>; on <code>main</code> every
+reply did. Only the 404/405 replies keep it, so a UI on another origin (the dev server) is refused by
+the browser. Restored in <code>CorsMiddleware</code>, for every non-<code>OPTIONS</code> reply.</td><td><code>DashiBoard/src/middleware.jl</code></td></tr>
+<tr><td>11</td><td>ExperimentTracking (separate repo, <code>../ExperimentTracking.jl</code>) depends on DashiBase
+(<code>rev = "main"</code>, compat <code>2.0.0</code>) but runs its own copy of the layer,
+<code>src/api/json_rpc.jl</code> (163 lines), with the same <code>version</code> field. Its copy already has
+<code>apply_handlers(::AbstractDict, ::JSONFailure) = failure</code>, the method DashiBase lacks (finding 4).
+Its <code>JSONHandler</code> has the same single-reply type assertion. Endpoints: <code>POST api/v1</code> and
+<code>api/v1/probe</code>. Its probe answers <code>{valid = true, source_vars, output_vars}</code>
+(<code>handlers.jl:66</code>), and its tests send requests without <code>jsonrpc</code> and read
+<code>result.valid</code> (<code>test/api.jl</code>).</td><td><code>ExperimentTracking.jl/src/api/</code></td></tr>
+</table></div>
+
+<h2>4. Decisions</h2>
+
+<h3>4.1 JSON-RPC compliance (DashiBase)</h3>
+<ul>
+<li><code>make</code> → <code>StructUtils.make</code>.</li>
+<li>Version member is <code>"jsonrpc": "2.0"</code> on every reply. A request whose
+<code>jsonrpc</code> is absent or not <code>"2.0"</code> is <code>-32600 Invalid Request</code>.</li>
+<li><code>id</code> must be an integer (or absent, for a notification). Anything else is
+<code>-32600</code> with <code>id: null</code> — never a crash.</li>
+<li><strong>Batches are supported</strong> on <code>/rpc</code> and <code>/rpc-probe</code>: an array of
+requests answers an array of replies, notifications omitted, invalid elements answered with their own
+error, all-notifications answered with no body (204). An empty array is a single <code>-32600</code>
+(already the case).</li>
+<li><code>metadata</code> is renamed <code>data</code>, coherently: the <code>JSONError</code> field,
+<code>StructuredException</code>'s field, every test, and every frontend reader.</li>
+</ul>
+
+<h3>4.2 What happens to <code>valid</code></h3>
+<p><code>valid</code> currently does two jobs. Only one survives.</p>
+<div class="wrap"><table>
+<tr><th>Job</th><th>Where today</th><th>Decision</th></tr>
+<tr><td><strong>Did the request succeed?</strong></td>
+<td><code>valid:true</code> in read/write/run replies (<code>handlers.jl</code> 239, 267, 344, 376, 860);
+<code>valid:false</code> in every failure body (<code>failure_report</code>, the empty-group failure at 762)</td>
+<td>Removed. <code>result</code> vs <code>error</code> says it. Other keys stay where they are
+(<code>{document}</code>, <code>{path}</code>, <code>{text, parsed}</code>, <code>{kind, errors, issues, …}</code>).</td></tr>
+<tr><td><strong>Is the document sound?</strong></td>
+<td><code>validate-card</code> (642) and the probe (830), beside <code>issues</code></td>
+<td>Kept, inside <code>result</code>. A route that <em>checks</em> a document answers
+<code>result</code> even when the document is bad, which preserves today's UI experience.</td></tr>
+</table></div>
+<p>Rule of thumb: a route that <em>checks</em> answers <code>result</code> with a verdict; a route that
+<em>does</em> answers <code>error</code> when it can't. Failures the probe already raises as errors
+(empty group, a document that does not build) stay errors.</p>
+
+<h3>4.3 HTTP status codes</h3>
+<div class="wrap"><table>
+<tr><th>Endpoint</th><th>Success</th><th>Notification</th><th>Failure</th></tr>
+<tr><td><code>/rpc</code>, <code>/rpc-probe</code></td><td>200, JSON envelope</td><td>204</td>
+<td>200, JSON error envelope (JSON-RPC-over-HTTP convention; a batch with mixed outcomes has no single status)</td></tr>
+<tr><td><code>/rpc-stream</code></td><td>200, raw body (JSON, CSV or zip) with its own <code>Content-Type</code></td><td>204</td>
+<td>JSON error envelope, <code>application/json</code>, status by code ↓</td></tr>
+</table></div>
+<div class="wrap"><table>
+<tr><th>JSON-RPC code</th><th>Meaning</th><th>HTTP</th></tr>
+<tr><td><code>-32700</code></td><td>parse error</td><td>400</td></tr>
+<tr><td><code>-32600</code></td><td>invalid request (incl. a batch sent to <code>/rpc-stream</code>)</td><td>400</td></tr>
+<tr><td><code>-32602</code></td><td>invalid params (handler refused the payload)</td><td>400</td></tr>
+<tr><td><code>-32601</code></td><td>method not found</td><td>404</td></tr>
+<tr><td><code>-32603</code></td><td>internal error (thunk threw while running)</td><td>500</td></tr>
+</table></div>
+<p>Why per-code on the stream: <code>Content-Type</code> cannot tell a file from an error, because a
+stream may legitimately be JSON (<code>fetch-data</code> is). The client checks
+<code>response.ok</code> first. The mapping is one small table in <code>middleware.jl</code>, used
+only by <code>JSONStreamHandler</code>.</p>
+<p class="call">My call: <code>/rpc-stream</code> rejects a batch with a single
+<code>-32600</code> (400), since a stream has exactly one body.</p>
+
+<h3>4.3b One GET route for large downloads</h3>
+<p>Decided: a GET route is kept so the browser can save a large file straight from the server,
+without the frontend holding it in memory. It covers <code>get-processed-data</code> only, the one
+large download that takes no params (the bundle needs a document, so it stays a POST through
+<code>/rpc-stream</code> + <code>saveBlob</code>, as today).</p>
+<ul>
+<li><code>GET /get-processed-data</code>, the same path main had, so the frontend link only
+needs <code>API_ROUTES</code> to keep it.</li>
+<li>Implemented by building the JSON-RPC request on the server (<code>method = "get-processed-data"</code>,
+empty params, integer id) and going through the same stream path. Status codes and headers are
+therefore exactly those of <code>/rpc-stream</code> (4.3). There is no second code path.</li>
+<li>The response adds <code>Content-Disposition: attachment; filename="processed-data.csv"</code>.
+Browsers ignore a link's <code>download</code> attribute across origins (UI on the dev server, API on
+another port). Without the header, the CSV opens in the tab instead of being saved.</li>
+<li>The docstring says why it exists: a link cannot carry a JSON-RPC body, and only a
+download the browser makes itself (a link, with <code>attachment</code>) streams to disk. A
+<code>fetch()</code> always buffers the body in JavaScript.</li>
+<li>A download the browser makes itself bypasses the page, so the UI could not show an error reply.
+It doesn't need to: the link renders only inside <code>&lt;Show when={result()}&gt;</code>, so it
+exists only after a successful run.</li>
+</ul>
+<p class="call">Considered and rejected: a hidden form POST to <code>/rpc-stream</code>. A form cannot send
+<code>application/json</code>, so the endpoint would have to accept a second, form-encoded body
+format.</p>
+
+<h3>4.4 Frontend</h3>
+<ul>
+<li>One request helper in <code>requests.ts</code> sends
+<code>{jsonrpc:"2.0", id, method, params}</code> to the right endpoint. It keeps <code>postRequest</code>'s signature and returns the
+<code>result</code> unwrapped, <code>{error: {code, message, data}}</code> on failure, or the caller's
+default when the server could not be reached. <span class="call">My call: callers test
+<code>isRpcError(reply)</code> and read the failure through one helper, which returns <code>error.data</code>,
+or <code>{errors: [error.message]}</code> when there is no <code>data</code>. No handler result has a
+top-level <code>error</code> key, so the test is unambiguous.</span></li>
+<li>Endpoint mapping: <code>probe-pipeline</code> → <code>evaluate-pipeline</code> on
+<code>/rpc-probe</code>; <code>bundle-pipeline</code>, <code>fetch-data</code>,
+<code>get-processed-data</code> → <code>/rpc-stream</code>; everything else → <code>/rpc</code>.
+Method names are otherwise unchanged.</li>
+<li><code>postBlob</code>/streamed reads check <code>response.ok</code>; on failure parse the JSON error envelope.</li>
+<li><code>API_ROUTES</code> (dev proxy list) becomes the three endpoints.</li>
+<li>Readers of the old success flag switch to result/error: <code>Documents.tsx</code> 87, 106
+(read/write), <code>results.tsx</code> 125 (run). Readers of the document verdict keep
+<code>valid</code>: <code>probe.ts</code> <code>usableProbe</code>, <code>processing.tsx</code>,
+<code>stores.ts</code> <code>documentFindings</code>. When the probe answers an <code>error</code>,
+the caller builds the probe store from <code>error.data</code> with <code>valid: false</code>, so
+those readers see what they see today.</li>
+<li><strong>An error with no <code>data</code></strong> (bare handlers such as <code>list-files</code>,
+<code>get-card-ir</code> and <code>fetch-data</code>; protocol errors such as <code>-32601</code>
+and <code>-32700</code>) shows <code>error.message</code>. Decided: this replaces today's misleading
+"Could not reach DashiBoard…", which these cases produced because they used to be bare 500s.
+"Could not reach" stays for <code>null</code>, meaning no answer at all.</li>
+<li>The CSV link (<code>results.tsx:351</code>) keeps pointing at <code>GET /get-processed-data</code> (4.3b).</li>
+<li>Frontend tests: mocks of server replies drop <code>valid</code> where 4.2 removes it, and failure mocks answer
+<code>{error: {…}}</code>. <span class="call">My call: tests already mock <code>postRequest</code> by
+route name, and the unwrapped result keeps every success mock valid as it is. Only failure mocks
+change.</span></li>
+</ul>
+
+<h3>4.5 ExperimentTracking moves onto DashiBase's layer</h3>
+<p>Decided: ExperimentTracking is updated in the same piece of work, so there is one JSON-RPC layer.</p>
+<ul>
+<li>Delete <code>src/api/json_rpc.jl</code>. Use DashiBase's types and <code>apply_handlers</code>,
+<code>probe_middleware</code> and <code>apply_middleware</code>. The method
+<code>apply_handlers(::AbstractDict, ::JSONFailure)</code> from ET's copy is what DashiBase adopts
+to fix batches.</li>
+<li>Its <code>JSONHandler</code> accepts a batch reply, as DashiBoard's does. Endpoints
+(<code>api/v1</code>, <code>api/v1/probe</code>) are unchanged, as is the always-200 rule (it does not stream).
+<span class="call">My call: ET keeps its own small <code>JSONHandler</code> rather than importing
+DashiBoard's, because ET depends on DashiBase, not DashiBoard.</span></li>
+<li>Its probe drops <code>valid = true</code> and answers <code>{source_vars, output_vars}</code>.
+That <code>valid</code> is only ever <code>true</code>, since a failed probe throws, so it is a
+success flag (4.2).</li>
+<li>Its tests send <code>"jsonrpc":"2.0"</code>, read <code>error.data</code>, and stop reading
+<code>result.valid</code>.</li>
+<li><strong>Ordering.</strong> ET resolves DashiBase from DashiBoard's <code>main</code>, so the ET
+change lands after this branch merges. DashiBase stays at <code>2.0.0</code>: this work completes the
+2.0.0 release, which is not finished yet, so its breaking changes belong to that release.
+ET's compat is unchanged.</li>
+<li>Out of scope: ET serving the UI. Its router registers only the two API routes. If it does
+serve the UI somewhere, that setup would also need the three <code>/rpc*</code> endpoints, as a
+separate change.</li>
+</ul>
+
+<h2>5. Test suite</h2>
+
+<h3>5.1 What stays live (one server)</h3>
+<p>A single testset launches one server and checks: one <code>/rpc</code> call, one
+<code>/rpc-probe</code> call, one <code>/rpc-stream</code> call (success, and one failure for its status
+code), one <code>GET /get-processed-data</code> (status, <code>Content-Type</code> and <code>Content-Disposition</code>), the CORS
+response headers on one reply, and one <code>OPTIONS</code> preflight. Then closes.
+<code>workspace.jl</code>'s launcher test keeps its process-level checks but posts a JSON-RPC body to
+<code>/rpc</code> (its "stopping stops the server" check must fail when the server is still up).</p>
+
+<h3>5.2 JSON-RPC layer (DashiBase, no server)</h3>
+<p>One parsimonious testset going through <code>apply_handlers(handlers, ::String)</code> with a toy
+handler table: a valid call; <code>jsonrpc</code> wrong; a string <code>id</code>; unknown method;
+parse error; and one batch mixing a call, a notification, an unknown method and an invalid element
+(asserting three replies in order). Roughly 30 lines.</p>
+
+<h3>5.3 <code>DashiBoard/test/dashiboard.jl</code>, per testset</h3>
+<p>From a read-only survey; line ranges are approximate.</p>
+<div class="wrap"><table>
+<tr><th>Testset</th><th>Verdict</th><th>Note</th></tr>
+<tr><td>LoggingMiddleware (33–126)</td><td><span class="tag cut">CUT</span></td><td>log-format test; its <code>FakeStream</code> and imports go too</td></tr>
+<tr><td>root_causes</td><td><span class="tag keep">KEEP</span></td><td>drop the lines checking Julia's own wrapper text</td></tr>
+<tr><td>to_json and non-finite floats</td><td><span class="tag keep">KEEP</span></td><td></td></tr>
+<tr><td>cards (210–213)</td><td><span class="tag cut">CUT</span></td><td>tests Pipelines, covered by the CSV download</td></tr>
+<tr><td>pointers</td><td><span class="tag trim">TRIM</span></td><td>keep the unset default and <code>pointer(:nowhere)</code> throw only</td></tr>
+<tr><td>bundle, bundle names its extensions</td><td><span class="tag keep">KEEP</span></td><td>drop <code>!valid</code> lines; extensions loop to two entries</td></tr>
+<tr><td>files</td><td><span class="tag keep">KEEP</span></td><td></td></tr>
+<tr><td>document and configurations</td><td><span class="tag trim">TRIM</span></td><td>the five copy-pasted <code>write-configuration</code> refusals become one loop; drop restatements</td></tr>
+<tr><td>a model that cannot be built, products in the probe</td><td><span class="tag keep">KEEP</span></td><td></td></tr>
+<tr><td>card-ir</td><td><span class="tag trim">TRIM</span></td><td>drop shape checks; keep enums, <code>include</code> filtering and its refusal</td></tr>
+<tr><td>pipeline-groups and data download</td><td><span class="tag keep">KEEP</span></td><td>absorbs probe-clean's one line</td></tr>
+<tr><td>validate-card</td><td><span class="tag keep">KEEP</span></td><td><code>valid</code> assertions stay (verdict field)</td></tr>
+<tr><td>probe-bad, probe-product, variable-transforms, probe-group, probe-bad-value, overwrite, loops, referable</td><td><span class="tag keep">KEEP</span></td><td>keep probe-verdict <code>valid</code>; drop repeated <code>kind</code>/<code>severity</code> checks and any success-flag <code>valid</code></td></tr>
+<tr><td>probe-noid + skip-probe</td><td><span class="tag trim">MERGE</span></td><td>one testset looping over probe and run handlers</td></tr>
+<tr><td>probe-clean</td><td><span class="tag cut">CUT</span></td><td>folded into pipeline-groups</td></tr>
+<tr><td>empty-cards</td><td><span class="tag keep">KEEP</span></td><td>success asserted by presence of <code>result</code></td></tr>
+<tr><td>empty-group</td><td><span class="tag trim">TRIM</span></td><td>drop the checks repeated across its three blocks</td></tr>
+<tr><td>runtime-error</td><td><span class="tag keep">KEEP</span></td><td>run fails as <code>error</code>, kind <code>execution</code>, root cause not wrapper</td></tr>
+<tr><td>request + loose live <code>@test</code>s (1153–1217)</td><td><span class="tag rw">REWRITE</span></td><td>becomes 5.1</td></tr>
+<tr><td>a missing data directory; configurations in a flat workspace; files by folder (1219–1334)</td><td><span class="tag rw">REWRITE</span></td><td>no server: <code>get_handlers(...)</code> + <code>apply_handlers</code>; keep misplaced files, folder confinement, implied-folder refusal, layout names, <code>../</code> escape, model dir outside workspace</td></tr>
+</table></div>
+<p>Every <code>["error"]["metadata"]</code> becomes <code>["error"]["data"]</code>.
+Expected size: <code>dashiboard.jl</code> 1334 → roughly 900 lines; <code>workspace.jl</code> small trims only.</p>
+
+<h3>5.4 Done means</h3>
+<ul>
+<li>Julia suite (<code>DashiBoard/test/runtests.jl</code>, which includes DashiBase's) passes.</li>
+<li>Frontend tests pass.</li>
+<li>ExperimentTracking tests pass against the updated DashiBase (developed against the local
+DashiBase, before this branch merges).</li>
+<li>A manual smoke run: launch, load a table, probe, run, page the table, download CSV and bundle, in the browser.</li>
+<li>Net diff: tests shrink by several hundred lines; source changes are small and each justified in place.</li>
+</ul>
+
+<h2>6. Left to the builder</h2>
+<ul>
+<li>Exact placement of the stream status mapping and the batch-on-stream refusal (DashiBase vs <code>JSONStreamHandler</code>).</li>
+<li>How <code>JSONRequest</code> represents the version field, as long as the wire form is <code>"jsonrpc":"2.0"</code>.</li>
+<li>Request-id generation in the frontend helper.</li>
+<li>Which individual assertions inside a KEEP testset are tautological, within the rules above.</li>
+<li>Order of work; a reasonable one is DashiBase fixes + their tests → <code>valid</code>/status changes → Julia test cuts → frontend.</li>
+</ul>
+
+<h2>7. Calls I made (please check)</h2>
+<ul>
+<li><code>/rpc-stream</code> answers a batch with one <code>-32600</code>.</li>
+<li>Read/write replies keep their keys minus <code>valid</code> (e.g. <code>{document}</code>), rather than returning bare values, to keep the frontend diff small.</li>
+<li><code>postRequest</code> returns the result unwrapped or <code>{error}</code>; callers test <code>isRpcError</code>; probe errors are mapped to a probe store with <code>valid:false</code>.</li>
+<li>Frontend test mocks stay keyed by route name; only failure mocks change.</li>
+<li>The GET download covers <code>get-processed-data</code> only, at its old path, through the stream path.</li>
+<li>ExperimentTracking keeps its own <code>JSONHandler</code>; its probe drops <code>valid</code>.</li>
+</ul>
+
+<h2>8. Decided in discussion</h2>
+<ul>
+<li>Minimal source changes in DashiBase and DashiBoard are allowed where a goal requires them.</li>
+<li>Fix <code>make</code> and the <code>jsonrpc</code> member; ids are integers only; batches are supported and tested; <code>metadata</code>→<code>data</code> everywhere.</li>
+<li><code>validate-card</code> and the probe keep <code>valid</code> plus <code>issues</code> inside <code>result</code>.</li>
+<li>Status codes are per error on <code>/rpc-stream</code> (<code>Content-Type</code> can't tell a JSON stream from an error); <code>/rpc</code> and <code>/rpc-probe</code> always answer 200.</li>
+<li>DashiBase stays at 2.0.0: these changes complete that unfinished release.</li>
+<li>ExperimentTracking is updated in the same work; an error without <code>data</code> shows its message.</li>
+<li>The bundle (pipeline + model/training configurations + extensions, zipped) stays a POST through <code>/rpc-stream</code>. It is small, so <code>saveBlob</code> is fine.</li>
+<li>The CSV export uses a GET route with <code>Content-Disposition: attachment</code>, so the browser streams it to disk.</li>
+</ul>
+
+</main>
+</body>
+</html>

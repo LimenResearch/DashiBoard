@@ -8,7 +8,7 @@ vi.mock('../requests', () => ({
   downloadJSON: vi.fn(), setApiBase: vi.fn(), apiBase: () => '',
 }));
 
-import { TableView } from './TableView';
+import { TableView, deliverRows } from './TableView';
 
 const fetches = () => postRequest.mock.calls.filter((c) => c[0] === 'fetch-data');
 
@@ -33,5 +33,24 @@ describe('TableView at mount', () => {
     // The block loader runs on a timer; give a second request every chance to show up.
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(fetches().map((c) => (c[1] as { offset: number }).offset)).toEqual([0]);
+  });
+});
+
+describe('a page the server answers', () => {
+  const callbacks = () => ({ successCallback: vi.fn(), failCallback: vi.fn() });
+
+  it('hands rows and the table length to the grid', () => {
+    const params = callbacks();
+    deliverRows({ values: [{ TEMP: 1 }], length: 7 }, params);
+    expect(params.successCallback).toHaveBeenCalledWith([{ TEMP: 1 }], 7);
+  });
+
+  it('fails the block on a refusal or no answer, rather than reading either as rows', () => {
+    for (const data of [{ error: { code: -32603, message: 'boom', data: null } }, null]) {
+      const params = callbacks();
+      deliverRows(data, params);
+      expect(params.failCallback).toHaveBeenCalled();
+      expect(params.successCallback).not.toHaveBeenCalled();
+    }
   });
 });

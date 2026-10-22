@@ -256,11 +256,11 @@ launcher(args...) = addenv(
         # Stopping the launcher stops the server it started.
         gone = false
         for _ in 1:40
+            # Gone means the port refuses a connection, not that a reply was slow.
             gone = try
-                # A request a live server answers 200, so only an unreachable server throws.
-                body = JSON.json((; jsonrpc = "2.0", id = 1, method = "list-files", params = Dict()))
-                HTTP.post("http://127.0.0.1:$(port)/rpc"; body, connect_timeout = 1, readtimeout = 1, retry = false); false
-            catch
+                close(Sockets.connect(Sockets.localhost, port)); false
+            catch e
+                e isa Base.IOError || rethrow()
                 true
             end
             gone && break

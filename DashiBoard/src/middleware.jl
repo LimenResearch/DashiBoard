@@ -34,14 +34,14 @@ each one:
     handler can forget.
 
 At `@debug` rather than `@info` deliberately: an access log that is always on is a file that grows
-without anyone asking for it, and `probe-pipeline` fires on every keystroke. `JULIA_DEBUG=DashiBoard`
+without anyone asking for it, and the UI calls `/rpc-probe` on every edit. `JULIA_DEBUG=DashiBoard`
 turns it on for a session; unset, Julia's logging macro tests the level before evaluating its
 arguments, so a disabled line costs nothing and formats nothing.
 
 Two things deliberately absent. **Response size**, because HTTP 2.6.7's server stream carries no
-bytes-written counter and inventing one means wrapping every write. And **`valid`/`kind`** from the
-two routes that carry them, because reading those means parsing every response body here, and the
-case that matters — a run that failed — already logs itself with a backtrace from
+bytes-written counter and inventing one means wrapping every write. And **whether a call failed**,
+because a JSON-RPC failure answers 200 and reading it means parsing every response body here, and
+the case that matters — a run that failed — already logs itself with a backtrace from
 `evaluate_pipeline`.
 
 `stream` is left untyped: a middleware needs only what it reads, and the concrete type is a

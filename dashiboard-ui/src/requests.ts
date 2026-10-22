@@ -62,7 +62,7 @@ export function downloadJSON(obj: any, ref: HTMLAnchorElement) {
 // or a page of rows rather than an envelope, `rpc-probe` for the run checked without running it.
 const STREAMED = new Set(["bundle-pipeline", "fetch-data", "get-processed-data"]);
 
-function endpointOf(page: string): { endpoint: string; method: string } {
+export function endpointOf(page: string): { endpoint: string; method: string } {
   if (page === "probe-pipeline") return { endpoint: "rpc-probe", method: "evaluate-pipeline" };
   return { endpoint: STREAMED.has(page) ? "rpc-stream" : "rpc", method: page };
 }

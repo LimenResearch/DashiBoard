@@ -90,7 +90,7 @@ function _get_request(d::AbstractDict)
     # Ids are integers here, a narrowing of the spec's string-or-number. One that is not cannot
     # be echoed back, so the failure carries `null`, as the spec says for an undetectable id.
     if !(id isa Union{Int, Nothing})
-        error = json_error(invalid_request, "`id` must be an integer")
+        error = json_error(invalid_request, "`id` must be a 64-bit integer")
         return JSONFailure(; error)
     end
     if get(d, "jsonrpc", nothing) != "2.0"
@@ -168,10 +168,16 @@ end
 apply_handlers(::AbstractDict, failure::JSONFailure) = failure
 
 function apply_handlers(handlers::AbstractDict, req::JSONRequest, path::Maybe{AbstractString} = nothing)
+    res = _apply_handlers(handlers, req, path)
+    # A notification is never answered, whatever came of it.
+    return isnothing(req.id) ? nothing : res
+end
+
+function _apply_handlers(handlers::AbstractDict, req::JSONRequest, path::Maybe{AbstractString})
     method = @return_failure get_method(handlers, req)
     instance = @return_failure validate_method(method, req)
     res, writer = @return_failure handle_request(instance, req, path)
-    return isnothing(res.id) ? nothing : isnothing(path) ? res : (res, writer)
+    return isnothing(path) ? res : (res, writer)
 end
 
 function apply_handlers(handlers::AbstractDict, reqs::AbstractVector)

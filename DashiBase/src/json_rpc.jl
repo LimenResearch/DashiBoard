@@ -16,7 +16,7 @@ const DEFAULT_MESSAGES = Dict{JSONErrorCode, String}(
 )
 
 struct StructuredException <: Exception
-    metadata::StringDict
+    data::StringDict
 end
 
 function explicit_error_message(f::F, code::JSONErrorCode) where {F}
@@ -37,14 +37,14 @@ function explicit_error_message(code::JSONErrorCode, msg::AbstractString)
 end
 
 @kwarg struct JSONRequest
-    version::VersionNumber = v"2.0"
+    jsonrpc::String = "2.0"
     id::Union{Int, Nothing} = nothing
     method::String
     params::Any
 end
 
 @kwarg struct JSONSuccess
-    version::VersionNumber = v"2.0"
+    jsonrpc::String = "2.0"
     id::Union{Int, Nothing} = nothing
     result::Any
 end
@@ -52,7 +52,7 @@ end
 @defaults struct JSONError
     code::Int
     message::String
-    metadata::Maybe{StringDict} = nothing
+    data::Maybe{StringDict} = nothing
 end
 
 function json_error(code::JSONErrorCode, info::Union{Exception, AbstractString})
@@ -60,11 +60,11 @@ function json_error(code::JSONErrorCode, info::Union{Exception, AbstractString})
 end
 
 function json_error(code::JSONErrorCode, info::StructuredException)
-    return JSONError(Int(code), "Structured Exception", info.metadata)
+    return JSONError(Int(code), "Structured Exception", info.data)
 end
 
 @kwarg struct JSONFailure
-    version::VersionNumber = v"2.0"
+    jsonrpc::String = "2.0"
     id::Union{Int, Nothing} = nothing
     error::JSONError
 end
@@ -87,12 +87,28 @@ end
 
 function _get_request(d::AbstractDict)
     id = get(d, "id", nothing)
+    # Ids are integers here, a narrowing of the spec's string-or-number. One that is not cannot
+    # be echoed back, so the failure carries `null`, as the spec says for an undetectable id.
+    if !(id isa Union{Int, Nothing})
+        error = json_error(invalid_request, "`id` must be an integer")
+        return JSONFailure(; error)
+    end
+    if get(d, "jsonrpc", nothing) != "2.0"
+        error = json_error(invalid_request, "`jsonrpc` must be \"2.0\"")
+        return JSONFailure(; id, error)
+    end
     return try
-        make(JSONRequest, d)
+        StructUtils.make(JSONRequest, d)
     catch e
         error = json_error(invalid_request, e)
         JSONFailure(; id, error)
     end
+end
+
+# An element of a batch that is not an object is a request of its own, and invalid.
+function _get_request(::Any)
+    error = json_error(invalid_request, "Pass an object as a request.")
+    return JSONFailure(; error)
 end
 
 get_request(d::AbstractDict) = _get_request(d)
@@ -140,8 +156,16 @@ end
 function apply_handlers(handlers::AbstractDict, s::AbstractString, path::Maybe{AbstractString} = nothing)
     x = @return_failure parse_json(s)
     req = @return_failure get_request(x)
+    # A streamed reply is one body, so a batch has nowhere to go.
+    if req isa AbstractVector && !isnothing(path)
+        error = json_error(invalid_request, "A streamed request cannot be a batch.")
+        return JSONFailure(; error)
+    end
     return isnothing(path) ? apply_handlers(handlers, req) : apply_handlers(handlers, req, path)
 end
+
+# An element of a batch that is not a valid request is answered in place, with its own failure.
+apply_handlers(::AbstractDict, failure::JSONFailure) = failure
 
 function apply_handlers(handlers::AbstractDict, req::JSONRequest, path::Maybe{AbstractString} = nothing)
     method = @return_failure get_method(handlers, req)

@@ -219,9 +219,9 @@ end
 """
     read_document(spec)
 
-A cards or filters document from the workspace: `{valid: true, document}`, or the failure
-envelope every other route uses, with the server's sentence. Wrapped rather than returned bare,
-so a client tells a reply from a failure by `valid` alone, never by guessing at a document's keys.
+A cards or filters document from the workspace: `{document}`, or the failure every other route
+answers with, carrying the server's sentence. A client tells the two apart by `result` vs `error`,
+never by guessing at a document's keys.
 
 The counterpart of the browser's file dialog, which read a local file the server never saw and
 showed the whole disk. `kind` is what the client expects: a filters file picked where cards
@@ -236,15 +236,15 @@ function read_document(spec::AbstractDict, base::AbstractString; what = "the wor
     document = parse_document(full)
     document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
     return function ()
-        return (; valid = true, document)
+        return (; document)
     end
 end
 
 """
     write_document(spec)
 
-Save a cards or filters document into the workspace, as indented JSON: `{valid: true, path}`
-or the failure envelope. What keeps a document where it can be loaded again: a download leaves
+Save a cards or filters document into the workspace, as indented JSON: `{path}`
+or the failure. What keeps a document where it can be loaded again: a download leaves
 the workspace, a save stays where `list-files` looks.
 
 Refuses: a path outside the directory; a name that does not end in `.json` (TOML is read, not
@@ -264,7 +264,7 @@ function write_document(spec::AbstractDict, base::AbstractString; what = "the wo
     return function ()
         mkpath(dirname(full))
         write(full, JSON.json(document; pretty = true))
-        return (; valid = true, path)
+        return (; path)
     end
 end
 
@@ -327,8 +327,8 @@ end
 """
     read_configuration(spec)
 
-A model or a training configuration: `{valid: true, text, parsed}` — the TOML as written, for
-a form to show, and parsed, for it to read — or the failure envelope. `kind` is `model` or
+A model or a training configuration: `{text, parsed}` — the TOML as written, for
+a form to show, and parsed, for it to read — or the failure. `kind` is `model` or
 `training` and must be what the file is.
 """
 read_configuration(spec::AbstractDict) = read_configuration(spec, workspace_directory())
@@ -341,15 +341,15 @@ function read_configuration(spec::AbstractDict, base::AbstractString; what = "th
     parsed = TOML.parse(text)
     configuration_kind(parsed) == kind || throw(ArgumentError("`$(path)` is not a $(kind) configuration"))
     return function ()
-        return (; valid = true, text, parsed)
+        return (; text, parsed)
     end
 end
 
 """
     write_configuration(spec)
 
-Save a model or a training configuration as the TOML text given: `{valid: true, path}` or the
-failure envelope. The text is parsed to check it is TOML and is the `kind` it is said to be;
+Save a model or a training configuration as the TOML text given: `{path}` or the
+failure. The text is parsed to check it is TOML and is the `kind` it is said to be;
 it is written as sent, comments and all, since the file is what an author reads back.
 
 Refuses as `write_document` does: a path outside the directory, a name not ending in `.toml`,
@@ -370,10 +370,11 @@ function write_configuration(spec::AbstractDict, base::AbstractString; what = "t
     configuration_kind(parsed) == kind || throw(ArgumentError("this is not a $(kind) configuration"))
     (isfile(full) && get(spec, "overwrite", false) !== true) &&
         throw(ArgumentError("`$(path)` already exists"))
-    mkpath(dirname(full))
-    write(full, text)
+    # Written when run, not when checked, so the probe writes nothing.
     return function ()
-        return (; valid = true, path)
+        mkpath(dirname(full))
+        write(full, text)
+        return (; path)
     end
 end
 
@@ -759,7 +760,7 @@ function evaluate_pipeline(spec::AbstractDict)
     if !isempty(empty)
         issues = vcat(empty, card_schema_issues(_nodes, groups, cols))
         failure = (;
-            valid = false, kind = "pipeline", cols,
+            kind = "pipeline", cols,
             errors = [issue.message for issue in issues], issues, referable = may_refer,
         )
         throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
@@ -857,7 +858,7 @@ function evaluate_pipeline(spec::AbstractDict)
             graph = sprint(Pipelines.graphviz, p)
             # Recomputed: the pipeline has added its output columns since `available` was taken.
             summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-            (; valid = true, summaries, visualization, graph, report)
+            (; summaries, visualization, graph, report)
         catch exception
             exception isa Exception || rethrow()
             # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
@@ -942,7 +943,12 @@ function get_processed_data(::AbstractDict)
         content_type = "text/csv"
         export_table(REPOSITORY[], From("selection"), path; format, use_tmp_file = false)
         writer = Writer()
-        headers = ["Content-Type" => content_type, "Content-Length" => content_length(writer, path)]
+        # `attachment` because browsers ignore a link's `download` across origins.
+        headers = [
+            "Content-Type" => content_type,
+            "Content-Length" => content_length(writer, path),
+            "Content-Disposition" => "attachment; filename=\"processed-data.csv\"",
+        ]
         return headers, writer
     end
 end

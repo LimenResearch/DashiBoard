@@ -96,6 +96,9 @@ function CorsMiddleware(handler)
         return if req.method == "OPTIONS"
             HTTP.streamhandler(options_handler)(stream)
         else
+            # Set here, before any route writes, so every reply carries it and no route can
+            # forget; a browser refuses a cross-origin reply without it.
+            foreach(Fix1(HTTP.setheader, stream), CORS_RES_HEADERS)
             handler(stream)
         end
     end
@@ -125,51 +128,78 @@ const JSON_HEADERS = [
     "Accept" => "application/json",
 ]
 
+"""
+    reply(stream, status, body = nothing)
+
+Write a JSON reply on `stream`. The routes write to the stream rather than return a `Response`,
+because a returned `Response` replaces the stream's own and would drop the headers
+`CorsMiddleware` set on it.
+"""
+function reply(stream::HTTP.Stream, status::Integer, body::Maybe{String} = nothing)
+    HTTP.setstatus(stream, status)
+    foreach(Fix1(HTTP.setheader, stream), JSON_HEADERS)
+    isnothing(body) || HTTP.setheader(stream, "Content-Length" => string(ncodeunits(body)))
+    startwrite(stream)
+    isnothing(body) || write(stream, body)
+    return
+end
+
 struct JSONHandler
     handlers::StringDict
 end
 
-function (h::JSONHandler)(req::HTTP.Request)
-    s = String(req.body)
-    # TODO: support list?
-    res::Union{JSONSuccess, JSONFailure, Nothing} = DashiBase.apply_handlers(h.handlers, s)
-    headers = JSON_HEADERS
-    return if isnothing(res)
-        HTTP.Response(204; headers)
-    else
-        HTTP.Response(200; headers, body = to_json(res))
-    end
+# Always 200 when there is a body, failures included: the error is in the body, and a batch
+# whose calls fared differently has no single status to give. Nothing to answer is 204.
+function (h::JSONHandler)(stream::HTTP.Stream)
+    res = DashiBase.apply_handlers(h.handlers, String(read(stream)))
+    isnothing(res) ? reply(stream, 204) : reply(stream, 200, to_json(res))
+    closewrite(stream)
+    closeread(stream)
+    return
+end
+
+"""
+    stream_status(failure) -> Int
+
+The status of a streamed request that failed. A stream may itself be JSON (`fetch-data` is), so
+the content type cannot tell a file from an error: the status does. A fault of the request is
+400, an unknown method 404, and a failure while running 500.
+"""
+function stream_status(failure::DashiBase.JSONFailure)
+    code = failure.error.code
+    return code == Int(DashiBase.method_not_found) ? 404 :
+        code == Int(DashiBase.internal_error) ? 500 : 400
 end
 
 struct JSONStreamHandler
     handlers::StringDict
 end
 
-function (h::JSONStreamHandler)(stream::HTTP.Stream)
-    s = read(String, stream)
+(h::JSONStreamHandler)(stream::HTTP.Stream) = stream_response(h, stream, String(read(stream)))
+
+function stream_response(h::JSONStreamHandler, stream::HTTP.Stream, s::AbstractString)
     mktemp() do path, _
         res = DashiBase.apply_handlers(h.handlers, s, path)
         if res isa Tuple
-            headers, writer = res
-            foreach(Fix1(HTTP.setheader, stream), headers)
+            success, writer = res
+            # The thunk's result is the headers of the file it wrote to `path`.
+            foreach(Fix1(HTTP.setheader, stream), success.result)
             HTTP.setstatus(stream, 200)
             startwrite(stream)
             writer(stream, path)
         elseif isnothing(res)
-            HTTP.setstatus(stream, 204)
-            foreach(Fix1(HTTP.setheader, stream), JSON_HEADERS)
-            startwrite(stream)
+            reply(stream, 204)
         else
-            HTTP.setstatus(stream, 200) # Consider error status here
-            foreach(Fix1(HTTP.setheader, stream), JSON_HEADERS)
-            startwrite(stream)
-            write(stream, to_json(res))
+            reply(stream, stream_status(res), to_json(res))
         end
         closewrite(stream)
         closeread(stream)
     end
     return
 end
+
+# What the GET download asks for, as the request a client would have sent to `/rpc-stream`.
+const PROCESSED_DATA_REQUEST = """{"jsonrpc":"2.0","id":0,"method":"get-processed-data","params":{}}"""
 
 """
     failure_report(kind::Symbol, exception)
@@ -200,7 +230,7 @@ function failure_report(kind::Symbol, exception::Exception)
         []
     end
     return (;
-        valid = false, kind,
+        kind,
         errors = [sprint(showerror, cause) for cause in root_causes(exception)],
         issues,
     )

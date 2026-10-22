@@ -93,9 +93,13 @@ function launch(
         HTTP.streamhandler(cors405)
     )
 
-    HTTP.register!(router, "POST", "/rpc", HTTP.streamhandler(JSONHandler(handlers)))
-    HTTP.register!(router, "POST", "/rpc-probe", HTTP.streamhandler(JSONHandler(probe_handlers)))
-    HTTP.register!(router, "POST", "/rpc-stream", JSONStreamHandler(stream_handlers))
+    HTTP.register!(router, "POST", "/rpc", JSONHandler(handlers))
+    HTTP.register!(router, "POST", "/rpc-probe", JSONHandler(probe_handlers))
+    stream_handler = JSONStreamHandler(stream_handlers)
+    HTTP.register!(router, "POST", "/rpc-stream", stream_handler)
+    # The table download as a plain GET: a link cannot carry a JSON-RPC body, and only a download
+    # the browser makes itself streams to disk rather than through the page's memory.
+    HTTP.register!(router, "GET", "/get-processed-data", stream -> stream_response(stream_handler, stream, PROCESSED_DATA_REQUEST))
 
     # Logging outermost, so it sees what the CORS layer answers itself (an `OPTIONS` preflight)
     # and what the router rejects before any handler runs (a 404 or 405).

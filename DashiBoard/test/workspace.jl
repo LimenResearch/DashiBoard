@@ -229,8 +229,9 @@ launcher(args...) = addenv(
             for _ in 1:600
                 process_exited(proc) && break
                 try
-                    r = HTTP.post("http://127.0.0.1:$(port)/get-card-ir", body = JSON.json((; cols = ["a"], nodes = String[], groups = String[], include = ["cards"])))
-                    ir = JSON.parse(r.body)
+                    params = (; cols = ["a"], nodes = String[], groups = String[], include = ["cards"])
+                    r = HTTP.post("http://127.0.0.1:$(port)/rpc", body = JSON.json((; jsonrpc = "2.0", id = 1, method = "get-card-ir", params)))
+                    ir = JSON.parse(r.body)["result"]
                     funnel = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "funnel")
                     transforms = only(p for p in funnel["value"]["objects"][""]["properties"] if p["key"] == "input_transforms")
                     @test "double" in transforms["value"]["values"]["enum"]
@@ -256,7 +257,9 @@ launcher(args...) = addenv(
         gone = false
         for _ in 1:40
             gone = try
-                HTTP.post("http://127.0.0.1:$(port)/list-files", body = "{}"; connect_timeout = 1, readtimeout = 1, retry = false); false
+                # A request a live server answers 200, so only an unreachable server throws.
+                body = JSON.json((; jsonrpc = "2.0", id = 1, method = "list-files", params = Dict()))
+                HTTP.post("http://127.0.0.1:$(port)/rpc"; body, connect_timeout = 1, readtimeout = 1, retry = false); false
             catch
                 true
             end

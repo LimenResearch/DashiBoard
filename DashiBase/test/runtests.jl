@@ -328,7 +328,7 @@ end
     for bad in ("""{"id":1,"method":"echo","params":1}""", """{"jsonrpc":"1.0","id":1,"method":"echo","params":1}""")
         @test rpc(bad)["error"]["code"] == -32600
     end
-    for id in ("\"abc\"", "1.5", "true")
+    for id in ("\"abc\"", "1.5", "true", "99999999999999999999")
         r = rpc("""{"jsonrpc":"2.0","id":$(id),"method":"echo","params":1}""")
         @test r["error"]["code"] == -32600 && r["id"] === nothing
     end
@@ -337,7 +337,6 @@ end
     # A notification is never answered, not even when it fails.
     @test DashiBase.apply_handlers(handlers, """{"jsonrpc":"2.0","method":"nope","params":1}""") === nothing
     @test DashiBase.apply_handlers(handlers, """{"jsonrpc":"2.0","method":"nope","params":1}""", tempname()) === nothing
-    @test occursin("64-bit", rpc("""{"jsonrpc":"2.0","id":99999999999999999999,"method":"echo","params":1}""")["error"]["message"])
 
     batch = rpc("""[
         {"jsonrpc":"2.0","id":1,"method":"echo","params":1},

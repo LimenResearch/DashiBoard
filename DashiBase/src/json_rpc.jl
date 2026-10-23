@@ -89,8 +89,10 @@ function _get_request(d::AbstractDict)
     id = get(d, "id", nothing)
     # Ids are integers here, a narrowing of the spec's string-or-number. One that is not cannot
     # be echoed back, so the failure carries `null`, as the spec says for an undetectable id.
+    # `Int` rather than `Integer`: `true` is an `Integer` and would be answered as id 1, and a
+    # `BigInt` cannot be stored in the reply.
     if !(id isa Union{Int, Nothing})
-        error = json_error(invalid_request, "`id` must be a 64-bit integer")
+        error = json_error(invalid_request, "`id` must be an integer")
         return JSONFailure(; error)
     end
     if get(d, "jsonrpc", nothing) != "2.0"

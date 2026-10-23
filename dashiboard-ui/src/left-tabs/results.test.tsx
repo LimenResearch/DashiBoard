@@ -16,6 +16,9 @@ import {
   FILTERS_STORE, LOADER_STORE, Interval,
 } from '../stores';
 
+// A call the server refused, as `postRequest` hands it back.
+const refused = (data: object) => ({ error: { code: -32602, message: 'refused', data } });
+
 /** Two nodes, so a per-node report has something to be paired with. */
 const DOCUMENT: CardsStore = {
   nodes: [
@@ -175,11 +178,9 @@ describe('Results', () => {
     // components than there are columns — used to leave the screen completely unchanged. The
     // button went back to "Run pipeline" and nothing else happened, which reads as "nothing
     // occurred" rather than "it failed".
-    serve({
-      valid: false,
-      errors: ['Binder Error: MethodError: no method matching add_result_column'],
+    serve(refused({ errors: ['Binder Error: MethodError: no method matching add_result_column'],
       issues: [],
-    });
+    }));
     const { container, getByText } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
@@ -194,7 +195,7 @@ describe('Results', () => {
     // a document that could not be built is fixed in the form, a run that died is fixed in the
     // data. The server's own text is shown either way — it is the part nobody could have written
     // in advance.
-    serve({ valid: false, kind: 'pipeline', errors: ['duplicate id ""'], issues: [] });
+    serve(refused({ kind: 'pipeline', errors: ['duplicate id ""'], issues: [] }));
     const { container, getByText, unmount } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
@@ -203,7 +204,7 @@ describe('Results', () => {
     expect(container.textContent).toContain('duplicate id');
     unmount();
 
-    serve({ valid: false, kind: 'execution', errors: ['Binder Error'], issues: [] });
+    serve(refused({ kind: 'execution', errors: ['Binder Error'], issues: [] }));
     const second = render(() => <Results />);
     await runPipeline(second.getByText);
     await waitFor(() =>
@@ -225,7 +226,7 @@ describe('Results', () => {
   });
 
   it('clears a previous failure once a run succeeds', async () => {
-    serve({ valid: false, errors: ['boom'], issues: [] });
+    serve(refused({ errors: ['boom'], issues: [] }));
     const { container, getByText } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
@@ -251,11 +252,11 @@ describe('a run that failed to build', () => {
     importCards({ nodes: [{ id: 'a', card: { type: 'cluster' } }, { id: 'b', card: { type: 'split' } }], groups: {} });
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'evaluate-pipeline'
-        ? { valid: false, kind: 'pipeline', errors: ['2 schema validation errors: …'],
+        ? refused({ kind: 'pipeline', errors: ['2 schema validation errors: …'],
             issues: [
               { pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null, allowed: null, missing: ['method', 'inputs'], related: ['/nodes/0/card/method', '/nodes/0/card/inputs'], message: 'x' },
               { pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null, allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'y' },
-            ] }
+            ] })
         : []));
     const { container, getByText } = render(() => <Results />);
     fireEvent.click(getByText(/run pipeline/i));
@@ -278,10 +279,10 @@ describe('a run that failed to build', () => {
     // put an empty-group failure on the card count, with nothing on screen to show for it.
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'evaluate-pipeline'
-        ? { valid: false, kind: 'pipeline', errors: ['group `g` has no columns'],
+        ? refused({ kind: 'pipeline', errors: ['group `g` has no columns'],
             issues: [
               { pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' },
-            ] }
+            ] })
         : []));
     const { container, getByText } = render(() => <Results />);
     fireEvent.click(getByText(/run pipeline/i));
@@ -341,7 +342,7 @@ describe('the pointer next to Run pipeline', () => {
   it('keeps a failed run\'s names when a stale probe reply lands afterwards', async () => {
     // Measured 2026-09-17: the run wrote its issues into the probe store, an older probe reply
     // overwrote them, and the line went blank while the card stayed red. One source now.
-    serve({ valid: false, kind: 'pipeline', errors: ['x'], issues: [issue('/nodes/0/card')] });
+    serve(refused({ kind: 'pipeline', errors: ['x'], issues: [issue('/nodes/0/card')] }));
     const { container, getByText } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(line(container)).not.toBeNull());
@@ -351,7 +352,7 @@ describe('the pointer next to Run pipeline', () => {
   });
 
   it('names nothing for a failed run with no item to point at; the text is under Run', async () => {
-    serve({ valid: false, kind: 'pipeline', errors: ['The input graph contains at least one loop.'], issues: [] });
+    serve(refused({ kind: 'pipeline', errors: ['The input graph contains at least one loop.'], issues: [] }));
     const { container, getByText } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
@@ -428,9 +429,9 @@ describe('the document\'s own line next to Run pipeline', () => {
   });
 
   it('a failed run records it, and the sentence is on screen once', async () => {
-    serve({ valid: false, kind: 'pipeline', errors: [LOOP],
+    serve(refused({ kind: 'pipeline', errors: [LOOP],
       issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
-        missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] });
+        missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] }));
     const { container, getByText } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());
@@ -486,7 +487,7 @@ describe('the dot next to Run pipeline', () => {
   });
 
   it('turns red on a failed run, and the run\'s text goes once the pipeline is no longer the one that failed', async () => {
-    serve({ valid: false, kind: 'execution', errors: ['Binder Error'], issues: [] });
+    serve(refused({ kind: 'execution', errors: ['Binder Error'], issues: [] }));
     const { container, getByText } = render(() => <Results />);
     await runPipeline(getByText);
     await waitFor(() => expect(container.querySelector('[data-run-error]')).not.toBeNull());

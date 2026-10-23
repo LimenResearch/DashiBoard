@@ -10,9 +10,10 @@ using Base.ScopedValues: @with, ScopedValue
 
 using HTTP: HTTP, startread, startwrite, closeread
 
-using Dates: Dates
 
 using Scratch: @get_scratch!
+
+using StructUtils: @kwarg, StructUtils
 
 using JSON: JSON
 
@@ -26,7 +27,8 @@ using DBInterface: DBInterface
 
 using Tables: Tables
 
-using FunSQL: SQLNode,
+using FunSQL:
+    SQLNode,
     From,
     Limit,
     Group,
@@ -40,13 +42,8 @@ using FunSQL: SQLNode,
     Desc,
     Fun
 
+using DashiBase: StringDict, Maybe, ProbedThunk, DashiBase
 using DuckDBUtils: Repository, export_table, to_nrow, colnames
-
-# `finite_projection` (handlers.jl) reads a table's column types out of `information_schema`, and
-# the cheapest way to consume that result is the same `DataFrame` the test suite already builds
-# results with. `DataFrames` is a DashiBoard dependency already — brought into scope here rather
-# than adding a new one.
-using DataFrames: DataFrame
 
 using DataIngestion: Filter, DataIngestion
 

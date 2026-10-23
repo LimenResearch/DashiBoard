@@ -15,7 +15,7 @@ const payload = raw as Record<string, unknown>;
 
 describe('card-ir.json', () => {
   it('has no nulls, because the route omits them', () => {
-    // `json_response(…; omit_null = true)`. In the IR `nothing` means "the type declares no
+    // `to_json(…; omit_null = true)`. In the IR `nothing` means "the type declares no
     // default", so a serialised `null` turns an *absence* into a present value: `defaultsFor` read
     // `default: null` as a default and gave a new card `{type: null}`.
     const nulls: string[] = [];

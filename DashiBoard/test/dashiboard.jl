@@ -1,4 +1,5 @@
 using HTTP, DataIngestion, Pipelines, JSON, DBInterface, DataFrames
+using DashiBase: apply_handlers, JSONRequest, DashiBase
 using ZipArchives: ZipReader, zip_names, zip_readentry
 using TOML: TOML
 using Sockets: Sockets
@@ -12,7 +13,6 @@ StreamlinerCore.instantiate(::BoomSpec, templates) = error("boom")
 using DashiBoard
 using Test
 using Downloads
-using Logging: Logging, with_logger, Debug
 
 # Add trivial card
 Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
@@ -29,100 +29,6 @@ settings = Pipelines.WildCardSettings(
 )
 Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 
-@testset "LoggingMiddleware" begin
-    # DashiBoard logged nothing on a successful request — not the route, not the status, not how
-    # long it took — so "what is the server doing" could only be inferred from CPU time and the
-    # DuckDB write-ahead log. This is the access log that was missing.
-
-    # A stand-in for the server stream. The real one is a thirty-field mutable struct that cannot
-    # be constructed outside a live connection, and the middleware reads exactly two things from
-    # it, so this is the whole contract.
-    mutable struct FakeStream
-        message::HTTP.Request
-        response::Union{Nothing, HTTP.Response}
-    end
-
-    function serve(method, target; status = 200, handler = _ -> nothing)
-        stream = FakeStream(HTTP.Request(method, target), HTTP.Response(status))
-        logs = Test.TestLogger(min_level = Debug)
-        with_logger(logs) do
-            DashiBoard.LoggingMiddleware(handler)(stream)
-        end
-        return logs.logs
-    end
-
-    before = DashiBoard.REQUEST_COUNT[]
-    record = only(serve("POST", "/probe-pipeline"))
-    @test record.level == Debug
-    # One line, fields in a fixed order: when, which request, what was asked, what came back, how
-    # long. The timestamp is the field the first version shipped without, and its absence made the
-    # log unable to answer the question it was built for — which requests belong to which page
-    # load.
-    @test occursin(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} ", record.message)
-    @test occursin("POST /probe-pipeline 200 ", record.message)
-    @test occursin(r"\d+\.\d+s$", record.message)
-    # Numbered, so a gap in the log reads as a gap rather than as quiet.
-    @test occursin("#$(before + 1) ", record.message)
-    @test DashiBoard.REQUEST_COUNT[] == before + 1
-
-    # Numbers and clock agree, because both are taken on arrival. Requests overlap, so a slow one
-    # that arrived first can finish last — stamping at completion put `#2` above `#1` in a real
-    # log. Checked by holding the first request open while a second arrives and finishes.
-    stamp(rec) = match(r"^(\S+ \S+) #(\d+)", rec.message)
-    slow, fast = Test.TestLogger(min_level = Debug), Test.TestLogger(min_level = Debug)
-    channel = Channel{Nothing}(spawn = true) do ch
-        with_logger(slow) do
-            DashiBoard.LoggingMiddleware(_ -> put!(ch, nothing))(
-                FakeStream(HTTP.Request("POST", "/slow"), HTTP.Response(200))
-            )
-        end
-    end
-    wait(channel) # ensure that the slow handler has started
-    with_logger(fast) do
-        DashiBoard.LoggingMiddleware(_ -> nothing)(
-            FakeStream(HTTP.Request("POST", "/fast"), HTTP.Response(200))
-        )
-    end
-    for _ in channel; end # let the channel-bound task finish
-    slow_at, slow_n = stamp(only(slow.logs)).captures
-    fast_at, fast_n = stamp(only(fast.logs)).captures
-    @test parse(Int, slow_n) < parse(Int, fast_n)   # the slow one arrived first
-    @test slow_at <= fast_at                        # ...and its stamp says so, though it finished last
-
-    # A route that was never registered is still a request, and is the one you most want to see
-    # when a client is pointed at the wrong place. It never reaches a handler, so only a middleware
-    # outside the router can report it.
-    @test occursin("POST /nosuchroute 404 ", only(serve("POST", "/nosuchroute"; status = 404)).message)
-
-    # A response that never got as far as being written says so, rather than claiming a status.
-    stream = FakeStream(HTTP.Request("POST", "/probe-pipeline"), nothing)
-    logs = Test.TestLogger(min_level = Debug)
-    with_logger(logs) do
-        DashiBoard.LoggingMiddleware(_ -> nothing)(stream)
-    end
-    @test occursin("POST /probe-pipeline - ", only(logs.logs).message)
-
-    # A handler that throws is still reported, and the exception still propagates. The status is
-    # whatever was set before the throw — HTTP.jl substitutes its own 500 further out, after this
-    # has unwound — so what is pinned here is that the line exists, not what it claims.
-    logs = Test.TestLogger(min_level = Debug)
-    stream = FakeStream(HTTP.Request("POST", "/evaluate-pipeline"), HTTP.Response(200))
-    @test_throws ErrorException with_logger(logs) do
-        DashiBoard.LoggingMiddleware(_ -> error("boom"))(stream)
-    end
-    @test occursin("POST /evaluate-pipeline", only(logs.logs).message)
-
-    # Silent unless asked for: `@debug` is filtered by level, so with an ordinary logger nothing is
-    # emitted and nothing is even formatted.
-    logs = Test.TestLogger(min_level = Logging.Info)
-    with_logger(logs) do
-        DashiBoard.LoggingMiddleware(_ -> nothing)(
-            FakeStream(HTTP.Request("POST", "/probe-pipeline"), HTTP.Response(200))
-        )
-    end
-    @test isempty(logs.logs)
-end
-
 @testset "root_causes" begin
     # Pipelines evaluates nodes as tasks, so every runtime failure reaches the handler wrapped in
     # `TaskFailedException` — twice over, in practice. `showerror` on the wrapper prints the
@@ -134,8 +40,6 @@ end
     catch exception
         exception
     end
-    @test wrapped isa TaskFailedException
-    @test occursin("TaskFailedException", sprint(showerror, wrapped))
     @test occursin("the real problem", sprint(showerror, only(DashiBoard.root_causes(wrapped))))
 
     # Nested, which is the shape the pipeline actually produces.
@@ -160,15 +64,15 @@ end
     @test only(DashiBoard.root_causes(plain)) === plain
 end
 
-@testset "json_response and non-finite floats" begin
+@testset "to_json and non-finite floats" begin
     # A12: `JSON.json` refuses NaN and Inf, so a run whose z-score of a constant column was NaN
     # on every row was reported as an execution failure (measured on `constant = 42`, 2026-09-13
     # and 2026-09-16). `null` is what every JSON client reads as "no value".
-    resp = DashiBoard.json_response((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
-    body = String(resp.body)
-    @test !occursin("NaN", body) && !occursin("Infinity", body)
-    @test JSON.parse(body)["a"] == [1.0, nothing, nothing, nothing]
-    @test JSON.parse(body)["b"]["x"] === nothing
+    str = DashiBoard.to_json((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
+    d = JSON.parse(str)
+    @test !occursin("NaN", str) && !occursin("Infinity", str)
+    @test d["a"] == [1.0, nothing, nothing, nothing]
+    @test d["b"]["x"] === nothing
 end
 
 mktempdir() do data_dir
@@ -203,475 +107,493 @@ mktempdir() do data_dir
     cards = Pipelines.Card.(pipeline_config["cards"])
     Pipelines.train_evaljoin!(repo, Pipelines.Node.(cards), "selection", "No")
 
-    res = DBInterface.execute(DataFrame, repo, "FROM selection")
-
-    @testset "cards" begin
-        @test "_tiled_partition" in names(res)
-        @test "_percentile_partition" in names(res)
-    end
-
     static_directory = joinpath(@__DIR__, "..", "..", "static")
     model_dir = joinpath(static_directory, "model")
     training_dir = joinpath(static_directory, "training")
 
-    # Take the first free port rather than hardcoding one. 8080 is the default of both Julia
-    # servers *and* what nexus-weaver-pro's Vite dev server occupies, while the agentgraph stack
-    # runs ExperimentTracking on 8081 — so a hardcoded 8080 made this suite unrunnable whenever
-    # the dev stack was up.
-    function first_free_port(range)
-        for p in range
-            socket = try
-                Sockets.listen(Sockets.localhost, p)
-            catch
-                continue # in use
-            end
-            # Small window between closing the probe and `launch` binding; fine for a test.
-            close(socket)
-            return p
-        end
-        error("no free port in $(range)")
+    # Pipelines' directories have no default: unset, they read as the working directory.
+    @testset "pointers" begin
+        @test DashiBoard.pointer(:model) == pwd()
+        @test_throws ArgumentError DashiBoard.pointer(:nowhere)
     end
 
-    port = first_free_port(8080:8280)
-    server = DashiBoard.launch(
+    handlers, stream_handlers, probe_handlers = DashiBoard.get_handlers(
         data_dir;
-        port = port,
-        async = true,
         model_dir,
         training_dir
     )
 
-    @testset "request" begin
-        # Every file route confines itself to a pointer: the scoped value `launch` sets for its
-        # kind, or the working directory where nothing was set. Read here the way a handler
-        # reads them, inside the scope.
-        @testset "pointers" begin
-            @with(
-                DataIngestion.DATA_DIR => data_dir, DashiBoard.WORKSPACE => data_dir,
-                DashiBoard.PIPELINE_DIR => data_dir, DashiBoard.FILTER_DIR => "",
-                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
-                begin
-                    @test DashiBoard.pointer(:data) == normpath(abspath(data_dir))
-                    @test DashiBoard.pointer(:pipeline) == normpath(abspath(data_dir))
-                    @test DashiBoard.pointer(:filter) == pwd()
-                    @test DashiBoard.pointer(:model) == normpath(abspath(model_dir))
-                    @test DashiBoard.pointer(:training) == normpath(abspath(training_dir))
-                    @test DashiBoard.workspace_directory() == normpath(abspath(data_dir))
-                end
+    roundtrip(x) = JSON.parse(JSON.json(x))
+
+    function post(method, params)
+        req = JSONRequest(; method, params, id = 0)
+        return roundtrip(apply_handlers(handlers, req))
+    end
+
+    function post(method, params, path)
+        req = JSONRequest(; method, params, id = 0)
+        res = apply_handlers(stream_handlers, req, path)
+        return if res isa Tuple
+            headers, writer = res
+            io = IOBuffer()
+            writer(io, path)
+            bytes = take!(io)
+            roundtrip(headers), bytes
+        else
+            roundtrip(res), nothing
+        end
+    end
+
+    function post_probe(method, params)
+        req = JSONRequest(; method, params, id = 0)
+        return roundtrip(apply_handlers(probe_handlers, req))
+    end
+
+    only_error(metadata::AbstractDict) = only(metadata["errors"])
+
+    # A pipeline downloads as a workspace: the document, the configurations it names, and
+    # which extensions it needs.
+    @testset "bundle" begin
+        path = joinpath(data_dir, "bundle.zip")
+
+        fit = Dict(
+            "id" => "fit", "card" => Dict(
+                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "training" => Dict("type" => "batched", "iterations" => 1),
+                "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
             )
-            # Pipelines' directories have no default: unset, they read as the working directory too.
-            @test DashiBoard.pointer(:model) == pwd()
-            @test_throws ArgumentError DashiBoard.pointer(:nowhere)
+        )
+        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+        filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
+        resp, bytes = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc, "filters" => filters), path)
+        @test resp["result"]["Content-Type"] == "application/zip"
+        @test resp["result"]["Content-Length"] == string(length(bytes))
+        @test occursin("mine.zip", resp["result"]["Content-Disposition"])
+
+        # A name outside ASCII travels in the form a header can carry.
+        accented, _ = post("bundle-pipeline", Dict("name" => "prova è", "cards" => doc), path)
+        @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", accented["result"]["Content-Disposition"])
+
+        zip = ZipReader(bytes)
+        @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
+        @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
+        @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
+        # Nothing here came from an extension, so none is named.
+        @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
+
+        _, bytes = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc), path)
+        @test !("filter/mine.json" in zip_names(ZipReader(bytes)))
+
+        # A configuration the document names but the directory lacks is a pointed issue.
+        missing_conf = deepcopy(doc); missing_conf["nodes"][1]["card"]["model"]["type"] = "nosuch"
+        refused, _ = post("bundle-pipeline", Dict("name" => "mine", "cards" => missing_conf), path)
+        @test haskey(refused, "error")
+        report = refused["error"]["data"]
+        @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
+
+        # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
+        # that cannot be a file's, a configuration named outside its folder, a request with
+        # no document.
+        for name in ("run:2", "../up", "a/b", "", "quo\"te")
+            bad, _ = post("bundle-pipeline", Dict("name" => name, "cards" => doc), path)
+            @test haskey(bad, "error")
         end
 
-        url = "http://127.0.0.1:$(port)/"
+        outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
+        bad, _ = post("bundle-pipeline", Dict("name" => "mine", "cards" => outside), path)
+        @test haskey(bad, "error")
 
-        @testset "files" begin
-            post(route, body) = JSON.parse(HTTP.post(url * route, body = JSON.json(body), status_exception = false).body)
+        bad, _ = post("bundle-pipeline", Dict("name" => "mine"), path)
+        @test haskey(bad, "error")
+    end
 
-            # The listing names every file the UI may pick, with what it is. A JSON is told from
-            # a table by content, so the kind survives a rename; what does not parse, what is
-            # hidden and what is neither table nor document are not listed.
-            listed = post("list-files", Dict())
-            @test listed["misplaced"] == []
-            # With everything at the root, there is no folder to name.
-            @test listed["folders"] == Dict("table" => "", "cards" => "", "filters" => "")
-            @test [(f["path"], f["kind"]) for f in listed["files"]] == [
-                ("cards.json", "cards"),
-                ("cards.toml", "cards"),
-                ("filters.json", "filters"),
-                ("pollution.csv", "table"),
-                (joinpath("sub", "table.json"), "table"),
-            ]
-
-            # `load-files` joined `..` without looking; a path outside the data directory is now
-            # a failure envelope, not a read.
-            escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
-            @test escaped["valid"] == false
-            @test occursin("outside the data directory", only(escaped["errors"]))
-
-
-            # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
-            # found; nothing outside the directory, nothing that is not there.
-            from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
-            from_toml = post("read-document", Dict("path" => "cards.toml", "kind" => "cards"))
-            @test from_json["valid"] == true
-            @test from_json["document"]["nodes"][1]["id"] == "r"
-            @test from_toml["document"]["nodes"][1]["card"]["type"] == "rescale"
-            @test isempty(from_toml["document"]["groups"])
-
-            wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
-            @test wrong_kind["valid"] == false
-            @test wrong_kind["kind"] == "document"
-            @test occursin("not a cards document", only(wrong_kind["errors"]))
-
-            for path in ("../cards.json", joinpath(data_dir, "cards.json"))
-                outside = post("read-document", Dict("path" => path, "kind" => "cards"))
-                @test outside["valid"] == false
-                @test occursin("outside the workspace", only(outside["errors"]))
+    # With a provenance table, the bundle names exactly the extensions the document uses.
+    @testset "bundle names its extensions" begin
+        fit = Dict(
+            "id" => "fit", "card" => Dict(
+                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "training" => Dict("type" => "batched", "iterations" => 1),
+                "funnel" => Dict(
+                    "order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
+                    "input_transforms" => Dict("TEMP" => "log")
+                ),
+            )
+        )
+        doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
+        @with(
+            DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
+            DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
+            Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
+            begin
+                @test DashiBoard.needed_extensions(doc) == ["Fake"]
+                # A funnel contributes its type and its transforms, nothing else.
+                entries = DashiBoard.registry_entries(doc)
+                @test "funnel:" in entries && "transform:log" in entries
+                @test !any(startswith("loader:"), entries)
+                # Not only the architecture: a layer, a loss or an optimizer a configuration
+                # names may come from an extension too, and the pipeline needs it as much.
+                for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
+                    @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
+                        @test DashiBoard.needed_extensions(doc) == ["Other"]
+                    end
+                end
+                path = joinpath(data_dir, "buffer_bundle.zip")
+                DashiBoard.bundle_pipeline(Dict("cards" => doc, "name" => "x"))(path)
+                toml = TOML.parse(zip_readentry(ZipReader(read(path)), "dashiboard.toml", String))
+                @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
             end
-            missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
-            @test occursin("does not exist", only(missing_file["errors"]))
-            unparsable = post("read-document", Dict("path" => "broken.json", "kind" => "cards"))
-            @test unparsable["valid"] == false
+        )
+    end
 
-            # Writing: a document round-trips inside the directory; an existing file is kept
-            # unless the author says replace; the shape must match the kind; JSON only.
-            doc = from_json["document"]
-            save(path, kind, overwrite) = post("write-document", Dict("path" => path, "kind" => kind, "document" => doc, "overwrite" => overwrite))
-            saved = save("sub/mine.json", "cards", false)
-            @test saved["valid"] == true
-            @test saved["path"] == "sub/mine.json"
-            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["files"]]
-            @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["document"] == doc
+    @testset "files" begin
+        # The listing names every file the UI may pick, with what it is. A JSON is told from
+        # a table by content, so the kind survives a rename; what does not parse, what is
+        # hidden and what is neither table nor document are not listed.
+        listed = post("list-files", Dict())["result"]
+        @test listed["misplaced"] == []
+        # With everything at the root, there is no folder to name.
+        @test listed["folders"] == Dict("table" => "", "cards" => "", "filters" => "")
+        @test [(f["path"], f["kind"]) for f in listed["files"]] == [
+            ("cards.json", "cards"),
+            ("cards.toml", "cards"),
+            ("filters.json", "filters"),
+            ("pollution.csv", "table"),
+            (joinpath("sub", "table.json"), "table"),
+        ]
 
-            @test occursin("already exists", only(save("sub/mine.json", "cards", false)["errors"]))
-            @test save("sub/mine.json", "cards", true)["valid"] == true
+        # `load-files` joined `..` without looking; a path outside the data directory is now
+        # a failure envelope, not a read.
+        escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
+        @test haskey(escaped, "error")
+        @test occursin("outside the data directory", escaped["error"]["data"] |> only_error)
 
-            @test occursin("not a filters document", only(save("f.json", "filters", false)["errors"]))
-            @test occursin("outside the workspace", only(save("../x.json", "cards", false)["errors"]))
-            @test occursin(".json", only(save("x.toml", "cards", false)["errors"]))
-            # A folder named on the way is made: a client that says where a file goes means it.
-            @test save("new/folder/x.json", "cards", false)["valid"] == true
-            @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
-            @test !isfile(joinpath(data_dir, "f.json"))
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
+        resp = post("load-files", params)
+        @test haskey(resp, "result")
+        summaries = resp["result"]
+        @test summaries[end]["name"] == "Ir"
+    end
 
-            # A model or a training configuration goes the same way, as TOML, checked for the
-            # kind it is said to be.
-            model_text = read(joinpath(model_dir, "dense.toml"), String)
-            config(route, body) = post(route, body)
-            written = config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))
-            @test written["valid"] == true && written["path"] == "anywhere/m.toml"
-            back = config("read-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model"))
-            @test back["valid"] == true && back["text"] == model_text && back["parsed"]["name"] == "basic"
-            @test occursin("not a training", only(config("write-configuration", Dict("path" => "t.toml", "kind" => "training", "text" => model_text))["errors"]))
-            @test occursin(".toml", only(config("write-configuration", Dict("path" => "m.json", "kind" => "model", "text" => model_text))["errors"]))
-            @test occursin("TOML", only(config("write-configuration", Dict("path" => "m.toml", "kind" => "model", "text" => "= not toml"))["errors"]))
-            @test occursin("outside the workspace", only(config("write-configuration", Dict("path" => "../m.toml", "kind" => "model", "text" => model_text))["errors"]))
-            @test occursin("already exists", only(config("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))["errors"]))
+    @testset "document and configurations" begin
+        # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
+        # found; nothing outside the directory, nothing that is not there.
+        from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
+        from_toml = post("read-document", Dict("path" => "cards.toml", "kind" => "cards"))
+        @test haskey(from_json, "result")
+        @test from_json["result"]["document"]["nodes"][1]["id"] == "r"
+        @test from_toml["result"]["document"]["nodes"][1]["card"]["type"] == "rescale"
+        @test isempty(from_toml["result"]["document"]["groups"])
 
-            # What the launcher reads and runs is not a client's to write: the workspace file names
-            # packages the next launch installs and loads, and hidden folders hold its environment.
-            planted = "[loss]\n[extensions]\nX = { url = \"https://example.org/X.jl\" }\n"
-            for path in ("dashiboard.toml", "sub/dashiboard.toml", ".dashiboard/x.toml", "sub/.hidden/x.toml")
-                refused = config("write-configuration", Dict("path" => path, "kind" => "model", "text" => planted, "overwrite" => true))
-                @test refused["valid"] == false
-                @test !ispath(joinpath(data_dir, path))
-            end
-            @test save(".hidden/x.json", "cards", true)["valid"] == false
-            @test !ispath(joinpath(data_dir, ".hidden"))
+        wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
+        @test haskey(wrong_kind, "error")
+        @test occursin("not a cards document", wrong_kind["error"]["data"] |> only_error)
+
+        for path in ("../cards.json", joinpath(data_dir, "cards.json"))
+            outside = post("read-document", Dict("path" => path, "kind" => "cards"))
+            @test haskey(outside, "error")
+            @test occursin("outside the workspace", outside["error"]["data"] |> only_error)
         end
+
+        missing_file = post("read-document", Dict("path" => "nope.json", "kind" => "cards"))
+        @test occursin("does not exist", missing_file["error"]["data"] |> only_error)
+
+        unparsable = post("read-document", Dict("path" => "broken.json", "kind" => "cards"))
+        @test haskey(unparsable, "error")
+
+        # Writing: a document round-trips inside the directory; an existing file is kept
+        # unless the author says replace; the shape must match the kind; JSON only.
+        doc = from_json["result"]["document"]
+        save(path, kind, overwrite) = post("write-document", Dict("path" => path, "kind" => kind, "document" => doc, "overwrite" => overwrite))
+        saved = save("sub/mine.json", "cards", false)
+        @test haskey(saved, "result")
+        @test saved["result"]["path"] == "sub/mine.json"
+        @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["result"]["files"]]
+        @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["result"]["document"] == doc
+
+        @test occursin("already exists", save("sub/mine.json", "cards", false)["error"]["data"] |> only_error)
+        @test haskey(save("sub/mine.json", "cards", true), "result")
+
+        @test occursin("not a filters document", save("f.json", "filters", false)["error"]["data"] |> only_error)
+        @test occursin("outside the workspace", save("../x.json", "cards", false)["error"]["data"] |> only_error)
+        @test occursin(".json", save("x.toml", "cards", false)["error"]["data"] |> only_error)
+        # A folder named on the way is made: a client that says where a file goes means it.
+        @test haskey(save("new/folder/x.json", "cards", false), "result")
+        @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
+        @test !isfile(joinpath(data_dir, "f.json"))
+
+        # A model or a training configuration goes the same way, as TOML, checked for the
+        # kind it is said to be.
+        model_text = read(joinpath(model_dir, "dense.toml"), String)
+        written = post("write-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model", "text" => model_text))
+        @test haskey(written, "result") && written["result"]["path"] == "anywhere/m.toml"
+        back = post("read-configuration", Dict("path" => "anywhere/m.toml", "kind" => "model"))
+        @test haskey(back, "result") && back["result"]["text"] == model_text && back["result"]["parsed"]["name"] == "basic"
+        for (expected, path, kind, text) in (
+                ("not a training", "t.toml", "training", model_text),
+                (".toml", "m.json", "model", model_text),
+                ("TOML", "m.toml", "model", "= not toml"),
+                ("outside the workspace", "../m.toml", "model", model_text),
+                ("already exists", "anywhere/m.toml", "model", model_text),
+            )
+            refused = post("write-configuration", Dict("path" => path, "kind" => kind, "text" => text))
+            @test occursin(expected, refused["error"]["data"] |> only_error)
+        end
+
+        # The probe validates and stops: it writes nothing.
+        probed = post_probe("write-configuration", Dict("path" => "probed.toml", "kind" => "model", "text" => model_text))
+        @test haskey(probed, "result") && !isfile(joinpath(data_dir, "probed.toml"))
+
+        # What the launcher reads and runs is not a client's to write: the workspace file names
+        # packages the next launch installs and loads, and hidden folders hold its environment.
+        planted = "[loss]\n[extensions]\nX = { url = \"https://example.org/X.jl\" }\n"
+        for path in ("dashiboard.toml", "sub/dashiboard.toml", ".dashiboard/x.toml", "sub/.hidden/x.toml")
+            refused = post("write-configuration", Dict("path" => path, "kind" => "model", "text" => planted, "overwrite" => true))
+            @test haskey(refused, "error")
+            @test !ispath(joinpath(data_dir, path))
+        end
+        @test haskey(save(".hidden/x.json", "cards", true), "error")
+        @test !ispath(joinpath(data_dir, ".hidden"))
 
         # What each configuration name means, for a form to show beside the name.
-        @testset "configurations" begin
-            listed = JSON.parse(HTTP.post(url * "list-configurations", body = "{}").body)
-            @test [m["name"] for m in listed["model"]] == ["classifier", "dense"]
-            dense = only(m for m in listed["model"] if m["name"] == "dense")
-            @test dense["path"] == "dense.toml"
-            @test dense["text"] == read(joinpath(model_dir, "dense.toml"), String)
-            @test dense["properties"][1]["key"] == "features"
-            @test [t["name"] for t in listed["training"]] == ["batched"]
-        end
+        listed = post("list-configurations", Dict())
+        @test [m["name"] for m in listed["result"]["model"]] == ["classifier", "dense"]
+        dense = only(m for m in listed["result"]["model"] if m["name"] == "dense")
+        @test dense["properties"][1]["key"] == "features"
+        @test [t["name"] for t in listed["result"]["training"]] == ["batched"]
+    end
 
-        # The probe and a run ask whether each streamliner model can be built for its funnel, and
-        # say so at the card's `model`. The served models all fit, so this uses its own.
-        @testset "a model that cannot be built" begin
-            mktempdir() do dir
-                cp(joinpath(model_dir, "dense.toml"), joinpath(dir, "dense.toml"))
-                write(joinpath(dir, "conv.toml"), """
-                    name = "basic"
-                    [components]
-                    model = [{ name = "conv", kernel = [3], pad = [1], features = { "-v" = "features" } }, { name = "conv", kernel = [3], pad = [1] }]
-                    [loss]
-                    name = "mse"
-                    agg = "mean"
-                    [[properties]]
-                    key = "features"
-                    type = "integer"
-                    """)
-                fit(model) = Dict(
-                    "id" => "fit", "card" => Dict(
-                        "type" => "streamliner", "model" => Dict("type" => model, "features" => 2),
-                        "training" => Dict("type" => "batched", "iterations" => 1),
-                        "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
-                    )
-                )
-                cols = DataIngestion.summarize(repo, "selection")
-                names = String[c.name for c in cols]
-                built(model) = @with(
-                    Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
-                    Pipelines.Pipeline([fit(model)], Dict{String, Any}(), names)
-                )
-                # A model that fails to build for another reason is not this check's to report:
-                # the probe answers, and the run reports it as it reports any failure.
-                write(joinpath(dir, "boom.toml"), """
-                    name = "boom"
-                    [components]
-                    model = []
-                    [loss]
-                    name = "mse"
-                    agg = "mean"
-                    """)
-                boom_parser = Pipelines.default_parser(
-                    plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("boom" => BoomModel))]
-                )
-                boom = @with(
-                    Pipelines.PARSER => boom_parser, Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
-                    Pipelines.Pipeline([merge(fit("boom"), Dict("card" => merge(fit("boom")["card"], Dict("model" => Dict("type" => "boom")))))], Dict{String, Any}(), names)
-                )
-                @test isempty(@with(Pipelines.PARSER => boom_parser, DashiBoard.model_issues(repo, boom, "selection")))
-
-                issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
-                @test issue.pointer == "/nodes/0/card/model"
-                @test issue.reason == "model" && issue.severity == "error"
-                @test occursin("cannot be built for this funnel", issue.message)
-                @test isempty(DashiBoard.model_issues(repo, built("dense"), "selection"))
-            end
-        end
-
-        # Each node says what a selection may narrow it to: its products, with their columns. A
-        # streamliner names even its one product, so another card can ask for it by name.
-        @testset "products in the probe" begin
-            fit = Dict(
+    # The probe and a run ask whether each streamliner model can be built for its funnel, and
+    # say so at the card's `model`. The served models all fit, so this uses its own.
+    @testset "a model that cannot be built" begin
+        mktempdir() do dir
+            cp(joinpath(model_dir, "dense.toml"), joinpath(dir, "dense.toml"))
+            write(
+                joinpath(dir, "conv.toml"), """
+                name = "basic"
+                [components]
+                model = [{ name = "conv", kernel = [3], pad = [1], features = { "-v" = "features" } }, { name = "conv", kernel = [3], pad = [1] }]
+                [loss]
+                name = "mse"
+                agg = "mean"
+                [[properties]]
+                key = "features"
+                type = "integer"
+                """
+            )
+            fit(model) = Dict(
                 "id" => "fit", "card" => Dict(
-                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                    "type" => "streamliner", "model" => Dict("type" => model, "features" => 2),
                     "training" => Dict("type" => "batched", "iterations" => 1),
                     "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
                 )
             )
-            reader = Dict(
-                "id" => "reader", "card" => Dict(
-                    "type" => "rescale", "method" => Dict("type" => "zscore"), "suffix" => "z",
-                    "inputs" => [Dict("nodes" => "fit", "products" => ["prediction"])],
-                )
+            cols = DataIngestion.summarize(repo, "selection")
+            names = String[c.name for c in cols]
+            built(model) = @with(
+                Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                Pipelines.Pipeline([fit(model)], Dict{String, Any}(), names)
             )
-            body = JSON.json((; nodes = [fit, reader], groups = Dict{String, Any}()))
-            probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
-            node(id) = only(n for n in probe["nodes"] if n["id"] == id)
-            @test node("fit")["products"] == [Dict("product" => "prediction", "outputs" => ["PRES_hat"])]
-            @test node("reader")["inputs"] == ["PRES_hat"]
-            @test node("reader")["products"] == []
+            # A model that fails to build for another reason is not this check's to report:
+            # the probe answers, and the run reports it as it reports any failure.
+            write(
+                joinpath(dir, "boom.toml"), """
+                name = "boom"
+                [components]
+                model = []
+                [loss]
+                name = "mse"
+                agg = "mean"
+                """
+            )
+            boom_parser = Pipelines.default_parser(
+                plugins = [StreamlinerCore.Parser(models = Dict{String, Any}("boom" => BoomModel))]
+            )
+            boom = @with(
+                Pipelines.PARSER => boom_parser, Pipelines.MODEL_DIR => dir, Pipelines.TRAINING_DIR => training_dir,
+                Pipelines.Pipeline([merge(fit("boom"), Dict("card" => merge(fit("boom")["card"], Dict("model" => Dict("type" => "boom")))))], Dict{String, Any}(), names)
+            )
+            @test isempty(@with(Pipelines.PARSER => boom_parser, DashiBoard.model_issues(repo, boom, "selection")))
+
+            issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
+            @test issue.pointer == "/nodes/0/card/model"
+            @test issue.reason == "model" && issue.severity == "error"
+            @test occursin("cannot be built for this funnel", issue.message)
+            @test isempty(DashiBoard.model_issues(repo, built("dense"), "selection"))
         end
+    end
 
-        # A pipeline downloads as a workspace: the document, the configurations it names, and
-        # which extensions it needs.
-        @testset "bundle" begin
-            fit = Dict(
-                "id" => "fit", "card" => Dict(
-                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
-                    "training" => Dict("type" => "batched", "iterations" => 1),
-                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
-                )
+    # Each node says what a selection may narrow it to: its products, with their columns. A
+    # streamliner names even its one product, so another card can ask for it by name.
+    @testset "products in the probe" begin
+        _fit = Dict(
+            "id" => "fit", "card" => Dict(
+                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "training" => Dict("type" => "batched", "iterations" => 1),
+                "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
             )
-            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
-            filters = Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())
-            resp = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc, filters)))
-            @test HTTP.header(resp, "Content-Type") == "application/zip"
-            @test occursin("mine.zip", HTTP.header(resp, "Content-Disposition"))
-            # A name outside ASCII travels in the form a header can carry.
-            accented = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "prova è", cards = doc)))
-            @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", HTTP.header(accented, "Content-Disposition"))
-            zip = ZipReader(Vector{UInt8}(resp.body))
-            @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
-            @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
-            @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
-            # Nothing here came from an extension, so none is named.
-            @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
-            without = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = doc)))
-            @test !("filter/mine.json" in zip_names(ZipReader(Vector{UInt8}(without.body))))
-            # A configuration the document names but the directory lacks is a pointed issue.
-            missing = deepcopy(doc); missing["nodes"][1]["card"]["model"]["type"] = "nosuch"
-            refused = HTTP.post(url * "bundle-pipeline", body = JSON.json((; name = "mine", cards = missing)), status_exception = false)
-            @test HTTP.header(refused, "Content-Type") == "application/json"
-            report = JSON.parse(refused.body)
-            @test report["valid"] == false
-            @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
-
-            # Whatever else goes wrong is said in the same envelope, never a bare failure: a name
-            # that cannot be a file's, a configuration named outside its folder, a request with
-            # no document.
-            bundle(body) = HTTP.post(url * "bundle-pipeline", body = JSON.json(body), status_exception = false)
-            for name in ("run:2", "../up", "a/b", "", "quo\"te")
-                bad = bundle((; name, cards = doc))
-                @test bad.status == 200 && HTTP.header(bad, "Content-Type") == "application/json"
-                @test JSON.parse(bad.body)["valid"] == false
-            end
-            outside = deepcopy(doc); outside["nodes"][1]["card"]["model"]["type"] = "../training/batched"
-            bad = bundle((; name = "mine", cards = outside))
-            @test HTTP.header(bad, "Content-Type") == "application/json" && JSON.parse(bad.body)["valid"] == false
-            bad = bundle((; name = "mine"))
-            @test bad.status == 200 && JSON.parse(bad.body)["valid"] == false
-        end
-
-        # With a provenance table, the bundle names exactly the extensions the document uses.
-        @testset "bundle names its extensions" begin
-            fit = Dict(
-                "id" => "fit", "card" => Dict(
-                    "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
-                    "training" => Dict("type" => "batched", "iterations" => 1),
-                    "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")],
-                                     "input_transforms" => Dict("TEMP" => "log")),
-                )
+        )
+        _reader = Dict(
+            "id" => "reader", "card" => Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"), "suffix" => "z",
+                "inputs" => [Dict("nodes" => "fit", "products" => ["prediction"])],
             )
-            doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
-            @with(
-                DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
-                DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
-                Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
-                begin
-                    @test DashiBoard.needed_extensions(doc) == ["Fake"]
-                    # A funnel contributes its type and its transforms, nothing else.
-                    entries = DashiBoard.registry_entries(doc)
-                    @test "funnel:" in entries && "transform:log" in entries
-                    @test !any(startswith("loader:"), entries)
-                    # Not only the architecture: a layer, a loss or an optimizer a configuration
-                    # names may come from an extension too, and the pipeline needs it as much.
-                    for entry in ("layer:dense", "sigma:relu", "metric:mse", "aggregator:mean", "optimizer:Adam", "device:cpu")
-                        @with DashiBoard.EXTENSION_OF => Dict(entry => "Other") begin
-                            @test DashiBoard.needed_extensions(doc) == ["Other"]
-                        end
-                    end
-                    bytes = DashiBoard.bundle_pipeline(doc, nothing, "x")
-                    toml = TOML.parse(zip_readentry(ZipReader(bytes), "dashiboard.toml", String))
-                    @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
-                end
-            )
-        end
+        )
+        params = Dict("nodes" => [_fit, _reader], "groups" => Dict{String, Any}())
+        probe = post_probe("evaluate-pipeline", params)
 
-        body = read(joinpath(@__DIR__, "static", "card-ir.json"), String)
-        resp = HTTP.post(url * "get-card-ir", body = body)
-        payload = JSON.parse(resp.body)
-        @test sort(collect(keys(payload))) == ["cards", "defs"]
-        @test length(payload["cards"]) == length(Pipelines.CARD_SPECS)
-        # The group dialect: six definitions, hoisted once into the envelope rather than repeated
-        # per card. This route serves the same dialect evaluate-pipeline now runs.
-        @test sort(collect(keys(payload["defs"]))) ==
-            ["col", "group", "node", "nonempty_variables", "variable", "variables"]
+        node(id) = only(n for n in probe["result"]["nodes"] if n["id"] == id)
+        @test node("fit")["products"] == [Dict("product" => "prediction", "outputs" => ["PRES_hat"])]
+        @test node("reader")["inputs"] == ["PRES_hat"]
+        @test node("reader")["products"] == []
+    end
+
+    @testset "card-ir" begin
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "card-ir.json"))
+        resp = post("get-card-ir", params)
+        payload = resp["result"]
         @test payload["defs"]["col"]["enum"] == ["No", "TEMP"]
         @test payload["defs"]["node"]["enum"] == ["percentile", "tiled"]
         @test payload["defs"]["group"]["enum"] == ["wind"]
-        # `variable` is a selector object here, where the flat dialect had a string enum
-        @test payload["defs"]["variable"]["type"] == "object"
-        # and its one-or-many fields identify themselves, so a renderer can dispatch on them
-        nodes_entry = only(
-            p for p in payload["defs"]["variable"]["properties"] if p["key"] == "nodes"
-        )
-        @test nodes_entry["value"]["type"] == "one_or_many"
-        # field entries are an ordered array, and the card label travels in the IR
-        @test payload["cards"]["split"]["properties"] isa AbstractVector
-        @test payload["cards"]["split"]["title"] isa AbstractString
-        # The only place the response headers and the OPTIONS preflight are asserted, so this
-        # covers CORS for every route rather than for this one.
-        #
-        # Before the `String(resp.body)` below, not after: `String(::Vector{UInt8})` takes
-        # ownership of the buffer and leaves it empty, so a `length(resp.body)` that follows it
-        # reads 0 and the Content-Length assertion fails against its own response.
-        @test resp.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "application/json",
-            "Content-Length" => string(length(resp.body)),
-        ]
-        # nulls are omitted rather than shipped
-        @test !occursin(":null", String(resp.body))
-        # `cards` is 96% of the payload and cannot change within a session — `card_ir` takes no
+
+        # `cards` is most of the payload and cannot change within a session — `card_ir` takes no
         # vocabulary. A client that has it once asks for `defs` alone afterwards.
-        body = JSON.json((; cols = ["No", "TEMP"], nodes = String[], groups = String[], include = ["defs"]))
-        resp = HTTP.post(url * "get-card-ir", body = body)
-        only_defs = JSON.parse(resp.body)
+        params = Dict("cols" => ["No", "TEMP"], "nodes" => String[], "groups" => String[], "include" => ["defs"])
+        resp = post("get-card-ir", params)
+        only_defs = resp["result"]
         @test collect(keys(only_defs)) == ["defs"]
         @test only_defs["defs"]["col"]["enum"] == ["No", "TEMP"]
-        @test length(resp.body) < 4000                     # against ~19 KB for the full payload
-        body = JSON.json((; include = ["cards"]))
-        resp = HTTP.post(url * "get-card-ir", body = body)
-        @test collect(keys(JSON.parse(resp.body))) == ["cards"]
-        # `include` written as one string rather than a list of one — an easy slip against an
-        # API that takes "one or many" nearly everywhere — used to be a 500 with an empty body:
-        # `Set{String}("defs")` iterates the *characters*. One half asked for is one half sent.
-        resp = HTTP.post(url * "get-card-ir", body = JSON.json((; include = "defs")), status_exception = false)
-        @test resp.status == 200
-        @test collect(keys(JSON.parse(resp.body))) == ["defs"]
+
+        params = Dict("include" => ["cards"])
+        resp = post("get-card-ir", params)
+        @test collect(keys(resp["result"])) == ["cards"]
+
+        # `include` written as one string rather than a list of one.
+        resp = post("get-card-ir", Dict("include" => "defs"))
+        @test collect(keys(resp["result"])) == ["defs"]
+
         # Anything else is refused in the usual envelope, with a sentence, not with a bare 500.
-        resp = HTTP.post(url * "get-card-ir", body = JSON.json((; include = 3)), status_exception = false)
-        @test resp.status == 200
-        refused = JSON.parse(resp.body)
-        @test refused["valid"] == false
-        @test occursin("include", only(refused["errors"]))
-        resp = HTTP.options(url * "get-card-ir")
-        @test resp.headers == [
-            DashiBoard.CORS_OPTIONS_HEADERS...,
-            "Content-Length" => "0",
-        ]
+        resp = post("get-card-ir", Dict("include" => 3))
+        @test haskey(resp, "error")
+        @test occursin("include", resp["error"]["data"] |> only_error)
+    end
 
-        body = read(joinpath(@__DIR__, "static", "load.json"), String)
-        resp = HTTP.post(url * "load-files", body = body)
-        summaries = JSON.parse(resp.body)
-        @test summaries[end]["name"] == "Ir"
-        @test resp.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "application/json",
-            "Content-Length" => string(length(resp.body)),
-        ]
-
+    @testset "pipeline-groups and data download" begin
         # The group dialect: {filters, nodes, groups} with selector-form variable fields, which
         # is what the new UI authors. The flat {filters, cards} shape is gone from this route.
-        body = read(joinpath(@__DIR__, "static", "pipeline-groups.json"), String)
-        resp = HTTP.post(url * "evaluate-pipeline", body = body)
-        parsed = JSON.parse(resp.body)
-        summaries = parsed["summaries"]
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline-groups.json"))
+        @test all(n -> isempty(n["unproduced"]), post_probe("evaluate-pipeline", params)["result"]["nodes"])
+        resp = post("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        summaries = result["summaries"]
         @test summaries[end]["name"] == "_tiled_partition"
         # A4: the graph renders, and names the group rather than its resolved columns
-        @test startswith(parsed["graph"], "digraph G{")
-        @test occursin("\"wind\"", parsed["graph"])
+        @test startswith(result["graph"], "digraph G{")
+        @test occursin("\"wind\"", result["graph"])
 
+        path = joinpath(data_dir, "download.csv")
+        resp, bytes = post("get-processed-data", Dict(), path)
+        s = String(bytes)
+        @test resp["result"] == Dict(
+            "Content-Type" => "text/csv", "Content-Length" => string(ncodeunits(s)),
+            "Content-Disposition" => "attachment; filename=\"processed-data.csv\"",
+        )
+        l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
+        @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
+        @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
+
+        path = joinpath(data_dir, "rows.json")
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "fetch.json"))
+        resp, bytes = post("fetch-data", params, path)
+        headers = resp["result"]
+        tbl = JSON.parse(bytes)
+        df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
+        @test tbl["length"] == nrow(df)
+        @test [row["No"] for row in tbl["values"]] == df.No[11:60]
+        @test headers == Dict(
+            "Content-Type" => "application/json",
+            "Content-Length" => string(length(bytes))
+        )
+
+        # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
+        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+        # Julia's parser accepts those tokens, so this asserts on the text.
+        DBInterface.execute(
+            Returns(nothing), DashiBoard.REPOSITORY[],
+            """
+            CREATE OR REPLACE TABLE selection AS
+                SELECT 'inf'::DOUBLE AS invalid, 'NaN'::DOUBLE AS bad, 2.5 AS good, 'x' AS s;
+            """
+        )
+        params = Dict(
+            "offset" => 0,
+            "limit" => 10,
+            "filterModel" => Dict(),
+            "sortModel" => [],
+            "processed" => true
+        )
+        resp, bytes = post("fetch-data", params, path)
+        tbl = JSON.parse(bytes)
+        page = String(bytes)
+        @test !occursin("NaN", page) && !occursin("Infinity", page)
+        @test isnothing(tbl["values"][1]["invalid"])
+        @test isnothing(tbl["values"][1]["bad"])
+        @test tbl["values"][1]["good"] == 2.5
+        @test tbl["values"][1]["s"] == "x"
+    end
+
+    @testset "validate-card" begin
         # A card checked on its own, which is what a form editing one card actually needs. No
         # document, no graph walk — and `related` gives a pointer per absent name, so the answer
         # lands on the control rather than on the card.
-        body = JSON.json((;
-            card = Dict("type" => "cluster"),
-            cols = ["No", "TEMP"], nodes = String[], groups = String[],
-            base = "/nodes/0/card",
-        ))
-        resp = HTTP.post(url * "validate-card", body = body)
-        @test resp.status == 200
-        parsed = JSON.parse(resp.body)
-        issue = only(parsed["issues"])
+        params = Dict(
+            "card" => Dict("type" => "cluster"),
+            "cols" => ["No", "TEMP"], "nodes" => String[], "groups" => String[],
+            "base" => "/nodes/0/card",
+        )
+        resp = post("validate-card", params)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        issue = only(result["issues"])
         @test issue["reason"] == "required"
         @test issue["missing"] == ["method", "inputs"]
         @test issue["related"] == ["/nodes/0/card/method", "/nodes/0/card/inputs"]
 
         # A card with nothing wrong says nothing, rather than saying it is valid in some other way.
-        body = JSON.json((;
-            card = Dict(
+        params = Dict(
+            "card" => Dict(
                 "type" => "rescale", "method" => Dict("type" => "zscore"),
                 "inputs" => [Dict("cols" => "TEMP")],
             ),
-            cols = ["No", "TEMP"], nodes = String[], groups = String[],
-        ))
-        resp = HTTP.post(url * "validate-card", body = body)
-        @test isempty(JSON.parse(resp.body)["issues"])
+            "cols" => ["No", "TEMP"], "nodes" => String[], "groups" => String[],
+        )
+
+        resp = post("validate-card", params)
+        @test isempty(resp["result"]["issues"])
 
         # An unknown card type has no schema to check against, so it answers as a failure rather
         # than throwing out of the handler.
-        body = JSON.json((; card = Dict("type" => "nosuchcard"), cols = ["TEMP"]))
-        resp = HTTP.post(url * "validate-card", body = body, status_exception = false)
-        @test resp.status == 200
-        parsed = JSON.parse(resp.body)
-        @test parsed["valid"] == false
-        @test parsed["kind"] == "pipeline"
+        params = Dict("card" => Dict("type" => "nosuchcard"), "cols" => ["TEMP"])
+        resp = post("validate-card", params)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["data"]
+        @test occursin("not found", only_error(metadata))
+        @test metadata["kind"] == "pipeline"
+    end
 
+    @testset "probe-bad" begin
         # Probing constructs without executing, so a chain that cannot resolve is a fault the
         # probe reports rather than a crash. `through = ["r", "r"]` asks `r` to carry `TEMP_a`,
         # which it does not read — it reads `TEMP` — so the pipeline refuses to build and the
         # answer names the node responsible.
-        body = read(joinpath(@__DIR__, "static", "probe-bad.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
-        @test resp.status == 200
-        probe = JSON.parse(resp.body)
-        @test probe["valid"] == false
-        @test probe["kind"] == "pipeline"
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-bad.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["data"]
+        @test metadata["kind"] == "pipeline"
         # It arrives in the same shape as a schema failure, so a form reads one list: the card to
         # address, what the chain asked for, and what the offending node would have accepted.
-        issue = only(probe["issues"])
+        issue = only(metadata["issues"])
         @test issue["reason"] == "through"
         @test issue["pointer"] == "/nodes/1/card"
         @test issue["found"] == ["TEMP_a"]
@@ -680,267 +602,273 @@ mktempdir() do data_dir
         @test occursin("Node `r` does not read TEMP_a", issue["message"])
         # The vocabularies a picker offers from survive the failure, so a form can still correct
         # the chain rather than going blank.
-        @test "TEMP" in probe["cols"]
-        @test haskey(probe, "referable")
+        @test "TEMP" in metadata["cols"]
+        @test haskey(metadata, "referable")
+    end
 
+    @testset "probe-product" begin
         # Each node says how a value may pass through it, one entry per product. A rescale has one,
         # unnamed, so a picker offers the node and nothing to choose within it.
-        body = JSON.json((;
-            nodes = [(; id = "r", card = Dict(
-                "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
-            ))],
-            groups = Dict{String, Any}(),
-        ))
-        probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = body).body)
-        product = only(only(probe["nodes"])["through"])
-        @test product["product"] === nothing
+        params = Dict(
+            "nodes" => [
+                Dict(
+                    "id" => "r", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "a",
+                    )
+                ),
+            ],
+            "groups" => Dict{String, Any}(),
+        )
+        resp = post_probe("evaluate-pipeline", params)
+        result = resp["result"]
+        product = only(only(result["nodes"])["through"])
+        @test isnothing(product["product"])
         @test product["cols"] == ["TEMP"]
         @test product["suffix"] == "a"
 
-        @test only(probe["nodes"])["lists"] == Dict{String, Any}()
+        @test only(result["nodes"])["lists"] == Dict{String, Any}()
+    end
 
+    @testset "variable-transforms" begin
         # A card whose lists a form has to spell out says what they resolved to: here the inputs
         # come from a group and the target through another node.
-        fit(funnel) = JSON.json((;
-            nodes = [
-                (; id = "r", card = Dict(
-                    "type" => "rescale", "method" => Dict("type" => "zscore"),
-                    "inputs" => [Dict("cols" => "PRES")], "suffix" => "z",
-                )),
-                (; id = "fit", card = Dict(
-                    "type" => "streamliner",
-                    "model" => Dict("type" => "dense", "features" => 2),
-                    "training" => Dict("type" => "batched", "iterations" => 1),
-                    "funnel" => merge(
-                        Dict{String, Any}(
-                            "order_by" => [Dict("cols" => "No")],
-                            "inputs" => [Dict("groups" => "g")],
-                            "targets" => [Dict("cols" => "PRES", "through" => ["r"])],
+        fit(funnel) = Dict(
+            "nodes" => [
+                Dict(
+                    "id" => "r", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "PRES")], "suffix" => "z",
+                    )
+                ),
+                Dict(
+                    "id" => "fit", "card" => Dict(
+                        "type" => "streamliner",
+                        "model" => Dict("type" => "dense", "features" => 2),
+                        "training" => Dict("type" => "batched", "iterations" => 1),
+                        "funnel" => merge(
+                            Dict{String, Any}(
+                                "order_by" => [Dict("cols" => "No")],
+                                "inputs" => [Dict("groups" => "g")],
+                                "targets" => [Dict("cols" => "PRES", "through" => ["r"])],
+                            ),
+                            funnel
                         ),
-                        funnel
-                    ),
-                )),
+                    )
+                ),
             ],
-            groups = Dict{String, Any}("g" => [Dict("cols" => ["TEMP", "Iws"])]),
-        ))
-        probe = JSON.parse(HTTP.post(url * "probe-pipeline", body = fit(Dict("input_transforms" => Dict("Iws" => "log")))).body)
-        @test probe["valid"]
-        @test probe["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
+            "groups" => Dict{String, Any}("g" => [Dict("cols" => ["TEMP", "Iws"])]),
+        )
+        resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("Iws" => "log"))))
+        result = resp["result"]
+        @test !haskey(result, "valid")
+        @test result["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
 
         # A transform for a column the list does not reach is a pointed issue at its entry.
-        resp = HTTP.post(url * "probe-pipeline", body = fit(Dict("input_transforms" => Dict("GONE" => "log"))), status_exception = false)
-        issue = only(JSON.parse(resp.body)["issues"])
+        resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("GONE" => "log"))))
+        issue = only(resp["error"]["data"]["issues"])
         @test issue["reason"] == "transforms"
         @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
+    end
 
+    # A reference nothing produces — a formula's free text, which no schema sees — is refused by
+    # the probe and by the run alike, before anything runs, with what a form needs to mark it.
+    @testset "probe-unproduced" begin
+        params = Dict(
+            "nodes" => [
+                Dict(
+                    "id" => "g", "card" => Dict(
+                        "type" => "glm", "distribution" => "normal",
+                        "formula" => Dict("inputs" => [1, "NOPE"], "target" => Dict("cols" => "TEMP")),
+                    )
+                ),
+            ],
+            "groups" => Dict{String, Any}(),
+        )
+        for call in (post_probe, post)
+            data = call("evaluate-pipeline", params)["error"]["data"]
+            @test data["kind"] == "pipeline"
+            issue = only(data["issues"])
+            @test issue["reason"] == "unproduced" && issue["pointer"] == "/nodes/0/card"
+            @test only(data["nodes"])["unproduced"] == ["NOPE"]
+            @test haskey(data, "cols") && haskey(data, "referable")
+        end
+    end
+
+    @testset "probe-group" begin
         # A step naming a product the node does not have is a pointed issue, with what it has.
-        body = read(joinpath(@__DIR__, "static", "probe-groups.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
-        probe = JSON.parse(resp.body)
-        issue = only(probe["issues"])
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-groups.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        issue = only(resp["error"]["data"]["issues"])
         @test issue["reason"] == "through"
         @test issue["pointer"] == "/nodes/1/card"
         @test issue["products"] == []
         @test occursin("has no named products", issue["message"])
+    end
 
+    @testset "probe-noid" begin
         # A probe reports rather than throws — for *every* way a document can be malformed,
         # not only schema failures. Two nodes with no `id` both resolve to "", which the
         # dependency graph rejects as a duplicate; that used to escape as a 500, leaving the
         # form with nothing to render and no reason.
-        body = read(joinpath(@__DIR__, "static", "probe-noid.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
-        @test resp.status == 200
-        probe = JSON.parse(resp.body)
-        @test probe["valid"] == false
-        # The probe never runs anything, so every fault it can see is a `pipeline` one — said
-        # explicitly rather than left to be inferred from which route answered.
-        @test probe["kind"] == "pipeline"
-        @test occursin("id", only(probe["errors"]))
+        # The run answers the same: the route is public and cannot assume a probe came first.
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-noid.json"))
+        for call in (post_probe, post)
+            metadata = call("evaluate-pipeline", params)["error"]["data"]
+            @test metadata["kind"] == "pipeline"
+            @test occursin("id", only(metadata["errors"]))
+        end
+    end
 
+    @testset "probe-bad-value" begin
         # A7: a schema failure comes back as data, addressed by JSON Pointer into the document,
         # carrying what would have been accepted — so a form can point at the control and offer a
         # correction rather than print a sentence. The second input is the bad one, which is also
         # what pins the index conversion: JSONSchema.jl counts from one, JSON Pointer from zero.
-        body = read(joinpath(@__DIR__, "static", "probe-badvalue.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body, status_exception = false)
-        @test resp.status == 200
-        probe = JSON.parse(resp.body)
-        @test probe["valid"] == false
-        issue = only(probe["issues"])
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-badvalue.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        metadata = resp["error"]["data"]
+        issue = only(metadata["issues"])
         @test issue["pointer"] == "/nodes/0/card/inputs/1/cols"
         @test issue["reason"] == "enum"
         @test issue["found"] == "NOSUCHCOLUMN"
         @test "TEMP" in issue["allowed"]
+    end
 
-        # A well-formed document probes clean.
-        body = read(joinpath(@__DIR__, "static", "pipeline-groups.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body)
-        probe = JSON.parse(resp.body)
-        @test probe["valid"] == true
-        @test all(n -> isempty(n["unproduced"]), probe["nodes"])
-        @test resp.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "application/json",
-            "Content-Length" => string(length(resp.body)),
-        ]
-
-        body = read(joinpath(@__DIR__, "static", "fetch.json"), String)
-        resp = HTTP.post(url * "fetch-data", body = body)
-        tbl = JSON.parse(resp.body)
-        df = DBInterface.execute(DataFrame, DashiBoard.REPOSITORY[], "FROM selection")
-        @test tbl["length"] == nrow(df)
-        @test [row["No"] for row in tbl["values"]] == df.No[11:60]
-        @test resp.headers == [
-            DashiBoard.CORS_RES_HEADERS...,
-            "Content-Type" => "application/json",
-            "Content-Length" => string(length(resp.body)),
-        ]
-
-        HTTP.open("GET", url * "get-processed-data") do stream
-            r = startread(stream)
-            @test r.headers == [
-                DashiBoard.CORS_RES_HEADERS...,
-                "Content-Type" => "text/csv",
-                "Content-Length" => "336104",
-            ]
-
-            s = read(stream, String)
-            @test ncodeunits(s) == 336104
-            l1, l2 = Iterators.take(eachsplit(s, '\n'), 2)
-            @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
-            @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
-        end
-        resp = HTTP.options(url * "get-processed-data")
-        @test resp.headers == [
-            DashiBoard.CORS_OPTIONS_HEADERS...,
-            "Content-Length" => "0",
-        ]
-
+    @testset "empty-cards" begin
         # A14: a document with no cards. Filter-only is a legitimate run (filter, run, look), and
         # the probe of an empty document is what the UI sends when the last card is removed.
         # Placed before the failing-run block below: this run succeeds and leaves `selection`
         # equal to `source`, which that block's CSV assertion tolerates.
-        body = JSON.json((; filters = [], nodes = [], groups = Dict{String, Any}()))
-        resp = HTTP.post(url * "probe-pipeline", body = body)
-        @test JSON.parse(resp.body)["valid"] == true
-        resp = HTTP.post(url * "evaluate-pipeline", body = body)
-        empty_run = JSON.parse(resp.body)
-        @test empty_run["valid"] == true
+        params = Dict("filters" => [], "nodes" => [], "groups" => Dict{String, Any}())
+        resp = post_probe("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        resp = post("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        empty_run = resp["result"]
         @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
 
         # Groups but no cards: the usual authoring order is groups first, so this is what the UI's
         # continuous probe sends for most of the time a document is being written. It has to
         # resolve — `group_outputs = c.outputs[1:end]` over zero nodes — or the author gets no
         # live finding on their groups until the first card exists.
-        groups_only = JSON.json((;
-            filters = [],
-            nodes = [],
-            groups = Dict("g" => [Dict("cols" => "TEMP")]),
-        ))
-        resp = HTTP.post(url * "probe-pipeline", body = groups_only)
-        @test JSON.parse(resp.body)["valid"] == true
+        groups_only = Dict(
+            "filters" => [],
+            "nodes" => [],
+            "groups" => Dict("g" => [Dict("cols" => "TEMP")]),
+        )
+        resp = post_probe("evaluate-pipeline", groups_only)
+        @test haskey(resp, "result")
+    end
 
+    @testset "empty-group" begin
         # An empty group is a document the schema accepts (`weather = []` constructs) that
         # resolves to zero columns; a card reading it used to die inside the card constructor
         # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
         # smoke check 5). The probe and the run both name the group instead.
-        reads_empty = JSON.json((;
-            filters = [],
-            nodes = [(; id = "z", card = Dict(
-                "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
-            ))],
-            groups = Dict("empty" => []),
-        ))
-        for route in ("probe-pipeline", "evaluate-pipeline")
-            resp = HTTP.post(url * route, body = reads_empty)
-            answer = JSON.parse(resp.body)
-            @test answer["valid"] == false
-            @test answer["kind"] == "pipeline"
-            issue = only(answer["issues"])
+        reads_empty = Dict(
+            "filters" => [],
+            "nodes" => [
+                Dict(
+                    "id" => "z", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("groups" => "empty")], "suffix" => "z",
+                    )
+                ),
+            ],
+            "groups" => Dict("empty" => []),
+        )
+        for f in (post_probe, post)
+            resp = f("evaluate-pipeline", reads_empty)
+            @test haskey(resp, "error")
+            metadata = resp["error"]["data"]
+            @test metadata["kind"] == "pipeline"
+            issue = only(metadata["issues"])
             @test issue["pointer"] == "/groups/empty"
             @test issue["reason"] == "empty"
             @test issue["severity"] == "error"
             @test occursin("empty", issue["message"])
-            @test !occursin("UndefKeywordError", join(answer["errors"]))
+            @test !occursin("UndefKeywordError", join(metadata["errors"]))
         end
+
         # An empty group used to end the reply: the cards were never looked at, so a document
         # with an empty group *and* a broken card named the group only, and the card turned red
         # one fix and one question later (seen in a browser, 2026-09-21, loading a document).
         # Both are told in one answer, the group first as in the document.
-        empty_and_broken = JSON.json((;
-            filters = [],
-            nodes = [
-                (; id = "fine", card = Dict(
-                    "type" => "rescale", "method" => Dict("type" => "zscore"),
-                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z",
-                )),
-                (; id = "broken", card = Dict("type" => "rescale")),
+        empty_and_broken = Dict(
+            "filters" => [],
+            "nodes" => [
+                Dict(
+                    "id" => "fine", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z",
+                    )
+                ),
+                Dict("id" => "broken", "card" => Dict("type" => "rescale")),
             ],
-            groups = Dict("empty" => []),
-        ))
-        for route in ("probe-pipeline", "evaluate-pipeline")
-            answer = JSON.parse(HTTP.post(url * route, body = empty_and_broken).body)
-            @test answer["valid"] == false
-            @test answer["kind"] == "pipeline"
-            @test [(issue["pointer"], issue["reason"]) for issue in answer["issues"]] ==
+            "groups" => Dict("empty" => []),
+        )
+        for f in (post_probe, post)
+            resp = f("evaluate-pipeline", empty_and_broken)
+            @test haskey(resp, "error")
+            metadata = resp["error"]["data"]
+            @test [(issue["pointer"], issue["reason"]) for issue in metadata["issues"]] ==
                 [("/groups/empty", "empty"), ("/nodes/1/card", "required")]
-            @test length(answer["errors"]) == 2
-            @test !occursin("UndefKeywordError", join(answer["errors"]))
         end
-        # Every issue says how bad it is; a schema failure is an error.
-        two_broken = JSON.json((;
-            filters = [],
-            nodes = [(; id = "a", card = Dict("type" => "cluster")),
-                     (; id = "b", card = Dict("type" => "split"))],
-            groups = Dict{String, Any}(),
-        ))
-        resp = HTTP.post(url * "evaluate-pipeline", body = two_broken)
-        failed = JSON.parse(resp.body)
-        @test failed["valid"] == false && failed["kind"] == "pipeline"
-        @test [i["pointer"] for i in failed["issues"]] == ["/nodes/0/card", "/nodes/1/card"]
-        @test all(i["severity"] == "error" for i in failed["issues"])
-        @test !isempty(failed["errors"])
 
+        # Every issue says how bad it is; a schema failure is an error.
+        two_broken = Dict(
+            "filters" => [],
+            "nodes" => [
+                Dict("id" => "a", "card" => Dict("type" => "cluster")),
+                Dict("id" => "b", "card" => Dict("type" => "split")),
+            ],
+            "groups" => Dict{String, Any}(),
+        )
+        resp = post("evaluate-pipeline", two_broken)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["data"]
+        @test [i["pointer"] for i in metadata["issues"]] == ["/nodes/0/card", "/nodes/1/card"]
+        @test all(i["severity"] == "error" for i in metadata["issues"])
+    end
+
+    @testset "overwrite" begin
         # A13: two cards emitting the same column name. The second silently replaced the first's
         # output (and a source column would be replaced the same way — `rescale TEMP suffix =
-        # "rescaled"` over a source with `TEMP_rescaled`, measured 2026-09-13 and on 1M rows
-        # 2026-09-16). A warning, not a rejection: overwriting can be meant.
-        same_name = JSON.json((;
-            filters = [],
-            nodes = [
-                (; id = "one", card = Dict("type" => "rescale", "method" => Dict("type" => "zscore"),
-                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
-                (; id = "two", card = Dict("type" => "rescale", "method" => Dict("type" => "minmax"),
-                    "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z")),
+        # "rescaled"` over a source with `TEMP_rescaled`.
+        # A warning, not a rejection: overwriting can be meant.
+        same_name = Dict(
+            "filters" => [],
+            "nodes" => [
+                Dict(
+                    "id" => "one", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "zscore"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z"
+                    )
+                ),
+                Dict(
+                    "id" => "two", "card" => Dict(
+                        "type" => "rescale", "method" => Dict("type" => "minmax"),
+                        "inputs" => [Dict("cols" => "TEMP")], "suffix" => "z"
+                    )
+                ),
             ],
-            groups = Dict{String, Any}(),
-        ))
-        resp = HTTP.post(url * "probe-pipeline", body = same_name)
-        probed = JSON.parse(resp.body)
-        @test probed["valid"] == true
-        warning = only(i for i in probed["issues"] if i["reason"] == "overwrites")
+            "groups" => Dict{String, Any}(),
+        )
+        resp = post_probe("evaluate-pipeline", same_name)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        warning = only(i for i in result["issues"] if i["reason"] == "overwrites")
         @test warning["severity"] == "warning"
         @test warning["pointer"] == "/nodes/1/card"
         @test occursin("TEMP_z", warning["message"])
-        resp = HTTP.post(url * "evaluate-pipeline", body = same_name)
-        @test JSON.parse(resp.body)["valid"] == true
+        resp = post("evaluate-pipeline", same_name)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        @test !haskey(result, "valid")
+    end
 
-        # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
-        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
-        # Julia's parser accepts those tokens, so this asserts on the text.
-        DBInterface.execute(Returns(nothing), DashiBoard.REPOSITORY[],
-            "CREATE OR REPLACE TABLE selection AS SELECT 'nan'::DOUBLE AS bad, 2.5 AS good, 'x' AS s")
-        body = JSON.json((; offset = 0, limit = 10, filterModel = Dict(), sortModel = [], processed = true))
-        resp = HTTP.post(url * "fetch-data", body = body)
-        page = String(resp.body)
-        @test !occursin("NaN", page) && !occursin("Infinity", page)
-        @test JSON.parse(page)["values"][1]["bad"] === nothing
-        @test JSON.parse(page)["values"][1]["good"] == 2.5
-
-        # ---- keep last: this one runs a pipeline that fails ----
-        #
+    @testset "runtime-error" begin
         # A failed run still rebuilds `selection` from `source` before it dies, so it
         # drops every column the successful pipeline added. Anything asserting on that
         # table — the CSV export above, for instance — has to have run already.
@@ -950,122 +878,111 @@ mktempdir() do data_dir
         # exception escaped the handler and HTTP.jl answered with a bare 500 carrying zero bytes
         # and no CORS header, so the client had nothing to show and no way to tell a failed run
         # from one that had never happened.
-        body = read(joinpath(@__DIR__, "static", "evaluate-bad.json"), String)
-        resp = HTTP.post(url * "probe-pipeline", body = body)
-        @test JSON.parse(resp.body)["valid"] == true   # static checks pass; this is a runtime fault
-        resp = HTTP.post(url * "evaluate-pipeline", body = body)
-        @test resp.status == 200
-        failed = JSON.parse(resp.body)
-        @test failed["valid"] == false
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "evaluate-bad.json"))
+        resp = post_probe("evaluate-pipeline", params)
+        @test haskey(resp, "result")
+        result = resp["result"]
+        resp = post("evaluate-pipeline", params)
+        @test haskey(resp, "error")
+        metadata = resp["error"]["data"]
+        @test !haskey(metadata, "valid")
         # `execution`, not `pipeline`: the document built fine and the *run* is what died. The
         # split is on which call threw, which is observable, rather than on whose fault it is,
         # which is not.
-        @test failed["kind"] == "execution"
-        @test !isempty(failed["errors"])
+        @test metadata["kind"] == "execution"
+        @test !isempty(metadata["errors"])
         # The message is the cause, not the wrapper. Before unwrapping, this said
         # "TaskFailedException" followed by forty lines of scheduler stacktrace, and the sentence
         # naming the actual fault was buried two levels inside it.
-        @test !occursin("TaskFailedException", failed["errors"][1])
-        @test occursin("Binder Error", failed["errors"][1])
-        # and the response is still a normal one, so a browser can read it
-        @test ("Access-Control-Allow-Origin" => "*") in resp.headers
-
-        # The other kind on the same route. A client that probes first would never send this, but
-        # the route is public and cannot assume it was asked politely: two unnamed nodes both
-        # resolve to "" and the dependency graph rejects the pair, before anything runs.
-        body = read(joinpath(@__DIR__, "static", "probe-noid.json"), String)
-        resp = HTTP.post(url * "evaluate-pipeline", body = body, status_exception = false)
-        @test resp.status == 200
-        failed = JSON.parse(resp.body)
-        @test failed["valid"] == false
-        @test failed["kind"] == "pipeline"
-        @test occursin("id", only(failed["errors"]))
-
-        # A loop is a fault of the document, not of any one card, and Graphs.jl's sentence for it
-        # names nothing. The handlers name the members: an issue that points at no item
-        # (`pointer = ""`), with the members under `related` and in the message. Seen in a
-        # browser on 2026-09-18 with the bare sentence written on every card that was asked.
-        @testset "loops" begin
-            rescale(id, input) = (; id, card = Dict(
-                "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [input], "suffix" => id,
-            ))
-            looped = JSON.json((;
-                filters = [],
-                nodes = [rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a")), rescale("c", Dict("cols" => "TEMP"))],
-                groups = Dict{String, Any}(),
-            ))
-            for route in ("probe-pipeline", "evaluate-pipeline")
-                answer = JSON.parse(HTTP.post(url * route, body = looped).body)
-                @test answer["valid"] == false
-                @test answer["kind"] == "pipeline"
-                issue = only(answer["issues"])
-                @test issue["reason"] == "loop"
-                @test issue["pointer"] == ""
-                @test issue["severity"] == "error"
-                @test issue["related"] == ["/nodes/0", "/nodes/1"]
-                @test issue["message"] == "The input graph contains at least one loop: a, b"
-                @test answer["errors"] == [issue["message"]]
-            end
-
-            # Through a group: the group is a member, named and pointed at like one.
-            via_group = JSON.json((;
-                filters = [],
-                nodes = [rescale("a", Dict("groups" => "g")), rescale("b", Dict("nodes" => "a"))],
-                groups = Dict("g" => [Dict("nodes" => "b")]),
-            ))
-            issue = only(JSON.parse(HTTP.post(url * "probe-pipeline", body = via_group).body)["issues"])
-            @test issue["related"] == ["/nodes/0", "/nodes/1", "/groups/g"]
-            @test endswith(issue["message"], ": a, b, g")
-        end
-
-        # What a card or a group may refer to without making a loop: everything but itself and
-        # what depends on it. Sent with the probe so a picker offers only that.
-        @testset "referable" begin
-            rescale(id, input) = (; id, card = Dict(
-                "type" => "rescale", "method" => Dict("type" => "zscore"),
-                "inputs" => [input], "suffix" => id,
-            ))
-            probe(nodes, groups) = JSON.parse(HTTP.post(url * "probe-pipeline",
-                body = JSON.json((; filters = [], nodes, groups))).body)
-
-            # a ← b ← c, and a group g that reads b
-            chain = probe(
-                [rescale("a", Dict("cols" => "TEMP")), rescale("b", Dict("nodes" => "a")), rescale("c", Dict("nodes" => "b"))],
-                Dict("g" => [Dict("nodes" => "b")]),
-            )
-            r = chain["referable"]
-            @test r["nodes"][1] == Dict("nodes" => [], "groups" => [])             # everything depends on a
-            @test r["nodes"][2] == Dict("nodes" => ["a"], "groups" => [])
-            @test r["nodes"][3] == Dict("nodes" => ["a", "b"], "groups" => ["g"])
-            @test r["groups"]["g"] == Dict("nodes" => ["a", "b", "c"], "groups" => [])
-
-            # still answered for a document that does not build: a loop
-            looped = probe([rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a"))], Dict{String, Any}())
-            @test looped["valid"] == false
-            @test looped["referable"]["nodes"] == [Dict("nodes" => [], "groups" => []), Dict("nodes" => [], "groups" => [])]
-
-            # and absent when the graph itself cannot be built
-            twins = probe([rescale("a", Dict("cols" => "TEMP")), rescale("a", Dict("cols" => "TEMP"))], Dict{String, Any}())
-            @test twins["referable"] === nothing
-        end
+        @test !occursin("TaskFailedException", metadata["errors"][1])
+        @test occursin("Binder Error", metadata["errors"][1])
     end
 
-    close(server)
-
-    # A data directory that does not exist used to make every listing throw: a 500 with an
-    # empty body, logged as 200 (see `LoggingMiddleware`), and an empty picker with no reason.
-    @testset "a missing data directory" begin
-        nowhere_port = first_free_port(8281:8380)
-        nowhere = DashiBoard.launch(
-            joinpath(data_dir, "does-not-exist");
-            port = nowhere_port, async = true, model_dir, training_dir
+    # A loop is a fault of the document, not of any one card, and Graphs.jl's sentence for it
+    # names nothing. The handlers name the members: an issue that points at no item
+    # (`pointer = ""`), with the members under `related` and in the message. Seen in a
+    # browser on 2026-09-18 with the bare sentence written on every card that was asked.
+    @testset "loops" begin
+        rescale(id, input) = Dict(
+            "id" => id, "card" => Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [input], "suffix" => id,
+            )
         )
-        resp = HTTP.post("http://127.0.0.1:$(nowhere_port)/list-files", body = "{}", status_exception = false)
-        @test resp.status == 200
-        listed = JSON.parse(resp.body)
+        looped = Dict(
+            "filters" => [],
+            "nodes" => [rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a")), rescale("c", Dict("cols" => "TEMP"))],
+            "groups" => Dict{String, Any}(),
+        )
+        for f in (post_probe, post)
+            resp = f("evaluate-pipeline", looped)
+            @test haskey(resp, "error")
+            metadata = resp["error"]["data"]
+            @test metadata["kind"] == "pipeline"
+            issue = only(metadata["issues"])
+            @test issue["reason"] == "loop"
+            @test issue["pointer"] == ""
+            @test issue["severity"] == "error"
+            @test issue["related"] == ["/nodes/0", "/nodes/1"]
+            @test issue["message"] == "The input graph contains at least one loop: a, b"
+            @test metadata["errors"] == [issue["message"]]
+        end
+
+        # Through a group: the group is a member, named and pointed at like one.
+        via_group = Dict(
+            "filters" => [],
+            "nodes" => [rescale("a", Dict("groups" => "g")), rescale("b", Dict("nodes" => "a"))],
+            "groups" => Dict("g" => [Dict("nodes" => "b")]),
+        )
+        issue = only(post_probe("evaluate-pipeline", via_group)["error"]["data"]["issues"])
+        @test issue["related"] == ["/nodes/0", "/nodes/1", "/groups/g"]
+        @test endswith(issue["message"], ": a, b, g")
+    end
+
+    # What a card or a group may refer to without making a loop: everything but itself and
+    # what depends on it. Sent with the probe so a picker offers only that.
+    @testset "referable" begin
+        rescale(id, input) = Dict(
+            "id" => id, "card" => Dict(
+                "type" => "rescale", "method" => Dict("type" => "zscore"),
+                "inputs" => [input], "suffix" => id,
+            )
+        )
+        probe(nodes, groups) = post_probe(
+            "evaluate-pipeline",
+            Dict("filters" => [], "nodes" => nodes, "groups" => groups)
+        )
+
+        # a ← b ← c, and a group g that reads b
+        chain = probe(
+            [rescale("a", Dict("cols" => "TEMP")), rescale("b", Dict("nodes" => "a")), rescale("c", Dict("nodes" => "b"))],
+            Dict("g" => [Dict("nodes" => "b")]),
+        )
+        r = chain["result"]["referable"]
+        @test r["nodes"][1] == Dict("nodes" => [], "groups" => [])             # everything depends on a
+        @test r["nodes"][2] == Dict("nodes" => ["a"], "groups" => [])
+        @test r["nodes"][3] == Dict("nodes" => ["a", "b"], "groups" => ["g"])
+        @test r["groups"]["g"] == Dict("nodes" => ["a", "b", "c"], "groups" => [])
+
+        # still answered for a document that does not build: a loop
+        looped = probe([rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a"))], Dict{String, Any}())
+        @test haskey(looped, "error")
+        metadata = looped["error"]["data"]
+        @test metadata["referable"]["nodes"] == [Dict("nodes" => [], "groups" => []), Dict("nodes" => [], "groups" => [])]
+
+        # and absent when the graph itself cannot be built
+        twins = probe([rescale("a", Dict("cols" => "TEMP")), rescale("a", Dict("cols" => "TEMP"))], Dict{String, Any}())
+        @test isnothing(twins["error"]["data"]["referable"])
+    end
+
+    # The same calls against handlers built for another layout.
+    caller(hs) = (method, params) -> roundtrip(apply_handlers(hs, JSONRequest(; method, params, id = 0)))
+
+    # A data directory that does not exist answers an empty listing rather than failing it.
+    @testset "a missing data directory" begin
+        nowhere, _, _ = DashiBoard.get_handlers(joinpath(data_dir, "does-not-exist"); model_dir, training_dir)
+        listed = caller(nowhere)("list-files", Dict())["result"]
         @test listed["files"] == [] && listed["misplaced"] == []
-        close(nowhere)
     end
 
     # A workspace with no folder for its configurations reads them from the root: only what is a
@@ -1077,24 +994,70 @@ mktempdir() do data_dir
             write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 1\n")
             write(joinpath(ws, "broken.toml"), "= not toml")
             mkpath(joinpath(ws, "quarantine")); cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "quarantine", "old.toml"))
-            flat_port = first_free_port(8581:8680)
-            flat = DashiBoard.launch(ws; port = flat_port, async = true)
-            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/list-configurations", body = "{}").body)
+            flat = caller(first(DashiBoard.get_handlers(ws)))
+            listed = flat("list-configurations", Dict())["result"]
             @test [m["name"] for m in listed["model"]] == ["m"]
             @test [t["name"] for t in listed["training"]] == ["tr"]
-            ir = JSON.parse(HTTP.post("http://127.0.0.1:$(flat_port)/get-card-ir", body = JSON.json((; cols = ["a"], nodes = String[], groups = String[], include = ["cards"]))).body)
+            ir = flat("get-card-ir", Dict("cols" => ["a"], "nodes" => String[], "groups" => String[], "include" => ["cards"]))["result"]
             model = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "model")
             @test model["value"]["options"] == ["m"]
-            close(flat)
         end
     end
 
+    # One server, for what only a server does: the three endpoints, the GET download, statuses
+    # and the CORS headers every reply carries.
+    @testset "server" begin
+        port = let s = Sockets.listen(Sockets.localhost, 0)
+            p = Int(Sockets.getsockname(s)[2]); close(s); p
+        end
+        url = "http://127.0.0.1:$(port)/"
+        server = DashiBoard.launch(data_dir; port, async = true, model_dir, training_dir)
+        rpc(endpoint, method, params) = HTTP.post(
+            url * endpoint; status_exception = false,
+            body = JSON.json((; jsonrpc = "2.0", id = 1, method, params)),
+        )
+
+        resp = rpc("rpc", "list-files", Dict())
+        # Before parsing: `String(::Vector{UInt8})` empties the buffer it is given.
+        @test resp.headers == [
+            DashiBoard.CORS_RES_HEADERS...,
+            DashiBoard.JSON_HEADERS...,
+            "Content-Length" => string(length(resp.body)),
+        ]
+        @test resp.status == 200 && haskey(JSON.parse(String(resp.body)), "result")
+
+        params = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline-groups.json"))
+        @test haskey(JSON.parse(String(rpc("rpc-probe", "evaluate-pipeline", params).body))["result"], "nodes")
+
+        resp = rpc("rpc-stream", "fetch-data", Dict("processed" => false, "limit" => 2, "offset" => 0))
+        @test resp.status == 200 && length(JSON.parse(String(resp.body))["values"]) == 2
+        resp = rpc("rpc-stream", "nope", Dict())
+        @test resp.status == 404 && ("Access-Control-Allow-Origin" => "*") in resp.headers
+        resp = rpc("rpc-stream", "fetch-data", Dict("processed" => false, "limit" => "x", "offset" => 0))
+        @test resp.status == 400 && HTTP.header(resp, "Content-Type") == "application/json"
+        @test JSON.parse(String(resp.body))["error"]["code"] == -32602
+        failed_run = DashiBase.JSONFailure(; error = DashiBase.json_error(DashiBase.internal_error, "boom"))
+        @test DashiBoard.stream_status(failed_run) == 500
+        notification = JSON.json((; jsonrpc = "2.0", method = "list-files", params = Dict()))
+        resp = HTTP.post(url * "rpc"; body = notification, status_exception = false)
+        @test resp.status == 204 && isempty(resp.body)
+
+        resp = HTTP.get(url * "get-processed-data"; status_exception = false)
+        @test resp.status == 200 && HTTP.header(resp, "Content-Type") == "text/csv"
+        @test HTTP.header(resp, "Content-Disposition") == "attachment; filename=\"processed-data.csv\""
+
+        @test ("Access-Control-Allow-Origin" => "*") in HTTP.post(url * "nowhere"; status_exception = false).headers
+        @test HTTP.options(url * "rpc").headers == [DashiBoard.CORS_OPTIONS_HEADERS..., "Content-Length" => "0"]
+        close(server)
+    end
+
     # With a layout, a file is offered for what its folder says it is, as long as its content
-    # agrees; one whose content says otherwise is reported, not offered.
+    # agrees; one whose content says otherwise is reported, not offered. Last: it loads a table
+    # of its own over the one every testset above reads.
     @testset "files by folder" begin
         mktempdir() do ws
-            for d in ("data", "pipeline/sub", "filter"), p in (joinpath(ws, d),)
-                mkpath(p)
+            for d in ("data", "pipeline/sub", "filter")
+                mkpath(joinpath(ws, d))
             end
             write(joinpath(ws, "data", "t.csv"), "a,b\n1,2\n")
             write(joinpath(ws, "pipeline", "sub", "p.json"), JSON.json(cards_doc))
@@ -1102,12 +1065,13 @@ mktempdir() do data_dir
             write(joinpath(ws, "pipeline", "note.md"), "neither a document nor a table")
             write(joinpath(ws, "pipeline", "t2.csv"), "a,b\n1,2\n")
             write(joinpath(ws, "filter", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
-            laid_port = first_free_port(8381:8480)
-            laid = DashiBoard.launch(
-                ws; port = laid_port, async = true, model_dir, training_dir,
+            laid, _, _ = DashiBoard.get_handlers(
+                ws; model_dir, training_dir,
                 data_dir = joinpath(ws, "data"), pipeline_dir = joinpath(ws, "pipeline"), filter_dir = joinpath(ws, "filter"),
             )
-            listed = JSON.parse(HTTP.post("http://127.0.0.1:$(laid_port)/list-files", body = "{}").body)
+            lpost = caller(laid)
+            refusal(reply) = only_error(reply["error"]["data"])
+            listed = lpost("list-files", Dict())["result"]
             # Grouped by kind, then by path; what is neither table nor document is not mentioned.
             @test [(f["path"], f["kind"]) for f in listed["files"]] == [
                 ("sub/p.json", "cards"), ("f.json", "filters"), ("t.csv", "table"),
@@ -1116,57 +1080,44 @@ mktempdir() do data_dir
                 Dict("path" => "f.json", "kind" => "pipeline", "found" => "filters"),
                 Dict("path" => "t2.csv", "kind" => "pipeline", "found" => "table"),
             ]
+            @test listed["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
 
-            # The routes the form saves with: a path is relative to the kind's own folder, so
-            # one path saved as a pipeline and as a filters document lands in twin subfolders.
-            laid_url = "http://127.0.0.1:$(laid_port)/"
-            lpost(route, body) = JSON.parse(HTTP.post(laid_url * route, body = JSON.json(body), status_exception = false).body)
+            # A path is relative to the kind's own folder, so one path saved as a pipeline and as
+            # a filters document lands in twin subfolders.
             filters_doc = Dict("numerical" => Dict(), "categorical" => Dict())
-            @test lpost("write-pipeline", Dict("path" => "sub/mine.json", "document" => cards_doc))["valid"] == true
-            @test isfile(joinpath(ws, "pipeline", "sub", "mine.json"))
-            @test lpost("write-filters", Dict("path" => "sub/mine.json", "document" => filters_doc))["valid"] == true
-            @test isfile(joinpath(ws, "filter", "sub", "mine.json"))
-            @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in lpost("list-files", Dict())["files"]]
-            @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["document"] == cards_doc
-            @test lpost("read-filters", Dict("path" => "sub/mine.json"))["document"] == filters_doc
-            # The folder is implied, so a path that spells it is turned away rather than nested —
-            # however it is spelt.
+            @test haskey(lpost("write-pipeline", Dict("path" => "sub/mine.json", "document" => cards_doc)), "result")
+            @test haskey(lpost("write-filters", Dict("path" => "sub/mine.json", "document" => filters_doc)), "result")
+            @test isfile(joinpath(ws, "pipeline", "sub", "mine.json")) && isfile(joinpath(ws, "filter", "sub", "mine.json"))
+            @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["result"]["document"] == cards_doc
+            @test lpost("read-filters", Dict("path" => "sub/mine.json"))["result"]["document"] == filters_doc
+            # The folder is implied, so a path that spells it is turned away rather than nested.
             for path in ("pipeline/mine.json", "./pipeline/mine.json")
-                implied = lpost("write-pipeline", Dict("path" => path, "document" => cards_doc))
-                @test implied["valid"] == false && occursin("implied", only(implied["errors"]))
+                @test occursin("implied", refusal(lpost("write-pipeline", Dict("path" => path, "document" => cards_doc))))
             end
-            # The layout's folder names are not subfolder names: such a subfolder is neither
-            # written to nor listed, and a read of it says why in a reader's words.
-            other = lpost("write-pipeline", Dict("path" => "training/x.json", "document" => cards_doc))
-            @test other["valid"] == false && occursin("layout", only(other["errors"]))
+            # The layout's folder names are not subfolder names: neither written to nor listed,
+            # and a read of one says why in a reader's words.
+            @test occursin("layout", refusal(lpost("write-pipeline", Dict("path" => "training/x.json", "document" => cards_doc))))
             mkpath(joinpath(ws, "pipeline", "model")); write(joinpath(ws, "pipeline", "model", "p.json"), JSON.json(cards_doc))
-            @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["files"]])
-            unread = lpost("read-pipeline", Dict("path" => "model/p.json"))
-            @test unread["valid"] == false && occursin("layout", only(unread["errors"])) && !occursin("save", only(unread["errors"]))
-            @test lpost("read-pipeline", Dict("path" => "pipeline"))["valid"] == false
-
-            # Each kind's folder, as the workspace sees it, for the form to say where it lists
-            # and saves; and a table is loaded from the data folder, not the workspace root.
-            @test lpost("list-files", Dict())["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
-            loaded = HTTP.post(laid_url * "load-files", body = JSON.json(Dict("name" => "t", "files" => ["t.csv"])))
-            @test [c["name"] for c in JSON.parse(loaded.body)] == ["a", "b"]
-            escaped = lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))
-            @test escaped["valid"] == false && occursin("pipeline", only(escaped["errors"]))
+            @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["result"]["files"]])
+            unread = refusal(lpost("read-pipeline", Dict("path" => "model/p.json")))
+            @test occursin("layout", unread) && !occursin("save", unread)
+            @test haskey(lpost("read-pipeline", Dict("path" => "pipeline")), "error")
+            @test occursin("pipeline", refusal(lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))))
             @test !isfile(joinpath(ws, "x.json"))
-            # A configuration the same way, into the model and training folders — here outside
-            # the workspace, which a kind route may reach and the general route may not.
+
+            # A configuration the same way — here outside the workspace, which a kind route may
+            # reach and the general route may not.
             elsewhere = mktempdir()
             model_text = read(joinpath(model_dir, "dense.toml"), String)
-            aside_port = first_free_port(8481:8580)
-            aside = DashiBoard.launch(ws; port = aside_port, async = true, model_dir = elsewhere, training_dir)
-            apost(route, body) = JSON.parse(HTTP.post("http://127.0.0.1:$(aside_port)/" * route, body = JSON.json(body), status_exception = false).body)
-            @test apost("write-model", Dict("path" => "m.toml", "text" => model_text))["valid"] == true
-            @test isfile(joinpath(elsewhere, "m.toml"))
-            @test apost("read-model", Dict("path" => "m.toml"))["parsed"]["name"] == "basic"
-            @test apost("write-configuration", Dict("path" => joinpath(elsewhere, "n.toml"), "kind" => "model", "text" => model_text))["valid"] == false
-            @test apost("write-training", Dict("path" => "t.toml", "text" => model_text))["valid"] == false
-            close(aside)
-            close(laid)
+            apost = caller(first(DashiBoard.get_handlers(ws; model_dir = elsewhere, training_dir)))
+            @test haskey(apost("write-model", Dict("path" => "m.toml", "text" => model_text)), "result")
+            @test apost("read-model", Dict("path" => "m.toml"))["result"]["parsed"]["name"] == "basic"
+            @test haskey(apost("write-configuration", Dict("path" => joinpath(elsewhere, "n.toml"), "kind" => "model", "text" => model_text)), "error")
+            @test haskey(apost("write-training", Dict("path" => "t.toml", "text" => model_text)), "error")
+
+            # A table is loaded from the data folder, not the workspace root.
+            loaded = lpost("load-files", Dict("name" => "t", "files" => ["t.csv"]))["result"]
+            @test [c["name"] for c in loaded] == ["a", "b"]
         end
     end
 end

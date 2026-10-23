@@ -10,6 +10,7 @@ import "@ag-grid-community/styles/ag-grid.css";
 import "@ag-grid-community/styles/ag-theme-quartz.css";
 
 import { postRequest } from "../requests";
+import { isRpcError, type RpcError } from "../rpcError";
 
 // Colours and density come from the `.ag-theme-quartz` block in App.css, which maps ag-grid's
 // `--ag-*` variables onto our tokens. Nothing here should set a colour.
@@ -52,6 +53,21 @@ type TableViewProps = {
   class?: string;
 };
 
+/** Hand one page to the grid: its rows, or a failed block when the server refused or was not reached. */
+export function deliverRows(
+  data: FetchedRows | RpcError | null,
+  params: Pick<GetRowsParams, "successCallback" | "failCallback">,
+) {
+  if (!data || isRpcError(data)) {
+    params.failCallback();
+    return;
+  }
+  // `data.length` is the table's total row count, not `values.length` — the route answers
+  // `{"values": …, "length": nrows}`. Handing it over with every block tells the grid where the
+  // table ends from the first page on, so it never asks past it.
+  params.successCallback(data.values, data.length);
+}
+
 export function TableView(props: TableViewProps) {
   const dataSource = (processed: boolean) => {
     return {
@@ -70,18 +86,7 @@ export function TableView(props: TableViewProps) {
             processed,
           },
           null,
-        ).then((data: FetchedRows | null) => {
-          if (!data) {
-            params.failCallback();
-            return;
-          }
-          // `data.length` is the table's total row count, not `values.length` — the route
-          // answers `{"values": …, "length": nrows}`. Handing it over with every block tells
-          // the grid where the table ends from the first page on, so it never asks past it.
-          // Not testable in jsdom (no layout, so the grid never pages); the access log is the
-          // evidence.
-          params.successCallback(data.values, data.length);
-        });
+        ).then((data: FetchedRows | RpcError | null) => deliverRows(data, params));
       },
     };
   };

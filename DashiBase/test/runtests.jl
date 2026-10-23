@@ -317,3 +317,43 @@ end
     widths = StructUtils.make(AbstractIR, d)
     @test widths.default == [64, 32]
 end
+
+@testset "json-rpc" begin
+    handlers = Dict{String, Any}("echo" => p -> (() -> p))
+    rpc(s) = JSON.parse(JSON.json(DashiBase.apply_handlers(handlers, s)))
+
+    ok = rpc("""{"jsonrpc":"2.0","id":1,"method":"echo","params":{"a":1}}""")
+    @test ok == Dict("jsonrpc" => "2.0", "id" => 1, "result" => Dict("a" => 1))
+
+    for bad in ("""{"id":1,"method":"echo","params":1}""", """{"jsonrpc":"1.0","id":1,"method":"echo","params":1}""")
+        @test rpc(bad)["error"]["code"] == -32600
+    end
+    for id in ("\"abc\"", "1.5", "true", "99999999999999999999")
+        r = rpc("""{"jsonrpc":"2.0","id":$(id),"method":"echo","params":1}""")
+        @test r["error"]["code"] == -32600 && r["id"] === nothing
+    end
+    @test rpc("""{"jsonrpc":"2.0","id":2,"method":"nope","params":1}""")["error"]["code"] == -32601
+    @test rpc("{bad")["error"]["code"] == -32700
+    # A notification is never answered, not even when it fails.
+    @test DashiBase.apply_handlers(handlers, """{"jsonrpc":"2.0","method":"nope","params":1}""") === nothing
+    @test DashiBase.apply_handlers(handlers, """{"jsonrpc":"2.0","method":"nope","params":1}""", tempname()) === nothing
+
+    batch = rpc("""[
+        {"jsonrpc":"2.0","id":1,"method":"echo","params":1},
+        {"jsonrpc":"2.0","method":"echo","params":2},
+        {"jsonrpc":"2.0","id":3,"method":"nope","params":3},
+        {"jsonrpc":"2.0","id":4}
+    ]""")
+    @test [r["id"] for r in batch] == [1, 3, 4]
+    @test batch[1]["result"] == 1 && batch[2]["error"]["code"] == -32601 && batch[3]["error"]["code"] == -32600
+    @test DashiBase.apply_handlers(handlers, """[{"jsonrpc":"2.0","method":"echo","params":1}]""") === nothing
+    # An element that is not an object is answered in its own slot, not by crashing the batch.
+    mixed = rpc("""[1, {"jsonrpc":"2.0","id":5,"method":"echo","params":5}]""")
+    @test mixed[1]["error"]["code"] == -32600 && mixed[2]["result"] == 5
+
+    streamed = DashiBase.apply_handlers(handlers, """[{"jsonrpc":"2.0","id":1,"method":"echo","params":1}]""", tempname())
+    @test streamed isa DashiBase.JSONFailure && streamed.error.code == -32600
+
+    failure = DashiBase.json_error(DashiBase.internal_error, DashiBase.StructuredException(Dict{String, Any}("k" => 1)))
+    @test JSON.parse(JSON.json(failure))["data"] == Dict("k" => 1)
+end

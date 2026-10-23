@@ -101,9 +101,7 @@ function launch(
     # the browser makes itself streams to disk rather than through the page's memory.
     HTTP.register!(router, "GET", "/get-processed-data", stream -> stream_response(stream_handler, stream, PROCESSED_DATA_REQUEST))
 
-    # Logging outermost, so it sees what the CORS layer answers itself (an `OPTIONS` preflight)
-    # and what the router rejects before any handler runs (a 404 or 405).
-    cors_router = router |> CorsMiddleware |> LoggingMiddleware
+    cors_router = router |> CorsMiddleware
 
     # Said out loud, so whoever launched from a terminal knows the warm-up is over.
     @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()

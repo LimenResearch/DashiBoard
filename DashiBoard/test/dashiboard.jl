@@ -661,7 +661,7 @@ mktempdir() do data_dir
         )
         resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("Iws" => "log"))))
         result = resp["result"]
-        @test result["valid"]
+        @test !haskey(result, "valid")
         @test result["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
 
         # A transform for a column the list does not reach is a pointed issue at its entry.
@@ -669,6 +669,30 @@ mktempdir() do data_dir
         issue = only(resp["error"]["data"]["issues"])
         @test issue["reason"] == "transforms"
         @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
+    end
+
+    # A reference nothing produces — a formula's free text, which no schema sees — is refused by
+    # the probe and by the run alike, before anything runs, with what a form needs to mark it.
+    @testset "probe-unproduced" begin
+        params = Dict(
+            "nodes" => [
+                Dict(
+                    "id" => "g", "card" => Dict(
+                        "type" => "glm", "distribution" => "normal",
+                        "formula" => Dict("inputs" => [1, "NOPE"], "target" => Dict("cols" => "TEMP")),
+                    )
+                ),
+            ],
+            "groups" => Dict{String, Any}(),
+        )
+        for call in (post_probe, post)
+            data = call("evaluate-pipeline", params)["error"]["data"]
+            @test data["kind"] == "pipeline"
+            issue = only(data["issues"])
+            @test issue["reason"] == "unproduced" && issue["pointer"] == "/nodes/0/card"
+            @test only(data["nodes"])["unproduced"] == ["NOPE"]
+            @test haskey(data, "cols") && haskey(data, "referable")
+        end
     end
 
     @testset "probe-group" begin
@@ -719,7 +743,6 @@ mktempdir() do data_dir
         params = Dict("filters" => [], "nodes" => [], "groups" => Dict{String, Any}())
         resp = post_probe("evaluate-pipeline", params)
         @test haskey(resp, "result")
-        @test resp["result"]["valid"]
         resp = post("evaluate-pipeline", params)
         @test haskey(resp, "result")
         empty_run = resp["result"]
@@ -736,7 +759,6 @@ mktempdir() do data_dir
         )
         resp = post_probe("evaluate-pipeline", groups_only)
         @test haskey(resp, "result")
-        @test resp["result"]["valid"]
     end
 
     @testset "empty-group" begin
@@ -836,7 +858,6 @@ mktempdir() do data_dir
         resp = post_probe("evaluate-pipeline", same_name)
         @test haskey(resp, "result")
         result = resp["result"]
-        @test result["valid"]
         warning = only(i for i in result["issues"] if i["reason"] == "overwrites")
         @test warning["severity"] == "warning"
         @test warning["pointer"] == "/nodes/1/card"
@@ -861,7 +882,6 @@ mktempdir() do data_dir
         resp = post_probe("evaluate-pipeline", params)
         @test haskey(resp, "result")
         result = resp["result"]
-        @test result["valid"] # static checks pass; this is a runtime fault
         resp = post("evaluate-pipeline", params)
         @test haskey(resp, "error")
         metadata = resp["error"]["data"]

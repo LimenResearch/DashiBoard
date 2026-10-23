@@ -734,10 +734,10 @@ A streamliner card adds a check that its model can be built for its funnel: the 
 types, one count per categorical column it names, and the model built once (`model_issues`).
 Nothing is trained or materialised, so this is safe to call on every edit.
 
-It reports rather than throws, for *every* way a document can be malformed rather than only
-schema failures: a probe that answers 500 tells a form nothing it can render. Two nodes with no
-`id`, for instance, both resolve to `""` and the dependency graph rejects them as duplicates —
-an `ArgumentError`, which used to escape and leave the form silent.
+Every way a document can be malformed is refused with a structured error rather than a bare
+failure: a probe that answers 500 tells a form nothing it can render. Two nodes with no `id`, for
+instance, both resolve to `""` and the dependency graph rejects them as duplicates — an
+`ArgumentError` that comes back with the document's issues like any schema failure.
 
 Construction is pure document processing, so anything it raises is a fact about the document and
 belongs in the response.
@@ -826,24 +826,26 @@ function evaluate_pipeline(spec::AbstractDict)
         )
     end
 
-    probe =
-        (;
-        valid = isempty(absent) && isempty(unfit), # TODO: shouldn't we throw earlier instead?
-        # The probe's second way of being invalid, and the same kind as the first: a reference
-        # nothing produces is a fault of the document, found by resolving rather than by running.
-        kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
+    # Errors first, then warnings: a client reading the list top-down sees what blocks the run
+    # before what merely deserves a look.
+    issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols))
+    probe = (;
         cols,
         nodes,
         referable = may_refer,
         source_vars = Pipelines.get_source_vars(pipeline),
         output_vars = Pipelines.get_output_vars(pipeline),
         errors = String[],
-        # Always present, so a client can read one shape rather than branch on which half of the
-        # route answered.
-        # Errors first, then warnings: a client reading the list top-down sees what blocks the
-        # run before what merely deserves a look.
-        issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
+        issues,
     )
+    # A reference nothing produces, or a model that cannot be built, is a fault of the document
+    # found by resolving rather than by running: the document is refused, with everything the
+    # probe found, so a form marks the nodes as it does for any other refusal.
+    if !isempty(absent) || !isempty(unfit)
+        errors = [issue.message for issue in issues if issue.severity == "error"]
+        failure = (; probe..., kind = "pipeline", errors)
+        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+    end
 
     return ProbedThunk(probe) do
         orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())

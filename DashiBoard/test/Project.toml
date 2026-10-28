@@ -46,6 +46,5 @@ DashiBase = {path = "../../DashiBase"}
 DashiBoard = {path = ".."}
 DataIngestion = {path = "../../DataIngestion"}
 DuckDBUtils = {path = "../../DuckDBUtils"}
-JSONSchema = {rev = "master", url = "https://github.com/JuliaIO/JSONSchema.jl.git"}
 Pipelines = {path = "../../Pipelines"}
 StreamlinerCore = {path = "../../StreamlinerCore"}

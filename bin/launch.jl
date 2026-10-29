@@ -62,7 +62,8 @@ function relaunch(env, launch)
     variables[HANDOVER] = sprint(TOML.print, launch)
     command = setenv(`$(Base.julia_cmd()) --project=$(env) $(@__FILE__)`, variables)
     child = run(pipeline(command; stdin, stdout, stderr); wait = false)
-    atexit(() -> process_running(child) && kill(child))
+    # Waited for, so once this process has exited the server has too, and its port is free.
+    atexit(() -> process_running(child) && (kill(child); wait(child)))
     wait(child)
     return success(child) ? 0 : max(child.exitcode, 1)
 end

@@ -10,6 +10,8 @@ using Base.ScopedValues: @with, ScopedValue
 
 using HTTP: HTTP, startread, startwrite, closeread
 
+using Logging: Logging, AbstractLogger, with_logger, current_logger
+
 
 using Scratch: @get_scratch!
 

@@ -103,7 +103,32 @@ function launch(
 
     cors_router = router |> CorsMiddleware
 
-    # Said out loud, so whoever launched from a terminal knows the warm-up is over.
-    @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()
-    return async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
+    # The server's tasks inherit the logger, so everything they log is flushed too.
+    return with_logger(FlushingLogger(current_logger())) do
+        server = HTTP.listen!(cors_router, host, port)
+        # Said once the port is bound, so whoever waits for it can connect straight away.
+        @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()
+        async ? server : wait(server)
+    end
+end
+
+"""
+    FlushingLogger(logger)
+
+`logger`, with standard error flushed after every record. Julia block-buffers `stderr` when it is
+a file — a redirected log, a batch job's output — so without this nothing the server says reaches
+the file while it runs, not even that it is listening.
+"""
+struct FlushingLogger{L <: AbstractLogger} <: AbstractLogger
+    logger::L
+end
+
+Logging.min_enabled_level(l::FlushingLogger) = Logging.min_enabled_level(l.logger)
+Logging.shouldlog(l::FlushingLogger, args...) = Logging.shouldlog(l.logger, args...)
+Logging.catch_exceptions(l::FlushingLogger) = Logging.catch_exceptions(l.logger)
+
+function Logging.handle_message(l::FlushingLogger, args...; kwargs...)
+    Logging.handle_message(l.logger, args...; kwargs...)
+    flush(stderr)
+    return
 end

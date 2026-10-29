@@ -1,5 +1,6 @@
 using DashiBoard, Test, HTTP
 using Sockets: Sockets
+using FileWatching: FileMonitor
 using TOML: TOML
 
 @testset "resolving a workspace" begin
@@ -134,15 +135,17 @@ const PROJECT = normpath(joinpath(@__DIR__, ".."))
         manifest = TOML.parsefile(joinpath(env, "Manifest.toml"))
         core = only(manifest["deps"]["StreamlinerCore"])
         @test haskey(core, "path") && !haskey(core, "repo-url")
-        stamp = mtime(joinpath(env, "Manifest.toml"))
+        # A rebuild starts from an empty folder, so a file left in it says whether one happened.
+        sentinel = joinpath(env, "sentinel")
+        touch(sentinel)
         # The same sources again: nothing to redo.
-        sleep(1.1)
         DashiBoard.extension_environment(ws, sources; io = devnull)
-        @test mtime(joinpath(env, "Manifest.toml")) == stamp
+        @test isfile(sentinel)
 
         # Different sources are a different environment, built afresh: what the table no longer
         # names is not carried along.
         DashiBoard.extension_environment(ws, Dict{String, Dict{String, Any}}(); io = devnull)
+        @test !isfile(sentinel)
         @test !haskey(TOML.parsefile(joinpath(env, "Project.toml"))["deps"], "TestExtension")
         DashiBoard.extension_environment(ws, sources; io = devnull)
         # Loaded from the environment that holds them, and the one that was active put back.
@@ -222,51 +225,56 @@ launcher(args...) = addenv(
         [extensions]
         TestExtension = { path = "$(TEST_EXTENSION)" }
         """)
+        # The server says it is listening once its port is bound, so its log saying so is the
+        # wait. A file, as a log usually is: what the server writes must reach it while it runs.
+        # Each wait is for an event — the file changed, or the launcher exited — and the monitor
+        # is open before the server starts, so no change between two reads is missed.
         log = joinpath(ws, "launch.log")
+        touch(log)
+        monitor = FileMonitor(log)
         proc = run(pipeline(launcher(ws); stdout = log, stderr = log); wait = false)
-        try
-            answered = false
-            for _ in 1:600
-                process_exited(proc) && break
-                try
-                    params = (; cols = ["a"], nodes = String[], groups = String[], include = ["cards"])
-                    r = HTTP.post("http://127.0.0.1:$(port)/rpc", body = JSON.json((; jsonrpc = "2.0", id = 1, method = "get-card-ir", params)))
-                    ir = JSON.parse(r.body)["result"]
-                    funnel = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "funnel")
-                    transforms = only(p for p in funnel["value"]["objects"][""]["properties"] if p["key"] == "input_transforms")
-                    @test "double" in transforms["value"]["values"]["enum"]
-                    # A method the extension defined is seen by the running server.
-                    @test [p["key"] for p in funnel["value"]["objects"]["test"]["properties"]] == ["marker"]
-                    answered = true
-                    break
-                catch
-                    sleep(1)
-                end
+        events = Channel{Symbol}(Inf)
+        @async (wait(proc); put!(events, :exited))
+        @async try
+            while true
+                wait(monitor); put!(events, :changed)
             end
-            @test answered
+        catch  # the monitor is closed
+        end
+        try
+            # The record ends on its last field.
+            listening(text) = occursin(r"DashiBoard is listening[^└]*└[^\n]*\n", text)
+            text = read(log, String)
+            while !listening(text) && !process_exited(proc)
+                take!(events)
+                text = read(log, String)
+            end
+            @test listening(text)
             # The server runs in the environment its extensions were resolved in, so what is
             # loaded is what was resolved.
-            text = read(log, String)
             @test occursin(joinpath(".dashiboard", "env"), text)
-            @test occursin("DashiBoard is listening", text)
             @test occursin("no directory for some kinds", text) && occursin(":pipeline", text)   # the warning names what fell back
+            params = (; cols = ["a"], nodes = String[], groups = String[], include = ["cards"])
+            r = HTTP.post("http://127.0.0.1:$(port)/rpc", body = JSON.json((; jsonrpc = "2.0", id = 1, method = "get-card-ir", params)))
+            ir = JSON.parse(r.body)["result"]
+            funnel = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "funnel")
+            transforms = only(p for p in funnel["value"]["objects"][""]["properties"] if p["key"] == "input_transforms")
+            @test "double" in transforms["value"]["values"]["enum"]
+            # A method the extension defined is seen by the running server.
+            @test [p["key"] for p in funnel["value"]["objects"]["test"]["properties"]] == ["marker"]
         finally
+            close(monitor)
             kill(proc); wait(proc)
         end
-        # Stopping the launcher stops the server it started.
-        gone = false
-        for _ in 1:40
-            # Gone means the port refuses a connection, not that a reply was slow.
-            gone = try
-                close(Sockets.connect(Sockets.localhost, port)); false
-            catch e
-                e isa Base.IOError || rethrow()
-                true
-            end
-            gone && break
-            sleep(0.5)
+        # Stopping the launcher stops the server it started: once the launcher has exited, the
+        # port refuses a connection.
+        refused = try
+            close(Sockets.connect(Sockets.localhost, port)); false
+        catch e
+            e isa Base.IOError || rethrow()
+            true
         end
-        @test gone
+        @test refused
     end
     # An extension that cannot be found stops the launch before it listens, naming it.
     mktempdir() do ws

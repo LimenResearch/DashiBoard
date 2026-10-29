@@ -383,12 +383,12 @@ end
     narrowed_outputs(n::Node, products)::Vector{String}
 
 The columns `n` writes for the products named, in that order: what a node selection's `products`
-keeps of the node.
+keeps of the node. If `products` is `nothing`, everything is kept.
 """
-function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
+function narrowed_outputs(n::Node, products::Maybe{AbstractVector{<:AbstractString}})
     groups = output_spec(n)
-    named = named_products(n, groups, products)
-    return to_outputs(n, named)
+    chosen = isnothing(products) ? groups : named_products(n, groups, products)
+    return to_outputs(n, chosen)
 end
 
 """

@@ -7,6 +7,7 @@ import { TableView } from "../components/TableView";
 import { StateDot, type DotState } from "../components/StateDot";
 import { Tabs } from "../components/Tabs";
 import { getURL, postRequest } from "../requests";
+import { failureOf, isRpcError, type RpcError } from "../rpcError";
 import {
   CARDS_STORE, LOADER_JSON, documentFindings, documentVerdict, exportCards, itemKey, rejectDocument,
   rejectFromIssues, verdictOf,
@@ -23,9 +24,6 @@ import { wireDocument } from "../wire";
 /** The shape of `POST /evaluate-pipeline`'s answer. Every field is optional: an older server, or
  *  a failed request, must degrade to an empty pane rather than a crash. */
 type RunResult = {
-  /** `false` when the run threw. Absent from a server predating the change, which then reads as
-   *  success — the same degradation the probe's `issues` field takes. */
-  valid?: boolean;
   /** Where it broke: `"pipeline"` before anything ran, `"execution"` while running. */
   kind?: string;
   errors?: string[];
@@ -112,7 +110,7 @@ export function Results() {
         "evaluate-pipeline",
         { ...wireDocument(), nodes: sent.nodes, groups: sent.groups },
         null,
-      )) as RunResult | null;
+      )) as RunResult | RpcError | null;
       // `postRequest` collapses a dead server, a non-JSON body and a network fault alike into the
       // default it was given. Whatever the cause, the reader must not be left thinking the run
       // succeeded — which is what an unchanged screen says.
@@ -122,14 +120,15 @@ export function Results() {
         setFailure({ errors: ["Could not reach DashiBoard. Is the server running?"] });
         return;
       }
-      if (answer.valid === false) {
+      if (isRpcError(answer)) {
+        const failure = failureOf(answer) as RunResult;
         setRanOn({ signature: asked, ok: false });
         setResult(null);
-        const issues = Array.isArray(answer.issues) ? answer.issues : [];
+        const issues = Array.isArray(failure.issues) ? failure.issues : [];
         if (issues.length > 0) rejectFromIssues(issues, sent);
         // What points at no item is the document's: recorded on its verdict, so it is still
         // said next to Run after a reload, when this run's own block is gone.
-        const loose = documentFindings({ valid: false, issues, errors: answer.errors ?? [] });
+        const loose = documentFindings({ valid: false, issues, errors: failure.errors ?? [] });
         if (loose.length > 0) rejectDocument(sent, loose);
         // Counted through the same `itemKey` the marks are made with, errors only, so the
         // headline and the marks cannot drift: an empty-group issue (`/groups/empty`) once landed
@@ -150,12 +149,12 @@ export function Results() {
           ? `${phrases.join(" and ")} need${cardCount + groupCount === 1 ? "s" : ""} attention — see the marks on them.`
           : null;
         setFailure({
-          kind: answer.kind,
+          kind: failure.kind,
           // Pointed issues are on the cards or groups; the prose stays as the fallback for
           // faults that carry no pointer — a cycle, a filter's SQL error.
           errors: [
             ...(headline ? [headline] : []),
-            ...(answer.errors?.length ? answer.errors : ["The run failed, without saying why."]),
+            ...(failure.errors?.length ? failure.errors : ["The run failed, without saying why."]),
           ],
         });
         return;

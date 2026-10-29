@@ -12,6 +12,7 @@ import { HelpButton, HelpPanel } from "../components/SelectorHelp";
 import { Disclosure } from "../components/Disclosure";
 import { SummaryTitle, readableType } from "../components/SummaryTitle";
 import { postRequest } from "../requests";
+import { failureOf, isRpcError, type RpcError } from "../rpcError";
 import { issueFindings } from "../findings";
 import { productsFor, productsOf, throughOptions } from "../through";
 import { mergePresets, presetFields, presetsFor } from "../presets";
@@ -121,8 +122,8 @@ export function Cards() {
   const [configurations, setConfigurations] = createSignal<Record<string, Record<string, string>>>({});
   async function loadConfigurations() {
     const received = (await postRequest("list-configurations", {}, null)) as
-      Record<string, { name: string; text: string }[]> | null;
-    if (!received) return;
+      Record<string, { name: string; text: string }[]> | RpcError | null;
+    if (!received || isRpcError(received)) return;
     const texts: Record<string, Record<string, string>> = {};
     for (const [kind, entries] of Object.entries(received)) {
       texts[kind] = Object.fromEntries((entries ?? []).map((entry) => [entry.name, entry.text]));
@@ -148,8 +149,12 @@ export function Cards() {
       "get-card-ir",
       { ...vocabulary, include },
       null,
-    )) as Partial<Payload> | null;
+    )) as Partial<Payload> | RpcError | null;
     if (seq !== irSeq) return;                         // a newer question is out; this answer is stale
+    if (isRpcError(received)) {
+      setError(failureOf(received).errors[0] ?? "The server refused, without saying why.");
+      return;
+    }
     if (!received || !received.defs) {
       setError("Could not reach DashiBoard. Is the server running?");
       return;

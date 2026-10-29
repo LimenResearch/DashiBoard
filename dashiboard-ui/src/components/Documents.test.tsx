@@ -25,6 +25,9 @@ vi.mock('./FilePicker', () => ({
 
 import { Documents } from './Documents';
 
+// A call the server refused, as `postRequest` hands it back.
+const refused = (data: object) => ({ error: { code: -32602, message: 'refused', data } });
+
 const CARDS = { nodes: [{ id: 'r', card: { type: 'rescale' } }], groups: {} };
 const serve = (replies: Record<string, unknown>) =>
   postRequest.mockImplementation((page: string) => Promise.resolve(replies[page] ?? null));
@@ -34,7 +37,7 @@ afterEach(cleanup);
 
 describe('Documents', () => {
   it('loads the picked file through the server and hands the document to its owner', async () => {
-    serve({ 'read-pipeline': { valid: true, document: CARDS } });
+    serve({ 'read-pipeline': { document: CARDS } });
     const onLoad = vi.fn(() => Promise.resolve([]));
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={onLoad} />);
     fireEvent.click(container.querySelector('[data-pick]')!);
@@ -46,7 +49,7 @@ describe('Documents', () => {
   });
 
   it("calls the document by another name on its buttons, and keeps the server's kind on the wire", async () => {
-    serve({ 'read-pipeline': { valid: true, document: CARDS } });
+    serve({ 'read-pipeline': { document: CARDS } });
     const { container, getByText } = render(() => (
       <Documents kind="cards" noun="pipeline" document={() => CARDS} onLoad={() => Promise.resolve([])} />
     ));
@@ -65,7 +68,7 @@ describe('Documents', () => {
   });
 
   it('shows the server\'s sentence when a load fails, and loads nothing', async () => {
-    serve({ 'read-pipeline': { valid: false, kind: 'document', errors: ['`x.json` is not a cards document'], issues: [] } });
+    serve({ 'read-pipeline': refused({ kind: 'document', errors: ['`x.json` is not a cards document'], issues: [] }) });
     const onLoad = vi.fn(() => []);
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={onLoad} />);
     fireEvent.click(container.querySelector('[data-pick]')!);
@@ -87,7 +90,7 @@ describe('Documents', () => {
   });
 
   it('shows what the loader could not place, and clears it when the document is edited', async () => {
-    serve({ 'read-pipeline': { valid: true, document: CARDS } });
+    serve({ 'read-pipeline': { document: CARDS } });
     const [doc, setDoc] = createSignal<unknown>(CARDS);
     const { container, getByText } = render(() => (
       <Documents kind="cards" document={doc} onLoad={() => Promise.resolve(['The input graph contains at least one loop.'])} />
@@ -103,7 +106,7 @@ describe('Documents', () => {
   });
 
   it('saves the document under the name given, and re-lists', async () => {
-    serve({ 'write-pipeline': { valid: true, path: 'mine.json' } });
+    serve({ 'write-pipeline': { path: 'mine.json' } });
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={() => []} />);
     const name = container.querySelector('input[aria-label="file name"]') as HTMLInputElement;
     expect(name.value).toBe('cards.json');
@@ -118,14 +121,14 @@ describe('Documents', () => {
   });
 
   it('replaces an existing file only when the author says so', async () => {
-    serve({ 'write-pipeline': { valid: false, kind: 'document', errors: ['`cards.json` already exists'], issues: [] } });
+    serve({ 'write-pipeline': refused({ kind: 'document', errors: ['`cards.json` already exists'], issues: [] }) });
     const { container, getByText } = render(() => <Documents kind="cards" document={() => CARDS} onLoad={() => []} />);
     fireEvent.click(getByText('Save cards'));
     await waitFor(() => expect(container.querySelector('[data-document-error]')).not.toBeNull());
     expect(container.querySelector('[data-document-error]')!.textContent).toContain('already exists');
     expect(refreshed).not.toHaveBeenCalled();
 
-    serve({ 'write-pipeline': { valid: true, path: 'cards.json' } });
+    serve({ 'write-pipeline': { path: 'cards.json' } });
     fireEvent.click(container.querySelector('input[type="checkbox"]')!);
     await flush();
     fireEvent.click(getByText('Save cards'));
@@ -143,7 +146,7 @@ describe('Documents', () => {
   // A filters document goes through its own route, into its own folder.
   it('saves and loads a filters document through the filters routes', async () => {
     const FILTERS = { numerical: {}, categorical: {} };
-    serve({ 'write-filters': { valid: true, path: 'filters.json' }, 'read-filters': { valid: true, document: FILTERS } });
+    serve({ 'write-filters': { path: 'filters.json' }, 'read-filters': { document: FILTERS } });
     const onLoad = vi.fn(() => []);
     const { container, getByText } = render(() => <Documents kind="filters" document={() => FILTERS} onLoad={onLoad} />);
     fireEvent.click(getByText('Save filters'));
@@ -199,7 +202,7 @@ describe('Documents', () => {
     });
 
     it('shows the server\'s sentence when it refuses, and saves nothing', async () => {
-      postBlob.mockImplementation(() => Promise.resolve({ json: { valid: false, errors: ['no model configuration is called `nosuch`'], issues: [] } }));
+      postBlob.mockImplementation(() => Promise.resolve(refused({ errors: ['no model configuration is called `nosuch`'], issues: [] })));
       const { container, getByText } = render(() => (
         <Documents kind="cards" noun="pipeline" document={() => CARDS} filters={() => null} onLoad={() => []} />
       ));

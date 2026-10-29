@@ -8,6 +8,7 @@ import { folderLabel } from "../folders";
 import { DOCUMENT_ROUTES } from "../apiRoutes";
 import { Input } from "./Input";
 import { postBlob, postRequest, saveBlob } from "../requests";
+import { failureOf, isRpcError, type RpcError } from "../rpcError";
 
 // The document row of a tab: load one from the folder of its kind, save this one into it, download
 // it. One component for cards and for filters, because the three actions are the same and only
@@ -43,12 +44,13 @@ type DocumentsProps = {
   filters?: () => unknown | null;
 };
 
-type Reply = { valid?: boolean; document?: unknown; errors?: string[] } | null;
+type Reply = { document?: unknown } | RpcError | null;
 const UNREACHABLE = "Could not reach DashiBoard — is the server running?";
-const sentences = (reply: Reply) =>
-  reply === null
-    ? [UNREACHABLE]
-    : reply.errors?.length ? reply.errors : ["The server refused, without saying why."];
+const sentences = (reply: RpcError | null) => {
+  if (reply === null) return [UNREACHABLE];
+  const { errors } = failureOf(reply);
+  return errors?.length ? errors : ["The server refused, without saying why."];
+};
 
 export function Documents(props: DocumentsProps) {
   const [picked, setPicked] = createSignal<string | null>(null);
@@ -84,7 +86,7 @@ export function Documents(props: DocumentsProps) {
     setBusy(true);
     try {
       const reply = (await postRequest(`read-${ROUTE_OF[props.kind]}`, { path }, null)) as Reply;
-      if (reply === null || reply.valid !== true) return say(sentences(reply));
+      if (reply === null || isRpcError(reply)) return say(sentences(reply));
       const loose = await props.onLoad(reply.document);
       // Said about the document as loaded, which is only in place once the owner's write has
       // settled — a tick later than `onLoad` returning. `untrack`: a one-off read from a
@@ -103,7 +105,7 @@ export function Documents(props: DocumentsProps) {
         { path: name(), document: props.document(), overwrite: overwrite() },
         null,
       )) as Reply;
-      if (reply === null || reply.valid !== true) return say(sentences(reply));
+      if (reply === null || isRpcError(reply)) return say(sentences(reply));
       say([]);
       refresh();
     } finally {
@@ -124,7 +126,7 @@ export function Documents(props: DocumentsProps) {
         name: stem(), cards: props.document(), ...(filters === null ? {} : { filters }),
       });
       if (answer === null) return say([UNREACHABLE]);
-      if ("json" in answer) return say(sentences(answer.json as Reply));
+      if (isRpcError(answer)) return say(sentences(answer));
       say([]);
       // Named here, from what the author typed: a header cannot be trusted with every name.
       saveBlob(answer.blob, `${stem()}.zip`);

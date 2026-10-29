@@ -168,7 +168,7 @@ function folder_label(kind::Symbol)
 end
 
 """
-    list_files(req)
+    list_files(_)
 
 Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}],
 folders: {table, cards, filters}}` — `folders` being where each kind is listed from and saved
@@ -184,8 +184,7 @@ sharing one directory (a flat workspace) list each file once, under the kind its
 What does not parse, is hidden, or is neither table nor document is not listed. A directory that
 does not exist answers nothing for its kind and warns, rather than fail the whole listing.
 """
-function list_files(req::HTTP.Request)
-    _ = json_read(req)
+function list_files(::AbstractDict)
     files = @NamedTuple{path::String, kind::String}[]
     misplaced = @NamedTuple{path::String, kind::String, found::String}[]
     bases = Dict{String, Vector{Symbol}}()
@@ -211,67 +210,62 @@ function list_files(req::HTTP.Request)
     sort!(files, by = file -> (file.kind, file.path))
     sort!(misplaced, by = file -> (file.kind, file.path))
     folders = (; table = folder_label(:data), cards = folder_label(:pipeline), filters = folder_label(:filter))
-    return json_response((; files, misplaced, folders))
+
+    return function ()
+        return (; files, misplaced, folders)
+    end
 end
 
 """
-    read_document(req)
+    read_document(spec)
 
-A cards or filters document from the workspace: `{valid: true, document}`, or the failure
-envelope every other route uses, with the server's sentence. Wrapped rather than returned bare,
-so a client tells a reply from a failure by `valid` alone, never by guessing at a document's keys.
+A cards or filters document from the workspace: `{document}`, or the failure every other route
+answers with, carrying the server's sentence. A client tells the two apart by `result` vs `error`,
+never by guessing at a document's keys.
 
 The counterpart of the browser's file dialog, which read a local file the server never saw and
 showed the whole disk. `kind` is what the client expects: a filters file picked where cards
 were asked for is refused here, with a sentence, rather than loaded into the wrong store.
 """
-read_document(req::HTTP.Request) = read_document(req, workspace_directory())
+read_document(spec::AbstractDict) = read_document(spec, workspace_directory())
 
-function read_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind = spec["path"], spec["kind"]
-        full = resolve_in(base, path; what)
-        isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
-        document = parse_document(full)
-        document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
-        (; valid = true, document)
-    catch exception
-        failure_report("document", exception)
+function read_document(spec::AbstractDict, base::AbstractString; what = "the workspace")
+    path, kind = spec["path"], spec["kind"]
+    full = resolve_in(base, path; what)
+    isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
+    document = parse_document(full)
+    document_kind(document) == kind || throw(ArgumentError("`$(path)` is not a $(kind) document"))
+    return function ()
+        return (; document)
     end
-    return json_response(answer)
 end
 
 """
-    write_document(req)
+    write_document(spec)
 
-Save a cards or filters document into the workspace, as indented JSON: `{valid: true, path}`
-or the failure envelope. What keeps a document where it can be loaded again: a download leaves
+Save a cards or filters document into the workspace, as indented JSON: `{path}`
+or the failure. What keeps a document where it can be loaded again: a download leaves
 the workspace, a save stays where `list-files` looks.
 
 Refuses: a path outside the directory; a name that does not end in `.json` (TOML is read, not
 written); a document whose shape is not `kind`'s; an existing file, unless `overwrite` is `true`.
 A folder named on the way is made: a client that says where a file goes means it.
 """
-write_document(req::HTTP.Request) = write_document(req, workspace_directory())
+write_document(spec::AbstractDict) = write_document(spec, workspace_directory())
 
-function write_document(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind, document = spec["path"], spec["kind"], spec["document"]
-        full = resolve_in(base, writable(path); what)
-        lowercase(last(splitext(full))) == ".json" ||
-            throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
-        document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
-        (isfile(full) && get(spec, "overwrite", false) !== true) &&
-            throw(ArgumentError("`$(path)` already exists"))
+function write_document(spec::AbstractDict, base::AbstractString; what = "the workspace")
+    path, kind, document = spec["path"], spec["kind"], spec["document"]
+    full = resolve_in(base, writable(path); what)
+    lowercase(last(splitext(full))) == ".json" ||
+        throw(ArgumentError("documents are saved as JSON: `$(path)` does not end in .json"))
+    document_kind(document) == kind || throw(ArgumentError("this is not a $(kind) document"))
+    (isfile(full) && get(spec, "overwrite", false) !== true) &&
+        throw(ArgumentError("`$(path)` already exists"))
+    return function ()
         mkpath(dirname(full))
         write(full, JSON.json(document; pretty = true))
-        (; valid = true, path)
-    catch exception
-        failure_report("document", exception)
+        return (; path)
     end
-    return json_response(answer)
 end
 
 # The routes the form saves and reads with: one per kind, a path relative to that kind's own
@@ -310,127 +304,93 @@ function kind_path(kind::Symbol, path::AbstractString)
     return resolve_in(pointer(kind), path; what = "the $(kind) directory")
 end
 
-# A request for a kind route, rewritten as one for the general route it stands on: the kind
-# filled in, and the path checked against the layout's folder names, resolved under the kind's
-# directory and handed on relative to that directory, which becomes the general route's base.
-function with_kind(req::HTTP.Request, kind::Symbol, content::AbstractString)
-    spec = json_read(req)
-    path = spec["path"]
-    base = pointer(kind)
-    full = kind_path(kind, path)
-    spec["kind"] = content
-    spec["path"] = relpath(full, base)
-    return HTTP.Request(req.method, req.target, req.headers, JSON.json(spec)), base, "the $(kind) directory"
-end
-
-function kind_handler(handler, kind::Symbol, content::AbstractString)
-    return function (req::HTTP.Request)
-        rewritten, base, what = try
-            with_kind(req, kind, content)
-        catch exception
-            return json_response(failure_report("document", exception))
-        end
-        return handler(rewritten, base; what)
-    end
-end
-
 """
-    list_configurations(req)
+    list_configurations(spec)
 
 The model and training configurations a card may name, each with what it holds:
 `{model: [{name, path, text, properties}], training: [...]}`. `name` is what a card's `type`
 says — a path from the directory without the extension — and `text` is the file as written, for
 a form to show beside the name rather than make the author open it.
 """
-function list_configurations(req::HTTP.Request)
-    _ = json_read(req)
+function list_configurations(::AbstractDict)
     describe(kind) = map(StreamlinerCore.available_streamliner_configs(pointer(kind), string(kind))) do name
         path = string(name, ".toml")
         full = joinpath(pointer(kind), path)
         parsed = TOML.parsefile(full)
         return (; name, path, text = read(full, String), properties = get(parsed, "properties", Any[]))
     end
-    return json_response((; model = describe(:model), training = describe(:training)))
+    return function ()
+        return (; model = describe(:model), training = describe(:training))
+    end
 end
 
 """
-    read_configuration(req)
+    read_configuration(spec)
 
-A model or a training configuration: `{valid: true, text, parsed}` — the TOML as written, for
-a form to show, and parsed, for it to read — or the failure envelope. `kind` is `model` or
+A model or a training configuration: `{text, parsed}` — the TOML as written, for
+a form to show, and parsed, for it to read — or the failure. `kind` is `model` or
 `training` and must be what the file is.
 """
-read_configuration(req::HTTP.Request) = read_configuration(req, workspace_directory())
+read_configuration(spec::AbstractDict) = read_configuration(spec, workspace_directory())
 
-function read_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind = spec["path"], spec["kind"]
-        full = resolve_in(base, path; what)
-        isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
-        text = read(full, String)
-        parsed = TOML.parse(text)
-        configuration_kind(parsed) == kind || throw(ArgumentError("`$(path)` is not a $(kind) configuration"))
-        (; valid = true, text, parsed)
-    catch exception
-        failure_report("configuration", exception)
+function read_configuration(spec::AbstractDict, base::AbstractString; what = "the workspace")
+    path, kind = spec["path"], spec["kind"]
+    full = resolve_in(base, path; what)
+    isfile(full) || throw(ArgumentError("`$(path)` does not exist"))
+    text = read(full, String)
+    parsed = TOML.parse(text)
+    configuration_kind(parsed) == kind || throw(ArgumentError("`$(path)` is not a $(kind) configuration"))
+    return function ()
+        return (; text, parsed)
     end
-    return json_response(answer)
 end
 
 """
-    write_configuration(req)
+    write_configuration(spec)
 
-Save a model or a training configuration as the TOML text given: `{valid: true, path}` or the
-failure envelope. The text is parsed to check it is TOML and is the `kind` it is said to be;
+Save a model or a training configuration as the TOML text given: `{path}` or the
+failure. The text is parsed to check it is TOML and is the `kind` it is said to be;
 it is written as sent, comments and all, since the file is what an author reads back.
 
 Refuses as `write_document` does: a path outside the directory, a name not ending in `.toml`,
 an existing file unless `overwrite` is `true`.
 """
-write_configuration(req::HTTP.Request) = write_configuration(req, workspace_directory())
+write_configuration(spec::AbstractDict) = write_configuration(spec, workspace_directory())
 
-function write_configuration(req::HTTP.Request, base::AbstractString; what = "the workspace")
-    spec = json_read(req)
-    answer = try
-        path, kind, text = spec["path"], spec["kind"], spec["text"]
-        full = resolve_in(base, writable(path); what)
-        lowercase(last(splitext(full))) == ".toml" ||
-            throw(ArgumentError("configurations are saved as TOML: `$(path)` does not end in .toml"))
-        parsed = try
-            TOML.parse(text)
-        catch err
-            throw(ArgumentError("this is not TOML: $(sprint(showerror, err))"))
-        end
-        configuration_kind(parsed) == kind || throw(ArgumentError("this is not a $(kind) configuration"))
-        (isfile(full) && get(spec, "overwrite", false) !== true) &&
-            throw(ArgumentError("`$(path)` already exists"))
+function write_configuration(spec::AbstractDict, base::AbstractString; what = "the workspace")
+    path, kind, text = spec["path"], spec["kind"], spec["text"]
+    full = resolve_in(base, writable(path); what)
+    lowercase(last(splitext(full))) == ".toml" ||
+        throw(ArgumentError("configurations are saved as TOML: `$(path)` does not end in .toml"))
+    parsed = try
+        TOML.parse(text)
+    catch err
+        throw(ArgumentError("this is not TOML: $(sprint(showerror, err))"))
+    end
+    configuration_kind(parsed) == kind || throw(ArgumentError("this is not a $(kind) configuration"))
+    (isfile(full) && get(spec, "overwrite", false) !== true) &&
+        throw(ArgumentError("`$(path)` already exists"))
+    # Written when run, not when checked, so the probe writes nothing.
+    return function ()
         mkpath(dirname(full))
         write(full, text)
-        (; valid = true, path)
-    catch exception
-        failure_report("configuration", exception)
+        return (; path)
     end
-    return json_response(answer)
 end
 
-function load_files(req::HTTP.Request)
-    spec = json_read(req)
+function load_files(spec::AbstractDict)
     # Checked here, not in `DataIngestion.parse_paths`, which joins `..` without looking and is
     # not ours to change: a client names files by the relative paths `list-files` gave it, and a
     # path that leaves the data directory is refused before anything is read.
-    try
-        foreach(resolve_in_data_dir, spec["files"])
-    catch exception
-        return json_response(failure_report("load", exception))
+    foreach(resolve_in_data_dir, spec["files"])
+    return function ()
+        DataIngestion.load_files(REPOSITORY[], spec)
+        return DataIngestion.summarize(REPOSITORY[], "source")
     end
-    DataIngestion.load_files(REPOSITORY[], spec)
-    summaries = DataIngestion.summarize(REPOSITORY[], "source")
-    return json_response(summaries)
 end
 
 """
-    get_card_ir(req)
+    get_card_ir(spec)
 
 The card descriptions a form is built from, in two halves: `cards`, the IR of every registered
 card type, and `defs`, the shared vocabularies (`cols`, `nodes`, `groups`) the cards refer to.
@@ -439,32 +399,29 @@ The request carries the three vocabularies, since which nodes and groups can be 
 depends on the document being edited. `include` names the halves wanted (default: both); `cards`
 never changes while the server runs, so a client asks for `defs` alone after the first time.
 """
-function get_card_ir(req::HTTP.Request)
-    spec = json_read(req)
+function get_card_ir(spec::AbstractDict)
     # An absent vocabulary is `nothing`, which means "unconstrained"; an empty list would mean
     # "nothing is allowed".
-    maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
+    nodes::Maybe{Vector{String}} = get(spec, "nodes", nothing)
+    groups::Maybe{Vector{String}} = get(spec, "groups", nothing)
+    cols::Maybe{Vector{String}} = get(spec, "cols", nothing)
     # `include` is a list, or one string standing for a list of one. The string has to be wrapped
     # by hand: `Set{String}("defs")` would iterate its characters and throw.
     wanted = get(spec, "include", ["defs", "cards"])
     wanted isa AbstractString && (wanted = [wanted])
-    wanted isa AbstractVector || return json_response(
-        failure_report("request", ArgumentError("`include` must be a string or a list of strings"))
-    )
-    include = Set{String}(wanted)
-    parts = Pair{Symbol, Any}[]
-    if "defs" in include
-        variable_config = Pipelines.VariableConfig(
-            nodes = maybe_strings("nodes"),
-            groups = maybe_strings("groups"),
-            cols = maybe_strings("cols"),
-        )
-        push!(parts, :defs => Pipelines.ir_definitions(variable_config))
+    wanted isa AbstractVector || throw_failure(:request, ArgumentError("`include` must be a string or a list of strings"))
+    return function ()
+        include = Set{String}(wanted)
+        parts = StringDict()
+        if "defs" in include
+            variable_config = Pipelines.VariableConfig(; nodes, groups, cols)
+            parts["defs"] = Pipelines.ir_definitions(variable_config)
+        end
+        if "cards" in include
+            parts["cards"] = StringDict(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS))
+        end
+        return parts
     end
-    if "cards" in include
-        push!(parts, :cards => Dict{String, Any}(k => Pipelines.card_ir(k) for k in keys(Pipelines.CARD_SPECS)))
-    end
-    return json_response((; parts...); omit_null = true)
 end
 
 """
@@ -493,41 +450,6 @@ function root_causes(exception)::Vector{Exception}
         # A task can fail with a value that is not an `Exception`; say so rather than throw here.
         return Exception[ErrorException(sprint(show, exception))]
     end
-end
-
-"""
-    failure_report(kind, exception)
-
-The body both pipeline routes answer with when they cannot do what was asked.
-
-`kind` says *where* it broke, not whose fault it is: `"pipeline"` for a document that could not be
-turned into a pipeline — a schema failure, a duplicate id, a cycle — and `"execution"` for one that
-built and then died while running. That split is on which call threw, which is observable;
-"is this the author's mistake or ours" is not, and a field that claims to know would be guessing.
-
-A client reads the two the same way and means different things by them: a `pipeline` failure sends
-the author back to the cards, an `execution` failure back to the data.
-"""
-function failure_report(kind::AbstractString, exception::Exception)
-    # Four kinds of failure carry a JSON Pointer into the document, so the form can address the
-    # control and, where it is known, offer a correction: a schema failure, a `through` chain the
-    # pipeline refused to resolve, a product selection a card cannot write, and a transform for a
-    # column a funnel does not have. Anything else — a cyclic graph, a
-    # duplicate id, a binder error from DuckDB — has only its message.
-    # Validation collects, so one schema failure and twenty arrive in the same shape; a chain
-    # fails on the first one, so it arrives singular and is wrapped to match.
-    issues = if exception isa Pipelines.SchemaValidationErrors
-        Pipelines.issue_report(exception)
-    elseif exception isa Union{Pipelines.ThroughError, Pipelines.ProductError, StreamlinerCore.TransformError}
-        [Pipelines.issue_report(exception)]
-    else
-        []
-    end
-    return (;
-        valid = false, kind,
-        errors = [sprint(showerror, cause) for cause in root_causes(exception)],
-        issues,
-    )
 end
 
 """
@@ -639,7 +561,7 @@ wrong while looking (two nodes with one id make `dependency_graph` itself throw)
 plain report, which already carries that sentence.
 """
 function build_failure(nodes::AbstractVector, groups::AbstractDict, exception::Exception)
-    report = failure_report("pipeline", exception)
+    report = failure_report(:pipeline, exception)
     isempty(report.issues) || return report
     loops = try
         loop_issues(nodes, groups)
@@ -670,22 +592,25 @@ function model_issues(repository, pipeline, table::AbstractString)
             Pipelines.model_issue(repository, card, table)
         catch exception
             exception isa Exception || rethrow()
+            # TODO: do we really want to use `@error` here?
             @error "could not check whether the model of node $(i - 1) fits its funnel" exception =
                 (exception, catch_backtrace())
             nothing
         end
         isnothing(issue) && continue
-        push!(issues, (;
-            pointer = "/nodes/$(i - 1)/card/model", reason = "model", severity = "error",
-            found = nothing, allowed = nothing, missing = String[], related = String[],
-            message = issue.message,
-        ))
+        push!(
+            issues, (;
+                pointer = "/nodes/$(i - 1)/card/model", reason = "model", severity = "error",
+                found = nothing, allowed = nothing, missing = String[], related = String[],
+                message = issue.message,
+            )
+        )
     end
     return issues
 end
 
 """
-    validate_card(req)
+    validate_card(spec)
 
 Check one card against its own schema, without resolving a document.
 
@@ -702,24 +627,20 @@ document-relative and the client reads them exactly as it reads the probe's.
 What it cannot answer stays with the probe: unproduced references, duplicate ids, cycles — every
 question that needs the other cards.
 """
-function validate_card(req::HTTP.Request)
-    spec = json_read(req)
-    maybe_strings(key) = haskey(spec, key) ? collect(String, spec[key]) : nothing
+function validate_card(spec::AbstractDict)
+    maybe_strings(key)::Maybe{Vector{String}} = get(spec, key, nothing)
     variable_config = Pipelines.VariableConfig(
         nodes = maybe_strings("nodes"),
         groups = maybe_strings("groups"),
         cols = maybe_strings("cols"),
     )
-    return try
-        issues = Pipelines.card_issues(
-            spec["card"], variable_config; base = get(spec, "base", "")
-        )
-        json_response((; valid = isempty(issues), issues); omit_null = true)
-    catch exception
-        exception isa Exception || rethrow()
-        # An unknown card type has no schema to build, and a malformed request has no card. Both
-        # are faults of what was sent, so they answer in the same envelope as everything else.
-        json_response(failure_report("pipeline", exception))
+    issues = Pipelines.card_issues(
+        spec["card"], variable_config; base = get(spec, "base", "")
+    )
+    # An unknown card type has no schema to build, and a malformed request has no card. Both
+    # are faults of what was sent, so they answer in the same envelope as everything else.
+    return function ()
+        return (; valid = isempty(issues), issues)
     end
 end
 
@@ -773,24 +694,36 @@ function overwrite_warnings(pipeline, cols::AbstractVector)
         outputs = Pipelines.get_node_outputs(node)
         clashing = [name for name in outputs if name in seen]
         if !isempty(clashing)
-            push!(warnings, (;
-                pointer = "/nodes/$(i - 1)/card",
-                reason = "overwrites",
-                severity = "warning",
-                found = nothing,
-                allowed = nothing,
-                missing = String[],
-                related = String[],
-                message = join(("`$(name)` already exists and will be replaced" for name in clashing), "; "),
-            ))
+            push!(
+                warnings, (;
+                    pointer = "/nodes/$(i - 1)/card",
+                    reason = "overwrites",
+                    severity = "warning",
+                    found = nothing,
+                    allowed = nothing,
+                    missing = String[],
+                    related = String[],
+                    message = join(("`$(name)` already exists and will be replaced" for name in clashing), "; "),
+                )
+            )
         end
         union!(seen, outputs)
     end
     return warnings
 end
 
+# FIXME: why does evaluate do `train_evaljoin`? Shouldn't we have separate `train` and `evaluate` endpoints?
 """
-    probe_pipeline(req)
+    evaluate_pipeline(spec)
+
+Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
+selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
+
+This route also takes the flat `{filters, cards}` shape, which it accepted before groups existed.
+Both are kept: the UI authors the group dialect, and the group vocabulary is what its variable
+picker exists to write.
+
+## Probing before evaluation
 
 Resolve a document without running it: which columns each node consumes and emits, and any it
 references that nothing produces.
@@ -801,10 +734,10 @@ A streamliner card adds a check that its model can be built for its funnel: the 
 types, one count per categorical column it names, and the model built once (`model_issues`).
 Nothing is trained or materialised, so this is safe to call on every edit.
 
-It reports rather than throws, for *every* way a document can be malformed rather than only
-schema failures: a probe that answers 500 tells a form nothing it can render. Two nodes with no
-`id`, for instance, both resolve to `""` and the dependency graph rejects them as duplicates —
-an `ArgumentError`, which used to escape and leave the form silent.
+Every way a document can be malformed is refused with a structured error rather than a bare
+failure: a probe that answers 500 tells a form nothing it can render. Two nodes with no `id`, for
+instance, both resolve to `""` and the dependency graph rejects them as duplicates — an
+`ArgumentError` that comes back with the document's issues like any schema failure.
 
 Construction is pure document processing, so anything it raises is a fact about the document and
 belongs in the response.
@@ -813,41 +746,49 @@ A schema failure additionally comes back as `issues` — a JSON Pointer into the
 failing keyword, and what would have been accepted — which is the vehicle a form needs to
 address the offending control rather than print a sentence above it.
 """
-function probe_pipeline(req::HTTP.Request)
-    spec = json_read(req)
+function evaluate_pipeline(spec::AbstractDict)
     cols = colnames(REPOSITORY[], "source")
     groups = get(spec, "groups", Dict{String, Any}())
-    # Sent with every answer below, so a picker offers an item only what cannot make a loop.
-    may_refer = referable(spec["nodes"], groups)
+    _nodes = get(spec, "nodes", [])
+    _filters = get(spec, "filters", [])
+    may_refer = referable(_nodes, groups)
 
     # Before building: see `empty_group_issues` for why construction cannot report this itself.
     # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
     # first as in the document.
     empty = empty_group_issues(groups)
     if !isempty(empty)
-        issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
-        return json_response((;
-            valid = false, kind = "pipeline", cols,
+        issues = vcat(empty, card_schema_issues(_nodes, groups, cols))
+        failure = (;
+            kind = "pipeline", cols,
             errors = [issue.message for issue in issues], issues, referable = may_refer,
-        ))
+        )
+        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
     end
 
+    # Running is the one step nothing static can vet. The probe answers everything that can be
+    # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
+    # more components than there are columns, a model that will not converge — and it surfaces only
+    # by being run.
+    filters = Filter.(_filters)
     pipeline = try
-        Pipelines.Pipeline(spec["nodes"], groups, cols)
+        Pipelines.Pipeline(_nodes, groups, cols)
     catch exception
         exception isa Exception || rethrow()
         # Always `pipeline`: this route resolves and never runs, so a fault it can see is by
         # construction a fault of the document. Deliberately not logged — the probe fires on every
         # edit, and most edits are documents the author has not finished writing yet.
-        return json_response((; build_failure(spec["nodes"], groups, exception)..., cols, referable = may_refer))
+        failure = (; build_failure(_nodes, groups, exception)..., cols, referable = may_refer)
+        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
     end
+    # Sent with every answer below, so a picker offers an item only what cannot make a loop.
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
     # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.
     unfit = model_issues(REPOSITORY[], pipeline, "source")
     # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
     # this the third answer to "what is this node called" in three files.
-    ids = Pipelines.get_id.(spec["nodes"])
+    ids = Pipelines.get_id.(_nodes)
 
     # The second source of pointed failures. An unproduced reference is addressed at *node*
     # granularity, not at the selector item that named it: resolution returns the column list and
@@ -885,114 +826,49 @@ function probe_pipeline(req::HTTP.Request)
         )
     end
 
-    return json_response((;
-        valid = isempty(absent) && isempty(unfit),
-        # The probe's second way of being invalid, and the same kind as the first: a reference
-        # nothing produces is a fault of the document, found by resolving rather than by running.
-        kind = isempty(absent) && isempty(unfit) ? nothing : "pipeline",
+    # Errors first, then warnings: a client reading the list top-down sees what blocks the run
+    # before what merely deserves a look.
+    issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols))
+    probe = (;
         cols,
         nodes,
         referable = may_refer,
         source_vars = Pipelines.get_source_vars(pipeline),
         output_vars = Pipelines.get_output_vars(pipeline),
         errors = String[],
-        # Always present, so a client can read one shape rather than branch on which half of the
-        # route answered.
-        # Errors first, then warnings: a client reading the list top-down sees what blocks the
-        # run before what merely deserves a look.
-        issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols)),
-    ))
-end
+        issues,
+    )
+    # A reference nothing produces, or a model that cannot be built, is a fault of the document
+    # found by resolving rather than by running: the document is refused, with everything the
+    # probe found, so a form marks the nodes as it does for any other refusal.
+    if !isempty(absent) || !isempty(unfit)
+        errors = [issue.message for issue in issues if issue.severity == "error"]
+        failure = (; probe..., kind = "pipeline", errors)
+        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+    end
 
-"""
-    evaluate_pipeline(req)
-
-Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
-selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
-
-This route also takes the flat `{filters, cards}` shape, which it accepted before groups existed.
-Both are kept: the UI authors the group dialect, and the group vocabulary is what its variable
-picker exists to write.
-"""
-function evaluate_pipeline(req::HTTP.Request)
-    spec = json_read(req)
-
-    # Running is the one step nothing static can vet. The probe answers everything that can be
-    # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
-    # more components than there are columns, a model that will not converge — and it surfaces only
-    # by being run. Uncaught, the exception escaped to HTTP.jl, which answered with a bare 500
-    # carrying zero bytes and no CORS header: the client could not show the error because it was
-    # never sent one, and could not tell a failed run from a run that never happened.
-    #
-    # Answered in the probe's shape — 200 with `valid` — deliberately. A failed run is a fact about
-    # the document and its data, which is the same reasoning `probe_pipeline` states, and one shape
-    # means a client reads both replies the same way. The cost is that a genuine server fault also
-    # arrives as `valid = false`; `@error` keeps the stacktrace where an operator will find it,
-    # which the old bare 500 at least did by accident.
-    # Everything up to a built pipeline, in one `pipeline`-kind guard: filtering, materialising
-    # the selection, and construction itself. A client that probes first will rarely see this
-    # branch — but the route is public and cannot assume it was asked politely. `filters` is read
-    # with a default for the same reason: it was indexed directly, so a body without the key
-    # answered with the same bare 500 this whole change exists to remove.
-    pipeline = try
-        filters = Filter.(get(spec, "filters", []))
+    return ProbedThunk(probe) do
         orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
         DataIngestion.select(REPOSITORY[], filters, orig => "selection")
-
         # The columns available *to* the pipeline, so the group API can validate references
         # against them rather than accepting a name that does not exist and failing later in SQL.
-        available = DataIngestion.summarize(REPOSITORY[], "selection")
-        cols = String[summary.name for summary in available]
-
-        groups = get(spec, "groups", Dict{String, Any}())
-        # Before building: see `empty_group_issues` for why construction cannot report this itself.
-        # No `cols` in this envelope, unlike the probe's: a failure on this route has never carried
-        # one — `failure_report` is `(; valid, kind, errors, issues)` — and the run's client asks
-        # the probe for the column list.
-        empty = empty_group_issues(groups)
-        if !isempty(empty)
-            # With the cards' own schema failures, as the probe answers (`card_schema_issues`).
-            issues = vcat(empty, card_schema_issues(spec["nodes"], groups, cols))
-            return json_response((;
-                valid = false, kind = "pipeline",
-                errors = [issue.message for issue in issues], issues,
-            ))
+        return try
+            p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+            report = Pipelines.report(REPOSITORY[], pipeline.nodes)
+            vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
+            visualization = stringify_visualization.(vs)
+            graph = sprint(Pipelines.graphviz, p)
+            # Recomputed: the pipeline has added its output columns since `available` was taken.
+            summaries = DataIngestion.summarize(REPOSITORY[], "selection")
+            (; summaries, visualization, graph, report)
+        catch exception
+            exception isa Exception || rethrow()
+            # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
+            # the backtrace whether the cause was the data or a bug of ours.
+            @error "evaluate-pipeline: the run failed" exception = (exception, catch_backtrace())
+            failure = failure_report(:execution, exception)
+            throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
         end
-        Pipelines.Pipeline(spec["nodes"], groups, cols)
-    catch exception
-        exception isa Exception || rethrow()
-        @error "evaluate-pipeline: could not build the pipeline" exception =
-            (exception, catch_backtrace())
-        return json_response(build_failure(spec["nodes"], get(spec, "groups", Dict{String, Any}()), exception))
-    end
-
-    # A model that cannot be built for its funnel is a fault of the document, said as the probe
-    # says it, before anything is trained.
-    unfit = model_issues(REPOSITORY[], pipeline, "selection")
-    if !isempty(unfit)
-        return json_response((;
-            valid = false, kind = "pipeline",
-            errors = [issue.message for issue in unfit], issues = unfit,
-        ))
-    end
-
-    return try
-        p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
-
-        nodes = pipeline.nodes
-        report = Pipelines.report(REPOSITORY[], nodes)
-        vs = Pipelines.visualize(REPOSITORY[], nodes)
-        visualization = stringify_visualization.(vs)
-        graph = sprint(Pipelines.graphviz, p)
-        # Recomputed: the pipeline has added its output columns since `available` was taken.
-        summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-        json_response((; valid = true, summaries, visualization, graph, report))
-    catch exception
-        exception isa Exception || rethrow()
-        # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
-        # the backtrace whether the cause was the data or a bug of ours.
-        @error "evaluate-pipeline: the run failed" exception = (exception, catch_backtrace())
-        json_response(failure_report("execution", exception))
     end
 end
 
@@ -1004,6 +880,12 @@ end
 const ASC_DICT = Dict("asc" => Asc(), "desc" => Desc())
 
 Sorter(d::AbstractDict) = Sorter(d["colId"], ASC_DICT[d["sort"]])
+
+const FLOATY_SQL_TYPES = ("FLOAT", "DOUBLE")
+
+function finite_or_null(name, type)
+    return name => type in FLOATY_SQL_TYPES ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name)
+end
 
 """
     finite_projection(repository, table)
@@ -1020,19 +902,13 @@ It changes how those rows sort: a non-finite value reaches the sort as `NULL` �
 in DuckDB — rather than as the `NaN` it used to be.
 """
 function finite_projection(repository, table::AbstractString)
-    types = DBInterface.execute(
-        DataFrame, repository,
-        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '$(table)'",
-    )
-    floaty = Set(("DOUBLE", "FLOAT", "REAL"))
-    return Select((
-        name => (type in floaty ? Fun.case(Fun.isfinite(Get(name)), Get(name)) : Get(name))
-            for (name, type) in zip(types.column_name, types.data_type)
-    )...)
+    q = "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '$(table)';"
+    (; column_name, data_type) = DBInterface.execute(Tables.columntable, repository, q)
+    args = finite_or_null.(column_name, data_type)
+    return Select(; args)
 end
 
-function fetch_data(stream::HTTP.Stream)
-    spec = json_read(stream)
+function fetch_data(spec::AbstractDict)
     table = spec["processed"] ? "selection" : "source"
     ns = Set{String}(colnames(REPOSITORY[], table))
     limit::Int, offset::Int = spec["limit"], spec["offset"]
@@ -1040,13 +916,13 @@ function fetch_data(stream::HTTP.Stream)
     sorters = Sorter.(sort_model)
     sorter_nodes = [Get(s.colname) |> s.sort for s in sorters if s.colname in ns]
 
-    mktempdir() do dir
-        path = joinpath(dir, "data.json")
+    return function (path)
         q = From(table) |> finite_projection(REPOSITORY[], table) |>
             Order(by = sorter_nodes) |> Limit(; limit, offset)
         export_table(
             REPOSITORY[], q, path;
-            format = "json", array = true
+            format = "json", array = true,
+            use_tmp_file = false
         )
 
         nrows = DBInterface.execute(
@@ -1055,19 +931,26 @@ function fetch_data(stream::HTTP.Stream)
             From(table) |> Group() |> Select("Count" => Agg.count())
         )
 
-        stream_data(
-            stream, path, "application/json";
-            pre = "{\"values\":", post = string(",\"length\":", nrows, "}")
-        )
+        writer = Writer(pre = "{\"values\":", post = string(",\"length\":", nrows, "}"))
+        headers = ["Content-Type" => "application/json", "Content-Length" => content_length(writer, path)]
+
+        return headers, writer
     end
-    return
 end
 
-function get_processed_data(stream::HTTP.Stream)
-    mktempdir() do dir
-        path = joinpath(dir, "processed-data.csv")
-        export_table(REPOSITORY[], From("selection"), path)
-        stream_data(stream, path, "text/csv")
+function get_processed_data(::AbstractDict)
+    return function (path)
+        # TODO add required format as request parameter
+        format = "csv"
+        content_type = "text/csv"
+        export_table(REPOSITORY[], From("selection"), path; format, use_tmp_file = false)
+        writer = Writer()
+        # `attachment` because browsers ignore a link's `download` across origins.
+        headers = [
+            "Content-Type" => content_type,
+            "Content-Length" => content_length(writer, path),
+            "Content-Disposition" => "attachment; filename=\"processed-data.csv\"",
+        ]
+        return headers, writer
     end
-    return
 end

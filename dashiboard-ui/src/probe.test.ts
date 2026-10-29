@@ -72,4 +72,14 @@ describe('askProbe', () => {
     postRequest.mockResolvedValueOnce(reply);
     expect(await askProbe(emptyCards())).toEqual(usableProbe(reply));
   });
+
+  // A document that does not build is refused; the store still marks what the refusal points at.
+  it('reads a refusal as an invalid probe with its issues', async () => {
+    const issue = { pointer: '/groups/empty', reason: 'empty', severity: 'error', message: 'no columns' };
+    postRequest.mockResolvedValueOnce({ error: { code: -32602, message: 'x', data: { kind: 'pipeline', errors: ['e'], issues: [issue] } } });
+    const probe = await askProbe(emptyCards());
+    expect(probe?.valid).toBe(false);
+    expect(probe?.issues).toEqual([issue]);
+    expect(probe?.errors).toEqual(['e']);
+  });
 });

@@ -31,11 +31,13 @@ end
 nothing inherited that would point it elsewhere.
 """
 function launch_script(julia::AbstractString = joinpath(Sys.BINDIR, "julia"))
+    # Single-quoted, so nothing in the path is read by the shell.
+    quoted = "'" * replace(julia, "'" => "'\\''") * "'"
     return """
     #!/bin/sh
     # Written by install: the deployment's own project, depot and Julia.
     here="\$(cd "\$(dirname "\$0")" && pwd)"
-    julia="$(julia)"
+    julia=$(quoted)
     # The Julia that compiled the depot; without it nothing installed can load.
     [ -x "\$julia" ] || { echo "the Julia this deployment was installed with, \$julia, is gone: run install.jl <deploy> --update all" >&2; exit 1; }
     unset JULIA_LOAD_PATH JULIA_PROJECT
@@ -124,7 +126,7 @@ function install_deployment(deploy::AbstractString; update::Symbol)
         try
             isempty(specs) || Pkg.add(specs; preserve = Pkg.PRESERVE_ALL)
         catch err
-            throw(ArgumentError("the extensions need other versions of DashiBoard's dependencies: run `install.jl $(deploy) --update all` ($(sprint(showerror, err)))"))
+            throw(ArgumentError("the extensions could not be added keeping everything else installed as it is; if they need other versions of DashiBoard's dependencies, run `install.jl $(deploy) --update all` ($(sprint(showerror, err)))"))
         end
     else
         throw(ArgumentError("`update` is `:none`, `:all` or `:extensions`, not `$(update)`"))

@@ -45,19 +45,31 @@ function git(args::Cmd)
     return nothing
 end
 
+# A url or rev git would read as an option is refused before git sees it.
+function check_source(url::AbstractString, rev::AbstractString)
+    (startswith(url, "-") || startswith(rev, "-")) && error("`[dashiboard]` url and rev may not start with `-`")
+    return nothing
+end
+
 """
     clone_at(url, rev, dest) -> commit
 
-`url` cloned into `dest` and checked out at `rev`, a tag or a commit. A clone that fails is removed,
-so nothing half-made is taken for a deployment.
+`url` cloned into `dest` and checked out at `rev`, a tag or a commit. A clone that git could not
+finish is removed; a finished one is kept when the checkout fails, so fixing `rev` and running
+again moves it rather than downloading it again.
 """
 function clone_at(url::AbstractString, rev::AbstractString, dest::AbstractString)
+    failed(e) = error("could not check out `$(rev)` of `$(url)`: $(sprint(showerror, e))")
     try
-        git(`clone --quiet $url $dest`)
-        git(`-C $dest checkout --quiet --detach $rev`)
+        git(`clone --quiet -- $url $dest`)
     catch e
         rm(dest; recursive = true, force = true)
-        error("could not check out `$(rev)` of `$(url)`: $(sprint(showerror, e))")
+        failed(e)
+    end
+    try
+        git(`-C $dest checkout --quiet --detach $rev`)
+    catch e
+        failed(e)
     end
     return readchomp(`git -C $dest rev-parse HEAD`)
 end
@@ -73,6 +85,16 @@ function checkout_update(clone::AbstractString, url::AbstractString, rev::Abstra
     git(`-C $clone fetch --quiet --tags origin`)
     git(`-C $clone checkout --quiet --detach $rev`)
     return readchomp(`git -C $clone rev-parse HEAD`)
+end
+
+"""
+    prepare_clone(clone, url, rev) -> commit
+
+The clone at `rev` of `url`: made when there is none, moved when an earlier run left one.
+"""
+function prepare_clone(clone::AbstractString, url::AbstractString, rev::AbstractString)
+    check_source(url, rev)
+    return isdir(clone) ? checkout_update(clone, url, rev) : clone_at(url, rev, clone)
 end
 
 const KEPT = ("Project.toml", "Manifest.toml", "serve.jl", "launch.sh", "record.toml")
@@ -138,13 +160,15 @@ function main(args)
     url, rev = dashiboard_source(deploy)
     own = joinpath(deploy, OWN)
     clone = joinpath(own, "DashiBoard")
-    mode == "none" && check_not_installed(deploy)
+    if mode == "none"
+        check_not_installed(deploy)
+    else
+        isfile(record_path(deploy)) || error("`$(deploy)` is not installed: run `install.jl $(deploy)`")
+    end
     steps = function ()
-        if mode == "none"
+        if mode != "extensions"
             mkpath(own)
-            clone_at(url, rev, clone)
-        elseif mode == "all"
-            checkout_update(clone, url, rev)
+            prepare_clone(clone, url, rev)
         end
         if mode != "extensions"
             # Afresh: what was resolved before does not constrain a full update.
@@ -156,21 +180,22 @@ function main(args)
         end
         run(julia(deploy, `-e 'using DashiBoard; DashiBoard.install_deployment(ARGS[1]; update = Symbol(ARGS[2]))' $deploy $mode`))
     end
-    if mode == "none"
-        # A first install that fails leaves no deployment behind.
-        try
-            steps()
-        catch
-            rm(own; recursive = true, force = true)
-            rethrow()
-        end
-    else
-        with_rollback(steps, deploy)
-    end
+    # A first install that fails keeps what it downloaded, and no record, so nothing launches it;
+    # running install again resumes. An update that fails restores the deployment it found.
+    mode == "none" ? steps() : with_rollback(steps, deploy)
     return 0
 end
 
 end # module Install
 
-# Run as a script; included, as the tests do, it only defines the module.
-abspath(PROGRAM_FILE) == @__FILE__() && exit(Install.main(ARGS))
+# Run as a script; included, as the tests do, it only defines the module. What went wrong is said
+# as a sentence: a step that failed has already printed its own output.
+if abspath(PROGRAM_FILE) == @__FILE__()
+    try
+        exit(Install.main(ARGS))
+    catch e
+        e isa InterruptException && rethrow()
+        println(stderr, "ERROR: ", e isa ProcessFailedException ? "a step failed; its output is above" : sprint(showerror, e))
+        exit(1)
+    end
+end

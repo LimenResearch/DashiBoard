@@ -3,11 +3,10 @@
 #
 # The layout is the default answer to the directories Pipelines' `@with` block already takes —
 # `MODEL_DIR`, `TRAINING_DIR` — and DataIngestion's `DATA_DIR`; nothing here replaces them. A
-# `dashiboard.toml` at the root can say otherwise, and a flag can say otherwise again. In that
-# order: flag, file, the conventional folder when it exists, the root.
+# `dashiboard.toml` at the root can say otherwise. In that order: the file, the conventional
+# folder when it exists, the root.
 #
-# A module of its own, on the standard library alone, so a workspace is read the same way by the
-# server and by whatever runs before the server's packages are loaded.
+# A module of its own: reading a workspace needs the standard library alone.
 module WorkspaceUtils
 
 using TOML: TOML
@@ -25,7 +24,7 @@ function tidy_path(path::AbstractString)
     return length(tidy) > 1 && endswith(tidy, Base.Filesystem.path_separator) ? chop(tidy) : tidy
 end
 
-# What a workspace file may say, checked before any of it is used: a table the launcher does not
+# What a workspace file may say, checked before any of it is used: a table DashiBoard does not
 # know, or a value of the wrong kind, would otherwise be skipped or fail somewhere unrelated.
 function check_workspace_file(file::AbstractDict, path::AbstractString)
     refuse(what) = throw(ArgumentError("`$(path)`: $(what)"))
@@ -59,7 +58,7 @@ end
     read_workspace_file(workspace) -> Dict
 
 The parsed `dashiboard.toml` at the root of `workspace`, or an empty `Dict` when there is none.
-A file that says something the launcher does not read — a misspelt table, a value of the wrong
+A file that says something DashiBoard does not read — a misspelt table, a value of the wrong
 kind — is refused, naming the entry.
 """
 function read_workspace_file(workspace::AbstractString)
@@ -74,7 +73,7 @@ Where each kind of file is, as absolute paths keyed by kind: a `<kind>_dir` entr
 first, then the `[directories]` entry of `file`, then `<workspace>/<kind>` when that folder
 exists, then the workspace itself. A relative flag is read from the working directory — it is
 what the user typed where they stand — and a relative entry of the file from the workspace.
-`fell_back` lists the kinds that landed on the root, for the launcher to warn about. A
+`fell_back` lists the kinds that landed on the root, for a launch to warn about. A
 `[directories]` key that is not a kind is refused rather than ignored, so a misspelt one does
 not silently fall back.
 """
@@ -110,8 +109,8 @@ end
     missing_directories(dirs) -> Vector{Pair{Symbol, String}}
 
 The kinds whose directory is not there, with the path. Only a directory that was named — by a
-flag or by the file — can be missing, and a server on it would fail on its first question, so
-the launcher says so instead.
+flag or by the file — can be missing, and a server on it would fail on its first question, so a
+launch says so instead.
 """
 missing_directories(dirs::AbstractDict) = Pair{Symbol, String}[kind => dirs[kind] for kind in KINDS if !isdir(dirs[kind])]
 

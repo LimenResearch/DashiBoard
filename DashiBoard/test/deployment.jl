@@ -20,11 +20,21 @@ const Install = StarterUnderTest.Install
         head = readchomp(`git -C $repo rev-parse HEAD`)
         @test Install.clone_at("file://" * repo, head, joinpath(dir, "c")) == head
         @test isfile(joinpath(dir, "c", "dashiboard-ui", "package.json"))   # the whole repo, UI included
+        # A rev that is not there stops, naming it; what was downloaded stays, and the next run
+        # moves it rather than downloading again.
         e = @test_throws ErrorException Install.clone_at("file://" * repo, "no-such-rev", joinpath(dir, "d"))
-        @test occursin("no-such-rev", e.value.msg) && !ispath(joinpath(dir, "d"))
+        @test occursin("no-such-rev", e.value.msg) && occursin("file://" * repo, e.value.msg)
+        @test Install.prepare_clone(joinpath(dir, "d"), "file://" * repo, head) == head
+        # A source git would read as an option is refused before git sees it.
+        @test_throws ErrorException Install.prepare_clone(joinpath(dir, "e"), "--upload-pack=touch", head)
+        @test_throws ErrorException Install.prepare_clone(joinpath(dir, "e"), "file://" * repo, "--orphan")
         mkpath(joinpath(dir, "x", ".dashiboard")); touch(joinpath(dir, "x", ".dashiboard", "record.toml"))
         e = @test_throws ErrorException Install.check_not_installed(joinpath(dir, "x"))
         @test occursin("--update", e.value.msg)
+        # An update needs an install to update.
+        write(joinpath(dir, "dashiboard.toml"), "[dashiboard]\nurl = \"file://$(repo)\"\nrev = \"$(head)\"\n")
+        e = @test_throws ErrorException Install.main([dir, "--update", "all"])
+        @test occursin("not installed", e.value.msg)
     end
 end
 
@@ -41,7 +51,8 @@ end
     # extensions edited since are refused, each with the update to run.
     moved = DashiBoard.record_mismatches(rec, file, "def")
     @test length(moved) == 1 && occursin("abc", only(moved)) && occursin("def", only(moved)) && occursin("--update all", only(moved))
-    @test occursin("1.0.0", only(DashiBoard.record_mismatches(rec, file, "abc", "1.0.0")))
+    julia = only(DashiBoard.record_mismatches(rec, file, "abc", "1.0.0"))
+    @test occursin("1.0.0", julia) && occursin(string(VERSION), julia) && occursin("--update all", julia)
     added = merge(file, Dict("extensions" => Dict("Other" => Dict("url" => "https://x/O", "rev" => "v1"))))
     @test occursin("--update extensions", only(DashiBoard.record_mismatches(rec, added, "abc")))
     @test occursin("using TestExtension", DashiBoard.serve_script(["TestExtension"]))
@@ -177,9 +188,21 @@ end
 @testset "a launch whose Julia is gone" begin
     mktempdir() do dir
         script = joinpath(dir, "launch.sh")
-        write(script, DashiBoard.launch_script(joinpath(dir, "gone", "julia")))
+        # Taken as written: nothing in the path is read by the shell.
+        gone = joinpath(dir, "it's \$HOME `x`", "julia")
+        write(script, DashiBoard.launch_script(gone))
         err = IOBuffer()
         ok = success(pipeline(`sh $script`; stdout = devnull, stderr = err))
-        @test !ok && occursin("--update all", String(take!(err)))
+        said = String(take!(err))
+        @test !ok && occursin("--update all", said) && occursin(gone, said)
+    end
+end
+
+@testset "the starter's refusals are sentences" begin
+    mktempdir() do dir
+        err = IOBuffer()
+        ok = success(pipeline(`$(Base.julia_cmd()) --startup-file=no $(normpath(joinpath(@__DIR__, "..", "..", "bin", "install.jl"))) $dir`; stdout = devnull, stderr = err))
+        said = String(take!(err))
+        @test !ok && startswith(said, "ERROR: ") && !occursin("Stacktrace", said)
     end
 end

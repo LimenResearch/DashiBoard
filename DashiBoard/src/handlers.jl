@@ -57,8 +57,8 @@ const configuration_kind = StreamlinerCore.configuration_kind
 """
     writable(path) -> path
 
-`path` if a client may write there, an `ArgumentError` otherwise. Two things are the launcher's
-alone: the workspace file, which names packages the next launch installs and loads, and hidden
+`path` if a client may write there, an `ArgumentError` otherwise. Two things are install's
+alone: the workspace file, which names the packages a deployment installs and loads, and hidden
 folders, where its environment lives. A route that could write either would let whoever reaches
 the server choose the code it runs next.
 """

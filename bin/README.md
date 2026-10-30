@@ -57,7 +57,9 @@ resolves it with the extensions, precompiles, sorts any loose files into the lay
 A launch reads `[server]` and `[directories]` afresh. It refuses to start when `[dashiboard]` or
 `[extensions]` changed since install, when the clone is not at the commit installed, or when Julia
 is not the one install ran with, and it says which update to run. Install refuses a folder that is
-already installed. An extension is a package that exposes `DEFAULT_PARSER`, a
+already installed. An install that fails keeps what it downloaded — the clone and the depot — but
+writes no record, so nothing launches it; fix the cause and run the same install again to resume.
+An update that fails restores the deployment it found. An extension is a package that exposes `DEFAULT_PARSER`, a
 `StreamlinerCore.Parser` holding what it registers.
 
 The log goes to stderr and is flushed after every record, so a log redirected to a file is current

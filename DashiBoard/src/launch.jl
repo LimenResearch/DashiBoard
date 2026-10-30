@@ -62,10 +62,9 @@ Serve DashiBoard for `workspace`, the directory every file route is confined to.
 
 Five directories say where each kind of file is: `data_dir` the tables, `pipeline_dir` and
 `filter_dir` the documents, `model_dir` and `training_dir` the configurations. Each defaults to
-the workspace itself, which is a flat folder with everything in it; `bin/launch.jl` is where the
-layout, a `dashiboard.toml` and the flags turn into these keywords. `extensions` and
-`extension_of` are what the launcher learned registering extensions, for a download to name
-them.
+the workspace itself, which is a flat folder with everything in it; `serve_deployment` is where a
+deployment's layout and `dashiboard.toml` turn into these keywords. `extensions` and
+`extension_of` are the extensions loaded and what each registered, for a download to name them.
 """
 function launch(
         workspace::AbstractString;

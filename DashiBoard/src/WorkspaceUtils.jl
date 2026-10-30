@@ -6,13 +6,11 @@
 # `dashiboard.toml` at the root can say otherwise, and a flag can say otherwise again. In that
 # order: flag, file, the conventional folder when it exists, the root.
 #
-# A module of its own, on the standard library alone: the launcher reads a workspace and builds
-# the environment its extensions need *before* the server's packages are loaded, so that the
-# server starts inside that environment and what is loaded is what was resolved.
+# A module of its own, on the standard library alone, so a workspace is read the same way by the
+# server and by whatever runs before the server's packages are loaded.
 module WorkspaceUtils
 
 using TOML: TOML
-using Pkg: Pkg
 
 const KINDS = (:data, :pipeline, :filter, :model, :training)
 
@@ -20,9 +18,6 @@ const KINDS = (:data, :pipeline, :filter, :model, :training)
 const RESERVED = (string.(KINDS)..., "quarantine")
 
 const WORKSPACE_FILE = "dashiboard.toml"
-
-# Where this package is: the checkout the environment's own packages are taken from.
-const PACKAGE_DIR = dirname(@__DIR__)
 
 # A path with no trailing separator, so that one folder written two ways is one folder.
 function tidy_path(path::AbstractString)
@@ -35,20 +30,23 @@ end
 function check_workspace_file(file::AbstractDict, path::AbstractString)
     refuse(what) = throw(ArgumentError("`$(path)`: $(what)"))
     for key in keys(file)
-        key in ("directories", "extensions", "server") || refuse("no such table as `[$(key)]`; there are `[directories]`, `[extensions]` and `[server]`")
+        key in ("dashiboard", "directories", "extensions", "server") || refuse("no such table as `[$(key)]`; there are `[dashiboard]`, `[directories]`, `[extensions]` and `[server]`")
     end
-    for name in ("directories", "extensions", "server")
+    for name in ("dashiboard", "directories", "extensions", "server")
         get(file, name, Dict{String, Any}()) isa AbstractDict || refuse("`$(name)` is a table")
     end
     for (kind, dir) in get(file, "directories", Dict{String, Any}())
         Symbol(kind) in KINDS || refuse("`[directories]` has no `$(kind)`: the kinds are $(join(KINDS, ", "))")
         dir isa AbstractString || refuse("`[directories].$(kind)` is a path, written as a string")
     end
+    # Every source is a release, pinned: a `url` and a `rev`, never a `path`, whose code could
+    # change under a Manifest resolved once.
+    pinned(source) = source isa AbstractDict && Set(keys(source)) == Set(("url", "rev")) &&
+        all(v -> v isa AbstractString, values(source))
+    haskey(file, "dashiboard") && !pinned(file["dashiboard"]) &&
+        refuse("`[dashiboard]` takes a `url` and a `rev` (a tag or a commit)")
     for (name, source) in get(file, "extensions", Dict{String, Any}())
-        source isa AbstractDict || refuse("`[extensions].$(name)` is a table with a `path` or a `url`, as in `{ path = \"…\" }`")
-        (haskey(source, "path") || haskey(source, "url")) || refuse("`[extensions].$(name)` needs a `path` or a `url`")
-        all(v -> v isa AbstractString, values(source)) || refuse("`[extensions].$(name)` holds strings")
-        issubset(keys(source), ("path", "url", "rev")) || refuse("`[extensions].$(name)` takes `path`, or `url` and `rev`")
+        pinned(source) || refuse("`[extensions].$(name)` takes a `url` and a `rev` (a tag or a commit), as in `{ url = \"…\", rev = \"v1.0.0\" }`")
     end
     server = get(file, "server", Dict{String, Any}())
     issubset(keys(server), ("host", "port")) || refuse("`[server]` takes `host` and `port`")
@@ -127,134 +125,26 @@ function server_defaults(file::AbstractDict)
     return (; host = get(server, "host", nothing), port = get(server, "port", nothing))
 end
 
-# Extensions: the packages a workspace names and where they are.
+"""
+    dashiboard_source(file) -> (; url, rev)
 
-# One `Name=source` entry of the command line. A source is a path, or the address of a git
-# remote with, optionally, `@rev` after it. An `@` is part of the address unless it comes after
-# the last `/` or `:` — `ssh://git@host/Org/X.jl@v2` names the revision `v2`, and
-# `git@host:Org/X.jl` names none.
-function parse_extension(entry::AbstractString)
-    occursin('=', entry) || throw(ArgumentError("`--extensions` takes `Name=path` or `Name=url@rev`; `$(entry)` names no source"))
-    name, source = split(entry, '='; limit = 2)
-    remote = occursin("://", source) || occursin(r"^[\w.-]+@[\w.-]+:", source)
-    # Typed where the user stands, like a directory flag.
-    remote || return String(name) => Dict{String, Any}("path" => abspath(String(source)))
-    at = findlast('@', source)
-    address_end = something(findlast(c -> c == '/' || c == ':', source), 0)
-    return String(name) => if !isnothing(at) && at > address_end
-        Dict{String, Any}("url" => String(source[1:prevind(source, at)]), "rev" => String(source[nextind(source, at):end]))
-    else
-        Dict{String, Any}("url" => String(source))
-    end
+Where a deployment's DashiBoard comes from: the `[dashiboard]` table, which install requires and a
+bundled workspace may leave out.
+"""
+function dashiboard_source(file::AbstractDict)
+    haskey(file, "dashiboard") || throw(ArgumentError("no `[dashiboard]` table: name DashiBoard's `url` and `rev`"))
+    source = file["dashiboard"]
+    return (; url = String(source["url"]), rev = String(source["rev"]))
 end
 
 """
-    extension_sources(file, flags) -> Dict{String, Dict{String, Any}}
+    extension_sources(file) -> Dict{String, Dict{String, Any}}
 
-The extensions to register and where each is, in the forms Julia's `[sources]` takes: the
-`[extensions]` table of the workspace file, or the `--extensions` flag when given, written
-`Name=path` or `Name=url@rev`, comma-separated. The flag replaces the table rather than adding to
-it, so a command line says all of what is loaded.
+The extensions a workspace names, each with its `url` and `rev`, as the `[extensions]` table says.
 """
-function extension_sources(file::AbstractDict, flags::AbstractDict)
-    flag = get(flags, "extensions", nothing)
-    if isnothing(flag)
-        table = get(file, "extensions", Dict{String, Any}())
-        return Dict{String, Dict{String, Any}}(name => Dict{String, Any}(source) for (name, source) in pairs(table))
-    end
-    return Dict{String, Dict{String, Any}}(parse_extension(entry) for entry in split(flag, ','; keepempty = false))
-end
-
-"""
-    locate_sources(workspace, sources) -> Dict
-
-`sources` with every `path` made absolute: one written relative is relative to the workspace, as
-a `[directories]` entry is. A source that is a remote is left as written. What the launcher
-resolves and loads from, and what a downloaded pipeline names, since its folder will be
-somewhere else.
-"""
-function locate_sources(workspace::AbstractString, sources::AbstractDict)
-    root = normpath(abspath(workspace))
-    return Dict{String, Dict{String, Any}}(
-        name => haskey(source, "path") ?
-            merge(Dict{String, Any}(source), Dict{String, Any}("path" => normpath(joinpath(root, expanduser(source["path"]))))) :
-            Dict{String, Any}(source)
-            for (name, source) in pairs(sources)
-    )
-end
-
-# This package's own packages, where the checkout keeps them: the dependencies its project names
-# by a path that is there. A package installed from a registry has none.
-function own_packages()
-    sources = get(TOML.parsefile(joinpath(PACKAGE_DIR, "Project.toml")), "sources", Dict{String, Any}())
-    paths = String[normpath(joinpath(PACKAGE_DIR, source["path"])) for source in values(sources) if haskey(source, "path")]
-    return filter!(isdir, paths)
-end
-
-# What an environment was built from: the sources, and the project files of everything taken by
-# path — an extension's and this checkout's own — since a dependency added to one of them asks
-# for a new resolution as much as a new source does.
-function sources_stamp(sources::AbstractDict)
-    paths = vcat(PACKAGE_DIR, own_packages(), String[source["path"] for source in values(sources) if haskey(source, "path")])
-    projects = [path => (isfile(joinpath(path, "Project.toml")) ? hash(read(joinpath(path, "Project.toml"))) : UInt(0)) for path in sort!(paths)]
-    # The leading number is the stamp's format: changing it rebuilds every workspace's environment.
-    return string("4:", hash((sort!([k => sort!(collect(v)) for (k, v) in pairs(sources)]; by = first), projects)))
-end
-
-"""
-    environment_path(workspace) -> String
-
-Where the environment of a workspace's extensions is kept: `<workspace>/.dashiboard/env`.
-"""
-environment_path(workspace::AbstractString) = joinpath(tidy_path(abspath(workspace)), ".dashiboard", "env")
-
-"""
-    extension_environment(workspace, sources; io = stderr) -> String
-
-The Julia project the server runs in when `workspace` names extensions: this package and its
-own packages, each from where this checkout keeps them, and each extension from the source
-given — `path`, or `url` with an optional `rev`, the forms Julia's `[sources]` takes — resolved
-together, so one version of every package serves them all. Built when the sources differ from
-the last launch, and afresh rather than amended; left alone otherwise. An extension that cannot
-be resolved stops here with an error naming it.
-"""
-function extension_environment(workspace::AbstractString, sources::AbstractDict; io::IO = stderr)
-    env = environment_path(workspace)
-    sources = locate_sources(workspace, sources)
-    stamp_file = joinpath(env, "sources.stamp")
-    stamp = sources_stamp(sources)
-    isfile(stamp_file) && read(stamp_file, String) == stamp && isfile(joinpath(env, "Manifest.toml")) && return env
-    # Built afresh rather than amended: what the sources no longer name must not be carried
-    # along, and a half-made environment must not be taken for a finished one.
-    rm(env; recursive = true, force = true)
-    mkpath(env)
-    previous = Base.active_project()
-    try
-        Pkg.activate(env; io)
-        # The server's own packages first, each from where this one is: an extension names
-        # whatever version it was written against, and two versions of one package cannot
-        # both be the one the server runs.
-        Pkg.develop([Pkg.PackageSpec(path = path) for path in vcat(PACKAGE_DIR, own_packages())]; io)
-        for (name, source) in sort!(collect(pairs(sources)); by = first)
-            spec = if haskey(source, "path")
-                Pkg.PackageSpec(path = source["path"])
-            elseif haskey(source, "url")
-                haskey(source, "rev") ? Pkg.PackageSpec(url = source["url"], rev = source["rev"]) : Pkg.PackageSpec(url = source["url"])
-            else
-                throw(ArgumentError("extension `$(name)` needs a `path` or a `url`"))
-            end
-            try
-                haskey(source, "path") ? Pkg.develop(spec; io) : Pkg.add(spec; io)
-            catch err
-                throw(ArgumentError("extension `$(name)` could not be resolved from $(source): $(sprint(showerror, err))"))
-            end
-        end
-        Pkg.instantiate(; io)
-        write(stamp_file, stamp)
-    finally
-        isnothing(previous) || Pkg.activate(previous; io = devnull)
-    end
-    return env
+function extension_sources(file::AbstractDict)
+    table = get(file, "extensions", Dict{String, Any}())
+    return Dict{String, Dict{String, Any}}(name => Dict{String, Any}(source) for (name, source) in pairs(table))
 end
 
 end # module WorkspaceUtils

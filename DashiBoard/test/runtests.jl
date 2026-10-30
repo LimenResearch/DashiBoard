@@ -5,6 +5,7 @@ ENV["DASHIBOARD_CACHE"] = mktempdir()
 
 include("dashiboard.jl")
 include("workspace.jl")
+include("deployment.jl")
 
 include("../../DashiBase/test/runtests.jl")
 include("../../DuckDBUtils/test/runtests.jl")

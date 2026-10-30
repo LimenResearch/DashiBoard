@@ -1,8 +1,8 @@
 module DashiBoard
 
 public launch
-# What `bin/launch.jl` calls to prepare a workspace and the extensions it names.
-public init_workspace, load_extensions, provenance, WorkspaceUtils
+# What a deployment's install and `serve.jl` call.
+public init_workspace, provenance, WorkspaceUtils, install_deployment, serve_deployment
 
 using Base: Fix1, Fix2
 
@@ -81,6 +81,7 @@ include("handlers.jl")
 include("bundle.jl")
 include("middleware.jl")
 include("launch.jl")
+include("deployment.jl")
 
 function __init__()
     # DuckDB is single-writer, and the scratchspace path is fixed per package — so every

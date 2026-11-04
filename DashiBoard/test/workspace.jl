@@ -152,5 +152,12 @@ end
         @test_throws ArgumentError DashiBoard.init_workspace(dir; io = devnull)
         @test isdir(joinpath(dir, "src")) && isfile(joinpath(dir, "t.csv"))
     end
-    @test_throws ArgumentError DashiBoard.init_workspace(homedir(); io = devnull)
+    # A home is refused by being the home, whatever it holds: a throwaway folder stands in for it.
+    mktempdir() do dir
+        write(joinpath(dir, "t.csv"), "a\n1\n")
+        withenv("HOME" => dir, "USERPROFILE" => dir) do
+            @test_throws ArgumentError DashiBoard.init_workspace(dir; io = devnull)
+        end
+        @test readdir(dir) == ["t.csv"]
+    end
 end

@@ -120,21 +120,3 @@ test_prediction_data = Data{1}(
     (getobs(prediction_test_data, test_idxs),),
     prediction_templates
 )
-
-@info "Regression data summary statistics"
-
-streaming = Streaming(batchsize = 32, device = cpu)
-
-StreamlinerCore.stream(train_regression_data, DataPartition.training, streaming) do train_stream
-    @show length(train_stream)
-    @show map(size, first(train_stream))
-    return
-end
-
-@info "Autoencoder data summary statistics"
-
-StreamlinerCore.stream(train_autoencoder_data, DataPartition.training, streaming) do train_stream
-    @show length(train_stream)
-    @show map(size, first(train_stream))
-    return
-end

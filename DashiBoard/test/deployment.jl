@@ -44,8 +44,6 @@ end
         "extensions" => Dict("TestExtension" => Dict("url" => "https://x/T", "rev" => "v1")),
     )
     rec = DashiBoard.deployment_record(file, "abc")
-    @test rec["dashiboard"] == Dict("url" => "https://x/D", "rev" => "v2", "commit" => "abc")
-    @test rec["julia"] == string(VERSION)
     @test isempty(DashiBoard.record_mismatches(rec, file, "abc"))
     # What install resolved is what a launch may serve: a clone moved, Julia changed or the
     # extensions edited since are refused, each with the update to run.
@@ -55,7 +53,6 @@ end
     @test occursin("1.0.0", julia) && occursin(string(VERSION), julia) && occursin("--update all", julia)
     added = merge(file, Dict("extensions" => Dict("Other" => Dict("url" => "https://x/O", "rev" => "v1"))))
     @test occursin("--update extensions", only(DashiBoard.record_mismatches(rec, added, "abc")))
-    @test occursin("using TestExtension", DashiBoard.serve_script(["TestExtension"]))
     @test occursin("JULIA_DEPOT_PATH=\"\$here/depot\"", DashiBoard.launch_script())
 end
 

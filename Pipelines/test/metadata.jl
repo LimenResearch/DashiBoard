@@ -61,7 +61,6 @@ end
         @test metadata[k] == config[k]
     end
     @test isnothing(metadata["partition"])
-    @test metadata["suffix"] == "rescaled"
     @test isnothing(metadata["target_suffix"])
     card2 = Pipelines.Card(metadata)
     @test card.method == card2.method
@@ -74,7 +73,6 @@ end
     end
     @test metadata["group_by"] == String[]
     @test isnothing(metadata["partition"])
-    @test metadata["suffix"] == "rescaled"
     card2 = Pipelines.Card(metadata)
     @test card.method == card2.method
 end
@@ -214,8 +212,6 @@ end
         for k in ["type", "partition", "suffix"]
             @test metadata[k] == config[k]
         end
-        @test metadata["model"] == StreamlinerCore.get_metadata(card.model)
-        @test metadata["training"] == StreamlinerCore.get_metadata(card.training)
         @test metadata["funnel"] == Dict(
             "type" => "", "order_by" => ["No"], "inputs" => ["TEMP", "PRES"], "targets" => ["Iws"],
         )

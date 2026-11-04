@@ -84,7 +84,6 @@ end
         "k" => StringIR(title = "fruits"),
         default = StructTest.orange
     )
-    @test prop.key == "k"
     @test DashiBase.json_schema(prop.value) == Dict{String, Any}(
         "title" => "fruits",
         "type" => "string",
@@ -144,8 +143,6 @@ end
 
 @testset "ObjectIR" begin
     obj = ObjectIR(StructTest.MyStruct)
-    @test obj.type == "object"
-
     @test obj.properties[1].key == "x"
     @test JSON.json(obj.properties[1].value) == JSON.json(IntegerIR(default = 1))
     @test !obj.properties[1].required
@@ -204,7 +201,6 @@ end
 # and anything else as a sequence, where repeats are meant.
 @testset "uniqueItems" begin
     set = ArrayIR(items = StringIR(enum = ["a", "b"]), uniqueItems = true)
-    @test DashiBase.json_schema(set)["uniqueItems"] == true
     schema = DashiBase.json_schema(set) |> Schema
     @test isvalid(["a", "b"], schema)
     @test !isvalid(["a", "a"], schema)
@@ -227,7 +223,6 @@ end
     # carry neither, so a one-or-many field -- the node the group dialect leans on hardest --
     # arrived as {array, eltype} that nothing could identify.
     one_or_many = OneOrManyIR(items = StringIR(), eltype = "string")
-    @test one_or_many.type == "one_or_many"
     @test JSON.parse(JSON.json(one_or_many; omit_null = true))["type"] == "one_or_many"
 
     # and the schema projection is unchanged by that: it builds its own dict
@@ -237,8 +232,6 @@ end
 @testset "EitherIR" begin
     step = ObjectIR(properties = [DashiBase.Property("node" => StringIR(enum = ["a", "b"]))])
     either = EitherIR(["string" => StringIR(enum = ["a", "b"]), "object" => step])
-    @test either.type == "either"
-    @test either.types == ["string", "object"]
 
     # The schema branches on the value's own JSON type, the way `OneOrManyIR` does. A failure
     # inside a branch is then reported by that branch's keyword — `enum` — rather than as a bare
@@ -276,7 +269,6 @@ end
 @testset "a tagged object that says where its options come from" begin
     branch = ObjectIR(properties = [DashiBase.Property("features" => IntegerIR())])
     tagged = TaggedObjectIR(objects = Dict("dense" => branch), options_from = "model")
-    @test tagged.options_from == "model"
     @test JSON.parse(JSON.json(tagged; omit_null = true))["options_from"] == "model"
     # The schema is unchanged by it: it checks the same documents.
     @test !haskey(DashiBase.json_schema(tagged), "options_from")

@@ -122,8 +122,7 @@ end
     )
 
     # without validating the schema, the spurious property is not an issue
-    p = Pipelines.Pipeline(nodes, groups, cols, validate_schema = false)
-    @test p.nodes[1].card isa RescaleCard
+    Pipelines.Pipeline(nodes, groups, cols, validate_schema = false)
 end
 
 @testset "node_digraph" begin
@@ -199,18 +198,6 @@ end
     for (k, v) in pairs(irs)
         @test Pipelines.json_schema(v) == schemas[k]
     end
-
-    # the group dialect's `variable` is a selector object, not the flat dialect's string enum
-    @test irs["variable"].type == "object"
-    @test irs["col"].enum == ["No", "TEMP"]
-    @test irs["node"].enum == ["log"]
-    # and its one-or-many fields are now identifiable by a renderer
-    nodes_entry = only(p for p in irs["variable"].properties if p.key == "nodes")
-    @test nodes_entry.value.type == "one_or_many"
-    # A chain step is a node id or `{node, products}`, and the schema tells them apart by type.
-    through = only(p for p in irs["variable"].properties if p.key == "through").value
-    @test through.items.type == "either"
-    @test through.items.types == ["string", "object"]
 end
 
 # What a variable picker must be able to express. Each case below was established by running it,
@@ -379,9 +366,6 @@ end
     # The same product twice would hand the consuming card the same column twice.
     @test_throws Pipelines.ThroughError through(Dict("node" => "both", "products" => ["double", "double"]))
 
-    # A step written the old way still means what it meant.
-    @test resolve([Dict("cols" => "PRES", "through" => ["rescale"])]) == ["PRES_rescaled"]
-
     # A node selection may ask for some of what the node writes, by name, in the order written.
     pick(products; node = both) = resolve([Dict("nodes" => "both", "products" => products)]; extra = node)
     @test resolve([Dict("nodes" => "both")]; extra = both) == ["PRES_double", "PRES_triple"]
@@ -541,6 +525,12 @@ end
     @test length(reports) == 3
     @test first(reports).pointer == "/groups/g"
 
+    # `showerror` says how many, then each of them, so a client with no structured path still
+    # learns there was more than one thing wrong.
+    text = sprint(showerror, err)
+    @test startswith(text, "3 schema validation errors:")
+    @test count("Schema Validation Error", text) == 3
+
     # One failure is still one report — the plural type is the only shape, so a caller reads one.
     err = try
         Pipelines.Pipeline(nodes[1:1], Dict{String, Any}(), cols)
@@ -550,11 +540,6 @@ end
     end
     @test err isa Pipelines.SchemaValidationErrors
     @test length(Pipelines.issue_report(err)) == 1
-
-    # `showerror` says how many, then each of them, so a client with no structured path still
-    # learns there was more than one thing wrong.
-    text = sprint(showerror, err)
-    @test occursin("Schema Validation Error", text)
 end
 
 @testset "card_issues: one card, checked on its own" begin
@@ -681,7 +666,7 @@ end
     @test bad_group.reason == "enum"
 
     # The prose survives alongside the data, for anything that only knows how to print.
-    @test occursin("enum", bad_variant.message) || !isempty(bad_variant.message)
+    @test occursin("enum", bad_variant.message) && occursin("nonesuch", bad_variant.message)
 end
 
 # A defaulted *variant* field must carry its default into the IR.

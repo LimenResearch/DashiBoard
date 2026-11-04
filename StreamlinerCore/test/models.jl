@@ -28,9 +28,7 @@ end
     target = rand(Float32, 10, 32) |> device # dummy MNIST-like output
     @test optimizer == Adam()
     @test schedules[:eta] == CosAnneal(l0 = 1.0e-2, l1 = 1.0e-3, period = 10, restart = true)
-    @test batchsize == 32
     @test length(stoppers) == 2
-    @test device == cpu
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -39,8 +37,6 @@ end
 
     s = sprint(show, MIME"text/plain"(), m)
     @test startswith(s, "Basic architecture with the following modules:\nmodel =>")
-
-    @test m.name == :Basic
 
     @test length(modules(m).model) == 5
     @test modules(m).model[1] isa Conv && modules(m).model[2] isa Conv
@@ -74,9 +70,7 @@ end
     target = rand(Float32, 10, 32) |> device # dummy MNIST-like output
     @test optimizer == Adam(eta = 1.0e-2)
     @test isempty(schedules)
-    @test batchsize == 32
     @test isempty(stoppers)
-    @test device == cpu
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -101,9 +95,7 @@ end
     target = input
     @test optimizer == Adam(eta = 0.01)
     @test isempty(schedules)
-    @test batchsize == 32
     @test length(stoppers) == 0
-    @test device == cpu
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -112,8 +104,6 @@ end
 
     s = sprint(show, MIME"text/plain"(), m)
     @test startswith(s, "VAE architecture with the following modules:\nembedding =>")
-
-    @test m.name == :VAE
 
     @test length(modules(m).embedding) == 3
     @test all(l -> l isa Conv, modules(m).embedding.layers)

@@ -626,6 +626,10 @@ document-relative and the client reads them exactly as it reads the probe's.
 
 What it cannot answer stays with the probe: unproduced references, duplicate ids, cycles — every
 question that needs the other cards.
+
+It is the one method that answers a `valid` flag next to the `issues`: asking whether a card is
+valid is its whole question. The document methods carry no such flag — they accept a document by
+answering and refuse it with an error.
 """
 function validate_card(spec::AbstractDict)
     maybe_strings(key)::Maybe{Vector{String}} = get(spec, key, nothing)
@@ -682,7 +686,7 @@ by an earlier node.
 
 `rescale TEMP suffix = "rescaled"` against a source that already holds `TEMP_rescaled` is accepted
 at every layer and silently replaces the column. Overwriting can be meant, so
-`severity = "warning"`: `valid` stays true and the run is
+`severity = "warning"`: the document is still accepted and the run is
 allowed; the form shows it on the card. Nodes are walked in document order, so the later of two
 cards emitting the same name is the one warned, and a name is compared against everything that
 exists *before* the node runs.

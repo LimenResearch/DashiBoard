@@ -798,7 +798,7 @@ end
     # Inverted it writes a fixed list, which nothing a chain carries can be derived into.
     @test Pipelines.get_node_outputs(invert(Node(rc))) == ["PRES_hat"]
 
-    # A streamliner names its products even when there is one, and no longer needs a bridge.
+    # A streamliner names its products even when there is one.
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "streamliner.json"))
     sc = @with(
         Pipelines.PARSER => Pipelines.default_parser(),

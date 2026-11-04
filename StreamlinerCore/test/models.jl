@@ -20,7 +20,7 @@ end
 @testset "basic" begin
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "scheduled.toml"))
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device, optimizer, schedules, stoppers) = training
     m, loss = model(train_regression_data.templates), model.loss
     @test loss isa StreamlinerCore.Metric{typeof(Flux.Losses.logitcrossentropy)}
 
@@ -62,7 +62,7 @@ end
 
     model = Model(parser, joinpath(static_dir, "model", "conv.template.toml"), vars)
     training = Training(parser, joinpath(static_dir, "training", "batched.template.toml"), vars)
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device, optimizer, schedules, stoppers) = training
     m, loss = model(train_regression_data.templates), model.loss
     @test loss isa StreamlinerCore.Metric{typeof(Flux.Losses.logitcrossentropy)}
 
@@ -87,7 +87,7 @@ end
 @testset "vae" begin
     model = Model(parser, joinpath(static_dir, "model", "vae.toml"))
     training = Training(parser, joinpath(static_dir, "training", "batched.toml"))
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device, optimizer, schedules, stoppers) = training
     m, loss = model(train_autoencoder_data.templates), model.loss
     @test loss isa StreamlinerCore.VAELoss
 
@@ -117,7 +117,7 @@ end
 @testset "predictor" begin
     model = Model(parser, joinpath(static_dir, "model", "predictor.toml"))
     training = Training(parser, joinpath(static_dir, "training", "batched.toml"))
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device) = training
     m, loss = model(train_prediction_data.templates), model.loss
     @test loss isa StreamlinerCore.Metric{typeof(Flux.Losses.mse)}
 

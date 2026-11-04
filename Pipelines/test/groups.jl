@@ -269,7 +269,7 @@ end
         resolve([Dict("cols" => "PRES")])
 end
 
-# What a `through` chain may pass through, now that the pipeline checks rather than concatenates.
+# What a `through` chain may pass through: the pipeline checks the chain rather than concatenating it.
 # The cases are the shapes of output specification, because that is what decides the answer.
 @testset "a through chain is checkable" begin
     base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
@@ -512,8 +512,8 @@ end
     @test reports[1].related == ["/nodes/0/card/method", "/nodes/0/card/inputs"]
     @test reports[2].missing == ["method", "inputs"]
 
-    # Groups are collected alongside cards rather than short-circuiting them: a bad group used to
-    # throw before any card was looked at, so one mistake hid every other.
+    # Groups are collected alongside cards rather than short-circuiting them, so one mistake does
+    # not hide every other.
     bad_groups = Dict{String, Any}("g" => "not a list of selectors")
     err = try
         Pipelines.Pipeline(nodes, bad_groups, cols)

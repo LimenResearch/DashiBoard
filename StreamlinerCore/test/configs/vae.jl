@@ -6,7 +6,7 @@ function test_vae(dir)
     training = Training(parser, joinpath(static_dir, "training", "batched.toml"))
     streaming = Streaming(parser, joinpath(static_dir, "streaming", "unshuffled.toml"))
 
-    println(StreamlinerCore.summarize(model, train_regression_data, training))
+    println(StreamlinerCore.summarize(model, train_autoencoder_data, training))
 
     outputdir = joinpath(dir, "output")
     result = train(outputdir, model, train_autoencoder_data, training)

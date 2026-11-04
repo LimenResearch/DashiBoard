@@ -42,9 +42,6 @@ train_x, train_y, test_x, test_y = get_mnistlike()
 regression_train_data = (input = train_x, target = train_y)
 regression_test_data = (input = test_x, target = test_y)
 
-hybrid_train_data = (input = train_x, metadata = train_x, target = train_y)
-hybrid_test_data = (input = test_x, metadata = test_x, target = test_y)
-
 autoencoder_train_data = (input = train_x,)
 autoencoder_test_data = (input = test_x,)
 
@@ -54,8 +51,6 @@ prediction_test_data = (input = test_x, target = test_x[12:17, 14:14, :, :])
 ## Prepare to stream data
 
 using StreamlinerCore: Template, Data
-
-table = "mnist"
 
 regression_templates = (
     input = Template(Float32, (28, 28, 1)),
@@ -71,23 +66,6 @@ train_regression_data = Data{2}(
 test_regression_data = Data{1}(
     (getobs(regression_test_data, test_idxs),),
     regression_templates
-)
-
-hybrid_templates = (
-    input = Template(Float32, (28, 28, 1)),
-    metadata = Template(Float32, (3,)),
-    target = Template(Bool, (10,)),
-)
-train_hybrid_data = Data{2}(
-    (
-        getobs(hybrid_train_data, train_idxs),
-        getobs(hybrid_train_data, valid_idxs),
-    ),
-    hybrid_templates
-)
-test_hybrid_data = Data{1}(
-    (getobs(hybrid_test_data, test_idxs),),
-    hybrid_templates
 )
 
 autoencoder_templates = (

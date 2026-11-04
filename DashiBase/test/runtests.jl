@@ -219,9 +219,8 @@ end
 end
 
 @testset "every IR node is self-describing" begin
-    # A renderer dispatches on `type`, and `choose_IR` deserialises on it. `OneOrManyIR` used to
-    # carry neither, so a one-or-many field -- the node the group dialect leans on hardest --
-    # arrived as {array, eltype} that nothing could identify.
+    # A renderer dispatches on `type`, and `choose_IR` deserialises on it, so every node carries
+    # it — a one-or-many field, the node the group dialect leans on hardest, included.
     one_or_many = OneOrManyIR(items = StringIR(), eltype = "string")
     @test JSON.parse(JSON.json(one_or_many; omit_null = true))["type"] == "one_or_many"
 

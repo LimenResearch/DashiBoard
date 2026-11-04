@@ -65,9 +65,8 @@ Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 end
 
 @testset "to_json and non-finite floats" begin
-    # A12: `JSON.json` refuses NaN and Inf, so a run whose z-score of a constant column was NaN
-    # on every row was reported as an execution failure (measured on `constant = 42`, 2026-09-13
-    # and 2026-09-16). `null` is what every JSON client reads as "no value".
+    # `JSON.json` refuses NaN and Inf, which a run produces honestly — the z-score of a constant
+    # column — so they go out as `null`, what every JSON client reads as "no value".
     str = DashiBoard.to_json((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
     d = JSON.parse(str)
     @test !occursin("NaN", str) && !occursin("Infinity", str)
@@ -260,8 +259,7 @@ mktempdir() do data_dir
             (joinpath("sub", "table.json"), "table"),
         ]
 
-        # `load-files` joined `..` without looking; a path outside the data directory is now
-        # a failure envelope, not a read.
+        # A path outside the data directory is a failure envelope, not a read.
         escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
         @test occursin("outside the data directory", escaped["error"]["data"] |> only_error)
 
@@ -506,7 +504,7 @@ mktempdir() do data_dir
         )
 
         # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
-        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects.
         # Julia's parser accepts those tokens, so this asserts on the text.
         DBInterface.execute(
             Returns(nothing), DashiBoard.REPOSITORY[],
@@ -546,7 +544,7 @@ mktempdir() do data_dir
         issue = only(result["issues"])
         @test issue["related"] == ["/nodes/0/card/method", "/nodes/0/card/inputs"]
 
-        # A card with nothing wrong says nothing, rather than saying it is valid in some other way.
+        # A card with nothing wrong is valid and has no issues.
         params = Dict(
             "card" => Dict(
                 "type" => "rescale", "method" => Dict("type" => "zscore"),
@@ -556,6 +554,7 @@ mktempdir() do data_dir
         )
 
         resp = post("validate-card", params)
+        @test resp["result"]["valid"]
         @test isempty(resp["result"]["issues"])
 
         # An unknown card type has no schema to check against, so it answers as a failure rather
@@ -690,8 +689,8 @@ mktempdir() do data_dir
     @testset "probe-noid" begin
         # A probe reports rather than throws — for *every* way a document can be malformed,
         # not only schema failures. Two nodes with no `id` both resolve to "", which the
-        # dependency graph rejects as a duplicate; that used to escape as a 500, leaving the
-        # form with nothing to render and no reason.
+        # dependency graph rejects as a duplicate; it must come back as issues, not a 500 that
+        # leaves the form with nothing to render and no reason.
         # The run answers the same: the route is public and cannot assume a probe came first.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-noid.json"))
         for call in (post_probe, post)
@@ -712,7 +711,7 @@ mktempdir() do data_dir
     end
 
     @testset "empty-cards" begin
-        # A14: a document with no cards. Filter-only is a legitimate run (filter, run, look), and
+        # A document with no cards. Filter-only is a legitimate run (filter, run, look), and
         # the probe of an empty document is what the UI sends when the last card is removed.
         # Placed before the failing-run block below: this run succeeds and leaves `selection`
         # equal to `source`, which that block's CSV assertion tolerates.
@@ -738,9 +737,9 @@ mktempdir() do data_dir
 
     @testset "empty-group" begin
         # An empty group is a document the schema accepts (`weather = []` constructs) that
-        # resolves to zero columns; a card reading it used to die inside the card constructor
-        # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
-        # smoke check 5). The probe and the run both name the group instead.
+        # resolves to zero columns; a card reading it would die inside the card constructor
+        # with an `UndefKeywordError` that names the implementation. The probe and the run both
+        # name the group instead.
         reads_empty = Dict(
             "filters" => [],
             "nodes" => [
@@ -765,10 +764,9 @@ mktempdir() do data_dir
             @test !occursin("UndefKeywordError", join(metadata["errors"]))
         end
 
-        # An empty group used to end the reply: the cards were never looked at, so a document
-        # with an empty group *and* a broken card named the group only, and the card turned red
-        # one fix and one question later (seen in a browser, 2026-09-21, loading a document).
-        # Both are told in one answer, the group first as in the document.
+        # An empty group does not end the reply: a document with an empty group *and* a broken
+        # card is told both in one answer, the group first as in the document, so one mistake
+        # does not hide the next.
         empty_and_broken = Dict(
             "filters" => [],
             "nodes" => [
@@ -804,9 +802,9 @@ mktempdir() do data_dir
     end
 
     @testset "overwrite" begin
-        # A13: two cards emitting the same column name. The second silently replaced the first's
-        # output (and a source column would be replaced the same way — `rescale TEMP suffix =
-        # "rescaled"` over a source with `TEMP_rescaled`.
+        # Two cards emitting the same column name: the second replaces the first's output (and a
+        # source column is replaced the same way — `rescale TEMP suffix = "rescaled"` over a
+        # source with `TEMP_rescaled`).
         # A warning, not a rejection: overwriting can be meant.
         same_name = Dict(
             "filters" => [],
@@ -842,15 +840,12 @@ mktempdir() do data_dir
         # drops every column the successful pipeline added. Anything asserting on that
         # table — the CSV export above, for instance — has to have run already.
         # A run that the schema accepts and the data defeats: PCA cannot take three components
-        # from one column. Nothing static can catch it — the probe says `valid: true` — so the
-        # only place it can be reported is the response to the run itself. Before this, the
-        # exception escaped the handler and HTTP.jl answered with a bare 500 carrying zero bytes
-        # and no CORS header, so the client had nothing to show and no way to tell a failed run
-        # from one that had never happened.
+        # from one column. Nothing static can catch it — the probe accepts the document — so the
+        # only place it can be reported is the response to the run itself — an envelope, not a
+        # bare 500 with no body, so the client can tell a failed run from one that never happened.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "evaluate-bad.json"))
         resp = post_probe("evaluate-pipeline", params)
         @test haskey(resp, "result")
-        result = resp["result"]
         resp = post("evaluate-pipeline", params)
         metadata = resp["error"]["data"]
         # `execution`, not `pipeline`: the document built fine and the *run* is what died. The
@@ -858,17 +853,16 @@ mktempdir() do data_dir
         # which is not.
         @test metadata["kind"] == "execution"
         @test !isempty(metadata["errors"])
-        # The message is the cause, not the wrapper. Before unwrapping, this said
-        # "TaskFailedException" followed by forty lines of scheduler stacktrace, and the sentence
-        # naming the actual fault was buried two levels inside it.
+        # The message is the cause, not the wrapper: the sentence naming the fault, not a
+        # `TaskFailedException` with the cause buried two levels inside its stacktrace.
         @test !occursin("TaskFailedException", metadata["errors"][1])
         @test occursin("Binder Error", metadata["errors"][1])
     end
 
     # A loop is a fault of the document, not of any one card, and Graphs.jl's sentence for it
     # names nothing. The handlers name the members: an issue that points at no item
-    # (`pointer = ""`), with the members under `related` and in the message. Seen in a
-    # browser on 2026-09-18 with the bare sentence written on every card that was asked.
+    # (`pointer = ""`), with the members under `related` and in the message, rather than the bare
+    # sentence written on every card that was asked.
     @testset "loops" begin
         rescale(id, input) = Dict(
             "id" => id, "card" => Dict(

@@ -1,14 +1,16 @@
 module DashiBoard
 
 public launch
-# What `bin/launch.jl` calls to prepare a workspace and the extensions it names.
-public init_workspace, load_extensions, provenance, WorkspaceUtils
+# What a deployment's install and `serve.jl` call.
+public init_workspace, provenance, WorkspaceUtils, install_deployment, serve_deployment
 
 using Base: Fix1, Fix2
 
 using Base.ScopedValues: @with, ScopedValue
 
 using HTTP: HTTP, startread, startwrite, closeread
+
+using Logging: Logging, AbstractLogger, with_logger, current_logger
 
 
 using Scratch: @get_scratch!
@@ -69,7 +71,7 @@ const FILTER_DIR = ScopedValue("")
 
 # The extensions the server was launched with — each name and where it is, as the workspace
 # file says — and which of them contributed each registry entry (`"model:fuzzy"`,
-# `"funnel:time"`, `"transform:y"`). Filled by the launcher; what lets a pipeline's
+# `"funnel:time"`, `"transform:y"`). Filled by `serve_deployment`; what lets a pipeline's
 # download name exactly the extensions it needs.
 const EXTENSIONS = ScopedValue(Dict{String, Any}())
 const EXTENSION_OF = ScopedValue(Dict{String, String}())
@@ -79,6 +81,7 @@ include("handlers.jl")
 include("bundle.jl")
 include("middleware.jl")
 include("launch.jl")
+include("deployment.jl")
 
 function __init__()
     # DuckDB is single-writer, and the scratchspace path is fixed per package — so every

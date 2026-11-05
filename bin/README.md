@@ -1,156 +1,86 @@
-# Launching DashiBoard
+# Running DashiBoard
 
-Two processes: the Julia server (`bin/launch.jl`) and the Vite dev server for the UI
-(`dashiboard-ui/`). All paths below are relative to the repository root.
+Two processes: the Julia server and the Vite dev server for the UI (`dashiboard-ui/`). A client's
+server runs from a **deployment**, installed once; while developing, the server runs straight
+from this checkout. All paths below are relative to the repository root.
 
 ## 1. The server
 
-```sh
-julia --project=DashiBoard bin/launch.jl <workspace>
-```
+### A deployment
 
-`<workspace>` is the directory the server works in. Laid out, it looks like this:
-
-```
-<workspace>/
-├── dashiboard.toml     optional
-├── data/               tables: parquet, csv, json tables
-├── pipeline/           pipeline documents
-├── filter/             filters documents
-├── model/              model configuration TOMLs
-├── training/           training configuration TOMLs
-├── quarantine/         what --init could not place; never read
-└── .dashiboard/        made by the launcher: the extensions' environment (env/)
-```
-
-Each folder is where the server lists, reads and saves files of that kind. A folder may hold
-subfolders, under any name but the layout's own (`data`, `pipeline`, `filter`, `model`,
-`training`, `quarantine`). A workspace need not be laid out: a plain folder with everything in it is served as it
-is, with a warning naming the kinds that are read from the root. The workspace has to exist and
-be writable: saved documents and the extensions' environment go into it.
-
-### Sorting a plain folder
-
-```sh
-julia --project=DashiBoard bin/launch.jl <folder> --init
-```
-
-moves each loose file into its folder by what it is — a table, a pipeline or filters document, a
-model or training configuration — and writes `dashiboard.toml` when there is none. When there is
-one, the folders it names under `[directories]` are the ones used. What cannot be placed (a file
-of no known kind, a folder that is not the layout's, a name already taken where the file belongs)
-goes to `quarantine/`, which the server ignores, and the report says why. It exits without
-serving.
-
-It moves everything at the top of the folder, so it refuses a folder that is plainly something
-else: a home directory, or one holding a `Project.toml`, `Manifest.toml`, `package.json`,
-`Cargo.toml` or `pyproject.toml`. Hidden files and links are left where they are.
-
-### `dashiboard.toml`
-
-Every entry is optional; a flag overrides the file. A table or an entry the launcher does not
-know, or a value of the wrong kind, stops the launch by name. The server never writes this file,
-and refuses a request to: it names packages the launcher installs and loads.
+A deployment is a folder whose `dashiboard.toml` says everything it needs: which DashiBoard,
+which extensions, where the files are, which port. Installing it resolves those once; launching
+it never resolves, so a new release reaches a client only when an update is run on purpose.
 
 ```toml
-[directories]            # relative to this file, or absolute; absent = the folder, else the root
-data = "data"
-pipeline = "pipeline"
-filter = "filter"
-model = "model"
-training = "training"
+[dashiboard]             # the release to deploy: a tag or a commit
+url = "https://github.com/LimenResearch/DashiBoard"
+rev = "v2.0.0"
 
-[extensions]             # each installed extension and where it is, as Julia's [sources] says it
-StreamlinerExtras = { path = "/opt/limen/StreamlinerExtras.jl" }
-TimeFunnels = { url = "https://github.com/LimenResearch/TimeFunnels.jl", rev = "main" }
+[extensions]             # each pinned the same way; a `path` is refused
+TimeFunnels = { url = "https://github.com/LimenResearch/TimeFunnels.jl", rev = "v1.0.0" }
 
-[server]
+[server]                 # read at every launch
 host = "127.0.0.1"
 port = 8080
+
+[directories]            # optional; relative to this file, or absolute
+data = "data"
 ```
 
-### Extensions
-
-The server registers nothing beyond DashiBoard's own cards, funnels and transforms unless the
-workspace names extensions. With extensions the launch has two stages. The first builds one Julia
-environment under `<workspace>/.dashiboard/env/`, holding this checkout's own packages and each
-extension from the source given, resolved together. The second is the server itself, started
-inside that environment, so every package it loads is the version that was resolved with the
-extensions; stopping the launcher stops it.
-
-The environment is built when the sources change — the table, or the project file of anything
-taken by path — which takes minutes; a launch with unchanged sources reuses it. An extension that
-cannot be resolved stops the launch, naming it. Deleting `.dashiboard/env/` forces a rebuild.
-
-An extension is a package that exposes `DEFAULT_PARSER`, a `StreamlinerCore.Parser` holding what
-it registers. A source is a `path`, or a `url` with an optional `rev`.
-
-A `path` in the table is relative to the workspace. On the command line:
-`--extensions Name=/path/to/Package,Other=https://host/Other.jl@main`, which replaces the file's
-table; a relative path there is relative to where the command is run, and `@rev` may be left out.
-
-Options (`julia --project=DashiBoard bin/launch.jl --help`):
-
-| flag | default | meaning |
-|---|---|---|
-| `--host` | the file's, else `127.0.0.1` | address to bind |
-| `--port` | the file's, else `8080` | port to bind |
-| `--data_dir` | see below | tables |
-| `--pipeline_dir` | see below | pipeline documents |
-| `--filter_dir` | see below | filters documents |
-| `--model_dir` | see below | model configuration TOMLs |
-| `--training_dir` | see below | training configuration TOMLs |
-| `--extensions` | the file's | extensions to register |
-| `--init` | | sort the folder into the layout and exit |
-
-Each directory is, in this order: the flag; the file's `[directories]` entry; the folder of that
-name in the workspace (`data`, `pipeline`, `filter`, `model`, `training`) when it exists; the
-workspace itself. A relative flag is relative to where the command is run, a relative entry of the
-file to the workspace. A directory that a flag or the file names and that does not exist stops the
-launch.
-
-The repository keeps sample configurations in `static/model` and `static/training`. To use them
-with a workspace that has none of its own, from the repository root:
+`bin/install.jl` needs only Julia and git, so copy it alone to the machine:
 
 ```sh
-julia --project=DashiBoard bin/launch.jl <workspace> --model_dir static/model --training_dir static/training
+julia install.jl <deploy>                       # install
+<deploy>/.dashiboard/launch.sh                  # launch, as often as needed
+julia install.jl <deploy> --update all          # after editing [dashiboard] rev: everything re-resolved
+julia install.jl <deploy> --update extensions   # only the extensions move
 ```
 
-### Debug: the access log
+Install clones DashiBoard at `rev` — the whole repository, the UI and `static/` included —
+resolves it with the extensions, precompiles, sorts any loose files into the layout, and writes:
 
-The server logs one line per request — method, route, status, elapsed time — at `@debug`
-level, so it is silent unless asked for:
+```
+<deploy>/
+├── dashiboard.toml
+├── data/ pipeline/ filter/ model/ training/    the layout; quarantine/ holds what could not be placed
+└── .dashiboard/
+    ├── DashiBoard/       the clone, owned by install
+    ├── Project.toml      DashiBoard, its own packages, the extensions
+    ├── Manifest.toml     the resolution, fixed until an update
+    ├── depot/            the deployment's own packages and compiled cache
+    ├── serve.jl          loads DashiBoard and the resolved extensions, then serves
+    ├── launch.sh         runs serve.jl with this project, depot and Julia
+    └── record.toml       what was resolved
+```
+
+A launch reads `[server]` and `[directories]` afresh. It refuses to start when `[dashiboard]` or
+`[extensions]` changed since install, when the clone is not at the commit installed, or when Julia
+is not the one install ran with, and it says which update to run. Install refuses a folder that is
+already installed. An install that fails keeps what it downloaded — the clone and the depot — but
+writes no record, so nothing launches it; fix the cause and run the same install again to resume.
+An update that fails restores the deployment it found. An extension is a package that exposes `DEFAULT_PARSER`, a
+`StreamlinerCore.Parser` holding what it registers.
+
+The log goes to stderr and is flushed after every record, so a log redirected to a file is current
+while the server runs: `<deploy>/.dashiboard/launch.sh > /tmp/dashi.log 2>&1`.
+
+### From this checkout, while developing
 
 ```sh
-JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 <workspace>
+julia --project=DashiBoard -e 'using DashiBoard; DashiBoard.launch("<workspace>"; port = 8080)'
 ```
 
-### Printing to a file
-
-Redirect both streams; the log goes to stderr. The middleware flushes after every request,
-so the file is current even though Julia block-buffers stderr when it is not a terminal:
-
-```sh
-JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 <workspace> > /tmp/dashi.log 2>&1
-```
-
-Then watch it from another shell: `tail -f /tmp/dashi.log`.
-
-### The second stage
-
-With extensions, the first stage hands what it resolved to the second through the environment
-variable `DASHIBOARD_LAUNCH`, and starts the second with `--project=<workspace>/.dashiboard/env`.
-A process started from inside the server inherits that variable; a launcher run by hand never
-needs to set it.
+`launch` takes the directories (`data_dir`, `pipeline_dir`, `filter_dir`, `model_dir`,
+`training_dir`) as keywords; each defaults to the workspace itself. The repository keeps sample
+configurations in `static/model` and `static/training`. To sort a plain folder into the layout:
+`julia --project=DashiBoard -e 'using DashiBoard; DashiBoard.init_workspace("<folder>")'`.
 
 ### Cache directory
 
 The server keeps a DuckDB cache, and DuckDB allows one writer per database. To run a second
-server (or the test suite) while one is already up, give it its own cache:
-
-```sh
-DASHIBOARD_CACHE=/tmp/dashi-cache-2 julia --project=DashiBoard bin/launch.jl --port 8091 <workspace>
-```
+server (or the test suite) while one is already up, give it its own cache with
+`DASHIBOARD_CACHE=/tmp/dashi-cache-2`.
 
 ## 2. The UI
 
@@ -181,13 +111,13 @@ Page-URL keys (read once at load):
 ## 3. A typical session
 
 ```sh
-# shell 1 — server with the access log on file
-JULIA_DEBUG=DashiBoard julia --project=DashiBoard bin/launch.jl --port 8090 ~/Documents/Limen/agentgraph/.dashi > /tmp/dashi.log 2>&1
+# shell 1 — the server, its log on file
+julia --project=DashiBoard -e 'using DashiBoard; DashiBoard.launch("<workspace>"; port = 8090)' > /tmp/dashi.log 2>&1
 
 # shell 2 — UI against it
 cd dashiboard-ui && DASHI_API=http://127.0.0.1:8090 pnpm run dev
 
-# shell 3 — watch the requests
+# shell 3 — watch the log
 tail -f /tmp/dashi.log
 ```
 

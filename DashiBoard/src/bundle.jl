@@ -9,7 +9,7 @@ using ZipArchives: ZipWriter, zip_newfile
 configuration_path(kind::Symbol, name::AbstractString) =
     resolve_in(pointer(kind), string(name, ".toml"); what = "the $(kind) directory")
 
-# The registry entries a configuration names, each keyed as the launcher records provenance:
+# The registry entries a configuration names, each keyed as a launch records provenance:
 # `"<registry>:<name>"`. A value written as a placeholder for a setting is not a name.
 function configuration_entries(config::AbstractDict)
     entries = String[]
@@ -62,7 +62,7 @@ end
     needed_extensions(cards) -> Vector{String}
 
 The extensions that contributed something the document uses, by name, sorted. Known from the
-provenance the launcher records when it combines the parsers; a server launched without
+provenance a launch records when it combines the parsers; a server launched without
 extensions needs none.
 """
 function needed_extensions(cards::AbstractDict)

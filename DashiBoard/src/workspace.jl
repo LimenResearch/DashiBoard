@@ -1,13 +1,11 @@
 # The parts of a workspace that need the server's own packages: sorting a plain folder into the
 # layout, which has to tell a table from a document from a configuration, and loading the
-# extensions a workspace names. Reading a workspace and building its environment are in
-# `WorkspaceUtils.jl`, which needs neither.
+# extensions a workspace names. Reading a workspace is in `WorkspaceUtils.jl`, which needs neither.
 
 include("WorkspaceUtils.jl")
 
 using .WorkspaceUtils: WorkspaceUtils, KINDS, RESERVED, WORKSPACE_FILE, tidy_path, read_workspace_file,
-    resolve_pointers, missing_directories, server_defaults, extension_sources, locate_sources,
-    extension_environment, environment_path
+    resolve_pointers, missing_directories, server_defaults, extension_sources, dashiboard_source
 
 # Sorting a plain folder into the layout.
 
@@ -155,22 +153,7 @@ function init_workspace(dir::AbstractString; io::IO = stdout)
     return (; placed, quarantined, left)
 end
 
-# Extensions: loading what a workspace names, and what each contributed.
-
-"""
-    load_extensions(sources) -> Vector{Module}
-
-The named extensions, loaded from the active environment — the one `extension_environment`
-built, which the server is started in. Each must be a package exposing
-`DEFAULT_PARSER::StreamlinerCore.Parser`, which is what it contributes.
-"""
-function load_extensions(sources::AbstractDict)
-    return map(sort!(collect(String, keys(sources)))) do name
-        mod = Base.require(Main, Symbol(name))
-        isdefined(mod, :DEFAULT_PARSER) || throw(ArgumentError("extension `$(name)` has no `DEFAULT_PARSER`"))
-        return mod
-    end
-end
+# Extensions: what each contributed.
 
 # The registries of a parser, named in the singular as the provenance table keys them.
 const REGISTRY_NAMES = (

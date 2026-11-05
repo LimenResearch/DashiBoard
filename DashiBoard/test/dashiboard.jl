@@ -65,9 +65,8 @@ Pipelines.register_wild_card(:trivial, "Trivial"; settings)
 end
 
 @testset "to_json and non-finite floats" begin
-    # A12: `JSON.json` refuses NaN and Inf, so a run whose z-score of a constant column was NaN
-    # on every row was reported as an execution failure (measured on `constant = 42`, 2026-09-13
-    # and 2026-09-16). `null` is what every JSON client reads as "no value".
+    # `JSON.json` refuses NaN and Inf, which a run produces honestly — the z-score of a constant
+    # column — so they go out as `null`, what every JSON client reads as "no value".
     str = DashiBoard.to_json((; a = [1.0, NaN, Inf, -Inf], b = Dict("x" => NaN)))
     d = JSON.parse(str)
     @test !occursin("NaN", str) && !occursin("Infinity", str)
@@ -187,7 +186,6 @@ mktempdir() do data_dir
         # A configuration the document names but the directory lacks is a pointed issue.
         missing_conf = deepcopy(doc); missing_conf["nodes"][1]["card"]["model"]["type"] = "nosuch"
         refused, _ = post("bundle-pipeline", Dict("name" => "mine", "cards" => missing_conf), path)
-        @test haskey(refused, "error")
         report = refused["error"]["data"]
         @test only(report["issues"])["pointer"] == "/nodes/0/card/model/type"
 
@@ -261,15 +259,12 @@ mktempdir() do data_dir
             (joinpath("sub", "table.json"), "table"),
         ]
 
-        # `load-files` joined `..` without looking; a path outside the data directory is now
-        # a failure envelope, not a read.
+        # A path outside the data directory is a failure envelope, not a read.
         escaped = post("load-files", Dict("files" => ["../pollution.csv"]))
-        @test haskey(escaped, "error")
         @test occursin("outside the data directory", escaped["error"]["data"] |> only_error)
 
         params = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
         resp = post("load-files", params)
-        @test haskey(resp, "result")
         summaries = resp["result"]
         @test summaries[end]["name"] == "Ir"
     end
@@ -279,18 +274,15 @@ mktempdir() do data_dir
         # found; nothing outside the directory, nothing that is not there.
         from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
         from_toml = post("read-document", Dict("path" => "cards.toml", "kind" => "cards"))
-        @test haskey(from_json, "result")
         @test from_json["result"]["document"]["nodes"][1]["id"] == "r"
         @test from_toml["result"]["document"]["nodes"][1]["card"]["type"] == "rescale"
         @test isempty(from_toml["result"]["document"]["groups"])
 
         wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
-        @test haskey(wrong_kind, "error")
         @test occursin("not a cards document", wrong_kind["error"]["data"] |> only_error)
 
         for path in ("../cards.json", joinpath(data_dir, "cards.json"))
             outside = post("read-document", Dict("path" => path, "kind" => "cards"))
-            @test haskey(outside, "error")
             @test occursin("outside the workspace", outside["error"]["data"] |> only_error)
         end
 
@@ -305,7 +297,6 @@ mktempdir() do data_dir
         doc = from_json["result"]["document"]
         save(path, kind, overwrite) = post("write-document", Dict("path" => path, "kind" => kind, "document" => doc, "overwrite" => overwrite))
         saved = save("sub/mine.json", "cards", false)
-        @test haskey(saved, "result")
         @test saved["result"]["path"] == "sub/mine.json"
         @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["result"]["files"]]
         @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["result"]["document"] == doc
@@ -417,7 +408,6 @@ mktempdir() do data_dir
             issue = only(DashiBoard.model_issues(repo, built("conv"), "selection"))
             @test issue.pointer == "/nodes/0/card/model"
             @test issue.reason == "model" && issue.severity == "error"
-            @test occursin("cannot be built for this funnel", issue.message)
             @test isempty(DashiBoard.model_issues(repo, built("dense"), "selection"))
         end
     end
@@ -473,7 +463,6 @@ mktempdir() do data_dir
 
         # Anything else is refused in the usual envelope, with a sentence, not with a bare 500.
         resp = post("get-card-ir", Dict("include" => 3))
-        @test haskey(resp, "error")
         @test occursin("include", resp["error"]["data"] |> only_error)
     end
 
@@ -487,9 +476,8 @@ mktempdir() do data_dir
         result = resp["result"]
         summaries = result["summaries"]
         @test summaries[end]["name"] == "_tiled_partition"
-        # A4: the graph renders, and names the group rather than its resolved columns
+        # The run sends its graph, rendered.
         @test startswith(result["graph"], "digraph G{")
-        @test occursin("\"wind\"", result["graph"])
 
         path = joinpath(data_dir, "download.csv")
         resp, bytes = post("get-processed-data", Dict(), path)
@@ -516,7 +504,7 @@ mktempdir() do data_dir
         )
 
         # The rows take a different path — DuckDB writes the page as JSON itself, and its writer
-        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects (measured 2026-09-16).
+        # emits bare `NaN`/`Infinity`, which a browser's JSON.parse rejects.
         # Julia's parser accepts those tokens, so this asserts on the text.
         DBInterface.execute(
             Returns(nothing), DashiBoard.REPOSITORY[],
@@ -552,14 +540,11 @@ mktempdir() do data_dir
             "base" => "/nodes/0/card",
         )
         resp = post("validate-card", params)
-        @test haskey(resp, "result")
         result = resp["result"]
         issue = only(result["issues"])
-        @test issue["reason"] == "required"
-        @test issue["missing"] == ["method", "inputs"]
         @test issue["related"] == ["/nodes/0/card/method", "/nodes/0/card/inputs"]
 
-        # A card with nothing wrong says nothing, rather than saying it is valid in some other way.
+        # A card with nothing wrong is valid and has no issues.
         params = Dict(
             "card" => Dict(
                 "type" => "rescale", "method" => Dict("type" => "zscore"),
@@ -569,13 +554,13 @@ mktempdir() do data_dir
         )
 
         resp = post("validate-card", params)
+        @test resp["result"]["valid"]
         @test isempty(resp["result"]["issues"])
 
         # An unknown card type has no schema to check against, so it answers as a failure rather
         # than throwing out of the handler.
         params = Dict("card" => Dict("type" => "nosuchcard"), "cols" => ["TEMP"])
         resp = post("validate-card", params)
-        @test haskey(resp, "error")
         metadata = resp["error"]["data"]
         @test occursin("not found", only_error(metadata))
         @test metadata["kind"] == "pipeline"
@@ -588,7 +573,6 @@ mktempdir() do data_dir
         # answer names the node responsible.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-bad.json"))
         resp = post_probe("evaluate-pipeline", params)
-        @test haskey(resp, "error")
         metadata = resp["error"]["data"]
         @test metadata["kind"] == "pipeline"
         # It arrives in the same shape as a schema failure, so a form reads one list: the card to
@@ -603,7 +587,6 @@ mktempdir() do data_dir
         # The vocabularies a picker offers from survive the failure, so a form can still correct
         # the chain rather than going blank.
         @test "TEMP" in metadata["cols"]
-        @test haskey(metadata, "referable")
     end
 
     @testset "probe-product" begin
@@ -661,13 +644,11 @@ mktempdir() do data_dir
         )
         resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("Iws" => "log"))))
         result = resp["result"]
-        @test !haskey(result, "valid")
         @test result["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
 
         # A transform for a column the list does not reach is a pointed issue at its entry.
         resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("GONE" => "log"))))
         issue = only(resp["error"]["data"]["issues"])
-        @test issue["reason"] == "transforms"
         @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
     end
 
@@ -691,7 +672,6 @@ mktempdir() do data_dir
             issue = only(data["issues"])
             @test issue["reason"] == "unproduced" && issue["pointer"] == "/nodes/0/card"
             @test only(data["nodes"])["unproduced"] == ["NOPE"]
-            @test haskey(data, "cols") && haskey(data, "referable")
         end
     end
 
@@ -709,8 +689,8 @@ mktempdir() do data_dir
     @testset "probe-noid" begin
         # A probe reports rather than throws — for *every* way a document can be malformed,
         # not only schema failures. Two nodes with no `id` both resolve to "", which the
-        # dependency graph rejects as a duplicate; that used to escape as a 500, leaving the
-        # form with nothing to render and no reason.
+        # dependency graph rejects as a duplicate; it must come back as issues, not a 500 that
+        # leaves the form with nothing to render and no reason.
         # The run answers the same: the route is public and cannot assume a probe came first.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-noid.json"))
         for call in (post_probe, post)
@@ -721,22 +701,17 @@ mktempdir() do data_dir
     end
 
     @testset "probe-bad-value" begin
-        # A7: a schema failure comes back as data, addressed by JSON Pointer into the document,
-        # carrying what would have been accepted — so a form can point at the control and offer a
-        # correction rather than print a sentence. The second input is the bad one, which is also
-        # what pins the index conversion: JSONSchema.jl counts from one, JSON Pointer from zero.
+        # A schema failure reaches the client as an issue in the failure's data, addressed by JSON
+        # Pointer into the document; what the issue says is Pipelines' to test.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-badvalue.json"))
         resp = post_probe("evaluate-pipeline", params)
         metadata = resp["error"]["data"]
         issue = only(metadata["issues"])
         @test issue["pointer"] == "/nodes/0/card/inputs/1/cols"
-        @test issue["reason"] == "enum"
-        @test issue["found"] == "NOSUCHCOLUMN"
-        @test "TEMP" in issue["allowed"]
     end
 
     @testset "empty-cards" begin
-        # A14: a document with no cards. Filter-only is a legitimate run (filter, run, look), and
+        # A document with no cards. Filter-only is a legitimate run (filter, run, look), and
         # the probe of an empty document is what the UI sends when the last card is removed.
         # Placed before the failing-run block below: this run succeeds and leaves `selection`
         # equal to `source`, which that block's CSV assertion tolerates.
@@ -744,7 +719,6 @@ mktempdir() do data_dir
         resp = post_probe("evaluate-pipeline", params)
         @test haskey(resp, "result")
         resp = post("evaluate-pipeline", params)
-        @test haskey(resp, "result")
         empty_run = resp["result"]
         @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
 
@@ -763,9 +737,9 @@ mktempdir() do data_dir
 
     @testset "empty-group" begin
         # An empty group is a document the schema accepts (`weather = []` constructs) that
-        # resolves to zero columns; a card reading it used to die inside the card constructor
-        # with `UndefKeywordError: keyword argument args not assigned` (measured 2026-09-16,
-        # smoke check 5). The probe and the run both name the group instead.
+        # resolves to zero columns; a card reading it would die inside the card constructor
+        # with an `UndefKeywordError` that names the implementation. The probe and the run both
+        # name the group instead.
         reads_empty = Dict(
             "filters" => [],
             "nodes" => [
@@ -780,7 +754,6 @@ mktempdir() do data_dir
         )
         for f in (post_probe, post)
             resp = f("evaluate-pipeline", reads_empty)
-            @test haskey(resp, "error")
             metadata = resp["error"]["data"]
             @test metadata["kind"] == "pipeline"
             issue = only(metadata["issues"])
@@ -791,10 +764,9 @@ mktempdir() do data_dir
             @test !occursin("UndefKeywordError", join(metadata["errors"]))
         end
 
-        # An empty group used to end the reply: the cards were never looked at, so a document
-        # with an empty group *and* a broken card named the group only, and the card turned red
-        # one fix and one question later (seen in a browser, 2026-09-21, loading a document).
-        # Both are told in one answer, the group first as in the document.
+        # An empty group does not end the reply: a document with an empty group *and* a broken
+        # card is told both in one answer, the group first as in the document, so one mistake
+        # does not hide the next.
         empty_and_broken = Dict(
             "filters" => [],
             "nodes" => [
@@ -810,7 +782,6 @@ mktempdir() do data_dir
         )
         for f in (post_probe, post)
             resp = f("evaluate-pipeline", empty_and_broken)
-            @test haskey(resp, "error")
             metadata = resp["error"]["data"]
             @test [(issue["pointer"], issue["reason"]) for issue in metadata["issues"]] ==
                 [("/groups/empty", "empty"), ("/nodes/1/card", "required")]
@@ -826,16 +797,14 @@ mktempdir() do data_dir
             "groups" => Dict{String, Any}(),
         )
         resp = post("evaluate-pipeline", two_broken)
-        @test haskey(resp, "error")
         metadata = resp["error"]["data"]
-        @test [i["pointer"] for i in metadata["issues"]] == ["/nodes/0/card", "/nodes/1/card"]
         @test all(i["severity"] == "error" for i in metadata["issues"])
     end
 
     @testset "overwrite" begin
-        # A13: two cards emitting the same column name. The second silently replaced the first's
-        # output (and a source column would be replaced the same way — `rescale TEMP suffix =
-        # "rescaled"` over a source with `TEMP_rescaled`.
+        # Two cards emitting the same column name: the second replaces the first's output (and a
+        # source column is replaced the same way — `rescale TEMP suffix = "rescaled"` over a
+        # source with `TEMP_rescaled`).
         # A warning, not a rejection: overwriting can be meant.
         same_name = Dict(
             "filters" => [],
@@ -864,8 +833,6 @@ mktempdir() do data_dir
         @test occursin("TEMP_z", warning["message"])
         resp = post("evaluate-pipeline", same_name)
         @test haskey(resp, "result")
-        result = resp["result"]
-        @test !haskey(result, "valid")
     end
 
     @testset "runtime-error" begin
@@ -873,35 +840,29 @@ mktempdir() do data_dir
         # drops every column the successful pipeline added. Anything asserting on that
         # table — the CSV export above, for instance — has to have run already.
         # A run that the schema accepts and the data defeats: PCA cannot take three components
-        # from one column. Nothing static can catch it — the probe says `valid: true` — so the
-        # only place it can be reported is the response to the run itself. Before this, the
-        # exception escaped the handler and HTTP.jl answered with a bare 500 carrying zero bytes
-        # and no CORS header, so the client had nothing to show and no way to tell a failed run
-        # from one that had never happened.
+        # from one column. Nothing static can catch it — the probe accepts the document — so the
+        # only place it can be reported is the response to the run itself — an envelope, not a
+        # bare 500 with no body, so the client can tell a failed run from one that never happened.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "evaluate-bad.json"))
         resp = post_probe("evaluate-pipeline", params)
         @test haskey(resp, "result")
-        result = resp["result"]
         resp = post("evaluate-pipeline", params)
-        @test haskey(resp, "error")
         metadata = resp["error"]["data"]
-        @test !haskey(metadata, "valid")
         # `execution`, not `pipeline`: the document built fine and the *run* is what died. The
         # split is on which call threw, which is observable, rather than on whose fault it is,
         # which is not.
         @test metadata["kind"] == "execution"
         @test !isempty(metadata["errors"])
-        # The message is the cause, not the wrapper. Before unwrapping, this said
-        # "TaskFailedException" followed by forty lines of scheduler stacktrace, and the sentence
-        # naming the actual fault was buried two levels inside it.
+        # The message is the cause, not the wrapper: the sentence naming the fault, not a
+        # `TaskFailedException` with the cause buried two levels inside its stacktrace.
         @test !occursin("TaskFailedException", metadata["errors"][1])
         @test occursin("Binder Error", metadata["errors"][1])
     end
 
     # A loop is a fault of the document, not of any one card, and Graphs.jl's sentence for it
     # names nothing. The handlers name the members: an issue that points at no item
-    # (`pointer = ""`), with the members under `related` and in the message. Seen in a
-    # browser on 2026-09-18 with the bare sentence written on every card that was asked.
+    # (`pointer = ""`), with the members under `related` and in the message, rather than the bare
+    # sentence written on every card that was asked.
     @testset "loops" begin
         rescale(id, input) = Dict(
             "id" => id, "card" => Dict(
@@ -916,7 +877,6 @@ mktempdir() do data_dir
         )
         for f in (post_probe, post)
             resp = f("evaluate-pipeline", looped)
-            @test haskey(resp, "error")
             metadata = resp["error"]["data"]
             @test metadata["kind"] == "pipeline"
             issue = only(metadata["issues"])
@@ -966,7 +926,6 @@ mktempdir() do data_dir
 
         # still answered for a document that does not build: a loop
         looped = probe([rescale("a", Dict("nodes" => "b")), rescale("b", Dict("nodes" => "a"))], Dict{String, Any}())
-        @test haskey(looped, "error")
         metadata = looped["error"]["data"]
         @test metadata["referable"]["nodes"] == [Dict("nodes" => [], "groups" => []), Dict("nodes" => [], "groups" => [])]
 

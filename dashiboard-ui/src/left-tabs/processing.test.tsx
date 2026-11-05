@@ -23,7 +23,10 @@ vi.mock('../components/FilePicker', () => ({
 
 import { Cards } from './processing';
 
-const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [], issues: [] };
+const CLEAN_PROBE = { cols: [], nodes: [], errors: [], issues: [] };
+// A refused probe: the server answers a document that does not build with an error whose `data`
+// is the report.
+const refusal = (data: Record<string, unknown>) => ({ error: { code: -32602, message: 'refused', data } });
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -252,7 +255,7 @@ describe('a card is amber until asked', () => {
     );
 
   it('shows no red before Confirm, even while the probe reports an error for it', async () => {
-    mock({ ...CLEAN_PROBE, valid: false, issues: [BROKEN] }, { valid: false, issues: [BROKEN] });
+    mock(refusal({ kind: 'pipeline', errors: ['x'], issues: [BROKEN] }), { valid: false, issues: [BROKEN] });
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelector('[data-card-title]')).not.toBeNull());
     // The continuous probe has answered once its verdict reached the store.
@@ -563,9 +566,9 @@ describe('Confirm on a document that cannot build', () => {
   // whichever card was asked put one sentence on every card. The fault is recorded on the
   // *document* (shown once, next to Run); the card is not vouched for and stays amber.
   const LOOP = 'The input graph contains at least one loop: a, b';
-  const loopReply = { valid: false, kind: 'pipeline', cols: [], errors: [LOOP],
+  const loopReply = refusal({ kind: 'pipeline', cols: [], errors: [LOOP],
     issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
-      missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] };
+      missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] });
 
   it('leaves the card amber and records the fault on the document', async () => {
     serveProbe(loopReply);
@@ -579,8 +582,8 @@ describe('Confirm on a document that cannot build', () => {
   });
 
   it('does the same for a fault the server only has a sentence for', async () => {
-    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
-      errors: ['FieldError: type Pipelines.SplitCard has no field `suffix`'] });
+    serveProbe(refusal({ kind: 'pipeline', cols: [], issues: [],
+      errors: ['FieldError: type Pipelines.SplitCard has no field `suffix`'] }));
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(cardConfirm(container)).not.toBeNull());
     fireEvent.click(cardConfirm(container));
@@ -609,8 +612,8 @@ describe('Confirm on a document that cannot build', () => {
       ],
       groups: {},
     });
-    serveProbe({ valid: false, kind: 'pipeline', cols: [], issues: [],
-      errors: ['ArgumentError: Encountered nodes with equal `id`'] });
+    serveProbe(refusal({ kind: 'pipeline', cols: [], issues: [],
+      errors: ['ArgumentError: Encountered nodes with equal `id`'] }));
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelectorAll('button[title="mark this card deliberately finished"]').length).toBe(2));
     fireEvent.click(container.querySelectorAll('button[title="mark this card deliberately finished"]')[1]);
@@ -628,10 +631,10 @@ describe('Confirm on a document that cannot build', () => {
       ],
       groups: {},
     });
-    serveProbe({ valid: false, kind: 'pipeline', cols: [],
+    serveProbe(refusal({ kind: 'pipeline', cols: [],
       errors: ['1 schema validation error:\nSchema Validation Error for card in node 2'],
       issues: [{ pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null,
-        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] });
+        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] }));
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(container.querySelectorAll('button[title="mark this card deliberately finished"]').length).toBe(2));
     fireEvent.click(container.querySelectorAll('button[title="mark this card deliberately finished"]')[0]);
@@ -681,10 +684,10 @@ describe('loading a cards document asks', () => {
   };
 
   it('rejects the items the server points at, and leaves the rest amber', async () => {
-    serveDocument({ valid: false, kind: 'pipeline', cols: [],
+    serveDocument(refusal({ kind: 'pipeline', cols: [],
       errors: ['1 schema validation error:\nSchema Validation Error for card in node 2'],
       issues: [{ pointer: '/nodes/1/card', reason: 'required', severity: 'error', found: null,
-        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] }, two);
+        allowed: null, missing: ['method'], related: ['/nodes/1/card/method'], message: 'Schema Validation Error for card in node 2' }] }), two);
     const { container } = render(() => <Cards />);
     await load(container);
     await waitFor(() => expect(dots(container)).toEqual(['unconfirmed', 'rejected']));
@@ -693,8 +696,8 @@ describe('loading a cards document asks', () => {
   });
 
   it('marks the later of two cards with one name, with the UI\'s own sentence', async () => {
-    serveDocument({ valid: false, kind: 'pipeline', cols: [], issues: [],
-      errors: ['ArgumentError: Encountered nodes with equal `id`'] },
+    serveDocument(refusal({ kind: 'pipeline', cols: [], issues: [],
+      errors: ['ArgumentError: Encountered nodes with equal `id`'] }),
       { ...two, nodes: [two.nodes[0], { ...two.nodes[1], id: 'a' }] });
     const { container } = render(() => <Cards />);
     await load(container);
@@ -706,9 +709,9 @@ describe('loading a cards document asks', () => {
 
   it('records what nobody can place on the document, not under the row, and an edit expires it', async () => {
     const LOOP = 'The input graph contains at least one loop: a, b';
-    serveDocument({ valid: false, kind: 'pipeline', cols: [], errors: [LOOP],
+    serveDocument(refusal({ kind: 'pipeline', cols: [], errors: [LOOP],
       issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
-        missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] }, two);
+        missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] }), two);
     const { container } = render(() => <Cards />);
     await load(container);
     await waitFor(() => expect(documentVerdict()).not.toBeNull());
@@ -915,7 +918,7 @@ describe('a chain while the document does not build', () => {
         full.defs.node = { ...full.defs.node, enum: body.nodes ?? [] };
         return Promise.resolve(Object.fromEntries((body.include ?? ['defs', 'cards']).map((k) => [k, (full as unknown as Record<string, unknown>)[k]])));
       }
-      if (page === 'probe-pipeline') return Promise.resolve(valid ? { ...CLEAN_PROBE, nodes: [described] } : { valid: false, cols: [], errors: ['x'], issues: [] });
+      if (page === 'probe-pipeline') return Promise.resolve(valid ? { ...CLEAN_PROBE, nodes: [described] } : refusal({ cols: [], errors: ['x'], issues: [] }));
       return Promise.resolve([]);
     });
     importCards({ nodes: [{ id: 'r', card: rescale }], groups: {} });
@@ -1038,11 +1041,10 @@ describe('transform rows while the document does not build', () => {
   const rows = (c: HTMLElement) => [...c.querySelectorAll('#node-0-streamliner-funnel-funnel-input_transforms [data-row]')];
 
   it('marks the entry the server refused, and removes it', async () => {
-    const refusal = {
-      valid: false, cols: [], nodes: [], errors: ['x'],
+    const refused = refusal({ cols: [], errors: ['x'],
       issues: [{ pointer: '/nodes/0/card/funnel/input_transforms/TEMP_z', reason: 'transforms', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'no' }],
-    };
-    serve(() => refusal);
+    });
+    serve(() => refused);
     importCards({ nodes: [{ id: 'fit', card: fit({ inputs: [{ cols: 'PRES' }], input_transforms: { TEMP_z: 'log' } }) }], groups: {} });
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(PROBE_STORE[0].issues.length).toBe(1));
@@ -1056,7 +1058,7 @@ describe('transform rows while the document does not build', () => {
   it('does not keep the rows of an answer about an earlier document', async () => {
     let valid = true;
     const described = { id: 'fit', inputs: [], outputs: [], unproduced: [], through: [], lists: { inputs: ['A1', 'A2'], targets: ['TEMP'] } };
-    serve(() => (valid ? { ...CLEAN_PROBE, nodes: [described] } : { valid: false, cols: [], nodes: [], errors: ['x'], issues: [] }));
+    serve(() => (valid ? { ...CLEAN_PROBE, nodes: [described] } : refusal({ cols: [], errors: ['x'], issues: [] })));
     importCards({ nodes: [{ id: 'fit', card: fit({ inputs: [{ groups: 'g' }, { cols: 'PRES' }] }) }], groups: { g: [] } });
     const { container } = render(() => <Cards />);
     await waitFor(() => expect(rows(container).map((r) => r.getAttribute('data-row'))).toEqual(['A1', 'A2', 'PRES']));

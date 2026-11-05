@@ -20,6 +20,9 @@ vi.mock('../requests', () => ({
 }));
 
 const defs = payload.defs as Defs;
+// A refused probe: the server answers a document that does not build with an error whose `data`
+// is the report.
+const refusal = (data: Record<string, unknown>) => ({ error: { code: -32602, message: 'refused', data } });
 const mount = () => render(() => <GroupsEditor defs={defs} />);
 const nameFields = (c: HTMLElement) =>
   [...c.querySelectorAll('input[aria-label="group name"]')] as HTMLInputElement[];
@@ -211,8 +214,8 @@ describe('GroupsEditor', () => {
     // `empty_group_issues` phrases it, rather than as `checkGroup`'s own wording.
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: ['group `weather` has no columns'],
-            issues: [{ pointer: '/groups/weather', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `weather` has no columns' }] }
+        ? refusal({ kind: 'pipeline', cols: [], errors: ['group `weather` has no columns'],
+            issues: [{ pointer: '/groups/weather', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `weather` has no columns' }] })
         : []));
     addGroup('weather');
     const { container, getByText } = mount();
@@ -264,7 +267,7 @@ describe('GroupsEditor', () => {
     // Edited while the request is still in flight — before the probe has answered anything.
     setGroup('weather', []);
     await flush();
-    resolveProbe({ valid: true, kind: 'pipeline', cols: [], nodes: [], errors: [], issues: [] });
+    resolveProbe({ cols: [], nodes: [], errors: [], issues: [] });
     // Three, not two: `confirmDefinition` is a functional updater now (it chains off the previous
     // updater's return rather than off a read — see `stores.ts`), and that costs one more `flush()`
     // to settle than a plain value set did, on top of `askProbe`'s own async unwrap. Real usage
@@ -289,14 +292,12 @@ describe('GroupsEditor', () => {
   });
 
   it('shows the server\'s finding for an empty group after Confirm', async () => {
-    // The envelope verbatim, with no `nodes` key: the empty-group early return is
-    // `(; valid = false, kind, cols, errors, issues)`. Mocking `nodes: []` here — a key the
-    // server never sends on a failure — is how `usableProbe` discarding these replies survived
-    // every UI test (final review, 2026-09-16).
+    // The refusal verbatim, with no `nodes` key: the empty-group report is `kind, cols, errors,
+    // issues`, and a mock that added `nodes` would hide a coercion that drops real refusals.
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [], errors: ['group `g` has no columns'],
-            issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] }
+        ? refusal({ kind: 'pipeline', cols: [], errors: ['group `g` has no columns'],
+            issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] })
         : []));
     importCards({ nodes: [], groups: { g: [] } });
     const { container, getAllByText } = render(() => <GroupsEditor defs={defs} />);
@@ -334,7 +335,7 @@ describe('GroupsEditor', () => {
     const reworded = { ...issue, message: 'group `g` selects nothing' };
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [], nodes: [], errors: [reworded.message], issues: [reworded] }
+        ? refusal({ kind: 'pipeline', cols: [], errors: [reworded.message], issues: [reworded] })
         : []));
     importCards({ nodes: [], groups: { g: [] } });
     await flush(); // a verdict binds to the document as it is *after* the staged write lands
@@ -364,7 +365,7 @@ describe('GroupsEditor', () => {
   });
 
   it('shows no red before Confirm, even while the probe reports an error for it', async () => {
-    // Decided 2026-09-17: red is reserved for "you asked, and it was wrong". The continuous probe
+    // Red is reserved for "you asked, and it was wrong". The continuous probe
     // writes to `PROBE_STORE` only — never a verdict — so its error paints nothing on the group.
     importCards({ nodes: [], groups: { g: [] } });
     PROBE_STORE[1]((d) => {
@@ -380,8 +381,8 @@ describe('GroupsEditor', () => {
   });
 
   it('turns red with the finding on Confirm, amber on edit, green when fixed', async () => {
-    const EMPTY = { valid: false, kind: 'pipeline', cols: [], errors: ['group `g` has no columns'],
-      issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] };
+    const EMPTY = refusal({ kind: 'pipeline', cols: [], errors: ['group `g` has no columns'],
+      issues: [{ pointer: '/groups/g', reason: 'empty', severity: 'error', found: null, allowed: null, missing: [], related: [], message: 'group `g` has no columns' }] });
     importCards({ nodes: [], groups: { g: [] } });
     postRequest.mockImplementation((page: string) => Promise.resolve(page === 'probe-pipeline' ? EMPTY : []));
     const { container, getAllByText } = mount();
@@ -394,7 +395,7 @@ describe('GroupsEditor', () => {
     await waitFor(() => expect(container.querySelector('[data-state="unconfirmed"]')).not.toBeNull());
     expect(container.textContent).not.toMatch(/has no columns/);
     postRequest.mockImplementation((page: string) =>
-      Promise.resolve(page === 'probe-pipeline' ? { valid: true, cols: ['TEMP'], nodes: [], errors: [], issues: [] } : []));
+      Promise.resolve(page === 'probe-pipeline' ? { cols: ['TEMP'], nodes: [], errors: [], issues: [] } : []));
     fireEvent.click(getAllByText('Confirm')[0]);
     await waitFor(() => expect(container.querySelector('[data-state="confirmed"]')).not.toBeNull());
     expect(container.querySelector('[data-state="confirmed"]')!.className).toMatch(/bg-success/);
@@ -433,13 +434,13 @@ describe('Confirm on a document that cannot build', () => {
   // The same rule as a card's Confirm: a fault with no item pointer is the document's, and the
   // group that was asked carries it.
   it('leaves the group amber and records the fault on the document', async () => {
-    // Revised 2026-09-18: a loop is nobody's item. It is said once, next to Run.
+    // A loop is nobody's item. It is said once, next to Run.
     const LOOP = 'The input graph contains at least one loop: a, b';
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [], errors: [LOOP],
+        ? refusal({ kind: 'pipeline', cols: [], errors: [LOOP],
             issues: [{ pointer: '', reason: 'loop', severity: 'error', found: null, allowed: null,
-              missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] }
+              missing: [], related: ['/nodes/0', '/nodes/1'], message: LOOP }] })
         : []));
     addGroup('weather');
     setGroup('weather', [{ cols: 'TEMP' }]);
@@ -456,10 +457,10 @@ describe('Confirm on a document that cannot build', () => {
   it('confirms green when the only fault is pointed at a card', async () => {
     postRequest.mockImplementation((page: string) =>
       Promise.resolve(page === 'probe-pipeline'
-        ? { valid: false, kind: 'pipeline', cols: [],
+        ? refusal({ kind: 'pipeline', cols: [],
             errors: ['1 schema validation error:\nSchema Validation Error for card in node 1'],
             issues: [{ pointer: '/nodes/0/card', reason: 'required', severity: 'error', found: null,
-              allowed: null, missing: ['method'], related: ['/nodes/0/card/method'], message: 'Schema Validation Error for card in node 1' }] }
+              allowed: null, missing: ['method'], related: ['/nodes/0/card/method'], message: 'Schema Validation Error for card in node 1' }] })
         : []));
     addGroup('weather');
     setGroup('weather', [{ cols: 'TEMP' }]);
@@ -487,9 +488,9 @@ describe('an answer that arrives after its group is gone', () => {
     await waitFor(() => expect(answer).toBeDefined());
     removeGroup(name);
     await flush();
-    answer({ valid: false, kind: 'pipeline', cols: [], errors: [`group \`${name}\` has no columns`],
+    answer(refusal({ kind: 'pipeline', cols: [], errors: [`group \`${name}\` has no columns`],
       issues: [{ pointer: `/groups/${name}`, reason: 'empty', severity: 'error', found: null, allowed: null,
-        missing: [], related: [], message: `group \`${name}\` has no columns` }] });
+        missing: [], related: [], message: `group \`${name}\` has no columns` }] }));
     await new Promise((r) => setTimeout(r, 20));
     await flush();
     expect(addGroup()).toBe(name);

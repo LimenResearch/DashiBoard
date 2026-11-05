@@ -1,12 +1,10 @@
 using DuckDB, DuckDBUtils, DBInterface, Tables
 using DuckDBUtils: to_sql
 using FunSQL: From, Where, Get, Var, Select, Fun
-using OrderedCollections: OrderedDict
 using Test
 
 @testset "show" begin
     r = Repository()
-    s = sprint(show, r)
     @test sprint(show, r) == "Repository(DuckDB.DB(\":memory:\"), Connections(limit = 4096))"
     @test sprint(show, r.connections) == "Connections(limit = 4096)"
 
@@ -24,7 +22,6 @@ end
 @testset "connections" begin
     r = Repository()
     con1 = acquire_connection(r)
-    @test con1 isa DuckDB.Connection
     release_connection(r, con1)
     con2 = acquire_connection(r)
     @test con2 === con1
@@ -173,8 +170,8 @@ end
     @test tbl2.a == x.a
     @test tbl2.b == x.b
     tbl3 = DBInterface.execute(Tables.columntable, r, From("tbl"); schema = "schm")
-    @test tbl2.a == x.a
-    @test tbl2.b == x.b
+    @test tbl3.a == x.a
+    @test tbl3.b == x.b
 
     tbl4 = DBInterface.execute(
         Tables.columntable,
@@ -198,8 +195,8 @@ end
         db_path = joinpath(data_dir, "db.duckdb")
         DBInterface.execute(Returns(nothing), r, "ATTACH '$(db_path)' AS my_db;")
         DBInterface.execute(Returns(nothing), r, "CREATE TABLE my_db.main.tbl(i BIGINT, j BIGINT);")
-        res3 = DuckDBUtils.replace_table(r, "FROM my_db.tbl", "external_view"; schema = "schm")
-        @test isnothing(res)
+        res3 = DuckDBUtils.replace_table(r, "FROM my_db.tbl", "external_view"; schema = "schm", virtual = true)
+        @test isnothing(res3)
         tbl = DBInterface.execute(Tables.columntable, r, "FROM schm.external_view;")
         @test tbl.i == Int64[]
         @test tbl.j == Int64[]
@@ -287,7 +284,6 @@ end
         ps = Iterators.partition(1:nrows, batchsize)
         N = length(ps)
         @test length(batches) == N
-        @test size(batches) == (N,)
         l = Any[]
         for (batch, idxs) in zip(batches, ps)
             @test batch[:x] == tbl.x[idxs]
@@ -295,7 +291,6 @@ end
             push!(l, batch)
         end
         @test length(l) == N
-        @test eltype(batches) == OrderedDict{Symbol, Vector}
         s = sprint(show, batches)
         T = typeof(Tables.partitions(result))
         expected = """

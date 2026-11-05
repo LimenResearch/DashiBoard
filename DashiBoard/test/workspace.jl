@@ -1,5 +1,4 @@
 using DashiBoard, Test, HTTP
-using Sockets: Sockets
 using TOML: TOML
 
 @testset "resolving a workspace" begin
@@ -36,17 +35,10 @@ using TOML: TOML
         # an unknown key in the file is refused, so a typo does not silently fall back
         @test_throws ArgumentError DashiBoard.resolve_pointers(ws, Dict("directories" => Dict("models" => "x")), Dict())
         @test isempty(DashiBoard.read_workspace_file(ws))
-        write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 9000\n[extensions]\nX = { path = \"/opt/X\" }\n")
+        write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 9000\n[extensions]\nX = { url = \"https://h/X.jl\", rev = \"v1\" }\n")
         file = DashiBoard.read_workspace_file(ws)
         @test DashiBoard.server_defaults(file) == (host = nothing, port = 9000)
-        @test DashiBoard.extension_sources(file, Dict()) == Dict("X" => Dict{String, Any}("path" => "/opt/X"))
-        # The addresses a git remote goes by, with or without a revision; an `@` that is part of
-        # the address is not one.
-        parsed = DashiBoard.extension_sources(Dict(), Dict("extensions" => "A=ssh://git@github.com/Org/A.jl@v2,B=git@github.com:Org/B.jl,C=https://h/C.jl"))
-        @test parsed["A"] == Dict{String, Any}("url" => "ssh://git@github.com/Org/A.jl", "rev" => "v2")
-        @test parsed["B"] == Dict{String, Any}("url" => "git@github.com:Org/B.jl")
-        @test parsed["C"] == Dict{String, Any}("url" => "https://h/C.jl")
-        @test_throws ArgumentError DashiBoard.extension_sources(Dict(), Dict("extensions" => "JustAName"))
+        @test DashiBoard.extension_sources(file) == Dict("X" => Dict{String, Any}("url" => "https://h/X.jl", "rev" => "v1"))
 
         # A workspace file that says something the launcher cannot read is refused by name,
         # rather than half-used: a misspelt table, a value of the wrong kind.
@@ -57,17 +49,22 @@ using TOML: TOML
         @test_throws ArgumentError bad("[extensions]\nX = { branch = \"main\" }\n")
         @test_throws ArgumentError bad("[directories]\ndata = 3\n")
         rm(joinpath(ws, "dashiboard.toml"))
-        # A path is kept as written, and made absolute for whoever has to find it from elsewhere
-        # — a downloaded pipeline names its extensions for another folder.
-        relative = Dict("X" => Dict{String, Any}("path" => "../X"), "U" => Dict{String, Any}("url" => "https://h/U.jl", "rev" => "main"))
-        located = DashiBoard.locate_sources(ws, relative)
-        @test located["X"]["path"] == normpath(joinpath(ws, "..", "X")) && isabspath(located["X"]["path"])
-        @test located["U"] == relative["U"]
-        @test relative["X"]["path"] == "../X"
-        # the command line names an extension as Name=path or Name=url@rev
-        @test DashiBoard.extension_sources(file, Dict("extensions" => "Y=/opt/Y,Z=https://h/Z.jl@main")) ==
-            Dict("Y" => Dict{String, Any}("path" => "/opt/Y"), "Z" => Dict{String, Any}("url" => "https://h/Z.jl", "rev" => "main"))
     end
+
+    # A deployment pins every source to a release: DashiBoard and each extension by url and rev,
+    # never by a path, whose code could change under a fixed Manifest.
+    ok = Dict("dashiboard" => Dict("url" => "https://x/DashiBoard", "rev" => "v2.0.0"))
+    @test DashiBoard.dashiboard_source(DashiBoard.WorkspaceUtils.check_workspace_file(ok, "f")) == (; url = "https://x/DashiBoard", rev = "v2.0.0")
+    for (bad, says) in (
+            Dict("dashiboard" => Dict("path" => "/opt/D")) => "[dashiboard]",
+            Dict("dashiboard" => Dict("url" => "https://x/D")) => "rev",
+            Dict("extensions" => Dict("E" => Dict("path" => "e"))) => "[extensions].E",
+            Dict("extensions" => Dict("E" => Dict("url" => "https://x/E"))) => "rev",
+        )
+        e = @test_throws ArgumentError DashiBoard.WorkspaceUtils.check_workspace_file(bad, "f")
+        @test occursin(says, e.value.msg)
+    end
+    @test_throws ArgumentError DashiBoard.dashiboard_source(Dict{String, Any}())
 end
 
 using JSON: JSON
@@ -118,47 +115,6 @@ using JSON: JSON
     end
 end
 
-const TEST_EXTENSION = normpath(joinpath(@__DIR__, "static", "extension", "TestExtension"))
-const LAUNCHER = normpath(joinpath(@__DIR__, "..", "..", "bin", "launch.jl"))
-const PROJECT = normpath(joinpath(@__DIR__, ".."))
-
-@testset "an environment from the extensions table" begin
-    mktempdir() do ws
-        # Named relative to the workspace, as a folder in `[directories]` is.
-        sources = Dict("TestExtension" => Dict{String, Any}("path" => relpath(TEST_EXTENSION, ws)))
-        env = DashiBoard.extension_environment(ws, sources; io = devnull)
-        @test env == joinpath(ws, ".dashiboard", "env")
-        project = TOML.parsefile(joinpath(env, "Project.toml"))
-        @test haskey(project["deps"], "TestExtension") && haskey(project["deps"], "DashiBoard")
-        # The server's own packages are the launcher's, whatever version an extension names.
-        manifest = TOML.parsefile(joinpath(env, "Manifest.toml"))
-        core = only(manifest["deps"]["StreamlinerCore"])
-        @test haskey(core, "path") && !haskey(core, "repo-url")
-        stamp = mtime(joinpath(env, "Manifest.toml"))
-        # The same sources again: nothing to redo.
-        sleep(1.1)
-        DashiBoard.extension_environment(ws, sources; io = devnull)
-        @test mtime(joinpath(env, "Manifest.toml")) == stamp
-
-        # Different sources are a different environment, built afresh: what the table no longer
-        # names is not carried along.
-        DashiBoard.extension_environment(ws, Dict{String, Dict{String, Any}}(); io = devnull)
-        @test !haskey(TOML.parsefile(joinpath(env, "Project.toml"))["deps"], "TestExtension")
-        DashiBoard.extension_environment(ws, sources; io = devnull)
-        # Loaded from the environment that holds them, and the one that was active put back.
-        previous = Base.active_project()
-        modules = try
-            DashiBoard.Pkg.activate(env; io = devnull)
-            DashiBoard.load_extensions(sources)
-        finally
-            DashiBoard.Pkg.activate(previous; io = devnull)
-        end
-        @test Base.active_project() == previous
-        @test length(modules) == 1 && nameof(only(modules)) == :TestExtension
-        @test DashiBoard.provenance(modules) == Dict("transform:double" => "TestExtension", "funnel:test" => "TestExtension")
-    end
-end
-
 @testset "sorting: the awkward cases" begin
     mktempdir() do dir
         # A file named like the quarantine itself, a pipeline written as TOML, and a link.
@@ -196,106 +152,12 @@ end
         @test_throws ArgumentError DashiBoard.init_workspace(dir; io = devnull)
         @test isdir(joinpath(dir, "src")) && isfile(joinpath(dir, "t.csv"))
     end
-    @test_throws ArgumentError DashiBoard.init_workspace(homedir(); io = devnull)
-end
-
-# The launcher, as a user runs it: from the workspace file alone, and from the command line.
-# Each launch gets its own DuckDB cache: a second process on this suite's would wait on its
-# lock. No startup file: the server must not depend on what a user's `startup.jl` loads.
-launcher(args...) = addenv(
-    `$(Base.julia_cmd()) --startup-file=no --project=$(PROJECT) $(LAUNCHER) $(collect(String, args))`,
-    "DASHIBOARD_CACHE" => mktempdir(),
-)
-
-@testset "launching from a workspace" begin
-    first_free(range) = for p in range
-        s = try Sockets.listen(Sockets.localhost, p) catch; continue end
-        close(s); return p
-    end
-    mktempdir() do ws
-        mkpath(joinpath(ws, "model")); cp(joinpath(PROJECT, "..", "static", "model", "dense.toml"), joinpath(ws, "model", "dense.toml"))
-        mkpath(joinpath(ws, "training")); cp(joinpath(PROJECT, "..", "static", "training", "batched.toml"), joinpath(ws, "training", "batched.toml"))
-        port = first_free(8581:8680)
-        write(joinpath(ws, "dashiboard.toml"), """
-        [server]
-        port = $(port)
-        [extensions]
-        TestExtension = { path = "$(TEST_EXTENSION)" }
-        """)
-        log = joinpath(ws, "launch.log")
-        proc = run(pipeline(launcher(ws); stdout = log, stderr = log); wait = false)
-        try
-            answered = false
-            for _ in 1:600
-                process_exited(proc) && break
-                try
-                    params = (; cols = ["a"], nodes = String[], groups = String[], include = ["cards"])
-                    r = HTTP.post("http://127.0.0.1:$(port)/rpc", body = JSON.json((; jsonrpc = "2.0", id = 1, method = "get-card-ir", params)))
-                    ir = JSON.parse(r.body)["result"]
-                    funnel = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "funnel")
-                    transforms = only(p for p in funnel["value"]["objects"][""]["properties"] if p["key"] == "input_transforms")
-                    @test "double" in transforms["value"]["values"]["enum"]
-                    # A method the extension defined is seen by the running server.
-                    @test [p["key"] for p in funnel["value"]["objects"]["test"]["properties"]] == ["marker"]
-                    answered = true
-                    break
-                catch
-                    sleep(1)
-                end
-            end
-            @test answered
-            # The server runs in the environment its extensions were resolved in, so what is
-            # loaded is what was resolved.
-            text = read(log, String)
-            @test occursin(joinpath(".dashiboard", "env"), text)
-            @test occursin("DashiBoard is listening", text)
-            @test occursin("no directory for some kinds", text) && occursin(":pipeline", text)   # the warning names what fell back
-        finally
-            kill(proc); wait(proc)
+    # A home is refused by being the home, whatever it holds: a throwaway folder stands in for it.
+    mktempdir() do dir
+        write(joinpath(dir, "t.csv"), "a\n1\n")
+        withenv("HOME" => dir, "USERPROFILE" => dir) do
+            @test_throws ArgumentError DashiBoard.init_workspace(dir; io = devnull)
         end
-        # Stopping the launcher stops the server it started.
-        gone = false
-        for _ in 1:40
-            # Gone means the port refuses a connection, not that a reply was slow.
-            gone = try
-                close(Sockets.connect(Sockets.localhost, port)); false
-            catch e
-                e isa Base.IOError || rethrow()
-                true
-            end
-            gone && break
-            sleep(0.5)
-        end
-        @test gone
-    end
-    # An extension that cannot be found stops the launch before it listens, naming it.
-    mktempdir() do ws
-        log = joinpath(ws, "launch.log")
-        proc = run(pipeline(launcher(ws, "--extensions", "Nope=/nowhere/Nope"); stdout = log, stderr = log); wait = false)
-        wait(proc)
-        @test proc.exitcode != 0
-        @test occursin("Nope", read(log, String))
-    end
-    # A directory named on the command line and not there stops the launch, by name.
-    mktempdir() do ws
-        log = joinpath(ws, "launch.log")
-        proc = run(pipeline(launcher(ws, "--model_dir", joinpath(ws, "no-models")); stdout = log, stderr = log); wait = false)
-        wait(proc)
-        @test proc.exitcode != 0
-        @test occursin("no-models", read(log, String)) && occursin("model", read(log, String))
-    end
-    # A workspace that is not there is a mistake in the command, not a folder to serve.
-    mktempdir() do ws
-        log = joinpath(ws, "launch.log")
-        proc = run(pipeline(launcher(joinpath(ws, "nowhere")); stdout = log, stderr = log); wait = false)
-        wait(proc)
-        @test proc.exitcode != 0
-        @test occursin("does not exist", read(log, String))
-    end
-    # `--init` sorts and leaves.
-    mktempdir() do ws
-        write(joinpath(ws, "t.csv"), "a\n1\n")
-        run(launcher(ws, "--init"))
-        @test isfile(joinpath(ws, "data", "t.csv")) && isfile(joinpath(ws, "dashiboard.toml"))
+        @test readdir(dir) == ["t.csv"]
     end
 end

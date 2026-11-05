@@ -853,11 +853,11 @@ function evaluate_pipeline(spec::AbstractDict)
         # The columns available *to* the pipeline, so the group API can validate references
         # against them rather than accepting a name that does not exist and failing later in SQL.
         return try
-            p = Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+            Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
             report = Pipelines.report(REPOSITORY[], pipeline.nodes)
             vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
             visualization = stringify_visualization.(vs)
-            graph = sprint(Pipelines.graphviz, p)
+            graph = sprint(Pipelines.graphviz, pipeline)
             # Recomputed: the pipeline has added its output columns since `available` was taken.
             summaries = DataIngestion.summarize(REPOSITORY[], "selection")
             (; summaries, visualization, graph, report)

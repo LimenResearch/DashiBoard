@@ -2,7 +2,7 @@ module DashiBoard
 
 public launch
 # What a deployment's install and `serve.jl` call.
-public init_workspace, provenance, WorkspaceUtils, install_deployment, serve_deployment
+public init_workspace, provenance, install_deployment, serve_deployment
 
 using Base: Fix1, Fix2
 

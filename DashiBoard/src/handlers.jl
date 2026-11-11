@@ -1,13 +1,11 @@
-# An absent directory is `pwd()`, which is `DataIngestion.acceptable_paths`'s own rule — so the
-# listing here and the loader there agree on where "here" is.
-absolute_or_here(dir::AbstractString) = tidy_path(abspath(isempty(dir) ? pwd() : dir))
-
 """
     workspace_directory() -> String
 
 The directory every file route is confined to, absolute and normalised.
 """
-workspace_directory() = absolute_or_here(WORKSPACE[])
+workspace_directory() = abspath(WORKSPACE[])
+
+pointer(kind::AbstractString) = pointer(Symbol(kind))
 
 """
     pointer(kind::Symbol) -> String
@@ -18,14 +16,14 @@ so a card is resolved against the same folders the Load tab lists.
 """
 function pointer(kind::Symbol)
     # Pipelines' two have no default and read as unassigned until a server sets them.
-    unset(v) = isassigned(v) ? v[] : ""
+    unset(v) = isassigned(v) ? v[] : "."
     dir = kind === :data ? DataIngestion.DATA_DIR[] :
         kind === :pipeline ? PIPELINE_DIR[] :
         kind === :filter ? FILTER_DIR[] :
         kind === :model ? unset(Pipelines.MODEL_DIR) :
         kind === :training ? unset(Pipelines.TRAINING_DIR) :
         throw(ArgumentError("no such kind of file: `$(kind)`"))
-    return absolute_or_here(dir)
+    return abspath(dir)
 end
 
 data_directory() = pointer(:data)

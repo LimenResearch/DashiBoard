@@ -5,14 +5,12 @@ using TOML: TOML
 using Sockets: Sockets
 using Base.ScopedValues: @with
 using StreamlinerCore: StreamlinerCore
+using DashiBoard, Test, Downloads
 
 # A model whose building fails for a reason that has nothing to do with sizes.
 struct BoomSpec end
 BoomModel(::AbstractDict) = BoomSpec()
 StreamlinerCore.instantiate(::BoomSpec, templates) = error("boom")
-using DashiBoard
-using Test
-using Downloads
 
 # Add trivial card
 Pipelines._train(wc::WildCard{:trivial}, t, id_var) = nothing
@@ -112,7 +110,7 @@ mktempdir() do data_dir
 
     # Pipelines' directories have no default: unset, they read as the working directory.
     @testset "pointers" begin
-        @test DashiBoard.pointer(:model) == pwd()
+        @test DashiBoard.pointer(:model) == abspath(".")
         @test_throws ArgumentError DashiBoard.pointer(:nowhere)
     end
 

@@ -1,0 +1,9 @@
+[server]
+port = 9000
+
+[extensions]
+TestExtension = "7b1f0c3e-5d2a-4f6b-9e8c-1a2b3c4d5e6f"
+
+[directories]
+training = "trainings"
+model = "cfg/model"

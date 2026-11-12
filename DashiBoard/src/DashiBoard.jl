@@ -73,10 +73,9 @@ const FILTER_DIR = ScopedValue("")
     is_plugin::Bool = false
 end
 
-# The extensions the server was launched with — each name and where it is, as the workspace
-# file says — and which of them contributed each registry entry (`"model:fuzzy"`,
-# `"funnel:time"`, `"transform:y"`). Filled by `serve_deployment`; what lets a pipeline's
-# download name exactly the extensions it needs.
+# The extensions the server was launched with — as the workspace
+# file says — and which of them contributed each registry entry
+# (`"model:fuzzy"`, `"funnel:time"`, `"transform:y"`).
 const EXTENSIONS = ScopedValue(Dict{String, ExtensionConfig}())
 const EXTENSION_OF = ScopedValue(Dict{String, String}())
 

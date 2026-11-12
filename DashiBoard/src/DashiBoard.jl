@@ -1,6 +1,7 @@
 module DashiBoard
 
-public launch
+public launch, default_parser
+
 # What a deployment's install and `serve.jl` call.
 public init_workspace, provenance, install_deployment, serve_deployment
 
@@ -11,7 +12,6 @@ using Base.ScopedValues: @with, ScopedValue
 using HTTP: HTTP, startread, startwrite, closeread
 
 using Logging: Logging, AbstractLogger, with_logger, current_logger
-
 
 using Scratch: @get_scratch!
 
@@ -49,7 +49,7 @@ using DuckDBUtils: Repository, export_table, to_nrow, colnames
 
 using DataIngestion: Filter, DataIngestion
 
-using Pipelines: Card, Pipelines
+using Pipelines: Card, Pipelines, default_parser
 
 using StreamlinerCore: StreamlinerCore
 

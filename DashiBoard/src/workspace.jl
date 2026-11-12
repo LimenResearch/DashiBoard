@@ -57,23 +57,11 @@ Initialize folder structure. Error if the folder has anything other than a `quar
 A table goes to the data folder, a cards document to the pipeline folder, a filters document to
 the filter folder, a model configuration to the model folder, a training one to the training
 folder. The folders are the ones the workspace file names under `[directories]` when there is
-one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise. Anything else — a file of
-no known kind, a folder that is not the layout's, a file whose name is already taken where it
-belongs, a file standing where a folder must go — goes to `quarantine/` under its own name
-(suffixed on a clash there too), so the root ends up holding only the layout and nothing is
-lost or overwritten. Hidden entries and the workspace file stay. The folders are made, and a
-`dashiboard.toml` with `[directories]` is written when there is none.
+one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise.
 """
 function init_workspace(dir::AbstractString)
     root = abspath(dir)
     isdir(root) || throw(ArgumentError("`$(dir)` is not a folder"))
-    for x in readdir(root)
-        x == "quarantine" && continue
-        _, ext = splitext(x)
-        ext == ".toml" && continue
-        throw(ArgumentError("`$(root)` has spurious content `$(x)`"))
-    end
-
     config = read_workspace_file(root)
     # Where each kind goes: the folder the workspace file names, as written, else the kind's own.
     for kind in propertynames(config.directories)
@@ -111,34 +99,4 @@ function provenance(modules::AbstractVector)
         end
     end
     return table
-end
-
-function generate_launcher(ws::AbstractString)
-    root = abspath(ws)
-    config = read_workspace_file(root)
-    open(joinpath(root, "main.jl"), "w") do io
-        println(io, "using DashiBoard: DashiBoard")
-
-        for ext in keys(config.extensions)
-            println(io, "using ", ext, ":", ext)
-        end
-
-        print(io, "extensions = [")
-        join(io, keys(config.extensions), ", ")
-        print(io, "]")
-        println(io)
-
-        print(
-            io,
-            """
-            plugins = [ext.DEFAULT_PARSER for ext in extensions]
-            handlers, _, _ = DashiBoard.get_handlers(
-                ws;
-                parser = DashiBoard.Pipelines.default_parser(; plugins),
-                extension_of = DashiBoard.provenance(extensions),
-            )
-            """
-        )
-    end
-    return
 end

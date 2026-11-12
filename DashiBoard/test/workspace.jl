@@ -19,7 +19,7 @@ using HTTP: HTTP
 
     @test r.server.host == "127.0.0.1"
     @test r.server.port == 9000
-    @test r.extensions == Dict("TestExtension" => "7b1f0c3e-5d2a-4f6b-9e8c-1a2b3c4d5e6f")
+    @test r.extensions == Dict("TestExtension" => DashiBoard.ExtensionConfig(is_plugin = true))
 end
 
 @testset "launching workspace" begin

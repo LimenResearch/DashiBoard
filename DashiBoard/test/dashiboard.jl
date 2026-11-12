@@ -217,7 +217,10 @@ mktempdir() do data_dir
         )
         doc = Dict("nodes" => [fit], "groups" => Dict{String, Any}())
         @with(
-            DashiBoard.EXTENSIONS => Dict("Fake" => Dict{String, Any}("path" => "/opt/Fake"), "Other" => Dict{String, Any}("path" => "/opt/Other")),
+            DashiBoard.EXTENSIONS => Dict(
+                "Fake" => DashiBoard.ExtensionConfig(is_plugin = true),
+                "Other" => DashiBoard.ExtensionConfig(is_plugin = true)
+            ),
             DashiBoard.EXTENSION_OF => Dict("model:basic" => "Fake", "transform:sqrt" => "Other"),
             Pipelines.MODEL_DIR => model_dir, Pipelines.TRAINING_DIR => training_dir,
             begin
@@ -236,7 +239,7 @@ mktempdir() do data_dir
                 path = joinpath(data_dir, "buffer_bundle.zip")
                 DashiBoard.bundle_pipeline(Dict("cards" => doc, "name" => "x"))(path)
                 toml = TOML.parse(zip_readentry(ZipReader(read(path)), "dashiboard.toml", String))
-                @test toml == Dict("extensions" => Dict("Fake" => Dict("path" => "/opt/Fake")))
+                @test toml == Dict("extensions" => Dict("Fake" => Dict("is_plugin" => true)))
             end
         )
     end

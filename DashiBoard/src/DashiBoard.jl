@@ -49,7 +49,7 @@ using DuckDBUtils: Repository, export_table, to_nrow, colnames
 
 using DataIngestion: Filter, DataIngestion
 
-using Pipelines: Card, Pipelines, default_parser
+using Pipelines: Card, Pipelines, Parser, default_parser
 
 using StreamlinerCore: StreamlinerCore
 
@@ -69,11 +69,15 @@ const WORKSPACE = ScopedValue("")
 const PIPELINE_DIR = ScopedValue("")
 const FILTER_DIR = ScopedValue("")
 
+@kwarg struct ExtensionConfig
+    is_plugin::Bool = false
+end
+
 # The extensions the server was launched with — each name and where it is, as the workspace
 # file says — and which of them contributed each registry entry (`"model:fuzzy"`,
 # `"funnel:time"`, `"transform:y"`). Filled by `serve_deployment`; what lets a pipeline's
 # download name exactly the extensions it needs.
-const EXTENSIONS = ScopedValue(Dict{String, Any}())
+const EXTENSIONS = ScopedValue(Dict{String, ExtensionConfig}())
 const EXTENSION_OF = ScopedValue(Dict{String, String}())
 
 include("workspace.jl")
@@ -81,7 +85,6 @@ include("handlers.jl")
 include("bundle.jl")
 include("middleware.jl")
 include("launch.jl")
-include("deployment.jl")
 
 function __init__()
     # DuckDB is single-writer, and the scratchspace path is fixed per package — so every

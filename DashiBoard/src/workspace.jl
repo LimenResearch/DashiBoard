@@ -27,7 +27,7 @@ end
 end
 
 @kwarg struct WorkspaceConfig
-    extensions::Dict{String, String} = Dict{String, String}()
+    extensions::Dict{String, ExtensionConfig} = Dict{String, ExtensionConfig}()
     directories::DirectoriesConfig = DirectoriesConfig()
     server::ServerConfig = ServerConfig()
 end
@@ -102,21 +102,23 @@ end
 function get_handlers(m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace))
     root = abspath(workspace)
 
-    data_dir::AbstractString = joinpath(root, config.directories.data)
-    pipeline_dir::AbstractString = joinpath(root, config.directories.pipeline)
-    filter_dir::AbstractString = joinpath(root, config.directories.filter)
-    model_dir::AbstractString = joinpath(root, config.directories.model)
-    training_dir::AbstractString = joinpath(root, config.directories.training)
+    (; directories, extensions) = config
 
-    exts = [getglobal(m, Symbol(ext)) for ext in keys(config.extensions)]
-    plugins = [ext.DEFAULT_PARSER for ext in exts]
+    data_dir::AbstractString = joinpath(root, directories.data)
+    pipeline_dir::AbstractString = joinpath(root, directories.pipeline)
+    filter_dir::AbstractString = joinpath(root, directories.filter)
+    model_dir::AbstractString = joinpath(root, directories.model)
+    training_dir::AbstractString = joinpath(root, directories.training)
+
+    plugin_modules = Module[getglobal(m, Symbol(ext)) for (ext, cfg) in pairs(extensions) if cfg.is_plugin]
+    plugins = Parser[plugin_module.DEFAULT_PARSER for plugin_module in plugin_modules]
     parser = default_parser(; plugins)
-    extension_of = provenance(exts)
+    extension_of = provenance(plugin_modules)
 
     return get_handlers(
         root;
         data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
-        parser, extensions = Dict{String, Any}(), extension_of
+        parser, extensions, extension_of
     )
 end
 

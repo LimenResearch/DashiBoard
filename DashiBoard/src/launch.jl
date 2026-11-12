@@ -6,7 +6,7 @@ function get_handlers(
         model_dir::AbstractString = workspace,
         training_dir::AbstractString = workspace,
         parser::Pipelines.Parser = Pipelines.default_parser(),
-        extensions::AbstractDict = Dict{String, Any}(),
+        extensions::AbstractDict = Dict{String, ExtensionConfig}(),
         extension_of::AbstractDict = Dict{String, String}()
     )
 
@@ -110,7 +110,7 @@ function launch(
         model_dir::AbstractString = workspace,
         training_dir::AbstractString = workspace,
         parser::Pipelines.Parser = Pipelines.default_parser(),
-        extensions::AbstractDict = Dict{String, Any}(),
+        extensions::AbstractDict = Dict{String, ExtensionConfig}(),
         extension_of::AbstractDict = Dict{String, String}()
     )
 

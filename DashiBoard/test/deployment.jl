@@ -1,6 +1,5 @@
 using HTTP: HTTP
 using Sockets: Sockets
-using FileWatching: FileMonitor
 
 # The one launch in the suite: a generated `serve.jl`, run in this test environment (which holds
 # DashiBoard and TestExtension) instead of an installed one, so nothing is resolved or downloaded.

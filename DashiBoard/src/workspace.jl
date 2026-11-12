@@ -14,8 +14,8 @@ const RESERVED = (KINDS..., "quarantine")
 const WORKSPACE_FILE = "dashiboard.toml"
 
 @kwarg struct ServerConfig
-    host::Maybe{String} = nothing
-    port::Maybe{Int} = nothing
+    host::String = "127.0.0.1"
+    port::Int = 8080
 end
 
 @kwarg struct DirectoriesConfig
@@ -59,10 +59,8 @@ the filter folder, a model configuration to the model folder, a training one to 
 folder. The folders are the ones the workspace file names under `[directories]` when there is
 one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise.
 """
-function init_workspace(dir::AbstractString)
+function init_workspace(dir::AbstractString, config::WorkspaceConfig = read_workspace_file(dir))
     root = abspath(dir)
-    isdir(root) || throw(ArgumentError("`$(dir)` is not a folder"))
-    config = read_workspace_file(root)
     # Where each kind goes: the folder the workspace file names, as written, else the kind's own.
     for kind in propertynames(config.directories)
         dir = getproperty(config.directories, kind)
@@ -99,4 +97,35 @@ function provenance(modules::AbstractVector)
         end
     end
     return table
+end
+
+function get_handlers(m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace))
+    root = abspath(workspace)
+
+    data_dir::AbstractString = joinpath(root, config.directories.data)
+    pipeline_dir::AbstractString = joinpath(root, config.directories.pipeline)
+    filter_dir::AbstractString = joinpath(root, config.directories.filter)
+    model_dir::AbstractString = joinpath(root, config.directories.model)
+    training_dir::AbstractString = joinpath(root, config.directories.training)
+
+    exts = [getglobal(m, Symbol(ext)) for ext in keys(config.extensions)]
+    plugins = [ext.DEFAULT_PARSER for ext in exts]
+    parser = default_parser(; plugins)
+    extension_of = provenance(exts)
+
+    return get_handlers(
+        root;
+        data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
+        parser, extensions = Dict{String, Any}(), extension_of
+    )
+end
+
+function launch(
+        m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace);
+        async::Bool = false
+    )
+
+    handlers, stream_handlers, probe_handlers = get_handlers(m, workspace, config)
+    (; host, port) = config.server
+    return launch(handlers, stream_handlers, probe_handlers; host, port, async)
 end

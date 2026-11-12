@@ -55,6 +55,39 @@ function get_handlers(
     return handlers, stream_handlers, probe_handlers
 end
 
+function launch(
+        handlers::AbstractDict,
+        stream_handlers::AbstractDict,
+        probe_handlers::AbstractDict;
+        host::AbstractString = "127.0.0.1",
+        port::Integer = 8080,
+        async::Bool = false,
+    )
+
+    router = HTTP.Router(
+        HTTP.streamhandler(cors404),
+        HTTP.streamhandler(cors405)
+    )
+
+    HTTP.register!(router, "POST", "/rpc", JSONHandler(handlers))
+    HTTP.register!(router, "POST", "/rpc-probe", JSONHandler(probe_handlers))
+    stream_handler = JSONStreamHandler(stream_handlers)
+    HTTP.register!(router, "POST", "/rpc-stream", stream_handler)
+    # The table download as a plain GET: a link cannot carry a JSON-RPC body, and only a download
+    # the browser makes itself streams to disk rather than through the page's memory.
+    HTTP.register!(router, "GET", "/get-processed-data", stream -> stream_response(stream_handler, stream, PROCESSED_DATA_REQUEST))
+
+    cors_router = router |> CorsMiddleware
+
+    # The server's tasks inherit the logger, so everything they log is flushed too.
+    return with_logger(FlushingLogger(current_logger())) do
+        server = HTTP.listen!(cors_router, host, port)
+        # # Said once the port is bound, so whoever waits for it can connect straight away.
+        @info "DashiBoard is listening" url = "http://$(host):$(port)" environment = Base.active_project()
+        async ? server : wait(server)
+    end
+end
+
 """
     launch(workspace; host, port, async, data_dir, pipeline_dir, filter_dir, model_dir, training_dir, parser)
 
@@ -87,28 +120,7 @@ function launch(
         parser, extensions, extension_of,
     )
 
-    router = HTTP.Router(
-        HTTP.streamhandler(cors404),
-        HTTP.streamhandler(cors405)
-    )
-
-    HTTP.register!(router, "POST", "/rpc", JSONHandler(handlers))
-    HTTP.register!(router, "POST", "/rpc-probe", JSONHandler(probe_handlers))
-    stream_handler = JSONStreamHandler(stream_handlers)
-    HTTP.register!(router, "POST", "/rpc-stream", stream_handler)
-    # The table download as a plain GET: a link cannot carry a JSON-RPC body, and only a download
-    # the browser makes itself streams to disk rather than through the page's memory.
-    HTTP.register!(router, "GET", "/get-processed-data", stream -> stream_response(stream_handler, stream, PROCESSED_DATA_REQUEST))
-
-    cors_router = router |> CorsMiddleware
-
-    # The server's tasks inherit the logger, so everything they log is flushed too.
-    return with_logger(FlushingLogger(current_logger())) do
-        server = HTTP.listen!(cors_router, host, port)
-        # Said once the port is bound, so whoever waits for it can connect straight away.
-        @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()
-        async ? server : wait(server)
-    end
+    return launch(handlers, stream_handlers, probe_handlers; host, port, async)
 end
 
 """

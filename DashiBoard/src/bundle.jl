@@ -160,6 +160,9 @@ function bundle_pipeline(spec::AbstractDict)
 
             zip_newfile(zip, "dashiboard.toml")
             TOML.print(zip, Dict("extensions" => extensions))
+
+            zip_newfile(zip, "Project.toml")
+            open(io -> write(zip, io), Base.active_project())
         end
 
         plain = all(isascii, name) ? name : "pipeline"

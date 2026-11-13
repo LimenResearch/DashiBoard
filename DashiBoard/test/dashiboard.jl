@@ -172,11 +172,19 @@ mktempdir() do data_dir
         @test occursin("filename*=UTF-8''prova%20%C3%A8.zip", accented["result"]["Content-Disposition"])
 
         zip = ZipReader(bytes)
-        @test sort(zip_names(zip)) == ["dashiboard.toml", "filter/mine.json", "model/dense.toml", "pipeline/mine.json", "training/batched.toml"]
+        @test sort(zip_names(zip)) == [
+            "Project.toml",
+            "dashiboard.toml",
+            "filter/mine.json",
+            "model/dense.toml",
+            "pipeline/mine.json",
+            "training/batched.toml",
+        ]
         @test JSON.parse(zip_readentry(zip, "pipeline/mine.json", String)) == doc
         @test zip_readentry(zip, "model/dense.toml", String) == read(joinpath(model_dir, "dense.toml"), String)
         # Nothing here came from an extension, so none is named.
         @test TOML.parse(zip_readentry(zip, "dashiboard.toml", String)) == Dict("extensions" => Dict())
+        @test zip_readentry(zip, "Project.toml", String) == read(Base.active_project(), String)
 
         _, bytes = post("bundle-pipeline", Dict("name" => "mine", "cards" => doc), path)
         @test !("filter/mine.json" in zip_names(ZipReader(bytes)))

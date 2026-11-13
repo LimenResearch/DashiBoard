@@ -24,7 +24,7 @@ using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using IterTools: flagfirst
 using Tables: Tables
 
-const DATA_DIR = ScopedValue("")
+const DATA_DIR = ScopedValue(".")
 
 include("readers/utils.jl")
 include("readers/csv.jl")

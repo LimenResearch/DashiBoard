@@ -1,13 +1,11 @@
-# An absent directory is `pwd()`, which is `DataIngestion.acceptable_paths`'s own rule — so the
-# listing here and the loader there agree on where "here" is.
-absolute_or_here(dir::AbstractString) = tidy_path(abspath(isempty(dir) ? pwd() : dir))
-
 """
     workspace_directory() -> String
 
 The directory every file route is confined to, absolute and normalised.
 """
-workspace_directory() = absolute_or_here(WORKSPACE[])
+workspace_directory() = abspath(WORKSPACE[])
+
+pointer(kind::AbstractString) = pointer(Symbol(kind))
 
 """
     pointer(kind::Symbol) -> String
@@ -18,14 +16,15 @@ so a card is resolved against the same folders the Load tab lists.
 """
 function pointer(kind::Symbol)
     # Pipelines' two have no default and read as unassigned until a server sets them.
-    unset(v) = isassigned(v) ? v[] : ""
+    # FIXME: can these really be unassigned?
+    unset(v) = isassigned(v) ? v[] : "."
     dir = kind === :data ? DataIngestion.DATA_DIR[] :
         kind === :pipeline ? PIPELINE_DIR[] :
         kind === :filter ? FILTER_DIR[] :
         kind === :model ? unset(Pipelines.MODEL_DIR) :
         kind === :training ? unset(Pipelines.TRAINING_DIR) :
         throw(ArgumentError("no such kind of file: `$(kind)`"))
-    return absolute_or_here(dir)
+    return abspath(dir)
 end
 
 data_directory() = pointer(:data)
@@ -57,8 +56,8 @@ const configuration_kind = StreamlinerCore.configuration_kind
 """
     writable(path) -> path
 
-`path` if a client may write there, an `ArgumentError` otherwise. Two things are the launcher's
-alone: the workspace file, which names packages the next launch installs and loads, and hidden
+`path` if a client may write there, an `ArgumentError` otherwise. Two things are install's
+alone: the workspace file, which names the packages a deployment installs and loads, and hidden
 folders, where its environment lives. A route that could write either would let whoever reaches
 the server choose the code it runs next.
 """
@@ -106,50 +105,19 @@ function parse_document(full::AbstractString)
     throw(ArgumentError("`$(basename(full))` is neither JSON nor TOML"))
 end
 
-"""
-    file_kind(full) -> Union{String, Nothing}
-
-`"table"`, `"cards"`, `"filters"`, or `nothing` for a file the UI has no use for.
-
-A JSON or TOML file is parsed to find out: a document is small, a JSON table is rare, and a peek
-at the whole file is what lets a renamed document keep its kind. One that does not parse is
-`nothing` — a half-written file must not break the listing, and the listing is not where a parse
-error is reported (`read_document` is).
-"""
-function file_kind(full::AbstractString)
-    ext = lowercase(last(splitext(full)))
-    if ext in (".json", ".toml")
-        parsed = try
-            parse_document(full)
-        catch
-            return nothing
-        end
-        kind = document_kind(parsed)
-        isnothing(kind) || return kind
-        return ext == ".json" ? "table" : nothing
-    end
-    return DataIngestion.is_supported(full) ? "table" : nothing
-end
-
 # What a file under a kind's directory is expected to be.
 const EXPECTED_KIND = Dict(:data => "table", :pipeline => "cards", :filter => "filters")
 
 """
     files_under(base; except) -> Vector{String}
 
-Every file under `base`, as paths relative to it, sorted. Hidden entries, folders named like
-the layout's own and the directories in `except` — the other kinds' own, when they sit inside
-this one — are skipped.
+Every file under `base`, as paths relative to it, sorted. Hidden entries are skipped.
 """
-function files_under(base::AbstractString; except = String[])
+function files_under(base::AbstractString)
     found = String[]
     for (root, dirs, names) in walkdir(base)
         # `walkdir` is top-down, so pruning `dirs` in place keeps it out of them.
-        # The layout's folder names are not subfolder names: what sits in one is either
-        # another kind's or set aside, and the kind routes would not read it.
-        filter!(dirs) do dir
-            !startswith(dir, ".") && !(dir in RESERVED) && !(normpath(joinpath(root, dir)) in except)
-        end
+        filter!(dir -> !startswith(dir, "."), dirs)
         for name in names
             startswith(name, ".") && continue
             push!(found, normpath(relpath(joinpath(root, name), base)))
@@ -159,20 +127,23 @@ function files_under(base::AbstractString; except = String[])
 end
 
 # How a kind's directory reads from the workspace: `data`, a longer path when it is nested, the
-# whole path when it is elsewhere, and nothing when it is the workspace itself.
-function folder_label(kind::Symbol)
-    base, root = pointer(kind), workspace_directory()
-    base == root && return ""
+# whole path when it is elsewhere, and "." when it is the workspace itself.
+function folder_label(base::AbstractString, root::AbstractString)
+    # FIXME: why do we need to return this to frontend?
     rel = relpath(base, root)
-    return isabspath(rel) || startswith(rel, "..") ? base : rel
+    return if isabspath(rel) || rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)
+        base
+    else
+        rel
+    end
 end
 
 """
     list_files(_)
 
-Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}],
-folders: {table, cards, filters}}` — `folders` being where each kind is listed from and saved
-to, as the workspace sees it, for a form to say so.
+Every file the UI may pick, as `{files: [{path, kind}], folders: {table, cards, filters}}`
+— `folders` being where each kind is listed from and saved to, as the workspace sees it,
+for a form to say so.
 
 Where a file sits says what it is offered as: a table under the data directory, a cards document
 under the pipeline directory, a filters document under the filter directory, subfolders included,
@@ -186,33 +157,27 @@ does not exist answers nothing for its kind and warns, rather than fail the whol
 """
 function list_files(::AbstractDict)
     files = @NamedTuple{path::String, kind::String}[]
-    misplaced = @NamedTuple{path::String, kind::String, found::String}[]
-    bases = Dict{String, Vector{Symbol}}()
-    for kind in (:data, :pipeline, :filter)
-        push!(get!(bases, pointer(kind), Symbol[]), kind)
-    end
-    for (base, kinds) in bases
-        if !isdir(base)
-            @warn "a directory of the workspace does not exist" base kinds
-            continue
-        end
-        expected = [EXPECTED_KIND[kind] for kind in kinds]
-        for path in files_under(base; except = collect(keys(bases)))
-            found = file_kind(joinpath(base, path))
-            isnothing(found) && continue
-            if found in expected
-                push!(files, (; path, kind = found))
-            elseif length(kinds) < length(EXPECTED_KIND)
-                push!(misplaced, (; path, kind = string(first(kinds)), found))
-            end
+    bases = Dict(
+        :data => pointer(:data),
+        :pipeline => pointer(:pipeline),
+        :filter => pointer(:filter)
+    )
+    for (kind, base) in bases
+        for path in files_under(base)
+            push!(files, (; path, kind = EXPECTED_KIND[kind]))
         end
     end
     sort!(files, by = file -> (file.kind, file.path))
-    sort!(misplaced, by = file -> (file.kind, file.path))
-    folders = (; table = folder_label(:data), cards = folder_label(:pipeline), filters = folder_label(:filter))
+
+    workspace = workspace_directory()
+    folders = (;
+        table = folder_label(bases[:data], workspace),
+        cards = folder_label(bases[:pipeline], workspace),
+        filters = folder_label(bases[:filter], workspace),
+    )
 
     return function ()
-        return (; files, misplaced, folders)
+        return (; files, folders)
     end
 end
 
@@ -283,24 +248,11 @@ const KIND_ROUTES = (
 """
     kind_path(kind::Symbol, path) -> String
 
-`path` under the directory of `kind`, refusing one that leaves it or passes through a folder
-named like the layout's own. The kind's folder is implied, so `pipeline/mine.json` would nest;
+`path` under the directory of `kind`, refusing one that leaves it.
+The kind's folder is implied, so `pipeline/mine.json` would nest;
 and another kind's name inside it would read as that kind's folder to anyone looking.
 """
 function kind_path(kind::Symbol, path::AbstractString)
-    segments = splitpath(normpath(path))
-    folders = segments[1:(end - 1)]
-    own = string(kind)
-    if !isempty(folders) && first(folders) == own
-        rest = joinpath(segments[2:end]...)
-        throw(ArgumentError("`$(path)`: the `$(own)` folder is implied — name it `$(rest)`"))
-    end
-    reserved = findfirst(in(RESERVED), folders)
-    isnothing(reserved) || throw(
-        ArgumentError("`$(path)`: `$(folders[reserved])` is one of the layout's folder names, and cannot be a subfolder's")
-    )
-    length(segments) == 1 && first(segments) in RESERVED &&
-        throw(ArgumentError("`$(path)` is one of the layout's folder names, not a file"))
     return resolve_in(pointer(kind), path; what = "the $(kind) directory")
 end
 
@@ -626,6 +578,10 @@ document-relative and the client reads them exactly as it reads the probe's.
 
 What it cannot answer stays with the probe: unproduced references, duplicate ids, cycles — every
 question that needs the other cards.
+
+It is the one method that answers a `valid` flag next to the `issues`: asking whether a card is
+valid is its whole question. The document methods carry no such flag — they accept a document by
+answering and refuse it with an error.
 """
 function validate_card(spec::AbstractDict)
     maybe_strings(key)::Maybe{Vector{String}} = get(spec, key, nothing)
@@ -682,7 +638,7 @@ by an earlier node.
 
 `rescale TEMP suffix = "rescaled"` against a source that already holds `TEMP_rescaled` is accepted
 at every layer and silently replaces the column. Overwriting can be meant, so
-`severity = "warning"`: `valid` stays true and the run is
+`severity = "warning"`: the document is still accepted and the run is
 allowed; the form shows it on the card. Nodes are walked in document order, so the later of two
 cards emitting the same name is the one warned, and a name is compared against everything that
 exists *before* the node runs.

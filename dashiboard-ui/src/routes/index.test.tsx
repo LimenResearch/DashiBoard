@@ -35,7 +35,10 @@ function renderHome(url = '/') {
   return render(() => <TestRouter />);
 }
 
-const CLEAN_PROBE = { valid: true, cols: [], nodes: [], errors: [] };
+const CLEAN_PROBE = { cols: [], nodes: [], errors: [] };
+// A refused probe: the server answers a document that does not build with an error whose `data`
+// is the report.
+const refusal = (data: Record<string, unknown>) => ({ error: { code: -32602, message: 'refused', data } });
 
 /** How many times the probe has been asked. Confirm's first stage must not add to this. */
 const probeCalls = () =>
@@ -230,13 +233,11 @@ describe('the authoring page', () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);
       if (page === 'probe-pipeline') {
-        return Promise.resolve({
-          valid: false,
-          cols: ['TEMP'],
+        return Promise.resolve(refusal({ cols: ['TEMP'],
           errors: [],
           // one entry per card in the document: the component indexes them by card position
           nodes: [{ id: 'bad', inputs: ['TEMP_a_a'], outputs: [], unproduced: ['TEMP_a_a'] }],
-        });
+        }));
       }
       return Promise.resolve([]);
     });
@@ -260,9 +261,7 @@ describe('the authoring page', () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);
       if (page === 'probe-pipeline') {
-        return Promise.resolve({
-          valid: false,
-          cols: ['TEMP'],
+        return Promise.resolve(refusal({ cols: ['TEMP'],
           errors: ['Schema Validation Error for card in node 1'],
           nodes: [],
           issues: [
@@ -276,7 +275,7 @@ describe('the authoring page', () => {
               message: 'Schema Validation Error',
             },
           ],
-        });
+        }));
       }
       return Promise.resolve([]);
     });
@@ -421,9 +420,7 @@ describe('the authoring page', () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);
       if (page === 'probe-pipeline') {
-        return Promise.resolve({
-          valid: true,
-          cols: ['TEMP'],
+        return Promise.resolve({ cols: ['TEMP'],
           errors: [],
           nodes: [{ id: 'c', inputs: [], outputs: [], unproduced: ['zscored_TEMP'] }],
           issues: [],
@@ -547,8 +544,7 @@ describe('the authoring page', () => {
     postRequest.mockImplementation((page: string) => {
       if (page === 'get-card-ir') return Promise.resolve(payload);
       if (page === 'probe-pipeline') {
-        return Promise.resolve({
-          valid: true, cols: ['TEMP'], errors: [],
+        return Promise.resolve({ cols: ['TEMP'], errors: [],
           nodes: [{ id: 'r', inputs: ['TEMP_rescaled'], outputs: ['TEMP_a'], unproduced: [] }],
         });
       }

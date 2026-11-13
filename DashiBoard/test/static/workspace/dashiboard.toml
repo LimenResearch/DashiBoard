@@ -1,0 +1,9 @@
+[server]
+port = 9000
+
+[extensions]
+TestExtension = {is_plugin = true}
+
+[directories]
+training = "trainings"
+model = "cfg/model"

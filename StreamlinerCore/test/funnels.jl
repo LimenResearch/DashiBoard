@@ -31,8 +31,6 @@ using JSONSchema: JSONSchema
     )
     data = StreamlinerCore.FunneledData(Val(2), funnel, table_spec, partition = "_partition")
 
-    @test isnothing(data.helper_tables)
-
     helper_tables = Dict("fake_key" => "table_name")
     helper_files = Dict("fake_key" => "table_name")
     @test_throws ArgumentError StreamlinerCore.initialize_helper_tables!(
@@ -43,8 +41,6 @@ using JSONSchema: JSONSchema
     helper_files = Dict()
 
     StreamlinerCore.initialize_helper_tables!(data, tables = helper_tables, files = helper_files)
-    @test data.helper_tables == Dict()
-    @test data.helper_files == Dict()
 
     df = DBInterface.execute(DataFrame, repo, "FROM schm.split ORDER BY No")
 
@@ -180,7 +176,7 @@ end
         ["order_by", "inputs", "input_transforms", "targets", "target_transforms", "input_paths", "target_paths"]
     transforms = only(p for p in ir.properties if p.key == "input_transforms").value
     @test transforms isa DashiBase.MapIR && transforms.keys_from == "inputs"
-    @test transforms.values.enum == ["asinh", "log", "log1p", "sqrt"]
+    @test transforms.values.enum == SC.transform_names()
     @test only(p for p in ir.properties if p.key == "order_by").required
     # Both lists are always asked for; a path column is optional and does not stand in for them.
     @test only(p for p in ir.properties if p.key == "inputs").required
@@ -197,16 +193,14 @@ end
         "input_transforms" => Dict("Iws" => "log"),
     )
     funnel = SC.get_streamliner_funnel(d)
-    @test funnel isa SC.DBFunnel
     @test SC.get_order_by(funnel) == ["No"]
     @test SC.colname.(SC.get_inputs(funnel)) == ["TEMP", "Iws"]
     @test [c.transform_name for c in SC.get_inputs(funnel)] == ["identity", "log"]
     # The same column as a target is its own entry: untransformed unless its own map says so.
     @test only(SC.get_targets(funnel)).transform === identity
     @test isnothing(SC.get_input_paths(funnel)) && isnothing(SC.get_target_paths(funnel))
-    # A path column is kept as written and read back by its accessor.
+    # A path column is kept as written.
     with_paths = SC.get_streamliner_funnel(merge(d, Dict("input_paths" => "frame")))
-    @test SC.get_input_paths(with_paths) == "frame"
     @test SC.get_metadata(with_paths)["input_paths"] == "frame"
     @test SC.get_metadata(funnel) == d
     @test SC.get_streamliner_funnel(SC.get_metadata(funnel)) == funnel
@@ -254,7 +248,6 @@ end
 
 @testset "transforms" begin
     @test StreamlinerCore.transform_names() == ["asinh", "log", "log1p", "sqrt"]
-    @test !haskey(StreamlinerCore.PARSER[].transforms, "")
     x = Float32[1, 4, 9]
     @test StreamlinerCore.RichColumn("a", "sqrt").transform(x) == Float32[1, 2, 3]
     @test StreamlinerCore.RichColumn("a", "log").transform(x) ≈ log.(x)

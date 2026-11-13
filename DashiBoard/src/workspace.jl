@@ -6,11 +6,6 @@
 # `dashiboard.toml` at the root can say otherwise. In that order: the file, the conventional
 # folder when it exists, the root.
 
-const KINDS = ("data", "pipeline", "filter", "model", "training")
-
-# Folder names that are the layout's own, and so not a subfolder's inside a kind's directory.
-const RESERVED = (KINDS..., "quarantine")
-
 const WORKSPACE_FILE = "dashiboard.toml"
 
 @kwarg struct ServerConfig
@@ -60,11 +55,10 @@ folder. The folders are the ones the workspace file names under `[directories]` 
 one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise.
 """
 function init_workspace(dir::AbstractString, config::WorkspaceConfig = read_workspace_file(dir))
-    root = abspath(dir)
     # Where each kind goes: the folder the workspace file names, as written, else the kind's own.
     for kind in propertynames(config.directories)
         dir = getproperty(config.directories, kind)
-        mkpath(joinpath(root, dir))
+        mkpath(abspath(root, dir))
     end
     return
 end
@@ -100,15 +94,13 @@ function provenance(modules::AbstractVector)
 end
 
 function get_handlers(m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace))
-    root = abspath(workspace)
-
     (; directories, extensions) = config
 
-    data_dir::AbstractString = joinpath(root, directories.data)
-    pipeline_dir::AbstractString = joinpath(root, directories.pipeline)
-    filter_dir::AbstractString = joinpath(root, directories.filter)
-    model_dir::AbstractString = joinpath(root, directories.model)
-    training_dir::AbstractString = joinpath(root, directories.training)
+    data_dir::AbstractString = abspath(workspace, directories.data)
+    pipeline_dir::AbstractString = abspath(workspace, directories.pipeline)
+    filter_dir::AbstractString = abspath(workspace, directories.filter)
+    model_dir::AbstractString = abspath(workspace, directories.model)
+    training_dir::AbstractString = abspath(workspace, directories.training)
 
     plugin_modules = Module[getglobal(m, Symbol(ext)) for (ext, cfg) in pairs(extensions) if cfg.is_plugin]
     plugins = Parser[plugin_module.DEFAULT_PARSER for plugin_module in plugin_modules]
@@ -116,7 +108,7 @@ function get_handlers(m::Module, workspace::AbstractString, config::WorkspaceCon
     extension_of = provenance(plugin_modules)
 
     return get_handlers(
-        root;
+        abspath(workspace);
         data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
         parser, extensions, extension_of
     )

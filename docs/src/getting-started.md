@@ -60,7 +60,7 @@ module Extensions
     end
 end
 
-const SERVER = DashiBoard.launch(Extensions, WORKSPACE, CONFIG; async = true)
+DashiBoard.launch(Extensions, WORKSPACE, CONFIG; async = false)
 ```
 
 ```sh

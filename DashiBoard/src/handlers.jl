@@ -144,10 +144,8 @@ function files_under(base::AbstractString; except = String[])
     found = String[]
     for (root, dirs, names) in walkdir(base)
         # `walkdir` is top-down, so pruning `dirs` in place keeps it out of them.
-        # The layout's folder names are not subfolder names: what sits in one is either
-        # another kind's or set aside, and the kind routes would not read it.
         filter!(dirs) do dir
-            !startswith(dir, ".") && !(dir in RESERVED) && !(normpath(joinpath(root, dir)) in except)
+            !startswith(dir, ".") && !(normpath(joinpath(root, dir)) in except)
         end
         for name in names
             startswith(name, ".") && continue
@@ -158,20 +156,23 @@ function files_under(base::AbstractString; except = String[])
 end
 
 # How a kind's directory reads from the workspace: `data`, a longer path when it is nested, the
-# whole path when it is elsewhere, and nothing when it is the workspace itself.
-function folder_label(kind::Symbol)
-    base, root = pointer(kind), workspace_directory()
-    base == root && return ""
+# whole path when it is elsewhere, and "." when it is the workspace itself.
+function folder_label(base::AbstractString, root::AbstractString)
+    # FIXME: why do we need to return this to frontend?
     rel = relpath(base, root)
-    return isabspath(rel) || startswith(rel, "..") ? base : rel
+    return if isabspath(rel) || rel == ".." || startswith(rel, ".." * Base.Filesystem.path_separator)
+        base
+    else
+        rel
+    end
 end
 
 """
     list_files(_)
 
-Every file the UI may pick, as `{files: [{path, kind}], misplaced: [{path, kind, found}],
-folders: {table, cards, filters}}` — `folders` being where each kind is listed from and saved
-to, as the workspace sees it, for a form to say so.
+Every file the UI may pick, as `{files: [{path, kind}], folders: {table, cards, filters}}`
+— `folders` being where each kind is listed from and saved to, as the workspace sees it,
+for a form to say so.
 
 Where a file sits says what it is offered as: a table under the data directory, a cards document
 under the pipeline directory, a filters document under the filter directory, subfolders included,
@@ -185,33 +186,27 @@ does not exist answers nothing for its kind and warns, rather than fail the whol
 """
 function list_files(::AbstractDict)
     files = @NamedTuple{path::String, kind::String}[]
-    misplaced = @NamedTuple{path::String, kind::String, found::String}[]
-    bases = Dict{String, Vector{Symbol}}()
-    for kind in (:data, :pipeline, :filter)
-        push!(get!(bases, pointer(kind), Symbol[]), kind)
-    end
-    for (base, kinds) in bases
-        if !isdir(base)
-            @warn "a directory of the workspace does not exist" base kinds
-            continue
-        end
-        expected = [EXPECTED_KIND[kind] for kind in kinds]
-        for path in files_under(base; except = collect(keys(bases)))
-            found = file_kind(joinpath(base, path))
-            isnothing(found) && continue
-            if found in expected
-                push!(files, (; path, kind = found))
-            elseif length(kinds) < length(EXPECTED_KIND)
-                push!(misplaced, (; path, kind = string(first(kinds)), found))
-            end
+    bases = Dict(
+        :data => pointer(:data),
+        :pipeline => pointer(:pipeline),
+        :filter => pointer(:filter)
+    )
+    for (kind, base) in bases
+        for path in files_under(base)
+            push!(files, (; path, kind = EXPECTED_KIND[kind]))
         end
     end
     sort!(files, by = file -> (file.kind, file.path))
-    sort!(misplaced, by = file -> (file.kind, file.path))
-    folders = (; table = folder_label(:data), cards = folder_label(:pipeline), filters = folder_label(:filter))
+
+    workspace = workspace_directory()
+    folders = (;
+        table = folder_label(bases[:data], workspace),
+        cards = folder_label(bases[:pipeline], workspace),
+        filters = folder_label(bases[:filter], workspace),
+    )
 
     return function ()
-        return (; files, misplaced, folders)
+        return (; files, folders)
     end
 end
 

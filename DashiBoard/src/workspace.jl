@@ -54,11 +54,11 @@ the filter folder, a model configuration to the model folder, a training one to 
 folder. The folders are the ones the workspace file names under `[directories]` when there is
 one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise.
 """
-function init_workspace(dir::AbstractString, config::WorkspaceConfig = read_workspace_file(dir))
+function init_workspace(root::AbstractString, config::WorkspaceConfig = read_workspace_file(root))
     # Where each kind goes: the folder the workspace file names, as written, else the kind's own.
     for kind in propertynames(config.directories)
-        dir = getproperty(config.directories, kind)
-        mkpath(abspath(root, dir))
+        subdir = getproperty(config.directories, kind)
+        mkpath(abspath(root, subdir))
     end
     return
 end
@@ -96,6 +96,7 @@ end
 function get_handlers(m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace))
     (; directories, extensions) = config
 
+    # note: ensure we support S3 buckets
     data_dir::AbstractString = abspath(workspace, directories.data)
     pipeline_dir::AbstractString = abspath(workspace, directories.pipeline)
     filter_dir::AbstractString = abspath(workspace, directories.filter)

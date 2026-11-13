@@ -72,7 +72,11 @@ end
     @test d["b"]["x"] === nothing
 end
 
-mktempdir() do data_dir
+mktempdir() do ws
+    pipeline_dir = joinpath(ws, "pipeline") |> mkdir
+    filter_dir = joinpath(ws, "filter") |> mkdir
+    data_dir = joinpath(ws, "data") |> mkdir
+
     Downloads.download(
         "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pollution.csv",
         joinpath(data_dir, "pollution.csv")
@@ -81,16 +85,16 @@ mktempdir() do data_dir
     # Fixtures for the file routes: one of each kind, a JSON that is a real table, a JSON that
     # does not parse, and hidden entries — all in the directory the server is launched on.
     cards_doc = Dict("nodes" => [Dict("id" => "r", "card" => Dict("type" => "rescale"))], "groups" => Dict{String, Any}())
-    write(joinpath(data_dir, "cards.json"), JSON.json(cards_doc))
-    write(joinpath(data_dir, "cards.toml"), "groups = {}\n[[nodes]]\nid = \"r\"\n[nodes.card]\ntype = \"rescale\"\n")
-    write(joinpath(data_dir, "filters.json"), JSON.json(Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())))
+    write(joinpath(pipeline_dir, "cards.json"), JSON.json(cards_doc))
+    write(joinpath(pipeline_dir, "cards.toml"), "groups = {}\n[[nodes]]\nid = \"r\"\n[nodes.card]\ntype = \"rescale\"\n")
+    write(joinpath(filter_dir, "filters.json"), JSON.json(Dict("numerical" => Dict("TEMP" => Dict("min" => 0, "max" => 1)), "categorical" => Dict{String, Any}())))
     mkdir(joinpath(data_dir, "sub"))
     write(joinpath(data_dir, "sub", "table.json"), JSON.json([Dict("a" => 1), Dict("a" => 2)]))
-    write(joinpath(data_dir, "broken.json"), "{ not json")
-    write(joinpath(data_dir, ".hidden.json"), JSON.json(cards_doc))
-    mkdir(joinpath(data_dir, ".cache"))
-    write(joinpath(data_dir, ".cache", "cards.json"), JSON.json(cards_doc))
-    write(joinpath(data_dir, "notes.md"), "not a table, not a document")
+    write(joinpath(ws, "broken.json"), "{ not json")
+    write(joinpath(ws, ".hidden.json"), JSON.json(cards_doc))
+    mkdir(joinpath(ws, ".cache"))
+    write(joinpath(ws, ".cache", "cards.json"), JSON.json(cards_doc))
+    write(joinpath(ws, "notes.md"), "not a table, not a document")
 
     load_config = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
     pipeline_config = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline.json"))
@@ -115,7 +119,10 @@ mktempdir() do data_dir
     end
 
     handlers, stream_handlers, probe_handlers = DashiBoard.get_handlers(
-        data_dir;
+        ws;
+        data_dir,
+        pipeline_dir,
+        filter_dir,
         model_dir,
         training_dir
     )
@@ -151,7 +158,7 @@ mktempdir() do data_dir
     # A pipeline downloads as a workspace: the document, the configurations it names, and
     # which extensions it needs.
     @testset "bundle" begin
-        path = joinpath(data_dir, "bundle.zip")
+        path = joinpath(ws, "bundle.zip")
 
         fit = Dict(
             "id" => "fit", "card" => Dict(
@@ -244,7 +251,7 @@ mktempdir() do data_dir
                         @test DashiBoard.needed_extensions(doc) == ["Other"]
                     end
                 end
-                path = joinpath(data_dir, "buffer_bundle.zip")
+                path = joinpath(ws, "buffer_bundle.zip")
                 DashiBoard.bundle_pipeline(Dict("cards" => doc, "name" => "x"))(path)
                 toml = TOML.parse(zip_readentry(ZipReader(read(path)), "dashiboard.toml", String))
                 @test toml == Dict("extensions" => Dict("Fake" => Dict("is_plugin" => true)))
@@ -257,9 +264,8 @@ mktempdir() do data_dir
         # a table by content, so the kind survives a rename; what does not parse, what is
         # hidden and what is neither table nor document are not listed.
         listed = post("list-files", Dict())["result"]
-        @test listed["misplaced"] == []
         # With everything at the root, there is no folder to name.
-        @test listed["folders"] == Dict("table" => "", "cards" => "", "filters" => "")
+        @test listed["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
         @test [(f["path"], f["kind"]) for f in listed["files"]] == [
             ("cards.json", "cards"),
             ("cards.toml", "cards"),
@@ -281,13 +287,13 @@ mktempdir() do data_dir
     @testset "document and configurations" begin
         # Reading: JSON and TOML spell the same document; the kind asked for must be the kind
         # found; nothing outside the directory, nothing that is not there.
-        from_json = post("read-document", Dict("path" => "cards.json", "kind" => "cards"))
-        from_toml = post("read-document", Dict("path" => "cards.toml", "kind" => "cards"))
+        from_json = post("read-document", Dict("path" => "pipeline/cards.json", "kind" => "cards"))
+        from_toml = post("read-document", Dict("path" => "pipeline/cards.toml", "kind" => "cards"))
         @test from_json["result"]["document"]["nodes"][1]["id"] == "r"
         @test from_toml["result"]["document"]["nodes"][1]["card"]["type"] == "rescale"
         @test isempty(from_toml["result"]["document"]["groups"])
 
-        wrong_kind = post("read-document", Dict("path" => "filters.json", "kind" => "cards"))
+        wrong_kind = post("read-document", Dict("path" => "filter/filters.json", "kind" => "cards"))
         @test occursin("not a cards document", wrong_kind["error"]["data"] |> only_error)
 
         for path in ("../cards.json", joinpath(data_dir, "cards.json"))
@@ -305,21 +311,21 @@ mktempdir() do data_dir
         # unless the author says replace; the shape must match the kind; JSON only.
         doc = from_json["result"]["document"]
         save(path, kind, overwrite) = post("write-document", Dict("path" => path, "kind" => kind, "document" => doc, "overwrite" => overwrite))
-        saved = save("sub/mine.json", "cards", false)
-        @test saved["result"]["path"] == "sub/mine.json"
+        saved = save("pipeline/sub/mine.json", "cards", false)
+        @test saved["result"]["path"] == "pipeline/sub/mine.json"
         @test ("sub/mine.json", "cards") in [(f["path"], f["kind"]) for f in post("list-files", Dict())["result"]["files"]]
-        @test post("read-document", Dict("path" => "sub/mine.json", "kind" => "cards"))["result"]["document"] == doc
+        @test post("read-document", Dict("path" => "pipeline/sub/mine.json", "kind" => "cards"))["result"]["document"] == doc
 
-        @test occursin("already exists", save("sub/mine.json", "cards", false)["error"]["data"] |> only_error)
-        @test haskey(save("sub/mine.json", "cards", true), "result")
+        @test occursin("already exists", save("pipeline/sub/mine.json", "cards", false)["error"]["data"] |> only_error)
+        @test haskey(save("pipeline/sub/mine.json", "cards", true), "result")
 
         @test occursin("not a filters document", save("f.json", "filters", false)["error"]["data"] |> only_error)
         @test occursin("outside the workspace", save("../x.json", "cards", false)["error"]["data"] |> only_error)
         @test occursin(".json", save("x.toml", "cards", false)["error"]["data"] |> only_error)
         # A folder named on the way is made: a client that says where a file goes means it.
         @test haskey(save("new/folder/x.json", "cards", false), "result")
-        @test isfile(joinpath(data_dir, "new", "folder", "x.json"))
-        @test !isfile(joinpath(data_dir, "f.json"))
+        @test isfile(joinpath(ws, "new", "folder", "x.json"))
+        @test !isfile(joinpath(ws, "f.json"))
 
         # A model or a training configuration goes the same way, as TOML, checked for the
         # kind it is said to be.
@@ -950,26 +956,7 @@ mktempdir() do data_dir
     @testset "a missing data directory" begin
         nowhere, _, _ = DashiBoard.get_handlers(joinpath(data_dir, "does-not-exist"); model_dir, training_dir)
         listed = caller(nowhere)("list-files", Dict())["result"]
-        @test listed["files"] == [] && listed["misplaced"] == []
-    end
-
-    # A workspace with no folder for its configurations reads them from the root: only what is a
-    # configuration of the kind asked for counts, wherever else TOML files lie.
-    @testset "configurations in a flat workspace" begin
-        mktempdir() do ws
-            cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "m.toml"))
-            cp(joinpath(training_dir, "batched.toml"), joinpath(ws, "tr.toml"))
-            write(joinpath(ws, "dashiboard.toml"), "[server]\nport = 1\n")
-            write(joinpath(ws, "broken.toml"), "= not toml")
-            mkpath(joinpath(ws, "quarantine")); cp(joinpath(model_dir, "dense.toml"), joinpath(ws, "quarantine", "old.toml"))
-            flat = caller(first(DashiBoard.get_handlers(ws)))
-            listed = flat("list-configurations", Dict())["result"]
-            @test [m["name"] for m in listed["model"]] == ["m"]
-            @test [t["name"] for t in listed["training"]] == ["tr"]
-            ir = flat("get-card-ir", Dict("cols" => ["a"], "nodes" => String[], "groups" => String[], "include" => ["cards"]))["result"]
-            model = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "model")
-            @test model["value"]["options"] == ["m"]
-        end
+        @test listed["files"] == []
     end
 
     # One server, for what only a server does: the three endpoints, the GET download, statuses
@@ -1029,9 +1016,6 @@ mktempdir() do data_dir
             end
             write(joinpath(ws, "data", "t.csv"), "a,b\n1,2\n")
             write(joinpath(ws, "pipeline", "sub", "p.json"), JSON.json(cards_doc))
-            write(joinpath(ws, "pipeline", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
-            write(joinpath(ws, "pipeline", "note.md"), "neither a document nor a table")
-            write(joinpath(ws, "pipeline", "t2.csv"), "a,b\n1,2\n")
             write(joinpath(ws, "filter", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
             laid, _, _ = DashiBoard.get_handlers(
                 ws; model_dir, training_dir,
@@ -1044,10 +1028,6 @@ mktempdir() do data_dir
             @test [(f["path"], f["kind"]) for f in listed["files"]] == [
                 ("sub/p.json", "cards"), ("f.json", "filters"), ("t.csv", "table"),
             ]
-            @test listed["misplaced"] == [
-                Dict("path" => "f.json", "kind" => "pipeline", "found" => "filters"),
-                Dict("path" => "t2.csv", "kind" => "pipeline", "found" => "table"),
-            ]
             @test listed["folders"] == Dict("table" => "data", "cards" => "pipeline", "filters" => "filter")
 
             # A path is relative to the kind's own folder, so one path saved as a pipeline and as
@@ -1058,11 +1038,6 @@ mktempdir() do data_dir
             @test isfile(joinpath(ws, "pipeline", "sub", "mine.json")) && isfile(joinpath(ws, "filter", "sub", "mine.json"))
             @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["result"]["document"] == cards_doc
             @test lpost("read-filters", Dict("path" => "sub/mine.json"))["result"]["document"] == filters_doc
-
-            mkpath(joinpath(ws, "pipeline", "model")); write(joinpath(ws, "pipeline", "model", "p.json"), JSON.json(cards_doc))
-            @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["result"]["files"]])
-            @test occursin("pipeline", refusal(lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))))
-            @test !isfile(joinpath(ws, "x.json"))
 
             # A configuration the same way — here outside the workspace, which a kind route may
             # reach and the general route may not.

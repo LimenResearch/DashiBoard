@@ -1,10 +1,10 @@
 function get_handlers(
         workspace::AbstractString;
-        data_dir::AbstractString = workspace,
-        pipeline_dir::AbstractString = workspace,
-        filter_dir::AbstractString = workspace,
-        model_dir::AbstractString = workspace,
-        training_dir::AbstractString = workspace,
+        data_dir::AbstractString = mkpath(abspath(workspace, "data")),
+        pipeline_dir::AbstractString = mkpath(abspath(workspace, "pipeline")),
+        filter_dir::AbstractString = mkpath(abspath(workspace, "filter")),
+        model_dir::AbstractString = mkpath(abspath(workspace, "model")),
+        training_dir::AbstractString = mkpath(abspath(workspace, "training")),
         parser::Pipelines.Parser = Pipelines.default_parser(),
         extensions::AbstractDict = Dict{String, ExtensionConfig}(),
         extension_of::AbstractDict = Dict{String, String}()

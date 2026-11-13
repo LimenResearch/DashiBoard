@@ -16,6 +16,7 @@ so a card is resolved against the same folders the Load tab lists.
 """
 function pointer(kind::Symbol)
     # Pipelines' two have no default and read as unassigned until a server sets them.
+    # FIXME: can these really be unassigned?
     unset(v) = isassigned(v) ? v[] : "."
     dir = kind === :data ? DataIngestion.DATA_DIR[] :
         kind === :pipeline ? PIPELINE_DIR[] :
@@ -281,24 +282,11 @@ const KIND_ROUTES = (
 """
     kind_path(kind::Symbol, path) -> String
 
-`path` under the directory of `kind`, refusing one that leaves it or passes through a folder
-named like the layout's own. The kind's folder is implied, so `pipeline/mine.json` would nest;
+`path` under the directory of `kind`, refusing one that leaves it.
+The kind's folder is implied, so `pipeline/mine.json` would nest;
 and another kind's name inside it would read as that kind's folder to anyone looking.
 """
 function kind_path(kind::Symbol, path::AbstractString)
-    segments = splitpath(normpath(path))
-    folders = segments[1:(end - 1)]
-    own = string(kind)
-    if !isempty(folders) && first(folders) == own
-        rest = joinpath(segments[2:end]...)
-        throw(ArgumentError("`$(path)`: the `$(own)` folder is implied — name it `$(rest)`"))
-    end
-    reserved = findfirst(in(RESERVED), folders)
-    isnothing(reserved) || throw(
-        ArgumentError("`$(path)`: `$(folders[reserved])` is one of the layout's folder names, and cannot be a subfolder's")
-    )
-    length(segments) == 1 && first(segments) in RESERVED &&
-        throw(ArgumentError("`$(path)` is one of the layout's folder names, not a file"))
     return resolve_in(pointer(kind), path; what = "the $(kind) directory")
 end
 

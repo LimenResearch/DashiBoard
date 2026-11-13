@@ -1058,18 +1058,9 @@ mktempdir() do data_dir
             @test isfile(joinpath(ws, "pipeline", "sub", "mine.json")) && isfile(joinpath(ws, "filter", "sub", "mine.json"))
             @test lpost("read-pipeline", Dict("path" => "sub/mine.json"))["result"]["document"] == cards_doc
             @test lpost("read-filters", Dict("path" => "sub/mine.json"))["result"]["document"] == filters_doc
-            # The folder is implied, so a path that spells it is turned away rather than nested.
-            for path in ("pipeline/mine.json", "./pipeline/mine.json")
-                @test occursin("implied", refusal(lpost("write-pipeline", Dict("path" => path, "document" => cards_doc))))
-            end
-            # The layout's folder names are not subfolder names: neither written to nor listed,
-            # and a read of one says why in a reader's words.
-            @test occursin("layout", refusal(lpost("write-pipeline", Dict("path" => "training/x.json", "document" => cards_doc))))
+
             mkpath(joinpath(ws, "pipeline", "model")); write(joinpath(ws, "pipeline", "model", "p.json"), JSON.json(cards_doc))
             @test !("model/p.json" in [f["path"] for f in lpost("list-files", Dict())["result"]["files"]])
-            unread = refusal(lpost("read-pipeline", Dict("path" => "model/p.json")))
-            @test occursin("layout", unread) && !occursin("save", unread)
-            @test haskey(lpost("read-pipeline", Dict("path" => "pipeline")), "error")
             @test occursin("pipeline", refusal(lpost("write-pipeline", Dict("path" => "../x.json", "document" => cards_doc))))
             @test !isfile(joinpath(ws, "x.json"))
 

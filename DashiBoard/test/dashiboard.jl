@@ -91,10 +91,9 @@ mktempdir() do ws
     mkdir(joinpath(data_dir, "sub"))
     write(joinpath(data_dir, "sub", "table.json"), JSON.json([Dict("a" => 1), Dict("a" => 2)]))
     write(joinpath(ws, "broken.json"), "{ not json")
-    write(joinpath(ws, ".hidden.json"), JSON.json(cards_doc))
-    mkdir(joinpath(ws, ".cache"))
-    write(joinpath(ws, ".cache", "cards.json"), JSON.json(cards_doc))
-    write(joinpath(ws, "notes.md"), "not a table, not a document")
+    write(joinpath(pipeline_dir, ".hidden.json"), JSON.json(cards_doc))
+    mkdir(joinpath(pipeline_dir, ".cache"))
+    write(joinpath(pipeline_dir, ".cache", "cards.json"), JSON.json(cards_doc))
 
     load_config = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
     pipeline_config = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline.json"))

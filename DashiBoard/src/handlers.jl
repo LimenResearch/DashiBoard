@@ -105,48 +105,19 @@ function parse_document(full::AbstractString)
     throw(ArgumentError("`$(basename(full))` is neither JSON nor TOML"))
 end
 
-"""
-    file_kind(full) -> Union{String, Nothing}
-
-`"table"`, `"cards"`, `"filters"`, or `nothing` for a file the UI has no use for.
-
-A JSON or TOML file is parsed to find out: a document is small, a JSON table is rare, and a peek
-at the whole file is what lets a renamed document keep its kind. One that does not parse is
-`nothing` — a half-written file must not break the listing, and the listing is not where a parse
-error is reported (`read_document` is).
-"""
-function file_kind(full::AbstractString)
-    ext = lowercase(last(splitext(full)))
-    if ext in (".json", ".toml")
-        parsed = try
-            parse_document(full)
-        catch
-            return nothing
-        end
-        kind = document_kind(parsed)
-        isnothing(kind) || return kind
-        return ext == ".json" ? "table" : nothing
-    end
-    return DataIngestion.is_supported(full) ? "table" : nothing
-end
-
 # What a file under a kind's directory is expected to be.
 const EXPECTED_KIND = Dict(:data => "table", :pipeline => "cards", :filter => "filters")
 
 """
     files_under(base; except) -> Vector{String}
 
-Every file under `base`, as paths relative to it, sorted. Hidden entries, folders named like
-the layout's own and the directories in `except` — the other kinds' own, when they sit inside
-this one — are skipped.
+Every file under `base`, as paths relative to it, sorted. Hidden entries are skipped.
 """
-function files_under(base::AbstractString; except = String[])
+function files_under(base::AbstractString)
     found = String[]
     for (root, dirs, names) in walkdir(base)
         # `walkdir` is top-down, so pruning `dirs` in place keeps it out of them.
-        filter!(dirs) do dir
-            !startswith(dir, ".") && !(normpath(joinpath(root, dir)) in except)
-        end
+        filter!(dir -> !startswith(dir, "."), dirs)
         for name in names
             startswith(name, ".") && continue
             push!(found, normpath(relpath(joinpath(root, name), base)))

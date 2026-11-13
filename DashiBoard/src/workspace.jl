@@ -96,7 +96,7 @@ end
 function get_handlers(m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace))
     (; directories, extensions) = config
 
-    # note: ensure we support S3 buckets
+    # note: ensure we support S3 buckets, both here and in `get_handlers` and `launch` defaults
     data_dir::AbstractString = abspath(workspace, directories.data)
     pipeline_dir::AbstractString = abspath(workspace, directories.pipeline)
     filter_dir::AbstractString = abspath(workspace, directories.filter)

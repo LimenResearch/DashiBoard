@@ -811,7 +811,7 @@ function execute_pipeline(spec::AbstractDict; train::Bool)
             if train
                 Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
             else
-                Pipelines.evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+                Pipelines.evaljoin(REPOSITORY[], pipeline, "selection", ID_VAR[])
             end
             report = Pipelines.report(REPOSITORY[], pipeline.nodes)
             vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)

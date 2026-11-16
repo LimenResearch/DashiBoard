@@ -110,7 +110,7 @@ end
 
 # A model's output fields are this card's products: which there are depends on the model chosen,
 # which is the one thing a card with fixed products does not have to say.
-products(sc::StreamlinerCard) = String[string(field) for field in SC.output_fields(sc.model)]
+products(sc::StreamlinerCard) = collect(String, Iterators.map(string, SC.output_fields(sc.model)))
 
 # The selected fields renamed over the funnel's targets, plus what the funnel writes beside them —
 # row counters for a windowed funnel, nothing for a plain one — which invents its names and so

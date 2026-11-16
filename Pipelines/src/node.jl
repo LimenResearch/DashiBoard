@@ -374,7 +374,7 @@ function named_products(
     return map(products) do name
         # FIXME: `name` is not mentioned in the error message
         get(d, name) do
-            throw(ThroughError(n.id, cols, nothing, :no_such_product; products = collect(keys(d))))
+            throw(ThroughError(n.id, cols, nothing, :no_such_product; products = [g.name for g in groups if has_name(g)]))
         end
     end
 end

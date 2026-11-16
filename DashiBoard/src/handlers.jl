@@ -668,9 +668,8 @@ function overwrite_warnings(pipeline, cols::AbstractVector)
     return warnings
 end
 
-# FIXME: why does evaluate do `train_evaljoin`? Shouldn't we have separate `train` and `evaluate` endpoints?
 """
-    evaluate_pipeline(spec)
+    execute_pipeline(spec; train::Bool)
 
 Run an authored document. Takes the **group dialect** — `{filters, nodes, groups}`, with
 selector-form variable fields — which is what the UI authors and what ExperimentTracking stores.
@@ -684,7 +683,7 @@ picker exists to write.
 Resolve a document without running it: which columns each node consumes and emits, and any it
 references that nothing produces.
 
-Construction is the cheap half of `evaluate-pipeline` — it resolves the group vocabulary and
+Construction is the cheap half of `execute-pipeline` — it resolves the group vocabulary and
 validates against the schema — so a probe costs a graph walk and the source table's column names.
 A streamliner card adds a check that its model can be built for its funnel: the table's column
 types, one count per categorical column it names, and the model built once (`model_issues`).
@@ -702,7 +701,7 @@ A schema failure additionally comes back as `issues` — a JSON Pointer into the
 failing keyword, and what would have been accepted — which is the vehicle a form needs to
 address the offending control rather than print a sentence above it.
 """
-function evaluate_pipeline(spec::AbstractDict)
+function execute_pipeline(spec::AbstractDict; train::Bool)
     cols = colnames(REPOSITORY[], "source")
     groups = get(spec, "groups", Dict{String, Any}())
     _nodes = get(spec, "nodes", [])
@@ -809,7 +808,11 @@ function evaluate_pipeline(spec::AbstractDict)
         # The columns available *to* the pipeline, so the group API can validate references
         # against them rather than accepting a name that does not exist and failing later in SQL.
         return try
-            Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+            if train
+                Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
+            else
+                Pipelines.evaljoin(REPOSITORY[], pipeline, "selection", ID_VAR[])
+            end
             report = Pipelines.report(REPOSITORY[], pipeline.nodes)
             vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
             visualization = stringify_visualization.(vs)
@@ -821,12 +824,17 @@ function evaluate_pipeline(spec::AbstractDict)
             exception isa Exception || rethrow()
             # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
             # the backtrace whether the cause was the data or a bug of ours.
-            @error "evaluate-pipeline: the run failed" exception = (exception, catch_backtrace())
+            handler = train ? "train-evaluate-pipeline" : "evaluate-pipeline"
+            @error "$(handler): the run failed" exception = (exception, catch_backtrace())
             failure = failure_report(:execution, exception)
             throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
         end
     end
 end
+
+evaluate_pipeline(spec::AbstractDict) = execute_pipeline(spec; train = false)
+
+train_evaluate_pipeline(spec::AbstractDict) = execute_pipeline(spec; train = true)
 
 struct Sorter
     colname::String

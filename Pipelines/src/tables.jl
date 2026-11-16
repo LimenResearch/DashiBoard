@@ -47,7 +47,6 @@ function join_on_id_var(
     cols = to_sql.(Symbol.(sel))
     id_col = to_sql(Symbol(id_var))
     ALTERATIONS = join(alter, "\n")
-    COLUMNS = join(cols, ", ")
     UPDATES = join(string.(cols, " = ", extra, ".", cols), ", ")
 
     DuckDBUtils.transaction(

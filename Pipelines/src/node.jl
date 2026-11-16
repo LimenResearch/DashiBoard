@@ -370,7 +370,7 @@ function named_products(
         cols::AbstractVector{<:AbstractString} = String[]
     )
     allunique(products) || throw(ThroughError(n.id, cols, nothing, :repeated_product))
-    d = OrderedDict{String, OutputGroup}(g.name => g for g in groups if has_name(g))
+    d = Dict{String, OutputGroup}(g.name => g for g in groups if has_name(g))
     return map(products) do name
         # FIXME: `name` is not mentioned in the error message
         get(d, name) do

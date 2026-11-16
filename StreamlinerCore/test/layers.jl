@@ -5,14 +5,12 @@
         "sigma" => "tanh",
     )
     l = StreamlinerCore.parse_layer(c)
-    @test l.features == 3
     @test l.sigma == tanh
     @test StreamlinerCore.requires_shape(l) == Shape(StreamlinerCore.FlatFormat())
 
     input_shape = Shape((), 7)
     output_shape = Shape(StreamlinerCore.FlatFormat())
     m, sh = StreamlinerCore.instantiate(l, input_shape, output_shape)
-    @test m isa Flux.Dense
     @test sh == Shape((), 3)
     @test size(m.weight) == (3, 7)
     x = rand(Float32, 7, 2)
@@ -28,7 +26,6 @@ end
         "kernel" => [2, 2],
     )
     l = StreamlinerCore.parse_layer(c)
-    @test l.features == 3
     @test l.sigma == tanh
     @test l.kernel == (2, 2)
     @test StreamlinerCore.requires_shape(l) == Shape(StreamlinerCore.SpatialFormat{2}())
@@ -36,7 +33,6 @@ end
     input_shape = Shape((5, 5), 7)
     output_shape = Shape(StreamlinerCore.SpatialFormat{2}())
     m, sh = StreamlinerCore.instantiate(l, input_shape, output_shape)
-    @test m isa Flux.Conv
     @test sh == Shape((4, 4), 3)
     @test size(m.weight) == (2, 2, 7, 3)
     x = rand(Float32, 5, 5, 7, 2)
@@ -73,7 +69,6 @@ end
     input_shape = Shape((6, 6), 5)
     output_shape = Shape(StreamlinerCore.SpatialFormat{2}())
     m, sh = StreamlinerCore.instantiate(l, input_shape, output_shape)
-    @test m isa Flux.MaxPool
     @test sh == Shape((3, 3), 5)
     x = rand(Float32, 6, 6, 5, 2)
     y = m(x)

@@ -1,176 +1,69 @@
-# The parts of a workspace that need the server's own packages: sorting a plain folder into the
-# layout, which has to tell a table from a document from a configuration, and loading the
-# extensions a workspace names. Reading a workspace and building its environment are in
-# `WorkspaceUtils.jl`, which needs neither.
+# A workspace: the directory the server is launched against, where each kind of file is, and the
+# extensions it names.
+#
+# The layout is the default answer to the directories Pipelines' `@with` block already takes —
+# `MODEL_DIR`, `TRAINING_DIR` — and DataIngestion's `DATA_DIR`; nothing here replaces them. A
+# `dashiboard.toml` at the root can say otherwise. In that order: the file, the conventional
+# folder when it exists, the root.
 
-include("WorkspaceUtils.jl")
+const WORKSPACE_FILE = "dashiboard.toml"
 
-using .WorkspaceUtils: WorkspaceUtils, KINDS, RESERVED, WORKSPACE_FILE, tidy_path, read_workspace_file,
-    resolve_pointers, missing_directories, server_defaults, extension_sources, locate_sources,
-    extension_environment, environment_path
-
-# Sorting a plain folder into the layout.
-
-# Which kind a loose file is — `"data"`, `"pipeline"`, `"filter"`, `"model"`, `"training"` — or
-# `nothing` for a file that is none of them.
-function destination_of(full::AbstractString)
-    ext = lowercase(last(splitext(full)))
-    if ext == ".toml"
-        parsed = try
-            TOML.parsefile(full)
-        catch
-            return nothing
-        end
-        kind = configuration_kind(parsed)
-        isnothing(kind) || return kind
-    end
-    # A document may be written as TOML too, and is listed as one.
-    kind = file_kind(full)
-    kind == "table" && return "data"
-    kind == "cards" && return "pipeline"
-    kind == "filters" && return "filter"
-    return nothing
+@kwarg struct ServerConfig
+    host::String = "127.0.0.1"
+    port::Int = 8080
 end
 
-# A free name in `folder` for `name`: the name itself, else `name-2`, `name-3`, …
-function free_name(folder::AbstractString, name::AbstractString)
-    ispath(joinpath(folder, name)) || return name
-    stem, ext = splitext(name)
-    n = 2
-    while ispath(joinpath(folder, "$(stem)-$(n)$(ext)"))
-        n += 1
-    end
-    return "$(stem)-$(n)$(ext)"
+@kwarg struct DirectoriesConfig
+    data::String = "data"
+    pipeline::String = "pipeline"
+    filter::String = "filter"
+    model::String = "model"
+    training::String = "training"
 end
 
-# What marks a folder as something other than a workspace: sorting one of these would scatter
-# a project.
-const NOT_A_WORKSPACE = ("Project.toml", "Manifest.toml", "package.json", "Cargo.toml", "pyproject.toml")
+@kwarg struct WorkspaceConfig
+    extensions::Dict{String, ExtensionConfig} = Dict{String, ExtensionConfig}()
+    directories::DirectoriesConfig = DirectoriesConfig()
+    server::ServerConfig = ServerConfig()
+end
+
+# What a workspace file may say, checked before any of it is used: a table DashiBoard does not
+# know, or a value of the wrong kind, would otherwise be skipped or fail somewhere unrelated.
+# TODO: error on additional properties?
+WorkspaceConfig(file::AbstractDict) = StructUtils.make(WorkspaceConfig, file)
 
 """
-    init_workspace(dir; io = stdout) -> (; placed, quarantined)
+    read_workspace_file(workspace) -> WorkspaceConfig
 
-Sort the loose files at the root of `dir` into the layout, once, and say what went where.
+The parsed `dashiboard.toml` at the root of `workspace`, or an empty `Dict` when there is none.
+A file that says something DashiBoard does not read — a misspelt table, a value of the wrong
+kind — is refused, naming the entry.
+"""
+function read_workspace_file(workspace::AbstractString)::WorkspaceConfig
+    path = joinpath(workspace, WORKSPACE_FILE)
+    return isfile(path) ? WorkspaceConfig(TOML.parsefile(path)) : WorkspaceConfig()
+end
+
+"""
+    init_workspace(dir)
+
+Initialize folder structure. Error if the folder has anything other than a `quarantine` subfolder.
 
 A table goes to the data folder, a cards document to the pipeline folder, a filters document to
 the filter folder, a model configuration to the model folder, a training one to the training
 folder. The folders are the ones the workspace file names under `[directories]` when there is
-one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise. Anything else — a file of
-no known kind, a folder that is not the layout's, a file whose name is already taken where it
-belongs, a file standing where a folder must go — goes to `quarantine/` under its own name
-(suffixed on a clash there too), so the root ends up holding only the layout and nothing is
-lost or overwritten. Hidden entries and the workspace file stay. The folders are made, and a
-`dashiboard.toml` with `[directories]` is written when there is none.
-
-A folder that is plainly something else — a home directory, a code project — is refused: the
-sorter moves everything it finds. Each move is reported as it is made.
-
-`placed`, `quarantined` and `left` are `(name, where)` pairs; for the last two `where` is the
-reason. A link is left where it is: moved, a relative one would point nowhere. Running it again
-on a laid-out folder sorts whatever is loose and otherwise does nothing.
+one, and `data`, `pipeline`, `filter`, `model`, `training` otherwise.
 """
-function init_workspace(dir::AbstractString; io::IO = stdout)
-    root = tidy_path(abspath(dir))
-    isdir(root) || throw(ArgumentError("`$(dir)` is not a folder"))
-    (root == tidy_path(homedir()) || dirname(root) == root) &&
-        throw(ArgumentError("`$(root)` is not a workspace to sort: it is a home or a root directory"))
-    marker = findfirst(name -> isfile(joinpath(root, name)), NOT_A_WORKSPACE)
-    isnothing(marker) || throw(
-        ArgumentError("`$(root)` holds a `$(NOT_A_WORKSPACE[marker])`: it looks like a project, not a workspace to sort")
-    )
-
+function init_workspace(root::AbstractString, config::WorkspaceConfig = read_workspace_file(root))
     # Where each kind goes: the folder the workspace file names, as written, else the kind's own.
-    directories = get(read_workspace_file(root), "directories", Dict{String, Any}())
-    folder_of = Dict(string(kind) => String(get(directories, string(kind), string(kind))) for kind in KINDS)
-    folder_path(kind) = isabspath(folder_of[kind]) ? folder_of[kind] : joinpath(root, folder_of[kind])
-    # The top-level names that are the layout's own, and so neither loose nor in its way.
-    own = Set{String}(first(splitpath(folder)) for folder in values(folder_of) if !isabspath(folder))
-    push!(own, "quarantine")
-
-    placed, quarantined, left = Tuple{String, String}[], Tuple{String, String}[], Tuple{String, String}[]
-    quarantine = joinpath(root, "quarantine")
-    # A file standing where the quarantine itself goes is the first thing to set aside.
-    if isfile(quarantine)
-        held = joinpath(root, free_name(root, "quarantine.file"))
-        mv(quarantine, held)
-        mkpath(quarantine)
-        mv(held, joinpath(quarantine, "quarantine"))
-        push!(quarantined, ("quarantine", "a file where the `quarantine` folder goes"))
-        println(io, "quarantine → quarantine/quarantine (a file where the `quarantine` folder goes)")
+    for kind in propertynames(config.directories)
+        subdir = getproperty(config.directories, kind)
+        mkpath(abspath(root, subdir))
     end
-    function put_aside(name, reason)
-        mkpath(quarantine)
-        target = free_name(quarantine, name)
-        mv(joinpath(root, name), joinpath(quarantine, target))
-        push!(quarantined, (name, reason))
-        println(io, name, " → quarantine/", target == name ? "" : target, " (", reason, ")")
-        return
-    end
-    function loose(name)
-        (startswith(name, ".") || name == WORKSPACE_FILE) && return false
-        islink(joinpath(root, name)) || return true
-        push!(left, (name, "a link, left where it is"))
-        println(io, name, " (a link, left where it is)")
-        return false
-    end
-    # What stands in the layout's way goes first: a file named like one of its folders, and a
-    # folder that is not one of them. Only then can a file be placed where the folders go.
-    entries = sort!(filter(loose, readdir(root)))
-    for name in entries
-        full = joinpath(root, name)
-        if isdir(full)
-            name in own || put_aside(name, "a folder that is not the layout's")
-        elseif name in own
-            put_aside(name, "a file where the `$(name)` folder goes")
-        end
-    end
-    for name in entries
-        full = joinpath(root, name)
-        isfile(full) || continue
-        kind = destination_of(full)
-        if isnothing(kind)
-            put_aside(name, "neither a table, a document nor a configuration")
-            continue
-        end
-        folder = folder_path(kind)
-        if ispath(joinpath(folder, name))
-            put_aside(name, "`$(folder_of[kind])/$(name)` already exists")
-            continue
-        end
-        mkpath(folder)
-        mv(full, joinpath(folder, name))
-        push!(placed, (name, folder_of[kind]))
-        println(io, name, " → ", folder_of[kind], "/")
-    end
-    for kind in KINDS
-        mkpath(folder_path(string(kind)))
-    end
-    file = joinpath(root, WORKSPACE_FILE)
-    if !isfile(file)
-        open(file, "w") do f
-            TOML.print(f, Dict("directories" => folder_of))
-        end
-    end
-    isempty(placed) && isempty(quarantined) && println(io, "nothing loose in ", root)
-    return (; placed, quarantined, left)
+    return
 end
 
-# Extensions: loading what a workspace names, and what each contributed.
-
-"""
-    load_extensions(sources) -> Vector{Module}
-
-The named extensions, loaded from the active environment — the one `extension_environment`
-built, which the server is started in. Each must be a package exposing
-`DEFAULT_PARSER::StreamlinerCore.Parser`, which is what it contributes.
-"""
-function load_extensions(sources::AbstractDict)
-    return map(sort!(collect(String, keys(sources)))) do name
-        mod = Base.require(Main, Symbol(name))
-        isdefined(mod, :DEFAULT_PARSER) || throw(ArgumentError("extension `$(name)` has no `DEFAULT_PARSER`"))
-        return mod
-    end
-end
+# Extensions: what each contributed.
 
 # The registries of a parser, named in the singular as the provenance table keys them.
 const REGISTRY_NAMES = (
@@ -198,4 +91,36 @@ function provenance(modules::AbstractVector)
         end
     end
     return table
+end
+
+function get_handlers(m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace))
+    (; directories, extensions) = config
+
+    # note: ensure we support S3 buckets, both here and in `get_handlers` and `launch` defaults
+    data_dir::AbstractString = abspath(workspace, directories.data)
+    pipeline_dir::AbstractString = abspath(workspace, directories.pipeline)
+    filter_dir::AbstractString = abspath(workspace, directories.filter)
+    model_dir::AbstractString = abspath(workspace, directories.model)
+    training_dir::AbstractString = abspath(workspace, directories.training)
+
+    plugin_modules = Module[getglobal(m, Symbol(ext)) for (ext, cfg) in pairs(extensions) if cfg.is_plugin]
+    plugins = Parser[plugin_module.DEFAULT_PARSER for plugin_module in plugin_modules]
+    parser = default_parser(; plugins)
+    extension_of = provenance(plugin_modules)
+
+    return get_handlers(
+        abspath(workspace);
+        data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
+        parser, extensions, extension_of
+    )
+end
+
+function launch(
+        m::Module, workspace::AbstractString, config::WorkspaceConfig = read_workspace_file(workspace);
+        async::Bool = false
+    )
+
+    handlers, stream_handlers, probe_handlers = get_handlers(m, workspace, config)
+    (; host, port) = config.server
+    return launch(handlers, stream_handlers, probe_handlers; host, port, async)
 end

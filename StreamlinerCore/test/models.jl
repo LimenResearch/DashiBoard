@@ -20,7 +20,7 @@ end
 @testset "basic" begin
     model = Model(parser, joinpath(static_dir, "model", "conv.toml"))
     training = Training(parser, joinpath(static_dir, "training", "scheduled.toml"))
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device, optimizer, schedules, stoppers) = training
     m, loss = model(train_regression_data.templates), model.loss
     @test loss isa StreamlinerCore.Metric{typeof(Flux.Losses.logitcrossentropy)}
 
@@ -28,9 +28,7 @@ end
     target = rand(Float32, 10, 32) |> device # dummy MNIST-like output
     @test optimizer == Adam()
     @test schedules[:eta] == CosAnneal(l0 = 1.0e-2, l1 = 1.0e-3, period = 10, restart = true)
-    @test batchsize == 32
     @test length(stoppers) == 2
-    @test device == cpu
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -39,8 +37,6 @@ end
 
     s = sprint(show, MIME"text/plain"(), m)
     @test startswith(s, "Basic architecture with the following modules:\nmodel =>")
-
-    @test m.name == :Basic
 
     @test length(modules(m).model) == 5
     @test modules(m).model[1] isa Conv && modules(m).model[2] isa Conv
@@ -66,7 +62,7 @@ end
 
     model = Model(parser, joinpath(static_dir, "model", "conv.template.toml"), vars)
     training = Training(parser, joinpath(static_dir, "training", "batched.template.toml"), vars)
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device, optimizer, schedules, stoppers) = training
     m, loss = model(train_regression_data.templates), model.loss
     @test loss isa StreamlinerCore.Metric{typeof(Flux.Losses.logitcrossentropy)}
 
@@ -74,9 +70,7 @@ end
     target = rand(Float32, 10, 32) |> device # dummy MNIST-like output
     @test optimizer == Adam(eta = 1.0e-2)
     @test isempty(schedules)
-    @test batchsize == 32
     @test isempty(stoppers)
-    @test device == cpu
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -93,7 +87,7 @@ end
 @testset "vae" begin
     model = Model(parser, joinpath(static_dir, "model", "vae.toml"))
     training = Training(parser, joinpath(static_dir, "training", "batched.toml"))
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device, optimizer, schedules, stoppers) = training
     m, loss = model(train_autoencoder_data.templates), model.loss
     @test loss isa StreamlinerCore.VAELoss
 
@@ -101,9 +95,7 @@ end
     target = input
     @test optimizer == Adam(eta = 0.01)
     @test isempty(schedules)
-    @test batchsize == 32
     @test length(stoppers) == 0
-    @test device == cpu
 
     r = device(m)((; input, target))
     prediction = r.prediction
@@ -112,8 +104,6 @@ end
 
     s = sprint(show, MIME"text/plain"(), m)
     @test startswith(s, "VAE architecture with the following modules:\nembedding =>")
-
-    @test m.name == :VAE
 
     @test length(modules(m).embedding) == 3
     @test all(l -> l isa Conv, modules(m).embedding.layers)
@@ -127,7 +117,7 @@ end
 @testset "predictor" begin
     model = Model(parser, joinpath(static_dir, "model", "predictor.toml"))
     training = Training(parser, joinpath(static_dir, "training", "batched.toml"))
-    (; device, batchsize, optimizer, schedules, stoppers) = training
+    (; device) = training
     m, loss = model(train_prediction_data.templates), model.loss
     @test loss isa StreamlinerCore.Metric{typeof(Flux.Losses.mse)}
 

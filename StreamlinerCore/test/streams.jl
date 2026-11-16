@@ -1,9 +1,5 @@
 @testset "stream" begin
-    train_x, train_y, test_x, test_y = get_mnistlike()
-    # reproduce split from `setup.jl`
-    train_idxs = filter(i -> mod(i, 3) != 0, 1:500)
-    valid_idxs = filter(i -> mod(i, 3) == 0, 1:500)
-
+    # rebuild by hand the batches of `train_regression_data`, from its globals in `setup.jl`
     batchsize = 16
     d_train = Flux.DataLoader((train_x[:, :, :, train_idxs], train_y[:, train_idxs]); batchsize)
     d_valid = Flux.DataLoader((train_x[:, :, :, valid_idxs], train_y[:, valid_idxs]); batchsize)

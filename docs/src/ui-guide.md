@@ -12,16 +12,16 @@ Two processes. In one terminal, at the top of the repository, the Julia server �
 and answers every question the page asks:
 
 ```
-julia --project=DashiBoard bin/launch.jl path/to/workspace
+julia --project=DashiBoard -e 'using DashiBoard; ws = "path/to/workspace"; DashiBoard.launch(ws; data_dir = joinpath(ws, "data"), pipeline_dir = joinpath(ws, "pipeline"), filter_dir = joinpath(ws, "filter"), model_dir = joinpath(ws, "model"), training_dir = joinpath(ws, "training"))'
 ```
 
 `path/to/workspace` is the folder the page works in. Laid out, it has a folder per kind of
 file — `data/` for tables, `pipeline/` and `filter/` for the documents, `model/` and `training/`
 for the configurations — and the page lists, loads and saves each kind in its own folder; nothing
 outside those folders is ever listed. A plain folder works too, with everything read from the
-root. `bin/README.md` has the layout, the
-`dashiboard.toml` that can name the folders and the extensions to load, and `--init`, which sorts
-a plain folder into the layout.
+root: leave the directory keywords out and each defaults to the workspace itself.
+`bin/README.md` has the layout, and how a client's deployment — its `dashiboard.toml`,
+the folders and the extensions it pins — is installed and launched.
 
 In a second terminal, the UI:
 

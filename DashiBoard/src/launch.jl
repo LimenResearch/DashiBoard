@@ -1,12 +1,12 @@
 function get_handlers(
         workspace::AbstractString;
-        data_dir::AbstractString = workspace,
-        pipeline_dir::AbstractString = workspace,
-        filter_dir::AbstractString = workspace,
-        model_dir::AbstractString = workspace,
-        training_dir::AbstractString = workspace,
+        data_dir::AbstractString = mkpath(abspath(workspace, "data")),
+        pipeline_dir::AbstractString = mkpath(abspath(workspace, "pipeline")),
+        filter_dir::AbstractString = mkpath(abspath(workspace, "filter")),
+        model_dir::AbstractString = mkpath(abspath(workspace, "model")),
+        training_dir::AbstractString = mkpath(abspath(workspace, "training")),
         parser::Pipelines.Parser = Pipelines.default_parser(),
-        extensions::AbstractDict = Dict{String, Any}(),
+        extensions::AbstractDict = Dict{String, ExtensionConfig}(),
         extension_of::AbstractDict = Dict{String, String}()
     )
 
@@ -55,37 +55,13 @@ function get_handlers(
     return handlers, stream_handlers, probe_handlers
 end
 
-"""
-    launch(workspace; host, port, async, data_dir, pipeline_dir, filter_dir, model_dir, training_dir, parser)
-
-Serve DashiBoard for `workspace`, the directory every file route is confined to.
-
-Five directories say where each kind of file is: `data_dir` the tables, `pipeline_dir` and
-`filter_dir` the documents, `model_dir` and `training_dir` the configurations. Each defaults to
-the workspace itself, which is a flat folder with everything in it; `bin/launch.jl` is where the
-layout, a `dashiboard.toml` and the flags turn into these keywords. `extensions` and
-`extension_of` are what the launcher learned registering extensions, for a download to name
-them.
-"""
 function launch(
-        workspace::AbstractString;
+        handlers::AbstractDict,
+        stream_handlers::AbstractDict,
+        probe_handlers::AbstractDict;
         host::AbstractString = "127.0.0.1",
         port::Integer = 8080,
         async::Bool = false,
-        data_dir::AbstractString = workspace,
-        pipeline_dir::AbstractString = workspace,
-        filter_dir::AbstractString = workspace,
-        model_dir::AbstractString = workspace,
-        training_dir::AbstractString = workspace,
-        parser::Pipelines.Parser = Pipelines.default_parser(),
-        extensions::AbstractDict = Dict{String, Any}(),
-        extension_of::AbstractDict = Dict{String, String}()
-    )
-
-    handlers, stream_handlers, probe_handlers = get_handlers(
-        workspace;
-        data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
-        parser, extensions, extension_of,
     )
 
     router = HTTP.Router(
@@ -103,7 +79,67 @@ function launch(
 
     cors_router = router |> CorsMiddleware
 
-    # Said out loud, so whoever launched from a terminal knows the warm-up is over.
-    @info "DashiBoard is listening" url = "http://$(host):$(port)" workspace data_dir pipeline_dir filter_dir model_dir training_dir environment = Base.active_project()
-    return async ? HTTP.listen!(cors_router, host, port) : HTTP.listen(cors_router, host, port)
+    # The server's tasks inherit the logger, so everything they log is flushed too.
+    return with_logger(FlushingLogger(current_logger())) do
+        server = HTTP.listen!(cors_router, host, port)
+        # # Said once the port is bound, so whoever waits for it can connect straight away.
+        @info "DashiBoard is listening" url = "http://$(host):$(port)" environment = Base.active_project()
+        async ? server : wait(server)
+    end
+end
+
+"""
+    launch(workspace; host, port, async, data_dir, pipeline_dir, filter_dir, model_dir, training_dir, parser)
+
+Serve DashiBoard for `workspace`, the directory every file route is confined to.
+
+Five directories say where each kind of file is: `data_dir` the tables, `pipeline_dir` and
+`filter_dir` the documents, `model_dir` and `training_dir` the configurations. Each defaults to
+the workspace itself, which is a flat folder with everything in it; `serve_deployment` is where a
+deployment's layout and `dashiboard.toml` turn into these keywords. `extensions` and
+`extension_of` are the extensions loaded and what each registered, for a download to name them.
+"""
+function launch(
+        workspace::AbstractString;
+        host::AbstractString = "127.0.0.1",
+        port::Integer = 8080,
+        async::Bool = false,
+        data_dir::AbstractString = workspace,
+        pipeline_dir::AbstractString = workspace,
+        filter_dir::AbstractString = workspace,
+        model_dir::AbstractString = workspace,
+        training_dir::AbstractString = workspace,
+        parser::Pipelines.Parser = Pipelines.default_parser(),
+        extensions::AbstractDict = Dict{String, ExtensionConfig}(),
+        extension_of::AbstractDict = Dict{String, String}()
+    )
+
+    handlers, stream_handlers, probe_handlers = get_handlers(
+        workspace;
+        data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
+        parser, extensions, extension_of,
+    )
+
+    return launch(handlers, stream_handlers, probe_handlers; host, port, async)
+end
+
+"""
+    FlushingLogger(logger)
+
+`logger`, with standard error flushed after every record. Julia block-buffers `stderr` when it is
+a file — a redirected log, a batch job's output — so without this nothing the server says reaches
+the file while it runs, not even that it is listening.
+"""
+struct FlushingLogger{L <: AbstractLogger} <: AbstractLogger
+    logger::L
+end
+
+Logging.min_enabled_level(l::FlushingLogger) = Logging.min_enabled_level(l.logger)
+Logging.shouldlog(l::FlushingLogger, args...) = Logging.shouldlog(l.logger, args...)
+Logging.catch_exceptions(l::FlushingLogger) = Logging.catch_exceptions(l.logger)
+
+function Logging.handle_message(l::FlushingLogger, args...; kwargs...)
+    Logging.handle_message(l.logger, args...; kwargs...)
+    flush(stderr)
+    return
 end

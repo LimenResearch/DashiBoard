@@ -1,8 +1,9 @@
 module DashiBoard
 
-public launch
-# What `bin/launch.jl` calls to prepare a workspace and the extensions it names.
-public init_workspace, load_extensions, provenance, WorkspaceUtils
+public launch, default_parser
+
+# What a deployment's install and `serve.jl` call.
+public init_workspace, provenance, install_deployment, serve_deployment
 
 using Base: Fix1, Fix2
 
@@ -10,6 +11,7 @@ using Base.ScopedValues: @with, ScopedValue
 
 using HTTP: HTTP, startread, startwrite, closeread
 
+using Logging: Logging, AbstractLogger, with_logger, current_logger
 
 using Scratch: @get_scratch!
 
@@ -47,7 +49,7 @@ using DuckDBUtils: Repository, export_table, to_nrow, colnames
 
 using DataIngestion: Filter, DataIngestion
 
-using Pipelines: Card, Pipelines
+using Pipelines: Card, Pipelines, Parser, default_parser
 
 using StreamlinerCore: StreamlinerCore
 
@@ -67,11 +69,14 @@ const WORKSPACE = ScopedValue("")
 const PIPELINE_DIR = ScopedValue("")
 const FILTER_DIR = ScopedValue("")
 
-# The extensions the server was launched with — each name and where it is, as the workspace
-# file says — and which of them contributed each registry entry (`"model:fuzzy"`,
-# `"funnel:time"`, `"transform:y"`). Filled by the launcher; what lets a pipeline's
-# download name exactly the extensions it needs.
-const EXTENSIONS = ScopedValue(Dict{String, Any}())
+@kwarg struct ExtensionConfig
+    is_plugin::Bool = false
+end
+
+# The extensions the server was launched with — as the workspace
+# file says — and which of them contributed each registry entry
+# (`"model:fuzzy"`, `"funnel:time"`, `"transform:y"`).
+const EXTENSIONS = ScopedValue(Dict{String, ExtensionConfig}())
 const EXTENSION_OF = ScopedValue(Dict{String, String}())
 
 include("workspace.jl")

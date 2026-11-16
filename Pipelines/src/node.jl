@@ -370,7 +370,7 @@ function named_products(
         cols::AbstractVector{<:AbstractString} = String[]
     )
     allunique(products) || throw(ThroughError(n.id, cols, nothing, :repeated_product))
-    d = OrderedDict{String, OutputGroup}(g.name => g for g in groups if has_name(g))
+    d = Dict{String, OutputGroup}(g.name => g for g in groups if has_name(g))
     return map(products) do name
         # FIXME: `name` is not mentioned in the error message
         get(d, name) do
@@ -383,12 +383,12 @@ end
     narrowed_outputs(n::Node, products)::Vector{String}
 
 The columns `n` writes for the products named, in that order: what a node selection's `products`
-keeps of the node.
+keeps of the node. If `products` is `nothing`, everything is kept.
 """
-function narrowed_outputs(n::Node, products::AbstractVector{<:AbstractString})
+function narrowed_outputs(n::Node, products::Maybe{AbstractVector{<:AbstractString}})
     groups = output_spec(n)
-    named = named_products(n, groups, products)
-    return to_outputs(n, named)
+    chosen = isnothing(products) ? groups : named_products(n, groups, products)
+    return to_outputs(n, chosen)
 end
 
 """

@@ -2,8 +2,10 @@
 
 map_into(f::F, ::Type{T}, x) where {F, T} = (y::T = T(x); map!(f, values(y)); y)
 
-to_stringlist(s::Maybe{AbstractString}) = isnothing(s) ? String[] : String[s]
-to_stringlist(s::AbstractVector) = convert(Vector{String}, s)
+to_list(::Type{T}, s::AbstractVector) where {T} = convert(Vector{T}, s)
+to_list(::Type{T}, x) where {T} = isnothing(x) ? T[] : T[convert(T, x)]
+
+to_stringlist(s) = to_list(String, s)
 
 function to_maybestring(s::AbstractVector)::Maybe{String}
     return isempty(s) ? nothing : only(s)

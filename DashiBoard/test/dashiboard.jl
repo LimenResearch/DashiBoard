@@ -431,15 +431,22 @@ mktempdir() do ws
     @testset "products in the probe" begin
         _fit = Dict(
             "id" => "fit", "card" => Dict(
-                "type" => "streamliner", "model" => Dict("type" => "dense", "features" => 2),
+                "type" => "streamliner",
+                "model" => Dict("type" => "dense", "features" => 2),
                 "training" => Dict("type" => "batched", "iterations" => 1),
-                "funnel" => Dict("order_by" => [Dict("cols" => "No")], "inputs" => [Dict("cols" => "TEMP")], "targets" => [Dict("cols" => "PRES")]),
+                "funnel" => Dict(
+                    "order_by" => [Dict("cols" => "No")],
+                    "inputs" => [Dict("cols" => "TEMP")],
+                    "targets" => [Dict("cols" => "PRES")]
+                ),
             )
         )
         _reader = Dict(
             "id" => "reader", "card" => Dict(
                 "type" => "rescale", "method" => Dict("type" => "zscore"), "suffix" => "z",
-                "inputs" => [Dict("nodes" => "fit", "products" => ["prediction"])],
+                "inputs" => [
+                    Dict("nodes" => Dict("node" => "fit", "products" => ["prediction"])),
+                ],
             )
         )
         params = Dict("nodes" => [_fit, _reader], "groups" => Dict{String, Any}())

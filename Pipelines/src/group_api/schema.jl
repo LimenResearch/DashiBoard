@@ -15,27 +15,29 @@ end
 # A step of a `through` chain: a node id, or the node with the products of it wanted by name.
 # The names are not enumerable here — they depend on the node — so an unknown one is caught when
 # the chain is resolved, not when the document is validated.
-function through_step_IR()
+# TODO: see if we can add the products options info here
+function subnode_IR(; multiple = false)
     named = ObjectIR(
         properties = [
             Property("node" => NODE_DEF),
             Property("products" => ArrayIR(items = StringIR(minLength = 1), minItems = 1)),
         ]
     )
-    return EitherIR(["string" => NODE_DEF, "object" => named])
+    single = EitherIR(["string" => NODE_DEF, "object" => named])
+    return multiple ? EitherIR(["string" => NODE_DEF, "object" => named, "array" => ArrayIR(items = single)]) : single
 end
 
-# IR for a `{nodes: str | list[str]}`, `{groups: str | list[str]}`, `{cols: str | list[str]}`
+# IR for a
+# `{nodes: str | {node, products} | list[str | {node, products}]}`,
+# `{groups: str | list[str]}`,
+# `{cols: str | list[str]}`,
 # with a potential `through: list[str | {node, products}]` attribute
 function variable_item_IR()
     properties = [
-        Property("nodes" => OneOrManyIR(; items = NODE_DEF, eltype = "string"), required = false),
+        Property("nodes" => subnode_IR(multiple = true), required = false),
         Property("groups" => OneOrManyIR(; items = GROUP_DEF, eltype = "string"), required = false),
         Property("cols" => OneOrManyIR(; items = COL_DEF, eltype = "string"), required = false),
-        # Which products of the selected nodes to keep. Not enumerable here — they depend on the
-        # node — so an unknown one is caught when the selection is resolved, as for a chain step.
-        Property("products" => ArrayIR(items = StringIR(minLength = 1), minItems = 1), required = false),
-        Property("through" => ArrayIR(; items = through_step_IR(), default = []), required = false),
+        Property("through" => ArrayIR(; items = subnode_IR(), default = []), required = false),
     ]
     oneOf = [
         StringDict("required" => ["nodes"]),

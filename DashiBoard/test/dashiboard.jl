@@ -450,7 +450,7 @@ mktempdir() do ws
             )
         )
         params = Dict("nodes" => [_fit, _reader], "groups" => Dict{String, Any}())
-        probe = post_probe("evaluate-pipeline", params)
+        probe = post_probe("train-evaluate-pipeline", params)
 
         node(id) = only(n for n in probe["result"]["nodes"] if n["id"] == id)
         @test node("fit")["products"] == [Dict("product" => "prediction", "outputs" => ["PRES_hat"])]
@@ -491,8 +491,8 @@ mktempdir() do ws
         # The group dialect: {filters, nodes, groups} with selector-form variable fields, which
         # is what the new UI authors. The flat {filters, cards} shape is gone from this route.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline-groups.json"))
-        @test all(n -> isempty(n["unproduced"]), post_probe("evaluate-pipeline", params)["result"]["nodes"])
-        resp = post("evaluate-pipeline", params)
+        @test all(n -> isempty(n["unproduced"]), post_probe("train-evaluate-pipeline", params)["result"]["nodes"])
+        resp = post("train-evaluate-pipeline", params)
         @test haskey(resp, "result")
         result = resp["result"]
         summaries = result["summaries"]
@@ -593,7 +593,7 @@ mktempdir() do ws
         # which it does not read — it reads `TEMP` — so the pipeline refuses to build and the
         # answer names the node responsible.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-bad.json"))
-        resp = post_probe("evaluate-pipeline", params)
+        resp = post_probe("train-evaluate-pipeline", params)
         metadata = resp["error"]["data"]
         @test metadata["kind"] == "pipeline"
         # It arrives in the same shape as a schema failure, so a form reads one list: the card to
@@ -624,7 +624,7 @@ mktempdir() do ws
             ],
             "groups" => Dict{String, Any}(),
         )
-        resp = post_probe("evaluate-pipeline", params)
+        resp = post_probe("train-evaluate-pipeline", params)
         result = resp["result"]
         product = only(only(result["nodes"])["through"])
         @test isnothing(product["product"])
@@ -663,12 +663,12 @@ mktempdir() do ws
             ],
             "groups" => Dict{String, Any}("g" => [Dict("cols" => ["TEMP", "Iws"])]),
         )
-        resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("Iws" => "log"))))
+        resp = post_probe("train-evaluate-pipeline", fit(Dict("input_transforms" => Dict("Iws" => "log"))))
         result = resp["result"]
         @test result["nodes"][2]["lists"] == Dict("inputs" => ["TEMP", "Iws"], "targets" => ["PRES_z"])
 
         # A transform for a column the list does not reach is a pointed issue at its entry.
-        resp = post_probe("evaluate-pipeline", fit(Dict("input_transforms" => Dict("GONE" => "log"))))
+        resp = post_probe("train-evaluate-pipeline", fit(Dict("input_transforms" => Dict("GONE" => "log"))))
         issue = only(resp["error"]["data"]["issues"])
         @test issue["pointer"] == "/nodes/1/card/funnel/input_transforms/GONE"
     end
@@ -688,7 +688,7 @@ mktempdir() do ws
             "groups" => Dict{String, Any}(),
         )
         for call in (post_probe, post)
-            data = call("evaluate-pipeline", params)["error"]["data"]
+            data = call("train-evaluate-pipeline", params)["error"]["data"]
             @test data["kind"] == "pipeline"
             issue = only(data["issues"])
             @test issue["reason"] == "unproduced" && issue["pointer"] == "/nodes/0/card"
@@ -699,7 +699,7 @@ mktempdir() do ws
     @testset "probe-group" begin
         # A step naming a product the node does not have is a pointed issue, with what it has.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-groups.json"))
-        resp = post_probe("evaluate-pipeline", params)
+        resp = post_probe("train-evaluate-pipeline", params)
         issue = only(resp["error"]["data"]["issues"])
         @test issue["reason"] == "through"
         @test issue["pointer"] == "/nodes/1/card"
@@ -715,7 +715,7 @@ mktempdir() do ws
         # The run answers the same: the route is public and cannot assume a probe came first.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-noid.json"))
         for call in (post_probe, post)
-            metadata = call("evaluate-pipeline", params)["error"]["data"]
+            metadata = call("train-evaluate-pipeline", params)["error"]["data"]
             @test metadata["kind"] == "pipeline"
             @test occursin("id", only(metadata["errors"]))
         end
@@ -725,7 +725,7 @@ mktempdir() do ws
         # A schema failure reaches the client as an issue in the failure's data, addressed by JSON
         # Pointer into the document; what the issue says is Pipelines' to test.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "probe-badvalue.json"))
-        resp = post_probe("evaluate-pipeline", params)
+        resp = post_probe("train-evaluate-pipeline", params)
         metadata = resp["error"]["data"]
         issue = only(metadata["issues"])
         @test issue["pointer"] == "/nodes/0/card/inputs/1/cols"
@@ -737,9 +737,9 @@ mktempdir() do ws
         # Placed before the failing-run block below: this run succeeds and leaves `selection`
         # equal to `source`, which that block's CSV assertion tolerates.
         params = Dict("filters" => [], "nodes" => [], "groups" => Dict{String, Any}())
-        resp = post_probe("evaluate-pipeline", params)
+        resp = post_probe("train-evaluate-pipeline", params)
         @test haskey(resp, "result")
-        resp = post("evaluate-pipeline", params)
+        resp = post("train-evaluate-pipeline", params)
         empty_run = resp["result"]
         @test "TEMP" in [s["name"] for s in empty_run["summaries"]]
 
@@ -752,7 +752,7 @@ mktempdir() do ws
             "nodes" => [],
             "groups" => Dict("g" => [Dict("cols" => "TEMP")]),
         )
-        resp = post_probe("evaluate-pipeline", groups_only)
+        resp = post_probe("train-evaluate-pipeline", groups_only)
         @test haskey(resp, "result")
     end
 
@@ -774,7 +774,7 @@ mktempdir() do ws
             "groups" => Dict("empty" => []),
         )
         for f in (post_probe, post)
-            resp = f("evaluate-pipeline", reads_empty)
+            resp = f("train-evaluate-pipeline", reads_empty)
             metadata = resp["error"]["data"]
             @test metadata["kind"] == "pipeline"
             issue = only(metadata["issues"])
@@ -802,7 +802,7 @@ mktempdir() do ws
             "groups" => Dict("empty" => []),
         )
         for f in (post_probe, post)
-            resp = f("evaluate-pipeline", empty_and_broken)
+            resp = f("train-evaluate-pipeline", empty_and_broken)
             metadata = resp["error"]["data"]
             @test [(issue["pointer"], issue["reason"]) for issue in metadata["issues"]] ==
                 [("/groups/empty", "empty"), ("/nodes/1/card", "required")]
@@ -817,7 +817,7 @@ mktempdir() do ws
             ],
             "groups" => Dict{String, Any}(),
         )
-        resp = post("evaluate-pipeline", two_broken)
+        resp = post("train-evaluate-pipeline", two_broken)
         metadata = resp["error"]["data"]
         @test all(i["severity"] == "error" for i in metadata["issues"])
     end
@@ -845,14 +845,14 @@ mktempdir() do ws
             ],
             "groups" => Dict{String, Any}(),
         )
-        resp = post_probe("evaluate-pipeline", same_name)
+        resp = post_probe("train-evaluate-pipeline", same_name)
         @test haskey(resp, "result")
         result = resp["result"]
         warning = only(i for i in result["issues"] if i["reason"] == "overwrites")
         @test warning["severity"] == "warning"
         @test warning["pointer"] == "/nodes/1/card"
         @test occursin("TEMP_z", warning["message"])
-        resp = post("evaluate-pipeline", same_name)
+        resp = post("train-evaluate-pipeline", same_name)
         @test haskey(resp, "result")
     end
 
@@ -865,9 +865,9 @@ mktempdir() do ws
         # only place it can be reported is the response to the run itself — an envelope, not a
         # bare 500 with no body, so the client can tell a failed run from one that never happened.
         params = JSON.parsefile(joinpath(@__DIR__, "static", "evaluate-bad.json"))
-        resp = post_probe("evaluate-pipeline", params)
+        resp = post_probe("train-evaluate-pipeline", params)
         @test haskey(resp, "result")
-        resp = post("evaluate-pipeline", params)
+        resp = post("train-evaluate-pipeline", params)
         metadata = resp["error"]["data"]
         # `execution`, not `pipeline`: the document built fine and the *run* is what died. The
         # split is on which call threw, which is observable, rather than on whose fault it is,
@@ -897,7 +897,7 @@ mktempdir() do ws
             "groups" => Dict{String, Any}(),
         )
         for f in (post_probe, post)
-            resp = f("evaluate-pipeline", looped)
+            resp = f("train-evaluate-pipeline", looped)
             metadata = resp["error"]["data"]
             @test metadata["kind"] == "pipeline"
             issue = only(metadata["issues"])
@@ -915,7 +915,7 @@ mktempdir() do ws
             "nodes" => [rescale("a", Dict("groups" => "g")), rescale("b", Dict("nodes" => "a"))],
             "groups" => Dict("g" => [Dict("nodes" => "b")]),
         )
-        issue = only(post_probe("evaluate-pipeline", via_group)["error"]["data"]["issues"])
+        issue = only(post_probe("train-evaluate-pipeline", via_group)["error"]["data"]["issues"])
         @test issue["related"] == ["/nodes/0", "/nodes/1", "/groups/g"]
         @test endswith(issue["message"], ": a, b, g")
     end
@@ -930,7 +930,7 @@ mktempdir() do ws
             )
         )
         probe(nodes, groups) = post_probe(
-            "evaluate-pipeline",
+            "train-evaluate-pipeline",
             Dict("filters" => [], "nodes" => nodes, "groups" => groups)
         )
 
@@ -988,7 +988,7 @@ mktempdir() do ws
         @test resp.status == 200 && haskey(JSON.parse(String(resp.body)), "result")
 
         params = JSON.parsefile(joinpath(@__DIR__, "static", "pipeline-groups.json"))
-        @test haskey(JSON.parse(String(rpc("rpc-probe", "evaluate-pipeline", params).body))["result"], "nodes")
+        @test haskey(JSON.parse(String(rpc("rpc-probe", "train-evaluate-pipeline", params).body))["result"], "nodes")
 
         resp = rpc("rpc-stream", "fetch-data", Dict("processed" => false, "limit" => 2, "offset" => 0))
         @test resp.status == 200 && length(JSON.parse(String(resp.body))["values"]) == 2

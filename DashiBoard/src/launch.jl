@@ -29,6 +29,7 @@ function get_handlers(
     handlers["get-card-ir"] = get_card_ir
     handlers["validate-card"] = StructuredHandler(validate_card, :pipeline)
     handlers["evaluate-pipeline"] = evaluate_pipeline
+    handlers["train-evaluate-pipeline"] = train_evaluate_pipeline
 
     stream_handlers["bundle-pipeline"] = StructuredHandler(bundle_pipeline, :bundle)
     stream_handlers["fetch-data"] = fetch_data

@@ -9,6 +9,8 @@ using Base: Fix1, Fix2
 
 using Base.ScopedValues: @with, ScopedValue
 
+using Dates: DateTime, now
+
 using HTTP: HTTP, startread, startwrite, closeread
 
 using Logging: Logging, AbstractLogger, with_logger, current_logger
@@ -47,7 +49,7 @@ using FunSQL:
 using DashiBase: StringDict, Maybe, ProbedThunk, DashiBase
 using DuckDBUtils: Repository, export_table, to_nrow, colnames
 
-using DataIngestion: Filter, DataIngestion
+using DataIngestion: Filter, VariableSummary, DataIngestion
 
 using Pipelines: Card, Pipelines, Parser, default_parser
 
@@ -65,9 +67,9 @@ const ID_VAR = ScopedValue("_id")
 # The directory every file route is confined to, and the two kinds of file Pipelines has no
 # directory for. The tables' and the configurations' directories are DataIngestion's and
 # Pipelines' own scoped values; these complete the set.
-const WORKSPACE = ScopedValue("")
-const PIPELINE_DIR = ScopedValue("")
-const FILTER_DIR = ScopedValue("")
+const WORKSPACE = ScopedValue(".")
+const PIPELINE_DIR = ScopedValue(".")
+const FILTER_DIR = ScopedValue(".")
 
 @kwarg struct ExtensionConfig
     is_plugin::Bool = false
@@ -79,6 +81,7 @@ end
 const EXTENSIONS = ScopedValue(Dict{String, ExtensionConfig}())
 const EXTENSION_OF = ScopedValue(Dict{String, String}())
 
+include("entries.jl")
 include("workspace.jl")
 include("handlers.jl")
 include("bundle.jl")

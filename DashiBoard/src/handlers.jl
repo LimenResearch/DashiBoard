@@ -334,11 +334,9 @@ function load_files(spec::AbstractDict)
     # Checked here, not in `DataIngestion.parse_paths`, which joins `..` without looking and is
     # not ours to change: a client names files by the relative paths `list-files` gave it, and a
     # path that leaves the data directory is refused before anything is read.
-    foreach(resolve_in_data_dir, spec["files"])
-    return function ()
-        DataIngestion.load_files(REPOSITORY[], spec)
-        return DataIngestion.summarize(REPOSITORY[], "source")
-    end
+    files::Vector{String} = spec["files"]
+    foreach(resolve_in_data_dir, files)
+    return load_files(FilesConfig(files = parse_paths(spec)), TableConfig(table = "source"))
 end
 
 """

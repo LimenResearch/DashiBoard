@@ -49,7 +49,7 @@ using FunSQL:
 using DashiBase: StringDict, Maybe, ProbedThunk, DashiBase
 using DuckDBUtils: Repository, export_table, to_nrow, colnames
 
-using DataIngestion: Filter, VariableSummary, DataIngestion
+using DataIngestion: parse_paths, Filter, VariableSummary, DataIngestion
 
 using Pipelines: Card, Pipelines, Parser, default_parser
 
@@ -83,6 +83,7 @@ const EXTENSION_OF = ScopedValue(Dict{String, String}())
 
 include("entries.jl")
 include("workspace.jl")
+include("mcp.jl")
 include("handlers.jl")
 include("bundle.jl")
 include("middleware.jl")

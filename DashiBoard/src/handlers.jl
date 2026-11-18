@@ -790,9 +790,13 @@ end
 function get_processed_data(::AbstractDict)
     return function (path)
         # TODO add required format as request parameter
-        format = "csv"
+        # TODO: validation should be outside callable
+        export_thunk = ExportData(;
+            table = TableConfig(table = "selection", id_var = ID_VAR[]),
+            format = "csv", destination = path
+        ) |> validate_method
+        export_thunk()
         content_type = "text/csv"
-        export_table(REPOSITORY[], From("selection"), path; format, use_tmp_file = false)
         writer = Writer()
         # `attachment` because browsers ignore a link's `download` across origins.
         headers = [

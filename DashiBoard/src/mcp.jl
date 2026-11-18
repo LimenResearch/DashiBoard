@@ -231,3 +231,15 @@ function validate_method(rp::RunPipeline)
         end
     end
 end
+
+@kwarg struct ExportData <: ValidatedCallable
+    table::TableConfig
+    destination::String
+    format::String
+    cols::Maybe{Vector{String}} = nothing
+end
+
+function ((; table, destination, format, cols)::ExportData)()
+    q = isnothing(cols) ? From(table.table) : From(table.table) |> Select(args = Get.(cols))
+    return export_table(REPOSITORY[], q, destination; format, table.schema, use_tmp_file = false)
+end

@@ -50,3 +50,4 @@
 - A model architecture declares the fields it yields with `StreamlinerCore.output_fields`; `ingest` writes each selected field, with one suffix per field.
 - A transform map that names a column its list does not have raises `StreamlinerCore.TransformError`, reported at the entry at fault.
 - DashiBase: `EitherIR` for a value of one of several types, `MapIR` for a map of names to values of one kind, `uniqueItems` on `ArrayIR` for a list that is a set, and `options_from` on `TaggedObjectIR` for a choice among files.
+- `export-table` saves the latest pipeline result as a parquet or CSV file in the data folder; `get-processed-data` takes a `format` (`"csv"` default, or `"parquet"`), also as `?format=` on its link; `DuckDBUtils.export_table` and every write route refuse a path containing `'`.

@@ -260,6 +260,12 @@ end
             @test read(path2, String) == "x,y\n1,a\n2,b\n3,c\n"
             @test_warn "Schema will be ignored" DuckDBUtils.export_table(r, "FROM \"schm\".\"$(name)\"", path2; schema = "schm")
         end
+        # The path is written into SQL as a string literal: a quote in it is refused, not escaped.
+        quoted = joinpath(dir, "it's.csv")
+        DuckDBUtils.with_table(r, x) do name
+            @test_throws ArgumentError DuckDBUtils.export_table(r, From(name), quoted)
+        end
+        @test !ispath(quoted)
         mktempdir() do data_dir
             db_path = joinpath(data_dir, "db.duckdb")
             DBInterface.execute(Returns(nothing), r, "ATTACH '$(db_path)' AS my_db;")

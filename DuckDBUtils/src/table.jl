@@ -104,6 +104,8 @@ optional parameters `params` in schema `schema` in `repository.db`.
 """
 function export_table(args...; schema::Union{AbstractString, Nothing} = nothing, options...)
     path::AbstractString = last(args)
+    # `path` is written into the statement as a string literal, so a quote would end it.
+    occursin('\'', path) && throw(ArgumentError("`$(path)`: a path containing ' cannot be exported to"))
     repository, query, params = regularize(front(args)...; schema, warn = true)
 
     option_strs = [string(k, " ", v) for (k, v) in pairs(options)]

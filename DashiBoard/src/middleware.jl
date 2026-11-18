@@ -118,8 +118,25 @@ function stream_response(h::JSONStreamHandler, stream::HTTP.Stream, s::AbstractS
     return
 end
 
-# What the GET download asks for, as the request a client would have sent to `/rpc-stream`.
-const PROCESSED_DATA_REQUEST = """{"jsonrpc":"2.0","id":0,"method":"get-processed-data","params":{}}"""
+"""
+    processed_data_request(target) -> String
+
+The `get-processed-data` request a plain link stands for: a link carries no JSON-RPC body, so its
+query (`?format=parquet`) becomes the params. Only `format` is passed on. A query that cannot be
+decoded is passed on as the format, so the handler refuses it with a structured error rather than
+the link failing before any handler runs.
+"""
+function processed_data_request(target::AbstractString)
+    uri = HTTP.URI(target)
+    query = try
+        HTTP.queryparams(uri)
+    catch exception
+        exception isa ArgumentError || rethrow()
+        Dict("format" => "undecodable query `$(uri.query)`")
+    end
+    params = haskey(query, "format") ? Dict("format" => query["format"]) : Dict{String, Any}()
+    return JSON.json((; jsonrpc = "2.0", id = 0, method = "get-processed-data", params))
+end
 
 """
     failure_report(kind::Symbol, exception)

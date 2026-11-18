@@ -26,6 +26,7 @@ function get_handlers(
     end
 
     handlers["load-files"] = StructuredHandler(load_files, :load)
+    handlers["export-table"] = StructuredHandler(export_selection, :export)
     handlers["get-card-ir"] = get_card_ir
     handlers["validate-card"] = StructuredHandler(validate_card, :pipeline)
     handlers["evaluate-pipeline"] = evaluate_pipeline
@@ -33,7 +34,7 @@ function get_handlers(
 
     stream_handlers["bundle-pipeline"] = StructuredHandler(bundle_pipeline, :bundle)
     stream_handlers["fetch-data"] = fetch_data
-    stream_handlers["get-processed-data"] = get_processed_data
+    stream_handlers["get-processed-data"] = StructuredHandler(get_processed_data, :download)
 
     middleware = DashiBase.ScopedMiddleware(
         Pipelines.PARSER => parser,
@@ -76,7 +77,7 @@ function launch(
     HTTP.register!(router, "POST", "/rpc-stream", stream_handler)
     # The table download as a plain GET: a link cannot carry a JSON-RPC body, and only a download
     # the browser makes itself streams to disk rather than through the page's memory.
-    HTTP.register!(router, "GET", "/get-processed-data", stream -> stream_response(stream_handler, stream, PROCESSED_DATA_REQUEST))
+    HTTP.register!(router, "GET", "/get-processed-data", stream -> stream_response(stream_handler, stream, processed_data_request(stream.message.target)))
 
     cors_router = router |> CorsMiddleware
 

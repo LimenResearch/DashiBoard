@@ -67,6 +67,8 @@ function writable(path::AbstractString)
     hidden(segment) = startswith(segment, ".") && segment != "." && segment != ".."
     any(hidden, segments) && throw(ArgumentError("`$(path)` is hidden, and hidden files and folders are not written to"))
     lowercase(last(segments)) == WORKSPACE_FILE && throw(ArgumentError("`$(path)`: the workspace file is not written through the server"))
+    # A file a client names may end up inside SQL (a table export), where a quote ends the string.
+    occursin('\'', path) && throw(ArgumentError("`$(path)`: names containing ' are not written to"))
     return path
 end
 
@@ -902,19 +904,85 @@ function fetch_data(spec::AbstractDict)
     end
 end
 
-function get_processed_data(::AbstractDict)
+# The formats a result table is written in, and the content type each is sent with.
+const TABLE_FORMATS = Dict("csv" => "text/csv", "parquet" => "application/vnd.apache.parquet")
+
+"""
+    table_format(format) -> String
+
+`format` when it is one of `TABLE_FORMATS`, exactly as written; an `ArgumentError` otherwise.
+"""
+function table_format(format)
+    format isa AbstractString && haskey(TABLE_FORMATS, format) && return String(format)
+    throw(ArgumentError("unknown format `$(format)`: use \"csv\" or \"parquet\""))
+end
+
+function get_processed_data(spec::AbstractDict)
+    # Checked before the closure, so a bad format is refused before anything is written.
+    format = table_format(get(spec, "format", "csv"))
     return function (path)
-        # TODO add required format as request parameter
-        format = "csv"
-        content_type = "text/csv"
         export_table(REPOSITORY[], From("selection"), path; format, use_tmp_file = false)
         writer = Writer()
         # `attachment` because browsers ignore a link's `download` across origins.
         headers = [
-            "Content-Type" => content_type,
+            "Content-Type" => TABLE_FORMATS[format],
             "Content-Length" => content_length(writer, path),
-            "Content-Disposition" => "attachment; filename=\"processed-data.csv\"",
+            "Content-Disposition" => "attachment; filename=\"processed-data.$(format)\"",
         ]
         return headers, writer
+    end
+end
+
+# Whether `table` exists where an unqualified `FROM table` would find it, and its columns as that
+# query sees them. Catalogue lookups, not passes over the data. `information_schema` alone is not
+# enough: it lists a table of that name in every schema and attached database.
+function has_table(repository, table::AbstractString)
+    q = """
+    SELECT count(*) AS n FROM information_schema.tables
+    WHERE table_name = '$(table)' AND table_schema = current_schema() AND table_catalog = current_database();
+    """
+    return only(DBInterface.execute(Tables.columntable, repository, q).n) > 0
+end
+
+function column_types(repository, table::AbstractString)
+    (; column_name, column_type) = DBInterface.execute(Tables.columntable, repository, "DESCRIBE \"$(table)\";")
+    return [(; name, type) for (name, type) in zip(column_name, column_type)]
+end
+
+"""
+    export_selection(spec)
+
+Save the latest pipeline result, the `selection` table with its `_id`, as a file in the data
+folder: `path` relative to it, `format` `"parquet"` (default) or `"csv"`. Answers with the path,
+the format, the number of rows and the columns.
+
+Everything is checked before anything is written, so a dry run on `/rpc-probe` writes nothing:
+the path, as every write route checks it; an extension that is not exactly the format's; an
+existing file, which is never overwritten; a server where no pipeline has run.
+
+The table goes to a hidden file beside `path` and is renamed into place once complete, so a
+failed write never leaves a partial file under the name a client will read.
+"""
+function export_selection(spec::AbstractDict)
+    format = table_format(get(spec, "format", "parquet"))
+    path = spec["path"]
+    full = resolve_in_data_dir(writable(path))
+    last(splitext(full)) == "." * format ||
+        throw(ArgumentError("a $(format) file ends in .$(format): `$(path)` does not"))
+    ispath(full) && throw(ArgumentError("`$(path)` already exists"))
+    has_table(REPOSITORY[], "selection") ||
+        throw(ArgumentError("nothing to export: no pipeline has run yet"))
+    return function ()
+        tmp = joinpath(dirname(full), "." * basename(full) * ".tmp")
+        try
+            mkpath(dirname(full))
+            (; Count) = export_table(REPOSITORY[], From("selection"), tmp; format, use_tmp_file = false)
+            mv(tmp, full)
+            return (; path, format, rows = Count, columns = column_types(REPOSITORY[], "selection"))
+        catch exception
+            rm(tmp; force = true)
+            exception isa Exception || rethrow()
+            throw_failure(:export, exception)
+        end
     end
 end

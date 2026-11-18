@@ -511,6 +511,22 @@ mktempdir() do ws
         @test l1 == "No,year,month,day,hour,pm2.5,DEWP,TEMP,PRES,cbwd,Iws,Is,Ir,_id,_percentile_partition,_tiled_partition"
         @test l2 == "8761,2011,1,1,0,NA,-21,-9,1033.0,NW,570.41,0,0,8761,1,1"
 
+        # The same result as parquet: same columns, same rows.
+        ppath = joinpath(data_dir, "download.parquet")
+        resp, bytes = post("get-processed-data", Dict("format" => "parquet"), ppath)
+        @test resp["result"]["Content-Type"] == "application/vnd.apache.parquet"
+        @test resp["result"]["Content-Disposition"] == "attachment; filename=\"processed-data.parquet\""
+        write(ppath, bytes)
+        back = DBInterface.execute(DataFrame, repo, "FROM read_parquet('$(ppath)')")
+        @test names(back) == split(l1, ',')
+        @test nrow(back) == count(==('\n'), s) - 1
+        rm(ppath)
+        # Formats are exact: anything else is refused before anything is written.
+        for bad in ("xlsx", "Parquet")
+            resp, bytes = post("get-processed-data", Dict("format" => bad), ppath)
+            @test haskey(resp, "error") && isnothing(bytes)
+        end
+
         path = joinpath(data_dir, "rows.json")
         params = JSON.parsefile(joinpath(@__DIR__, "static", "fetch.json"))
         resp, bytes = post("fetch-data", params, path)
@@ -549,6 +565,78 @@ mktempdir() do ws
         @test isnothing(tbl["values"][1]["bad"])
         @test tbl["values"][1]["good"] == 2.5
         @test tbl["values"][1]["s"] == "x"
+    end
+
+    @testset "export-table" begin
+        # Read a written table back through DuckDB, quoting the path as SQL needs.
+        rows_of(p) = DBInterface.execute(DataFrame, repo, "FROM '$(replace(p, "'" => "''"))'")
+        current = DBInterface.execute(DataFrame, repo, "FROM selection")
+        n = nrow(current)
+
+        # Parquet by default, CSV on request: every row and column of `selection` as stored
+        # (`_id` included when there is one, see below), nothing else left behind.
+        for (p, fmt) in (("out/a.parquet", nothing), ("out/b.csv", "csv"))
+            params = isnothing(fmt) ? Dict("path" => p) : Dict("path" => p, "format" => fmt)
+            r = post("export-table", params)["result"]
+            @test r["path"] == p && r["rows"] == n
+            @test r["format"] == something(fmt, "parquet")
+            @test [c["name"] for c in r["columns"]] == names(current)
+            @test nrow(rows_of(joinpath(data_dir, p))) == n
+            @test all(!startswith(f, ".") for f in readdir(joinpath(data_dir, "out")))
+        end
+
+        # A dry run checks and writes nothing.
+        @test haskey(post_probe("export-table", Dict("path" => "probe.parquet")), "result")
+        @test !isfile(joinpath(data_dir, "probe.parquet"))
+
+        # Refused before anything is written: outside the folder, hidden, the workspace file,
+        # an existing file, an extension that is not the format's, a format not written exactly.
+        for p in ("/tmp/x.parquet", "../x.parquet", ".h/x.parquet", "dashiboard.toml", "out/a.parquet", "x.csv", "it's.parquet")
+            @test haskey(post("export-table", Dict("path" => p)), "error")
+        end
+        @test !ispath(joinpath(data_dir, ".h")) && !isfile(joinpath(data_dir, "x.csv")) && !isfile(joinpath(data_dir, "it's.parquet"))
+        @test haskey(post("export-table", Dict("path" => "c.parquet", "format" => "Parquet")), "error")
+        @test !isfile(joinpath(data_dir, "c.parquet"))
+
+        # Spaces and accents are part of a name like any other character.
+        for p in ("résultats 1/x.parquet",)
+            @test haskey(post("export-table", Dict("path" => p)), "result")
+            @test nrow(rows_of(joinpath(data_dir, p))) == n
+        end
+
+        # A temporary file left by an earlier crash does not block the export, and is gone after.
+        write(joinpath(data_dir, ".stale.parquet.tmp"), "junk")
+        @test haskey(post("export-table", Dict("path" => "stale.parquet")), "result")
+        @test !isfile(joinpath(data_dir, ".stale.parquet.tmp"))
+
+        # A write that fails leaves neither the file nor its temporary copy. A read-only folder is
+        # how the write is made to fail, and root writes through it, so the check needs a user.
+        if Base.Libc.getuid() != 0
+            locked = mkpath(joinpath(data_dir, "locked"))
+            chmod(locked, 0o555)
+            try
+                resp = post("export-table", Dict("path" => "locked/x.parquet"))
+                @test haskey(resp, "error") && haskey(resp["error"], "data")
+                @test isempty(readdir(locked))
+            finally
+                chmod(locked, 0o755)
+            end
+        end
+
+        # On a server where nothing has run there is nothing to export; an empty result is fine.
+        saved = DashiBoard.REPOSITORY[]
+        fresh = DashiBoard.Repository()
+        DashiBoard.REPOSITORY[] = fresh
+        try
+            @test haskey(post("export-table", Dict("path" => "none.parquet")), "error")
+            @test !isfile(joinpath(data_dir, "none.parquet"))
+            DBInterface.execute(Returns(nothing), fresh, "CREATE TABLE selection AS SELECT 1::BIGINT AS _id WHERE false;")
+            r = post("export-table", Dict("path" => "empty.parquet"))["result"]
+            @test r["rows"] == 0 && r["columns"] == [Dict("name" => "_id", "type" => "BIGINT")]
+            @test names(rows_of(joinpath(data_dir, "empty.parquet"))) == ["_id"]
+        finally
+            DashiBoard.REPOSITORY[] = saved
+        end
     end
 
     @testset "validate-card" begin
@@ -1006,6 +1094,14 @@ mktempdir() do ws
         resp = HTTP.get(url * "get-processed-data"; status_exception = false)
         @test resp.status == 200 && HTTP.header(resp, "Content-Type") == "text/csv"
         @test HTTP.header(resp, "Content-Disposition") == "attachment; filename=\"processed-data.csv\""
+        # The link takes the format from its query.
+        resp = HTTP.get(url * "get-processed-data?format=parquet"; status_exception = false)
+        @test resp.status == 200 && HTTP.header(resp, "Content-Type") == "application/vnd.apache.parquet"
+        resp = HTTP.get(url * "get-processed-data?format=bogus"; status_exception = false)
+        @test resp.status != 200 && haskey(JSON.parse(String(resp.body)), "error")
+        # A query that cannot be decoded is refused like a bad format, not with a bare 500.
+        resp = HTTP.get(url * "get-processed-data?format=%ZZ"; status_exception = false)
+        @test resp.status != 200 && haskey(JSON.parse(String(resp.body)), "error")
 
         @test ("Access-Control-Allow-Origin" => "*") in HTTP.post(url * "nowhere"; status_exception = false).headers
         @test HTTP.options(url * "rpc").headers == [DashiBoard.CORS_OPTIONS_HEADERS..., "Content-Length" => "0"]

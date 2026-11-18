@@ -100,6 +100,20 @@ end
     _pipeline_schema_invalidate(schema, merge(d["mds"], Dict("n_components" => 0)))
 end
 
+@testset "anomaly schema" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "anomaly.json"))
+    schema = Pipelines.card_schema("anomaly", split_vars) |> JSONSchema.Schema
+    _pipeline_schema_validate(schema, d["isolation_forest"])
+    _pipeline_schema_validate(schema, d["mahalanobis"])
+    _pipeline_schema_validate(schema, d["pca_reconstruction"])
+    bad = deepcopy(d["pca_reconstruction"])
+    bad["method"]["n_components"] = 0
+    _pipeline_schema_invalidate(schema, bad)
+    bad = deepcopy(d["isolation_forest"])
+    bad["method"]["sample_size"] = 1
+    _pipeline_schema_invalidate(schema, bad)
+end
+
 @testset "glm schema" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
     schema = Pipelines.card_schema("glm", split_vars) |> JSONSchema.Schema

@@ -65,6 +65,7 @@ Pipelines.WindowFunctionCard
 Pipelines.RescaleCard
 Pipelines.ClusterCard
 Pipelines.DimensionalityReductionCard
+Pipelines.AnomalyCard
 Pipelines.GLMCard
 Pipelines.MixedModelCard
 Pipelines.InterpCard

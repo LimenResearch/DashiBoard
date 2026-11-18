@@ -710,8 +710,9 @@ function execute_pipeline(
     src, dst = TableConfig(table = "source"), TableConfig(table = "selection")
     filters = Filter.(get(spec, "filters", []))
     select_thunk = select_data(src, dst, SelectionConfig(; filters))
-    pipeline_thunk = run_pipeline(dst, PipelineConfig(spec); train_callback, eval_callback, train)
-    return function ()
+    pipeline_thunk = run_pipeline(src, dst, PipelineConfig(spec); train_callback, eval_callback, train)
+    probe = DashiBase.probe(pipeline_thunk)
+    return ProbedThunk(probe) do
         select_thunk()
         pipeline_thunk()
     end

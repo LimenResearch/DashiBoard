@@ -14,6 +14,13 @@ TableConfig(spec::AbstractDict) = StructUtils.make(TableConfig, spec)
 function load_files(files::FilesConfig, table::TableConfig)
     return function ()
         DataIngestion.load_files(REPOSITORY[], files.files, table.table; table.schema)
+        # TODO: cleaner solution
+        DataIngestion.replace_table(
+            REPOSITORY[],
+            From(table.table) |> Partition() |> Define(ID_VAR[] => Agg.row_number()),
+            table.table;
+            table.schema
+        )
         return DataIngestion.summarize(REPOSITORY[], table.table; table.schema)
     end
 end
@@ -27,15 +34,18 @@ SelectionConfig(spec::AbstractDict) = StructUtils.make(SelectionConfig, spec)
 
 function select_data(source::TableConfig, target::TableConfig, selection::SelectionConfig)
     (; table, schema) = target
+    virtual = true
     return function ()
-        DuckDBUtils.with_table_name(REPOSITORY[]; schema = target.schema) do src
+        # work-around in case source and target belong to different schemas
+        DuckDBUtils.with_table_name(REPOSITORY[]; schema, virtual) do src
             DuckDBUtils.replace_table(
+                REPOSITORY[],
                 "FROM $(DuckDBUtils.in_schema(source.table, source.schema));", src;
-                schema, virtual = true
+                schema, virtual
             )
             transform = isnothing(selection.cols) ? identity : Select(args = Get.(selection.cols))
             DataIngestion.select(
-                REPOSITORY[], selection.filters, src, table; schema, transform
+                REPOSITORY[], selection.filters, src => table; schema, transform
             )
         end
         return
@@ -66,7 +76,10 @@ Structure to encode outcome of training or evaluation run.
     graph::String
 end
 
+run_pipeline(table::TableConfig, config::PipelineConfig; kwargs...) = run_pipeline(table, table, config; kwargs...)
+
 function run_pipeline(
+        proxy::TableConfig,
         table::TableConfig,
         config::PipelineConfig;
         train_callback = Returns(nothing),
@@ -75,7 +88,7 @@ function run_pipeline(
     )
 
     may_refer = referable(config.nodes, config.groups)
-    cols = DuckDBUtils.colnames(REPOSITORY[], table.table; table.schema)
+    cols = DuckDBUtils.colnames(REPOSITORY[], proxy.table; proxy.schema)
 
     # Before building: see `empty_group_issues` for why construction cannot report this itself.
     # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
@@ -108,7 +121,7 @@ function run_pipeline(
 
     absent = Dict(Pipelines.unproduced_references(pipeline, cols))
     # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.
-    unfit = model_issues(REPOSITORY[], pipeline, table.table; table.schema)
+    unfit = model_issues(REPOSITORY[], pipeline, proxy.table; proxy.schema)
     # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
     # this the third answer to "what is this node called" in three files.
     ids = Pipelines.get_id.(config.nodes)
@@ -174,12 +187,12 @@ function run_pipeline(
         return try
             if train
                 Pipelines.train_evaljoin!(
-                    REPOSITORY[], pipeline, table.destination, table.id_var;
+                    REPOSITORY[], pipeline, table.table, ID_VAR[];
                     train_callback, eval_callback
                 )
             else
                 Pipelines.evaljoin(
-                    REPOSITORY[], pipeline, table.destination, table.id_var;
+                    REPOSITORY[], pipeline, table.table, ID_VAR[];
                     eval_callback
                 )
             end

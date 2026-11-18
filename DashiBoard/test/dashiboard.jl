@@ -280,7 +280,8 @@ mktempdir() do ws
         params = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
         resp = post("load-files", params)
         summaries = resp["result"]
-        @test summaries[end]["name"] == "Ir"
+        @test summaries[end - 1]["name"] == "Ir"
+        @test summaries[end]["name"] == "_id"
     end
 
     @testset "document and configurations" begin
@@ -1058,7 +1059,7 @@ mktempdir() do ws
 
             # A table is loaded from the data folder, not the workspace root.
             loaded = lpost("load-files", Dict("name" => "t", "files" => ["t.csv"]))["result"]
-            @test [c["name"] for c in loaded] == ["a", "b"]
+            @test [c["name"] for c in loaded] == ["a", "b", "_id"]
         end
     end
 end

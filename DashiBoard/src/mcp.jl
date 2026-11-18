@@ -5,6 +5,7 @@ end
 FilesConfig(spec::AbstractDict) = StructUtils.make(FilesConfig, spec)
 
 @kwarg struct TableConfig
+    id_var::String
     table::String
     schema::Maybe{String} = nothing
 end
@@ -13,7 +14,7 @@ TableConfig(spec::AbstractDict) = StructUtils.make(TableConfig, spec)
 
 function load_files(files::FilesConfig, table::TableConfig)
     return function ()
-        DataIngestion.load_files(REPOSITORY[], files.files, table.table; table.schema, id_var = ID_VAR[])
+        DataIngestion.load_files(REPOSITORY[], files.files, table.table; table.schema, table.id_var)
         return DataIngestion.summarize(REPOSITORY[], table.table; table.schema)
     end
 end
@@ -33,7 +34,7 @@ function select_data(source::TableConfig, target::TableConfig, selection::Select
         DuckDBUtils.with_table_name(REPOSITORY[]; schema, virtual) do src
             DuckDBUtils.replace_table(
                 REPOSITORY[],
-                "FROM $(DuckDBUtils.in_schema(source.table, source.schema));", src;
+                "FROM $(DuckDBUtils.in_schema(source.table, source.schema))", src;
                 schema, virtual
             )
             transform = isnothing(selection.cols) ? identity : Select(args = Get.(selection.cols))
@@ -180,15 +181,16 @@ function run_pipeline(
         return try
             if train
                 Pipelines.train_evaljoin!(
-                    REPOSITORY[], pipeline, table.table, ID_VAR[];
-                    train_callback, eval_callback
+                    REPOSITORY[], pipeline, table.table, table.id_var;
+                    train_callback, eval_callback, table.schema
                 )
             else
                 Pipelines.evaljoin(
-                    REPOSITORY[], pipeline, table.table, ID_VAR[];
-                    eval_callback
+                    REPOSITORY[], pipeline, table.table, table.id_var;
+                    eval_callback, table.schema
                 )
             end
+            # FIXME: this signature should include table, schema and id_var
             report = Pipelines.report(REPOSITORY[], pipeline.nodes)
             vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
             visualization = stringify_visualization.(vs)

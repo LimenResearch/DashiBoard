@@ -336,7 +336,10 @@ function load_files(spec::AbstractDict)
     # path that leaves the data directory is refused before anything is read.
     files::Vector{String} = spec["files"]
     foreach(resolve_in_data_dir, files)
-    return load_files(FilesConfig(files = parse_paths(spec)), TableConfig(table = "source"))
+    return load_files(
+        FilesConfig(files = parse_paths(spec)),
+        TableConfig(table = "source", id_var = ID_VAR[])
+    )
 end
 
 """
@@ -707,7 +710,7 @@ function execute_pipeline(
         train::Bool,
     )
 
-    src, dst = TableConfig(table = "source"), TableConfig(table = "selection")
+    src, dst = TableConfig(table = "source", id_var = ID_VAR[]), TableConfig(table = "selection", id_var = ID_VAR[])
     filters = Filter.(get(spec, "filters", []))
     select_thunk = select_data(src, dst, SelectionConfig(; filters))
     pipeline_thunk = run_pipeline(src, dst, PipelineConfig(spec); train_callback, eval_callback, train)

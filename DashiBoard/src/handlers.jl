@@ -523,14 +523,14 @@ function build_failure(nodes::AbstractVector, groups::AbstractDict, exception::E
 end
 
 """
-    model_issues(repository, pipeline, table) -> Vector
+    model_issues(repository, pipeline, table; schema::Union{AbstractString, Nothing} = nothing) -> Vector
 
 For each streamliner card of a built `pipeline`, whether its model can be built for what its
 funnel feeds it, sized from `table`: one error at the card's `model` for each that cannot. Asked
 by the probe, so Confirm turns the card red before a run trains anything, and by a run before it
 trains.
 """
-function model_issues(repository, pipeline, table::AbstractString)
+function model_issues(repository, pipeline, table::AbstractString; schema::Maybe{AbstractString} = nothing)
     issues = []
     for (i, node) in enumerate(pipeline.nodes)
         card = Pipelines.get_card(node)
@@ -539,7 +539,7 @@ function model_issues(repository, pipeline, table::AbstractString)
         # stops it building is left to the run, which reports every failure, rather than turning
         # a probe into an answer the form cannot render.
         issue = try
-            Pipelines.model_issue(repository, card, table)
+            Pipelines.model_issue(repository, card, table; schema)
         catch exception
             exception isa Exception || rethrow()
             # TODO: do we really want to use `@error` here?
@@ -707,12 +707,14 @@ function execute_pipeline(
         train::Bool,
     )
 
-    run = Run(_id = 0, trained = train, from = nothing, directory = nothing)
-    config = Config(spec)
-    cols = colnames(REPOSITORY[], "source")
-    source_metadata = Dict("cols" => cols)
-    flow = DataFlow(; id_var = ID_VAR[], source = "source", destination = "selection", source_metadata)
-    return _execute_pipeline(run, config, flow; select_callback, train_callback, eval_callback)
+    src, dst = TableConfig(table = "source"), TableConfig(table = "selection")
+    filters = Filter.(get(spec, "filters", []))
+    select_thunk = select_data(src, dst, SelectionConfig(; filters))
+    pipeline_thunk = run_pipeline(dst, PipelineConfig(spec); train_callback, eval_callback, train)
+    return function ()
+        select_thunk()
+        pipeline_thunk()
+    end
 end
 
 evaluate_pipeline(spec::AbstractDict) = execute_pipeline(spec; train = false)

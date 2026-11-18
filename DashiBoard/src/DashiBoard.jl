@@ -47,7 +47,7 @@ using FunSQL:
     Fun
 
 using DashiBase: StringDict, Maybe, ProbedThunk, DashiBase
-using DuckDBUtils: Repository, export_table, to_nrow, colnames
+using DuckDBUtils: Repository, export_table, to_nrow, colnames, DuckDBUtils
 
 using DataIngestion: parse_paths, Filter, VariableSummary, DataIngestion
 
@@ -81,7 +81,6 @@ end
 const EXTENSIONS = ScopedValue(Dict{String, ExtensionConfig}())
 const EXTENSION_OF = ScopedValue(Dict{String, String}())
 
-include("entries.jl")
 include("workspace.jl")
 include("mcp.jl")
 include("handlers.jl")

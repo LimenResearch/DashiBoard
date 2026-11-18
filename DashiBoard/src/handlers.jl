@@ -337,7 +337,7 @@ function load_files(spec::AbstractDict)
     files = FilesConfig(spec)
     table = TableConfig(table = "source", id_var = ID_VAR[])
     foreach(resolve_in_data_dir, files.files)
-    return LoadFiles(; files, table)
+    return LoadFiles(; files, table) |> validate_method
 end
 
 """

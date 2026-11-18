@@ -47,7 +47,7 @@ using FunSQL:
 using DashiBase: StringDict, Maybe, ProbedThunk, DashiBase
 using DuckDBUtils: Repository, export_table, to_nrow, colnames, DuckDBUtils
 
-using DataIngestion: parse_paths, Filter, VariableSummary, DataIngestion
+using DataIngestion: data_path, Filter, VariableSummary, DataIngestion
 
 using Pipelines: Card, Pipelines, Parser, default_parser
 

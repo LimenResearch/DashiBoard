@@ -337,7 +337,7 @@ function load_files(spec::AbstractDict)
     files::Vector{String} = spec["files"]
     foreach(resolve_in_data_dir, files)
     return LoadFiles(
-        files = FilesConfig(files = parse_paths(spec)),
+        files = FilesConfig(files = files),
         table = TableConfig(table = "source", id_var = ID_VAR[])
     )
 end

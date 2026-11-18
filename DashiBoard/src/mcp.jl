@@ -13,14 +13,7 @@ TableConfig(spec::AbstractDict) = StructUtils.make(TableConfig, spec)
 
 function load_files(files::FilesConfig, table::TableConfig)
     return function ()
-        DataIngestion.load_files(REPOSITORY[], files.files, table.table; table.schema)
-        # TODO: cleaner solution
-        DataIngestion.replace_table(
-            REPOSITORY[],
-            From(table.table) |> Partition() |> Define(ID_VAR[] => Agg.row_number()),
-            table.table;
-            table.schema
-        )
+        DataIngestion.load_files(REPOSITORY[], files.files, table.table; table.schema, id_var = ID_VAR[])
         return DataIngestion.summarize(REPOSITORY[], table.table; table.schema)
     end
 end

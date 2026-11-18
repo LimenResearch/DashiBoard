@@ -95,6 +95,7 @@ function load_files(
         schema::Maybe{AbstractString} = nothing,
         virtual::Bool = false,
         filename::Maybe{AbstractString} = nothing,
+        id_var::Maybe{AbstractString} = nothing,
         kwargs...
     )
 
@@ -102,8 +103,16 @@ function load_files(
     # due to https://github.com/duckdb/duckdb/issues/13069
     reader = DEFAULT_READERS[format](files; kwargs...)
 
-    sql = isnothing(filename) ? "FROM $(reader) SELECT *;" :
-        "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS $(to_sql(Symbol(filename)));"
+    sql = sprint() do io
+        print(io, "FROM ", reader, "\n", "SELECT *")
+        if !isnothing(filename)
+            print(io, ", parse_filename(\"filename\", true) AS ", to_sql(Symbol(filename)))
+        end
+        if !isnothing(id_var)
+            print(io, ", row_number() OVER () AS ", to_sql(Symbol(id_var)))
+        end
+        print(io, ";")
+    end
 
     return replace_table(repository, sql, table; schema, virtual)
 end

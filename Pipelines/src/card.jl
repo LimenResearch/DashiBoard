@@ -12,6 +12,7 @@ Current implementations:
 - [`RescaleCard`](@ref) (`type = "rescale"`),
 - [`ClusterCard`](@ref) (`type = "cluster"`),
 - [`DimensionalityReductionCard`](@ref) (`type = "dimensionality_reduction"`),
+- [`AnomalyCard`](@ref) (`type = "anomaly"`),
 - [`GLMCard`](@ref) (`type = "glm"`),
 - [`MixedModelCard`](@ref) (`type = "mixed_model"`),
 - [`InterpCard`](@ref) (`type = "interp"`),

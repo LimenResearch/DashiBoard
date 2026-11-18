@@ -124,6 +124,21 @@ end
     @test card.method == card2.method
 end
 
+@testset "metadata anomaly" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "anomaly.json"))
+    for key in ["isolation_forest", "mahalanobis", "pca_reconstruction"]
+        config = d[key]
+        card = Pipelines.Card(config)
+        metadata = Pipelines.get_metadata(card)
+        for k in ["type", "inputs", "partition"]
+            @test metadata[k] == config[k]
+        end
+        @test metadata["output"] == get(config, "output", "anomaly_score")
+        card2 = Pipelines.Card(metadata)
+        @test card.method == card2.method
+    end
+end
+
 @testset "metadata glm" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
 

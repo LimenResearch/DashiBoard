@@ -279,6 +279,7 @@ mktempdir() do ws
 
         params = JSON.parsefile(joinpath(@__DIR__, "static", "load.json"))
         resp = post("load-files", params)
+        global AAA = resp
         summaries = resp["result"]
         @test summaries[end - 1]["name"] == "Ir"
         @test summaries[end]["name"] == "_id"
@@ -495,6 +496,7 @@ mktempdir() do ws
         @test all(n -> isempty(n["unproduced"]), post_probe("train-evaluate-pipeline", params)["result"]["nodes"])
         resp = post("train-evaluate-pipeline", params)
         @test haskey(resp, "result")
+        global AAA = resp
         result = resp["result"]
         summaries = result["summaries"]
         @test summaries[end]["name"] == "_tiled_partition"

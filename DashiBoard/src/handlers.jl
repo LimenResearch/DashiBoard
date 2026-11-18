@@ -336,9 +336,9 @@ function load_files(spec::AbstractDict)
     # path that leaves the data directory is refused before anything is read.
     files::Vector{String} = spec["files"]
     foreach(resolve_in_data_dir, files)
-    return load_files(
-        FilesConfig(files = parse_paths(spec)),
-        TableConfig(table = "source", id_var = ID_VAR[])
+    return LoadFiles(
+        files = FilesConfig(files = parse_paths(spec)),
+        table = TableConfig(table = "source", id_var = ID_VAR[])
     )
 end
 
@@ -705,8 +705,10 @@ address the offending control rather than print a sentence above it.
 function execute_pipeline(spec::AbstractDict; train::Bool)
     src, dst = TableConfig(table = "source", id_var = ID_VAR[]), TableConfig(table = "selection", id_var = ID_VAR[])
     filters = Filter.(get(spec, "filters", []))
-    select_thunk = select_data(src, dst, SelectionConfig(; filters))
-    pipeline_thunk = run_pipeline(src, dst, PipelineConfig(spec); train)
+    select_thunk = SelectData(source = src, destination = dst, selection = SelectionConfig(; filters)) |>
+        validate_method
+    pipeline_thunk = RunPipeline(table = dst, proxy = src, pipeline = PipelineConfig(spec), train = train) |>
+        validate_method
     probe = DashiBase.probe(pipeline_thunk)
     return ProbedThunk(probe) do
         select_thunk()

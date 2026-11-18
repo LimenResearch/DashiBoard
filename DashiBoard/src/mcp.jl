@@ -2,6 +2,13 @@ const SELECT_CALLBACK = ScopedValue{Any}(Returns(nothing))
 const TRAIN_CALLBACK = ScopedValue{Any}(Returns(nothing))
 const EVAL_CALLBACK = ScopedValue{Any}(Returns(nothing))
 
+abstract type ValidatedCallable end
+
+# simple case: `x` is a callable and already validated struct
+validate_method(x::ValidatedCallable) = x
+
+validate_method(::Type{T}, spec::AbstractDict) where {T} = validate_method(T(x))
+
 @kwarg struct FilesConfig
     files::Vector{String}
 end
@@ -16,11 +23,16 @@ end
 
 TableConfig(spec::AbstractDict) = StructUtils.make(TableConfig, spec)
 
-function load_files(files::FilesConfig, table::TableConfig)
-    return function ()
-        DataIngestion.load_files(REPOSITORY[], files.files, table.table; table.schema, table.id_var)
-        return DataIngestion.summarize(REPOSITORY[], table.table; table.schema)
-    end
+@kwarg struct LoadFiles <: ValidatedCallable
+    files::FilesConfig
+    table::TableConfig
+end
+
+LoadFiles(spec::AbstractDict) = StructUtils.make(LoadFiles, spec)
+
+function ((; files, table)::LoadFiles)()
+    DataIngestion.load_files(REPOSITORY[], files.files, table.table; table.schema, table.id_var)
+    return DataIngestion.summarize(REPOSITORY[], table.table; table.schema)
 end
 
 @kwarg struct SelectionConfig
@@ -30,24 +42,30 @@ end
 
 SelectionConfig(spec::AbstractDict) = StructUtils.make(SelectionConfig, spec)
 
-function select_data(source::TableConfig, target::TableConfig, selection::SelectionConfig)
-    (; table, schema) = target
+@kwarg struct SelectData <: ValidatedCallable
+    source::TableConfig
+    destination::TableConfig
+    selection::SelectionConfig
+end
+
+SelectData(spec::AbstractDict) = StructUtils.make(SelectData, spec)
+
+function ((; source, destination, selection)::SelectData)()
+    (; table, schema) = destination
     virtual = true
-    return function ()
-        # work-around in case source and target belong to different schemas
-        DuckDBUtils.with_table_name(REPOSITORY[]; schema, virtual) do src
-            DuckDBUtils.replace_table(
-                REPOSITORY[],
-                "FROM $(DuckDBUtils.in_schema(source.table, source.schema))", src;
-                schema, virtual
-            )
-            transform = isnothing(selection.cols) ? identity : Select(args = Get.(selection.cols))
-            DataIngestion.select(
-                REPOSITORY[], selection.filters, src => table; schema, transform
-            )
-        end
-        return
+    # work-around in case source and destination belong to different schemas
+    DuckDBUtils.with_table_name(REPOSITORY[]; schema, virtual) do src
+        DuckDBUtils.replace_table(
+            REPOSITORY[],
+            "FROM $(DuckDBUtils.in_schema(source.table, source.schema))", src;
+            schema, virtual
+        )
+        transform = isnothing(selection.cols) ? identity : Select(args = Get.(selection.cols))
+        DataIngestion.select(
+            REPOSITORY[], selection.filters, src => table; schema, transform
+        )
     end
+    return
 end
 
 @kwarg struct PipelineConfig
@@ -74,15 +92,17 @@ Structure to encode outcome of training or evaluation run.
     graph::String
 end
 
-run_pipeline(table::TableConfig, config::PipelineConfig; kwargs...) = run_pipeline(table, table, config; kwargs...)
+@kwarg struct RunPipeline
+    table::TableConfig
+    proxy::TableConfig = table
+    pipeline::PipelineConfig
+    train::Bool
+end
 
-function run_pipeline(
-        proxy::TableConfig,
-        table::TableConfig,
-        config::PipelineConfig;
-        train::Bool
-    )
+RunPipeline(spec::AbstractDict) = StructUtils.make(RunPipeline, spec)
 
+function validate_method(rp::RunPipeline)
+    table, proxy, config, train = rp.table, rp.proxy, rp.pipeline, rp.train
     may_refer = referable(config.nodes, config.groups)
     cols = DuckDBUtils.colnames(REPOSITORY[], proxy.table; proxy.schema)
 

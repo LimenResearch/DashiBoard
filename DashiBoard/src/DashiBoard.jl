@@ -9,8 +9,6 @@ using Base: Fix1, Fix2
 
 using Base.ScopedValues: @with, ScopedValue
 
-using Dates: DateTime, now
-
 using HTTP: HTTP, startread, startwrite, closeread
 
 using Logging: Logging, AbstractLogger, with_logger, current_logger

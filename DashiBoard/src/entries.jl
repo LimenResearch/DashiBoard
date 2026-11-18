@@ -1,7 +1,8 @@
 """
     @kwarg struct Run
         _id::Int64
-        time::DateTime = now()
+        started_at::DateTime = now()
+        completed_at::Union{DateTime, Nothing} = nothing
         from::Union{Int64, Nothing}
         trained::Bool
         directory::Union{String, Nothing}
@@ -10,20 +11,24 @@
 Structure to encode when and how a configuration was run.
 It is composed of the following fields.
 - `_id`: unique identifier,
-- `time`: time of run,
+- `started_at`: time of run start,
+- `completed_at`: time of run end,
 - `from`: potential entry from which model weights were loaded,
 - `trained`: whether model weights were trained,
 - `directory`: directory where model weights were saved.
 """
 @kwarg struct Run
     _id::Int64 = 0
-    time::DateTime = now()
+    started_at::DateTime = now()
+    completed_at::Maybe{DateTime} = nothing
     from::Maybe{Int64}
     trained::Bool
     directory::Maybe{String} # No weight saving needed when evaluating
 end
 
-set_id(run::Run, _id::Integer) = Run(; _id, run.time, run.from, run.trained, run.directory)
+set_id(run::Run, _id::Integer) = Run(; _id, run.started_at, run.completed_at, run.from, run.trained, run.directory)
+
+set_completed_at(run::Run, t::DateTime) = Run(; run._id, run.started_at, t, run.from, run.trained, run.directory)
 
 """
     struct Config
@@ -174,14 +179,13 @@ end
 set_id(e::Entry, _id::Integer) = Entry(set_id(e.run, _id), e.config, e.flow, e.result)
 
 function _execute_pipeline(
-        config::Config, flow::DataFlow;
-        from_run::Maybe{Run} = nothing,
+        run:: Run, config::Config, flow::DataFlow;
         select_callback = Returns(nothing),
         train_callback = Returns(nothing),
-        eval_callback = Returns(nothing),
-        train::Bool
+        eval_callback = Returns(nothing)
     )
 
+    train = run.trained
     may_refer = referable(config.nodes, config.groups)
     cols = get(flow.source_metadata, "cols", nothing)
 

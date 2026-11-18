@@ -709,11 +709,12 @@ function execute_pipeline(
         train::Bool,
     )
 
+    run = Run(_id = 0, trained = train, from = nothing, directory = nothing)
     config = Config(spec)
     cols = colnames(REPOSITORY[], "source")
     source_metadata = Dict("cols" => cols)
     flow = DataFlow(; id_var = ID_VAR[], source = "source", destination = "selection", source_metadata)
-    return _execute_pipeline(config, flow; select_callback, train_callback, eval_callback, train)
+    return _execute_pipeline(run, config, flow; select_callback, train_callback, eval_callback)
 end
 
 evaluate_pipeline(spec::AbstractDict) = execute_pipeline(spec; train = false)

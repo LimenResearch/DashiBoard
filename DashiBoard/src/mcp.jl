@@ -1,3 +1,7 @@
+const SELECT_CALLBACK = ScopedValue{Any}(Returns(nothing))
+const TRAIN_CALLBACK = ScopedValue{Any}(Returns(nothing))
+const EVAL_CALLBACK = ScopedValue{Any}(Returns(nothing))
+
 @kwarg struct FilesConfig
     files::Vector{String}
 end
@@ -76,8 +80,6 @@ function run_pipeline(
         proxy::TableConfig,
         table::TableConfig,
         config::PipelineConfig;
-        train_callback = Returns(nothing),
-        eval_callback = Returns(nothing),
         train::Bool
     )
 
@@ -182,12 +184,12 @@ function run_pipeline(
             if train
                 Pipelines.train_evaljoin!(
                     REPOSITORY[], pipeline, table.table, table.id_var;
-                    train_callback, eval_callback, table.schema
+                    train_callback = TRAIN_CALLBACK[], eval_callback = EVAL_CALLBACK[], table.schema
                 )
             else
                 Pipelines.evaljoin(
                     REPOSITORY[], pipeline, table.table, table.id_var;
-                    eval_callback, table.schema
+                    eval_callback = EVAL_CALLBACK[], table.schema
                 )
             end
             # FIXME: this signature should include table, schema and id_var

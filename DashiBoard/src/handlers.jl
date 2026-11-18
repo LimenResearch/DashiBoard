@@ -702,21 +702,15 @@ A schema failure additionally comes back as `issues` — a JSON Pointer into the
 failing keyword, and what would have been accepted — which is the vehicle a form needs to
 address the offending control rather than print a sentence above it.
 """
-function execute_pipeline(
-        spec::AbstractDict;
-        select_callback = Returns(nothing),
-        train_callback = Returns(nothing),
-        eval_callback = Returns(nothing),
-        train::Bool,
-    )
-
+function execute_pipeline(spec::AbstractDict; train::Bool)
     src, dst = TableConfig(table = "source", id_var = ID_VAR[]), TableConfig(table = "selection", id_var = ID_VAR[])
     filters = Filter.(get(spec, "filters", []))
     select_thunk = select_data(src, dst, SelectionConfig(; filters))
-    pipeline_thunk = run_pipeline(src, dst, PipelineConfig(spec); train_callback, eval_callback, train)
+    pipeline_thunk = run_pipeline(src, dst, PipelineConfig(spec); train)
     probe = DashiBase.probe(pipeline_thunk)
     return ProbedThunk(probe) do
         select_thunk()
+        SELECT_CALLBACK[]()
         pipeline_thunk()
     end
 end

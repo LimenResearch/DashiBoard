@@ -479,6 +479,35 @@ end
     @test isempty(Pipelines.unproduced_references(p, available))
 end
 
+@testset "free-text card inputs are source columns" begin
+    # A glm formula names its inputs in free text, not through selectors: they must still be among
+    # the source columns a caller loads.
+    base = TOML.parsefile(joinpath(@__DIR__, "static", "configs", "groups.toml"))
+    d = deepcopy(base)
+    push!(
+        d["nodes"],
+        Dict(
+            "id" => "fit",
+            "card" => Dict(
+                "type" => "glm",
+                "formula" => Dict(
+                    "target" => Dict("cols" => "TEMP"),
+                    "inputs" => Any[1, "cbwd", "DEWP"],
+                ),
+                "partition" => Dict("nodes" => "partition"),
+            ),
+        ),
+    )
+    available = ["No", "PRES", "TEMP", "cbwd", "DEWP"]
+    p = Pipelines.Pipeline(d["nodes"], d["groups"], available)
+    source = Pipelines.get_source_vars(p)
+    @test "cbwd" in source
+    @test "DEWP" in source
+    # columns a node produces are outputs, never source columns
+    @test isempty(intersect(source, Pipelines.get_output_vars(p)))
+    @test isempty(Pipelines.unproduced_references(p, available))
+end
+
 # A schema failure comes back as data a form can act on, not prose it can only print.
 #
 # Every expectation below was established by running JSONSchema.jl rather than by reading it, and

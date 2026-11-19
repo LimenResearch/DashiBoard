@@ -1,0 +1,33 @@
+[deps]
+DashiBase = "b2406810-cf54-4e58-91cb-2ebd7b47efe7"
+DashiBoard = "a38468e0-6083-4ddb-9a62-f888bd36c420"
+DataIngestion = "83dcfd31-4fc0-4194-8ee5-c3b52bd3c2ac"
+DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
+Pipelines = "12f58945-0960-453a-85e3-e4614e9748b9"
+StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
+
+[sources]
+DashiBase = {path = "DashiBase"}
+DashiBoard = {path = "DashiBoard"}
+DataIngestion = {path = "DataIngestion"}
+DuckDBUtils = {path = "DuckDBUtils"}
+Pipelines = {path = "Pipelines"}
+StreamlinerCore = {path = "StreamlinerCore"}
+
+[workspace]
+projects = [
+    "docs",
+    "DashiBase",
+    "DashiBase/test",
+    "DashiBoard",
+    "DashiBoard/test",
+    "DataIngestion",
+    "DataIngestion/test",
+    "DuckDBUtils",
+    "DuckDBUtils/test",
+    "Pipelines",
+    "Pipelines/test",
+    "StreamlinerCore",
+    "StreamlinerCore/test",
+    "docs"
+]

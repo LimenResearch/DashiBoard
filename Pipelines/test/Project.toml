@@ -26,10 +26,3 @@ StreamlinerCore = "13316c11-69a2-4db3-922c-42f5b86aaaa3"
 StructUtils = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[sources]
-DashiBase = {path = "../../DashiBase"}
-DataIngestion = {path = "../../DataIngestion"}
-DuckDBUtils = {path = "../../DuckDBUtils"}
-Pipelines = {path = ".."}
-StreamlinerCore = {path = "../../StreamlinerCore"}

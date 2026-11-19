@@ -10,8 +10,3 @@ FunSQL = "cf6cc811-59f4-4a10-b258-a8547a8f6407"
 IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[sources]
-DashiBase = {path = "../../DashiBase"}
-DataIngestion = {path = ".."}
-DuckDBUtils = {path = "../../DuckDBUtils"}

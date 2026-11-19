@@ -80,7 +80,7 @@ const EXTENSIONS = ScopedValue(Dict{String, ExtensionConfig}())
 const EXTENSION_OF = ScopedValue(Dict{String, String}())
 
 include("workspace.jl")
-include("mcp.jl")
+include("interface.jl")
 include("handlers.jl")
 include("bundle.jl")
 include("middleware.jl")

@@ -32,7 +32,7 @@ LoadFiles(spec::AbstractDict) = StructUtils.make(LoadFiles, spec)
 
 function ((; files, table)::LoadFiles)()
     paths = data_path.(files.files)
-    DataIngestion.load_files(REPOSITORY[], paths, table.table; table.schema, table.id_var)
+    DataIngestion.load_files(REPOSITORY[], paths, table.table; table.schema, row_number = table.id_var)
     return DataIngestion.summarize(REPOSITORY[], table.table; table.schema)
 end
 

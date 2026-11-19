@@ -81,6 +81,7 @@ $(list_formats()).
 
 Use `virtual = true` to load the data lazily as a view (especially useful for Parquet files).
 Use `filename = "some_name"` to store the parsed filename (without extension) as a new column `some_name`.
+Use `row_number = "some_name"` to store the row number as a new column `some_name`.
 
 The remaining keyword arguments are forwarded to the reader for the given format.
 """
@@ -92,7 +93,7 @@ function load_files(
         schema::Maybe{AbstractString} = nothing,
         virtual::Bool = false,
         filename::Maybe{AbstractString} = nothing,
-        id_var::Maybe{AbstractString} = nothing,
+        row_number::Maybe{AbstractString} = nothing,
         kwargs...
     )
 
@@ -105,8 +106,8 @@ function load_files(
         if !isnothing(filename)
             print(io, ", parse_filename(\"filename\", true) AS ", to_sql(Symbol(filename)))
         end
-        if !isnothing(id_var)
-            print(io, ", row_number() OVER () AS ", to_sql(Symbol(id_var)))
+        if !isnothing(row_number)
+            print(io, ", row_number() OVER () AS ", to_sql(Symbol(row_number)))
         end
         print(io, ";")
     end

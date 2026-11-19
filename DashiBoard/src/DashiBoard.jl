@@ -15,7 +15,7 @@ using Logging: Logging, AbstractLogger, with_logger, current_logger
 
 using Scratch: @get_scratch!
 
-using StructUtils: @kwarg, StructUtils
+using StructUtils: @kwarg
 
 using JSON: JSON
 
@@ -44,7 +44,7 @@ using FunSQL:
     Desc,
     Fun
 
-using DashiBase: StringDict, Maybe, ProbedThunk, DashiBase
+using DashiBase: @constructible, to_config, StringDict, Maybe, ProbedThunk, DashiBase
 using DuckDBUtils: Repository, export_table, to_nrow, colnames, DuckDBUtils
 
 using DataIngestion: data_path, Filter, VariableSummary, DataIngestion

@@ -13,7 +13,7 @@ validate_method(::Type{T}, spec::AbstractDict) where {T} = validate_method(T(x))
     files::Vector{String}
 end
 
-FilesConfig(spec::AbstractDict) = StructUtils.make(FilesConfig, spec)
+@constructible FilesConfig
 
 @kwarg struct TableConfig
     id_var::String
@@ -21,14 +21,14 @@ FilesConfig(spec::AbstractDict) = StructUtils.make(FilesConfig, spec)
     schema::Maybe{String} = nothing
 end
 
-TableConfig(spec::AbstractDict) = StructUtils.make(TableConfig, spec)
+@constructible TableConfig
 
 @kwarg struct LoadFiles <: ValidatedCallable
     files::FilesConfig
     table::TableConfig
 end
 
-LoadFiles(spec::AbstractDict) = StructUtils.make(LoadFiles, spec)
+@constructible LoadFiles
 
 function ((; files, table)::LoadFiles)()
     paths = data_path.(files.files)
@@ -41,7 +41,7 @@ end
     cols::Maybe{Vector{String}} = nothing
 end
 
-SelectionConfig(spec::AbstractDict) = StructUtils.make(SelectionConfig, spec)
+@constructible SelectionConfig
 
 @kwarg struct SelectData <: ValidatedCallable
     source::TableConfig
@@ -49,7 +49,7 @@ SelectionConfig(spec::AbstractDict) = StructUtils.make(SelectionConfig, spec)
     selection::SelectionConfig
 end
 
-SelectData(spec::AbstractDict) = StructUtils.make(SelectData, spec)
+@constructible SelectData
 
 function ((; source, destination, selection)::SelectData)()
     (; table, schema) = destination
@@ -74,7 +74,7 @@ end
     groups::StringDict = StringDict()
 end
 
-PipelineConfig(spec::AbstractDict) = StructUtils.make(PipelineConfig, spec)
+@constructible PipelineConfig
 
 """
     struct Result
@@ -93,6 +93,8 @@ Structure to encode outcome of training or evaluation run.
     graph::String
 end
 
+@constructible Result
+
 @kwarg struct RunPipeline
     table::TableConfig
     proxy::TableConfig = table
@@ -100,7 +102,7 @@ end
     train::Bool
 end
 
-RunPipeline(spec::AbstractDict) = StructUtils.make(RunPipeline, spec)
+@constructible RunPipeline
 
 function validate_method(rp::RunPipeline)
     table, proxy, config, train = rp.table, rp.proxy, rp.pipeline, rp.train
@@ -117,7 +119,7 @@ function validate_method(rp::RunPipeline)
             kind = "pipeline", cols,
             errors = [issue.message for issue in issues], issues, referable = may_refer,
         )
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+        throw(DashiBase.StructuredException(to_config(failure)))
     end
 
     # Running is the one step nothing static can vet. The probe answers everything that can be
@@ -132,7 +134,7 @@ function validate_method(rp::RunPipeline)
         # construction a fault of the document. Deliberately not logged — the probe fires on every
         # edit, and most edits are documents the author has not finished writing yet.
         failure = (; build_failure(config.nodes, config.groups, exception)..., cols, referable = may_refer)
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+        throw(DashiBase.StructuredException(to_config(failure)))
     end
     # Sent with every answer below, so a picker offers an item only what cannot make a loop.
 
@@ -197,7 +199,7 @@ function validate_method(rp::RunPipeline)
     if !isempty(absent) || !isempty(unfit)
         errors = [issue.message for issue in issues if issue.severity == "error"]
         failure = (; probe..., kind = "pipeline", errors)
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+        throw(DashiBase.StructuredException(to_config(failure)))
     end
 
     return ProbedThunk(probe) do
@@ -228,7 +230,7 @@ function validate_method(rp::RunPipeline)
             handler = train ? "train-evaluate-pipeline" : "evaluate-pipeline"
             @error "$(handler): the run failed" exception = (exception, catch_backtrace())
             failure = failure_report(:execution, exception)
-            throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+            throw(DashiBase.StructuredException(to_config(failure)))
         end
     end
 end

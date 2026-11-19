@@ -142,7 +142,7 @@ function bundle_pipeline(spec::AbstractDict)
         extensions = Dict{String, Any}()
         for ext in needed_extensions(cards)
             cfg = get(d, ext, nothing)
-            isnothing(cfg) || (extensions[ext] = StructUtils.make(Dict{String, Any}, cfg))
+            isnothing(cfg) || (extensions[ext] = to_config(cfg))
         end
         ZipWriter(path) do zip
             zip_newfile(zip, "pipeline/$(name).json")

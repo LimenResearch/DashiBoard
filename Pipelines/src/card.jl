@@ -80,7 +80,7 @@ julia> card.inputs
  "humidity"
 ```
 """
-Card(d::AbstractDict) = construct(Card, d)
+@constructible Card
 
 """
     Card(d::AbstractDict, params::AbstractDict; recursive::Integer = 1)

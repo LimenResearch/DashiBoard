@@ -331,14 +331,13 @@ function write_configuration(spec::AbstractDict, base::AbstractString; what = "t
 end
 
 function load_files(spec::AbstractDict)
-    # Checked here, not in `DataIngestion.parse_paths`, which joins `..` without looking and is
+    # Checked here, not in `DataIngestion.data_path`, which joins `..` without looking and is
     # not ours to change: a client names files by the relative paths `list-files` gave it, and a
     # path that leaves the data directory is refused before anything is read.
-    foreach(resolve_in_data_dir, spec["files"])
-    return function ()
-        DataIngestion.load_files(REPOSITORY[], spec)
-        return DataIngestion.summarize(REPOSITORY[], "source")
-    end
+    files = FilesConfig(spec)
+    table = TableConfig(table = "source", id_var = ID_VAR[])
+    foreach(resolve_in_data_dir, files.files)
+    return LoadFiles(; files, table) |> validate_method
 end
 
 """
@@ -525,14 +524,14 @@ function build_failure(nodes::AbstractVector, groups::AbstractDict, exception::E
 end
 
 """
-    model_issues(repository, pipeline, table) -> Vector
+    model_issues(repository, pipeline, table; schema::Union{AbstractString, Nothing} = nothing) -> Vector
 
 For each streamliner card of a built `pipeline`, whether its model can be built for what its
 funnel feeds it, sized from `table`: one error at the card's `model` for each that cannot. Asked
 by the probe, so Confirm turns the card red before a run trains anything, and by a run before it
 trains.
 """
-function model_issues(repository, pipeline, table::AbstractString)
+function model_issues(repository, pipeline, table::AbstractString; schema::Maybe{AbstractString} = nothing)
     issues = []
     for (i, node) in enumerate(pipeline.nodes)
         card = Pipelines.get_card(node)
@@ -541,7 +540,7 @@ function model_issues(repository, pipeline, table::AbstractString)
         # stops it building is left to the run, which reports every failure, rather than turning
         # a probe into an answer the form cannot render.
         issue = try
-            Pipelines.model_issue(repository, card, table)
+            Pipelines.model_issue(repository, card, table; schema)
         catch exception
             exception isa Exception || rethrow()
             # TODO: do we really want to use `@error` here?
@@ -702,133 +701,17 @@ failing keyword, and what would have been accepted — which is the vehicle a fo
 address the offending control rather than print a sentence above it.
 """
 function execute_pipeline(spec::AbstractDict; train::Bool)
-    cols = colnames(REPOSITORY[], "source")
-    groups = get(spec, "groups", Dict{String, Any}())
-    _nodes = get(spec, "nodes", [])
-    _filters = get(spec, "filters", [])
-    may_refer = referable(_nodes, groups)
-
-    # Before building: see `empty_group_issues` for why construction cannot report this itself.
-    # The cards' own schema failures go out in the same answer (`card_schema_issues`), groups
-    # first as in the document.
-    empty = empty_group_issues(groups)
-    if !isempty(empty)
-        issues = vcat(empty, card_schema_issues(_nodes, groups, cols))
-        failure = (;
-            kind = "pipeline", cols,
-            errors = [issue.message for issue in issues], issues, referable = may_refer,
-        )
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
-    end
-
-    # Running is the one step nothing static can vet. The probe answers everything that can be
-    # known from the document alone, so what reaches here is a fault of the *data* — PCA asked for
-    # more components than there are columns, a model that will not converge — and it surfaces only
-    # by being run.
-    filters = Filter.(_filters)
-    pipeline = try
-        Pipelines.Pipeline(_nodes, groups, cols)
-    catch exception
-        exception isa Exception || rethrow()
-        # Always `pipeline`: this route resolves and never runs, so a fault it can see is by
-        # construction a fault of the document. Deliberately not logged — the probe fires on every
-        # edit, and most edits are documents the author has not finished writing yet.
-        failure = (; build_failure(_nodes, groups, exception)..., cols, referable = may_refer)
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
-    end
-    # Sent with every answer below, so a picker offers an item only what cannot make a loop.
-
-    absent = Dict(Pipelines.unproduced_references(pipeline, cols))
-    # Sized from the loaded table; what earlier cards add is not in it yet and counts as one column.
-    unfit = model_issues(REPOSITORY[], pipeline, "source")
-    # `Pipelines.get_id` is the naming rule everything else uses; inventing an index here made
-    # this the third answer to "what is this node called" in three files.
-    ids = Pipelines.get_id.(_nodes)
-
-    # The second source of pointed failures. An unproduced reference is addressed at *node*
-    # granularity, not at the selector item that named it: resolution returns the column list and
-    # keeps no provenance back to the item, so `{cols = "PRES", through = [...]}` cannot be
-    # singled out from its siblings. Reported in the same shape as a schema failure so a form
-    # iterates one list, with `reason` telling them apart.
-    unproduced_issues = [
-        (;
-            pointer = "/nodes/$(i - 1)/card",
-            reason = "unproduced",
-            # an error: nothing produces the column, so the document cannot run
-            severity = "error",
-            found = nothing,
-            allowed = nothing,
-            missing = names,
-            related = String[],
-            message = "nothing produces " * join(names, ", "),
-        )
-            for (i, names) in sort!(collect(absent), by = first)
-    ]
-    nodes = map(enumerate(pipeline.nodes)) do (i, node)
-        return (;
-            id = ids[i],
-            inputs = Pipelines.get_node_inputs(node),
-            outputs = Pipelines.get_node_outputs(node),
-            unproduced = get(absent, i, String[]),
-            # What a `through` chain may do with this node, so a picker offers only chains the
-            # pipeline would accept rather than guessing from which columns the node reads.
-            through = Pipelines.through_options(node),
-            # What a selection may narrow this node to: each named product with its columns.
-            products = Pipelines.product_outputs(node),
-            # What the card's lists resolved to, where a form has to spell them out — one row
-            # per column to choose a transform for, say. Empty for most cards.
-            lists = Pipelines.resolved_lists(Pipelines.get_card(node)),
-        )
-    end
-
-    # Errors first, then warnings: a client reading the list top-down sees what blocks the run
-    # before what merely deserves a look.
-    issues = vcat(unproduced_issues, unfit, overwrite_warnings(pipeline, cols))
-    probe = (;
-        cols,
-        nodes,
-        referable = may_refer,
-        source_vars = Pipelines.get_source_vars(pipeline),
-        output_vars = Pipelines.get_output_vars(pipeline),
-        errors = String[],
-        issues,
-    )
-    # A reference nothing produces, or a model that cannot be built, is a fault of the document
-    # found by resolving rather than by running: the document is refused, with everything the
-    # probe found, so a form marks the nodes as it does for any other refusal.
-    if !isempty(absent) || !isempty(unfit)
-        errors = [issue.message for issue in issues if issue.severity == "error"]
-        failure = (; probe..., kind = "pipeline", errors)
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
-    end
-
+    src, dst = TableConfig(table = "source", id_var = ID_VAR[]), TableConfig(table = "selection", id_var = ID_VAR[])
+    filters = Filter.(get(spec, "filters", []))
+    select_thunk = SelectData(source = src, destination = dst, selection = SelectionConfig(; filters)) |>
+        validate_method
+    pipeline_thunk = RunPipeline(table = dst, proxy = src, pipeline = PipelineConfig(spec), train = train) |>
+        validate_method
+    probe = DashiBase.probe(pipeline_thunk)
     return ProbedThunk(probe) do
-        orig = From("source") |> Partition() |> Define(ID_VAR[] => Agg.row_number())
-        DataIngestion.select(REPOSITORY[], filters, orig => "selection")
-        # The columns available *to* the pipeline, so the group API can validate references
-        # against them rather than accepting a name that does not exist and failing later in SQL.
-        return try
-            if train
-                Pipelines.train_evaljoin!(REPOSITORY[], pipeline, "selection", ID_VAR[])
-            else
-                Pipelines.evaljoin(REPOSITORY[], pipeline, "selection", ID_VAR[])
-            end
-            report = Pipelines.report(REPOSITORY[], pipeline.nodes)
-            vs = Pipelines.visualize(REPOSITORY[], pipeline.nodes)
-            visualization = stringify_visualization.(vs)
-            graph = sprint(Pipelines.graphviz, pipeline)
-            # Recomputed: the pipeline has added its output columns since `available` was taken.
-            summaries = DataIngestion.summarize(REPOSITORY[], "selection")
-            (; summaries, visualization, graph, report)
-        catch exception
-            exception isa Exception || rethrow()
-            # Logged, unlike the probe's: this one was asked for deliberately, and an operator wants
-            # the backtrace whether the cause was the data or a bug of ours.
-            handler = train ? "train-evaluate-pipeline" : "evaluate-pipeline"
-            @error "$(handler): the run failed" exception = (exception, catch_backtrace())
-            failure = failure_report(:execution, exception)
-            throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
-        end
+        select_thunk()
+        SELECT_CALLBACK[]()
+        pipeline_thunk()
     end
 end
 
@@ -905,9 +788,13 @@ end
 function get_processed_data(::AbstractDict)
     return function (path)
         # TODO add required format as request parameter
-        format = "csv"
+        # TODO: validation should be outside callable
+        export_thunk = ExportData(;
+            table = TableConfig(table = "selection", id_var = ID_VAR[]),
+            format = "csv", destination = path
+        ) |> validate_method
+        export_thunk()
         content_type = "text/csv"
-        export_table(REPOSITORY[], From("selection"), path; format, use_tmp_file = false)
         writer = Writer()
         # `attachment` because browsers ignore a link's `download` across origins.
         headers = [

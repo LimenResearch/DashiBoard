@@ -63,7 +63,6 @@ using Test
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
         @test df′._name == ["test1", "test1", "test1", "test2", "test2", "test2"]
 
-
         DataIngestion.load_files(repo, ["$path1.json"]; schema = "json")
         df′ = DBInterface.execute(DataFrame, repo, "FROM json.source")
         @test df′.x == [1, 2, 3]

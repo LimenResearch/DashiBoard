@@ -35,33 +35,30 @@ is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 List of relative paths corresponding to supported files within `DATA_DIR[]`.
 """
 function acceptable_paths()
-    base_dir = isempty(DATA_DIR[]) ? pwd() : DATA_DIR[]
-    return Iterators.flatmap(walkdir(base_dir)) do (root, _, files)
+    return Iterators.flatmap(walkdir(DATA_DIR[])) do (root, _, files)
         rel_root = relpath(root, base_dir)
         return (normpath(rel_root, file) for file in files if is_supported(file))
     end
 end
 
-function _joinpath(base_dir::AbstractString, path::AbstractString)
-    return isempty(base_dir) ? path : joinpath(base_dir, path)
-end
-
 """
-    parse_paths(d::AbstractDict)::Vector{String}
+    data_path(path::AbstractString)::String
 
-Generate a list of file paths based on a configuration dictionary.
-The file paths are interpreted as relative to `DataIngestion.DATA_DIR[]`.
+Generate a file path as relative to `DataIngestion.DATA_DIR[]`.
 """
-parse_paths(d::AbstractDict)::Vector{String} = _joinpath.(DATA_DIR[], d["files"])
+data_path(path::AbstractString)::String = abspath(DATA_DIR[], path)
 
-# TODO: document this method and pass options via `c`
-function load_files(repository::Repository, d::AbstractDict, table = TABLE_NAMES.source; kwargs...)
-    return load_files(repository, parse_paths(d), table; kwargs...)
-end
+@deprecate(
+    load_files(repository::Repository, d::AbstractDict, args...; kwargs...),
+    load_files(repository::Repository, data_path.(d["files"]), args...; kwargs...),
+    false
+)
 
-function load_files(repository::Repository, base_dir::AbstractString, d::AbstractDict, table = TABLE_NAMES.source; kwargs...)
-    return @with DATA_DIR => base_dir load_files(repository, d, table; kwargs...)
-end
+@deprecate(
+    load_files(repository::Repository, s::AbstractString, d::AbstractDict, args...; kwargs...),
+    load_files(repository::Repository, abspath.(s, d["files"]), args...; kwargs...),
+    false
+)
 
 """
     load_files(
@@ -84,6 +81,7 @@ $(list_formats()).
 
 Use `virtual = true` to load the data lazily as a view (especially useful for Parquet files).
 Use `filename = "some_name"` to store the parsed filename (without extension) as a new column `some_name`.
+Use `row_number = "some_name"` to store the row number as a new column `some_name`.
 
 The remaining keyword arguments are forwarded to the reader for the given format.
 """
@@ -95,6 +93,7 @@ function load_files(
         schema::Maybe{AbstractString} = nothing,
         virtual::Bool = false,
         filename::Maybe{AbstractString} = nothing,
+        row_number::Maybe{AbstractString} = nothing,
         kwargs...
     )
 
@@ -102,8 +101,16 @@ function load_files(
     # due to https://github.com/duckdb/duckdb/issues/13069
     reader = DEFAULT_READERS[format](files; kwargs...)
 
-    sql = isnothing(filename) ? "FROM $(reader) SELECT *;" :
-        "FROM $(reader) SELECT *, parse_filename(\"filename\", true) AS $(to_sql(Symbol(filename)));"
+    sql = sprint() do io
+        print(io, "FROM ", reader, "\n", "SELECT *")
+        if !isnothing(filename)
+            print(io, ", parse_filename(\"filename\", true) AS ", to_sql(Symbol(filename)))
+        end
+        if !isnothing(row_number)
+            print(io, ", row_number() OVER () AS ", to_sql(Symbol(row_number)))
+        end
+        print(io, ";")
+    end
 
     return replace_table(repository, sql, table; schema, virtual)
 end

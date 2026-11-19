@@ -25,30 +25,43 @@ Generate a [`Filter`](@ref) based on a configuration dictionary.
 """
 Filter(d::AbstractDict) = FILTER_TYPES[d["type"]](d)
 
+struct Interval{T}
+    min::T
+    max::T
+end
+
+function Interval(min::Number, max::Number)
+    args = promote(min, max)
+    T = eltype(args)
+    return Interval{T}(args...)
+end
+
+Interval(c::ClosedInterval{T}) where {T} = Interval{T}(leftendpoint(c), rightendpoint(c))
+
 """
     struct IntervalFilter{T} <: Filter
         colname::String
-        interval::ClosedInterval{T}
+        interval::Interval{T}
     end
 
 Object to retain only those rows for which the variable `colname` lies inside the `interval`.
 """
 struct IntervalFilter{T} <: Filter
     colname::String
-    interval::ClosedInterval{T}
+    interval::Interval{T}
 end
 
-function IntervalFilter(d::AbstractDict)
-    colname, interval = d["colname"], d["interval"]
-    left, right = interval["min"], interval["max"]
-    return IntervalFilter(colname, ClosedInterval(left, right))
+function IntervalFilter(colname::AbstractString, interval::ClosedInterval)
+    return IntervalFilter(colname, Interval(interval))
 end
+
+IntervalFilter(d::AbstractDict) = construct(IntervalFilter, d)
 
 function Condition(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
 
     pleft, pright = string.(prefix, "_", ("left", "right"))
-    params = StringDict(pleft => leftendpoint(interval), pright => rightendpoint(interval))
+    params = StringDict(pleft => interval.min, pright => interval.max)
     pred = Fun.between(Get(colname), Var(pleft), Var(pright))
 
     return Condition(pred, params)
@@ -81,10 +94,7 @@ function ListFilter(colname::AbstractString, list::AbstractVector)
     return ListFilter{T}(colname, list′)
 end
 
-function ListFilter(d::AbstractDict)
-    colname, list = d["colname"], d["list"]
-    return ListFilter(colname, list)
-end
+ListFilter(d::AbstractDict) = construct(ListFilter, d)
 
 function Condition(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f

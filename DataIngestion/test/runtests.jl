@@ -181,7 +181,7 @@ end
     @test length(filters) == 2
     @test filters[1] isa DataIngestion.IntervalFilter
     @test filters[1].colname == "year"
-    @test filters[1].interval == 2011 .. 2012
+    @test filters[1].interval == DataIngestion.Interval(2011, 2012)
 
     @test filters[2] isa DataIngestion.ListFilter
     @test filters[2].colname == "cbwd"

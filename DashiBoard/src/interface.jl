@@ -119,7 +119,7 @@ function validate_method(rp::RunPipeline)
             kind = "pipeline", cols,
             errors = [issue.message for issue in issues], issues, referable = may_refer,
         )
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+        throw(DashiBase.StructuredException(to_config(failure)))
     end
 
     # Running is the one step nothing static can vet. The probe answers everything that can be
@@ -134,7 +134,7 @@ function validate_method(rp::RunPipeline)
         # construction a fault of the document. Deliberately not logged — the probe fires on every
         # edit, and most edits are documents the author has not finished writing yet.
         failure = (; build_failure(config.nodes, config.groups, exception)..., cols, referable = may_refer)
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+        throw(DashiBase.StructuredException(to_config(failure)))
     end
     # Sent with every answer below, so a picker offers an item only what cannot make a loop.
 
@@ -199,7 +199,7 @@ function validate_method(rp::RunPipeline)
     if !isempty(absent) || !isempty(unfit)
         errors = [issue.message for issue in issues if issue.severity == "error"]
         failure = (; probe..., kind = "pipeline", errors)
-        throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+        throw(DashiBase.StructuredException(to_config(failure)))
     end
 
     return ProbedThunk(probe) do
@@ -230,7 +230,7 @@ function validate_method(rp::RunPipeline)
             handler = train ? "train-evaluate-pipeline" : "evaluate-pipeline"
             @error "$(handler): the run failed" exception = (exception, catch_backtrace())
             failure = failure_report(:execution, exception)
-            throw(DashiBase.StructuredException(StructUtils.make(StringDict, failure)))
+            throw(DashiBase.StructuredException(to_config(failure)))
         end
     end
 end

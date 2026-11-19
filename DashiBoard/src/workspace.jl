@@ -30,7 +30,7 @@ end
 # What a workspace file may say, checked before any of it is used: a table DashiBoard does not
 # know, or a value of the wrong kind, would otherwise be skipped or fail somewhere unrelated.
 # TODO: error on additional properties?
-WorkspaceConfig(file::AbstractDict) = StructUtils.make(WorkspaceConfig, file)
+@constructible WorkspaceConfig
 
 """
     read_workspace_file(workspace) -> WorkspaceConfig

@@ -157,7 +157,7 @@ function failure_report(kind::Symbol, exception::Exception)
 end
 
 function throw_failure(kind::Symbol, exception::Exception)
-    failure = StructUtils.make(StringDict, failure_report(kind, exception))
+    failure = to_config(failure_report(kind, exception))
     throw(DashiBase.StructuredException(failure))
 end
 

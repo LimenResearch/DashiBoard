@@ -331,7 +331,7 @@ function write_configuration(spec::AbstractDict, base::AbstractString; what = "t
 end
 
 function load_files(spec::AbstractDict)
-    # Checked here, not in `DataIngestion.parse_paths`, which joins `..` without looking and is
+    # Checked here, not in `DataIngestion.data_path`, which joins `..` without looking and is
     # not ours to change: a client names files by the relative paths `list-files` gave it, and a
     # path that leaves the data directory is refused before anything is read.
     files = FilesConfig(spec)

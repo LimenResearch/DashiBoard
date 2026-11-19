@@ -10,12 +10,7 @@ CurrentModule = DataIngestion
 DataIngestion.is_supported
 DataIngestion.acceptable_paths
 DataIngestion.load_files
-```
-
-### Internal
-
-```@docs
-DataIngestion.parse_paths
+DataIngestion.data_path
 ```
 
 ## Metadata for filter generation

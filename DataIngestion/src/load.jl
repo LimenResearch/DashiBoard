@@ -42,7 +42,7 @@ function acceptable_paths()
 end
 
 """
-    data_path(path::AbstractString)::Vector{String}
+    data_path(path::AbstractString)::String
 
 Generate a file path as relative to `DataIngestion.DATA_DIR[]`.
 """

@@ -452,7 +452,7 @@ mktempdir() do ws
         )
         params = Dict("nodes" => [_fit, _reader], "groups" => Dict{String, Any}())
         probe = post_probe("train-evaluate-pipeline", params)
-        
+
         node(id) = only(n for n in probe["result"]["nodes"] if n["id"] == id)
         @test node("fit")["products"] == [Dict("product" => "prediction", "outputs" => ["PRES_hat"])]
         @test node("reader")["inputs"] == ["PRES_hat"]

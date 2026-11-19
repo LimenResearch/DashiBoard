@@ -19,7 +19,7 @@ using FunSQL: SQLNode,
     Group
 using DBInterface: DBInterface
 using DuckDBUtils: DuckDBUtils, Repository, SQLMacro, get_catalog, replace_table, to_sql, in_schema
-using DashiBase: StringDict, Maybe, construct
+using DashiBase: @constructible, StringDict, Maybe
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
 using IterTools: flagfirst
 using Tables: Tables

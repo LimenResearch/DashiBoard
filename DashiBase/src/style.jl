@@ -18,3 +18,14 @@ _instances(::Type{T}) where {T <: Enum} = instances(T)
 _instances(::Type{Maybe{T}}) where {T <: Enum} = instances(T)
 
 enum_instances(T::Type) = String[StructUtils.lower(DashiStyle(), x) for x in _instances(T)]
+
+"""
+    @constructible T
+
+Add a method `T(d::AbstractDict)` that constructs and object `T` from a configuration dictionary
+using `StructUtils` machinery and `DashiStyle`.
+"""
+macro constructible(T)
+    U = esc(T)
+    return :($(U)(d::AbstractDict) = construct($(U), d))
+end

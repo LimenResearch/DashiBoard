@@ -44,7 +44,7 @@ using FunSQL:
     Desc,
     Fun
 
-using DashiBase: StringDict, Maybe, ProbedThunk, DashiBase
+using DashiBase: @constructible, StringDict, Maybe, ProbedThunk, DashiBase
 using DuckDBUtils: Repository, export_table, to_nrow, colnames, DuckDBUtils
 
 using DataIngestion: data_path, Filter, VariableSummary, DataIngestion

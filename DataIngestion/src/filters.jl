@@ -55,7 +55,7 @@ function IntervalFilter(colname::AbstractString, interval::ClosedInterval)
     return IntervalFilter(colname, Interval(interval))
 end
 
-IntervalFilter(d::AbstractDict) = construct(IntervalFilter, d)
+@constructible IntervalFilter
 
 function Condition(f::IntervalFilter, prefix::AbstractString)
     (; colname, interval) = f
@@ -94,7 +94,7 @@ function ListFilter(colname::AbstractString, list::AbstractVector)
     return ListFilter{T}(colname, list′)
 end
 
-ListFilter(d::AbstractDict) = construct(ListFilter, d)
+@constructible ListFilter
 
 function Condition(f::ListFilter, prefix::AbstractString)
     (; colname, list) = f

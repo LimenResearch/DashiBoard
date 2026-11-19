@@ -22,8 +22,8 @@ enum_instances(T::Type) = String[StructUtils.lower(DashiStyle(), x) for x in _in
 """
     @constructible T
 
-Add a method `T(d::AbstractDict)` that constructs and object `T` from a configuration dictionary
-using `StructUtils` machinery and `DashiStyle`.
+Add a method `T(d::AbstractDict)` that constructs and object `T` from a
+configuration dictionary using `StructUtils` machinery and `DashiStyle`.
 """
 macro constructible(T)
     U = esc(T)

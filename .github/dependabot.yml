@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: "julia"
+    directories:
+      - "/DashiBase"
+      - "/DashiBoard"
+      - "/DataIngestion"
+      - "/DuckDBUtils"
+      - "/Pipelines"
+      - "/StreamlinerCore"
+    schedule:
+      interval: "weekly"
+    groups:
+      julia-deps:
+        patterns: ["*"]
+        group-by: "dependency-name"   # one PR per dependency across all packages

@@ -42,6 +42,7 @@ PipelinesMakieExt = ["CairoMakie", "AlgebraOfGraphics"]
 PipelinesMixedModelsExt = ["MixedModels"]
 
 [compat]
+AlgebraOfGraphics = "0.13.2"
 Clustering = "0.15.8"
 DBInterface = "2.6.1"
 DataInterpolations = "7, 8, 9"

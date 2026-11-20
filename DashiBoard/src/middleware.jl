@@ -66,12 +66,13 @@ end
 
 struct JSONHandler
     handlers::StringDict
+    scope::Dict{ScopedValue, Any}
 end
 
 # Always 200 when there is a body, failures included: the error is in the body, and a batch
 # whose calls fared differently has no single status to give. Nothing to answer is 204.
 function (h::JSONHandler)(stream::HTTP.Stream)
-    res = DashiBase.apply_handlers(h.handlers, String(read(stream)))
+    res = DashiBase.apply_handlers(h.handlers, String(read(stream)); scope = pairs(h.scope))
     isnothing(res) ? reply(stream, 204) : reply(stream, 200, to_json(res))
     closewrite(stream)
     closeread(stream)
@@ -93,13 +94,14 @@ end
 
 struct JSONStreamHandler
     handlers::StringDict
+    scope::Dict{ScopedValue, Any}
 end
 
 (h::JSONStreamHandler)(stream::HTTP.Stream) = stream_response(h, stream, String(read(stream)))
 
 function stream_response(h::JSONStreamHandler, stream::HTTP.Stream, s::AbstractString)
     mktemp() do path, _
-        res = DashiBase.apply_handlers(h.handlers, s, path)
+        res = DashiBase.apply_handlers(h.handlers, s, path; scope = pairs(h.scope))
         if res isa Tuple
             success, writer = res
             # The thunk's result is the headers of the file it wrote to `path`.

@@ -117,7 +117,7 @@ mktempdir() do ws
         @test_throws ArgumentError DashiBoard.pointer(:nowhere)
     end
 
-    handlers, stream_handlers, probe_handlers = DashiBoard.get_handlers(
+    handlers, stream_handlers, probe_handlers, scope = DashiBoard.get_handlers(
         ws;
         data_dir,
         pipeline_dir,
@@ -130,12 +130,12 @@ mktempdir() do ws
 
     function post(method, params)
         req = JSONRequest(; method, params, id = 0)
-        return roundtrip(apply_handlers(handlers, req))
+        return roundtrip(apply_handlers(handlers, req; scope))
     end
 
     function post(method, params, path)
         req = JSONRequest(; method, params, id = 0)
-        res = apply_handlers(stream_handlers, req, path)
+        res = apply_handlers(stream_handlers, req, path; scope)
         return if res isa Tuple
             headers, writer = res
             io = IOBuffer()
@@ -149,7 +149,7 @@ mktempdir() do ws
 
     function post_probe(method, params)
         req = JSONRequest(; method, params, id = 0)
-        return roundtrip(apply_handlers(probe_handlers, req))
+        return roundtrip(apply_handlers(probe_handlers, req; scope))
     end
 
     only_error(metadata::AbstractDict) = only(metadata["errors"])
@@ -957,12 +957,12 @@ mktempdir() do ws
     end
 
     # The same calls against handlers built for another layout.
-    caller(hs) = (method, params) -> roundtrip(apply_handlers(hs, JSONRequest(; method, params, id = 0)))
+    caller(hs, scope) = (method, params) -> roundtrip(apply_handlers(hs, JSONRequest(; method, params, id = 0); scope))
 
     # A data directory that does not exist answers an empty listing rather than failing it.
     @testset "a missing data directory" begin
-        nowhere, _, _ = DashiBoard.get_handlers(joinpath(data_dir, "does-not-exist"); model_dir, training_dir)
-        listed = caller(nowhere)("list-files", Dict())["result"]
+        nowhere, _, _, _scope = DashiBoard.get_handlers(joinpath(data_dir, "does-not-exist"); model_dir, training_dir)
+        listed = caller(nowhere, _scope)("list-files", Dict())["result"]
         @test listed["files"] == []
     end
 
@@ -998,7 +998,7 @@ mktempdir() do ws
         resp = rpc("rpc-stream", "fetch-data", Dict("processed" => false, "limit" => "x", "offset" => 0))
         @test resp.status == 400 && HTTP.header(resp, "Content-Type") == "application/json"
         @test JSON.parse(String(resp.body))["error"]["code"] == -32602
-        failed_run = DashiBase.JSONFailure(; error = DashiBase.json_error(DashiBase.internal_error, "boom"))
+        failed_run = DashiBase.JSONFailure(; id = 0, error = DashiBase.json_error(DashiBase.internal_error, "boom"))
         @test DashiBoard.stream_status(failed_run) == 500
         notification = JSON.json((; jsonrpc = "2.0", method = "list-files", params = Dict()))
         resp = HTTP.post(url * "rpc"; body = notification, status_exception = false)
@@ -1024,11 +1024,11 @@ mktempdir() do ws
             write(joinpath(ws, "data", "t.csv"), "a,b\n1,2\n")
             write(joinpath(ws, "pipeline", "sub", "p.json"), JSON.json(cards_doc))
             write(joinpath(ws, "filter", "f.json"), JSON.json(Dict("numerical" => Dict(), "categorical" => Dict())))
-            laid, _, _ = DashiBoard.get_handlers(
+            laid, _, _, _scope = DashiBoard.get_handlers(
                 ws; model_dir, training_dir,
                 data_dir = joinpath(ws, "data"), pipeline_dir = joinpath(ws, "pipeline"), filter_dir = joinpath(ws, "filter"),
             )
-            lpost = caller(laid)
+            lpost = caller(laid, _scope)
             refusal(reply) = only_error(reply["error"]["data"])
             listed = lpost("list-files", Dict())["result"]
             # Grouped by kind, then by path; what is neither table nor document is not mentioned.
@@ -1050,7 +1050,8 @@ mktempdir() do ws
             # reach and the general route may not.
             elsewhere = mktempdir()
             model_text = read(joinpath(model_dir, "dense.toml"), String)
-            apost = caller(first(DashiBoard.get_handlers(ws; model_dir = elsewhere, training_dir)))
+            _handlers, _, _, _scope = DashiBoard.get_handlers(ws; model_dir = elsewhere, training_dir)
+            apost = caller(_handlers, _scope)
             @test haskey(apost("write-model", Dict("path" => "m.toml", "text" => model_text)), "result")
             @test apost("read-model", Dict("path" => "m.toml"))["result"]["parsed"]["name"] == "basic"
             @test haskey(apost("write-configuration", Dict("path" => joinpath(elsewhere, "n.toml"), "kind" => "model", "text" => model_text)), "error")

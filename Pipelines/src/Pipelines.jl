@@ -53,7 +53,7 @@ using DashiBase: DashiBase, DashiStyle, json_schema, @constructible, enum_instan
     AbstractMethod, @options, lift_simple_method, lower_simple_method, get_metadata,
     Property, TaggedObjectIR, ObjectIR, OneOrManyIR, EitherIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
     VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,
-    StringDict, SymbolDict, Maybe
+    StringDict, SymbolDict, Maybe, map_into
 
 using OrderedCollections: OrderedDict, OrderedSet
 using Tables: Tables

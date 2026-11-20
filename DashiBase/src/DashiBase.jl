@@ -10,6 +10,8 @@ const SymbolDict = Dict{Symbol, Any}
 
 const Maybe{T} = Union{T, Nothing}
 
+map_into(f::F, ::Type{T}, x) where {F, T} = (y::T = T(x); map!(f, values(y)); y)
+
 function get_metadata end
 
 include("style.jl")

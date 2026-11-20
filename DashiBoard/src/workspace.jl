@@ -120,7 +120,7 @@ function launch(
         async::Bool = false
     )
 
-    handlers, stream_handlers, probe_handlers = get_handlers(m, workspace, config)
+    handlers, stream_handlers, probe_handlers, scope = get_handlers(m, workspace, config)
     (; host, port) = config.server
-    return launch(handlers, stream_handlers, probe_handlers; host, port, async)
+    return launch(handlers, stream_handlers, probe_handlers; scope, host, port, async)
 end

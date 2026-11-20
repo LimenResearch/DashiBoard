@@ -35,7 +35,7 @@ function get_handlers(
     stream_handlers["fetch-data"] = fetch_data
     stream_handlers["get-processed-data"] = get_processed_data
 
-    middleware = DashiBase.ScopedMiddleware(
+    scope = (
         Pipelines.PARSER => parser,
         Pipelines.MODEL_DIR => model_dir,
         Pipelines.TRAINING_DIR => training_dir,
@@ -47,22 +47,17 @@ function get_handlers(
         EXTENSION_OF => extension_of,
     )
 
-    map!(middleware, values(handlers))
-    map!(middleware, values(stream_handlers))
-
-    probe_handlers = copy(handlers)
-    map!(DashiBase.probe_middleware, values(probe_handlers))
-
-    return handlers, stream_handlers, probe_handlers
+    return handlers, stream_handlers, DashiBase.probe_handlers(handlers), scope
 end
 
 function launch(
         handlers::AbstractDict,
         stream_handlers::AbstractDict,
         probe_handlers::AbstractDict;
+        scope = (),
         host::AbstractString = "127.0.0.1",
         port::Integer = 8080,
-        async::Bool = false,
+        async::Bool = false
     )
 
     router = HTTP.Router(
@@ -70,9 +65,10 @@ function launch(
         HTTP.streamhandler(cors405)
     )
 
-    HTTP.register!(router, "POST", "/rpc", JSONHandler(handlers))
-    HTTP.register!(router, "POST", "/rpc-probe", JSONHandler(probe_handlers))
-    stream_handler = JSONStreamHandler(stream_handlers)
+    scope_dict = Dict{ScopedValue, Any}(scope)
+    HTTP.register!(router, "POST", "/rpc", JSONHandler(handlers, scope_dict))
+    HTTP.register!(router, "POST", "/rpc-probe", JSONHandler(probe_handlers, scope_dict))
+    stream_handler = JSONStreamHandler(stream_handlers, scope_dict)
     HTTP.register!(router, "POST", "/rpc-stream", stream_handler)
     # The table download as a plain GET: a link cannot carry a JSON-RPC body, and only a download
     # the browser makes itself streams to disk rather than through the page's memory.
@@ -115,13 +111,13 @@ function launch(
         extension_of::AbstractDict = Dict{String, String}()
     )
 
-    handlers, stream_handlers, probe_handlers = get_handlers(
+    handlers, stream_handlers, probe_handlers, scope = get_handlers(
         workspace;
         data_dir, pipeline_dir, filter_dir, model_dir, training_dir,
         parser, extensions, extension_of,
     )
 
-    return launch(handlers, stream_handlers, probe_handlers; host, port, async)
+    return launch(handlers, stream_handlers, probe_handlers; scope, host, port, async)
 end
 
 """

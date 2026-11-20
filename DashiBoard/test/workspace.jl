@@ -27,11 +27,11 @@ end
     include("static/workspace/launch.jl")
 
     try
-        handlers, _, _ = DashiBoard.get_handlers(Extensions, WORKSPACE, CONFIG)
+        handlers, _, _, scope = DashiBoard.get_handlers(Extensions, WORKSPACE, CONFIG)
 
         params = Dict("cols" => ["a"], "nodes" => String[], "groups" => String[], "include" => ["cards"])
         req = DashiBase.JSONRequest(; method = "get-card-ir", params, id = 1)
-        ir = JSON.parse(JSON.json(DashiBase.apply_handlers(handlers, req)))["result"]
+        ir = JSON.parse(JSON.json(DashiBase.apply_handlers(handlers, req; scope)))["result"]
         funnel = only(p for p in ir["cards"]["streamliner"]["properties"] if p["key"] == "funnel")
         transforms = only(p for p in funnel["value"]["objects"][""]["properties"] if p["key"] == "input_transforms")
         @test "double" in transforms["value"]["values"]["enum"]

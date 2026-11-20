@@ -45,6 +45,7 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
+using Base.MathConstants: γ
 
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
     fieldtags, fielddefaults, StructUtils

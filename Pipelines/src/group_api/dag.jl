@@ -24,11 +24,6 @@ function Pipeline(
     V = eltype(c.outputs)
     output_vars = n_nodes == 0 ? similar(V, 0) : reduce(vcat, view(c.outputs, 1:n_nodes))
     group_outputs = c.outputs[(n_nodes + 1):end]
-    # A card may name source columns in free text rather than through a selector — a `glm` formula's
-    # inputs are the case in point. Those must be loaded too, or the card fails inside its task with
-    # a FunSQL reference error naming neither the column nor the node.
-    free_inputs = setdiff(union(String[], (get_node_inputs(n) for n in c.nodes)...), output_vars)
-    cols = union(cols, free_inputs)
     eg = GroupDiGraph(G, cols, output_vars, group_outputs, group_names)
     return Pipeline(c.nodes, eg)
 end

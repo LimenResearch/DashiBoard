@@ -24,12 +24,10 @@ struct IsolationForest
     sample_size::Int
 end
 
-const EULER_GAMMA = 0.5772156649015329
-
 # Average path length of an unsuccessful binary-search-tree search among `n` points
 # (Liu, Ting & Zhou 2008): the normalisation of path lengths.
 function average_path_length(n::Integer)
-    n > 2 && return 2 * (log(n - 1) + EULER_GAMMA) - 2 * (n - 1) / n
+    n > 2 && return 2 * (log(n - 1) + γ) - 2 * (n - 1) / n
     return n == 2 ? 1.0 : 0.0
 end
 
@@ -59,7 +57,7 @@ function grow_isolation_tree!(nodes, X, idx, depth, max_depth, rng)
     return k
 end
 
-function path_length(tree::Vector{IsolationNode}, x::AbstractVector)
+function path_length(tree::AbstractVector{IsolationNode}, x::AbstractVector)
     k, depth = 1, 0
     while true
         node = tree[k]

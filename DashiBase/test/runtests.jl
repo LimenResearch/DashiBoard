@@ -46,7 +46,7 @@ end
 
 module MethodTest
     using StructUtils: @kwarg
-    using DashiBase: DashiBase, AbstractMethod, ArrayIR, @options
+    using DashiBase: AbstractMethod, ArrayIR, @options
 
     abstract type Scaling <: AbstractMethod end
 
@@ -167,7 +167,7 @@ end
     @test !isvalid(Dict("y" => "a"), schema2)
 
     obj3 = ObjectIR(StructTest.MyStruct3)
-    @test obj3.properties[1].value.default == true
+    @test obj3.properties[1].value.default
 
     schema3 = DashiBase.json_schema(obj3) |> Schema
     @test isvalid(Dict("x" => true), schema3)

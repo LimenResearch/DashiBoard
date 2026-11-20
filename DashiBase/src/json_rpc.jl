@@ -86,24 +86,29 @@ function parse_json(s::AbstractString)
 end
 
 function _get_request(d::AbstractDict)
-    id = get(d, "id", missing)
+    id = get(d, "id", nothing)
     # Ids are integers here, a narrowing of the spec's string-or-number. One that is not cannot
     # be echoed back, so the failure carries `null`, as the spec says for an undetectable id.
     # `Int` rather than `Integer`: `true` is an `Integer` and would be answered as id 1, and a
     # `BigInt` cannot be stored in the reply.
-    if !(id isa Union{Int, Missing})
+    if !(id isa Union{Int, Nothing})
         error = json_error(invalid_request, "`id` must be an integer")
         return JSONFailure(; id = missing, error)
     end
+
+    # `missing` declares that, if we are unable to generate a proper request,
+    # this is not a notification, rather a malformed request whose `id`
+    # field could not be understood.
+    failure_id = something(id, missing)
     if get(d, "jsonrpc", nothing) != "2.0"
         error = json_error(invalid_request, "`jsonrpc` must be \"2.0\"")
-        return JSONFailure(; id, error)
+        return JSONFailure(; id = failure_id, error)
     end
     return try
         StructUtils.make(JSONRequest, d)
     catch e
         error = json_error(invalid_request, e)
-        JSONFailure(; id, error)
+        JSONFailure(; id = failure_id, error)
     end
 end
 
@@ -162,14 +167,13 @@ function apply_handlers(
 
     x = @return_failure parse_json(s)
     req = @return_failure get_request(x)
-    # A streamed reply is one body, so a batch has nowhere to go.
-    if req isa AbstractVector && !isnothing(path)
-        error = json_error(invalid_request, "A streamed request cannot be a batch.")
-        return JSONFailure(; id = missing, error)
-    end
 
     return if isnothing(path)
         apply_handlers(handlers, req; scope)
+    elseif req isa AbstractVector
+        # A streamed reply is one body, so a batch has nowhere to go.
+        error = json_error(invalid_request, "A streamed request cannot be a batch.")
+        JSONFailure(; id = missing, error)
     else
         apply_handlers(handlers, req, path; scope)
     end
@@ -219,5 +223,6 @@ function apply_middleware(middleware, handlers::AbstractDict)
     return handlers′
 end
 
-# Runs `handler` for validation but replaces thunk with a trivial `Returns(nothing)`
+# Runs `handler` for validation but replaces thunk with a constant function
+# that always returns the probe
 probe_middleware(handler) = Returns ∘ probe ∘ handler

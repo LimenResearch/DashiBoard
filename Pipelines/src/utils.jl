@@ -1,7 +1,5 @@
 # General utils
 
-map_into(f::F, ::Type{T}, x) where {F, T} = (y::T = T(x); map!(f, values(y)); y)
-
 to_list(::Type{T}, s::AbstractVector) where {T} = convert(Vector{T}, s)
 to_list(::Type{T}, x) where {T} = isnothing(x) ? T[] : T[convert(T, x)]
 

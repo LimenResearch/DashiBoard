@@ -215,14 +215,7 @@ end
 
 probe(p::ProbedThunk) = p.probe
 
-# Middleware
+# Run `handler` for validation but replace the thunk with a constant function that always returns the probe
+to_probe(handler) = Returns ∘ probe ∘ handler
 
-function apply_middleware(middleware, handlers::AbstractDict)
-    handlers′ = StringDict(handlers)
-    map!(middleware, values(handlers′))
-    return handlers′
-end
-
-# Runs `handler` for validation but replaces thunk with a constant function
-# that always returns the probe
-probe_middleware(handler) = Returns ∘ probe ∘ handler
+probe_handlers(handlers::AbstractDict) = map_into(to_probe, StringDict, handlers)

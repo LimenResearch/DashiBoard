@@ -47,9 +47,7 @@ function get_handlers(
         EXTENSION_OF => extension_of,
     )
 
-    probe_handlers = DashiBase.apply_middleware(DashiBase.probe_middleware, handlers)
-
-    return handlers, stream_handlers, probe_handlers, scope
+    return handlers, stream_handlers, DashiBase.probe_handlers(handlers), scope
 end
 
 function launch(

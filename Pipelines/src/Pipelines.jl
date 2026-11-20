@@ -6,6 +6,7 @@ export Card,
     RescaleCard,
     ClusterCard,
     DimensionalityReductionCard,
+    AnomalyCard,
     GLMCard,
     MixedModelCard,
     InterpCard,
@@ -44,6 +45,7 @@ public default_parser, PARSER, MODEL_DIR, TRAINING_DIR
 
 using Base: Fix1, Fix2, AbstractLock
 using Base.ScopedValues: ScopedValue
+using Base.MathConstants: γ
 
 using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
     fieldtags, fielddefaults, StructUtils
@@ -102,7 +104,7 @@ using StatsModels: term, terms, termnames,
 
 using StatsAPI: fit, predict, modelmatrix, RegressionModel
 
-using StatsBase: fweights, median
+using StatsBase: fweights, median, sample, mean_and_cov, mean_and_std
 
 using Distributions: Distribution,
     Normal,
@@ -159,9 +161,9 @@ using Clustering: assignments, kmeans, dbscan, affinityprop
 using Distances: pairwise, SqEuclidean, Euclidean, Cityblock, Chebyshev, Minkowski, HellingerDist, RMSDeviation,
     WeightedSqEuclidean, WeightedEuclidean, WeightedCityblock, WeightedMinkowski, UnionMinkowskiMetric
 
-using LinearAlgebra: diagind
+using LinearAlgebra: diagind, cholesky, Symmetric, LowerTriangular, I, tr
 
-using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS
+using MultivariateStats: PCA, PPCA, FactorAnalysis, MDS, reconstruct
 
 using Dates: hour, minute
 
@@ -185,6 +187,7 @@ include("cards/window_function.jl")
 include("cards/rescale.jl")
 include("cards/cluster.jl")
 include("cards/dimensionality_reduction.jl")
+include("cards/anomaly.jl")
 include("cards/glm.jl")
 include("cards/interp.jl")
 include("cards/gaussian_encoding.jl")
@@ -206,6 +209,7 @@ function __init__()
     register_card("rescale" => CardSpec(RescaleCard, "Rescale"))
     register_card("cluster" => CardSpec(ClusterCard, "Cluster"))
     register_card("dimensionality_reduction" => CardSpec(DimensionalityReductionCard, "Dimensionality Reduction"))
+    register_card("anomaly" => CardSpec(AnomalyCard, "Anomaly Detection"))
     register_card("glm" => CardSpec(GLMCard, "GLM"))
     register_card("interp" => CardSpec(InterpCard, "Interpolation"))
     register_card("gaussian_encoding" => CardSpec(GaussianEncodingCard, "Gaussian Encoding"))

@@ -473,6 +473,83 @@ end
     @test Y[2, :] == df.component_2
 end
 
+@testset "anomaly" begin
+    d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "anomaly.json"))
+
+    DBInterface.execute(
+        Returns(nothing),
+        repo,
+        """
+        CREATE OR REPLACE TABLE small AS (
+            FROM selection
+            LIMIT 300
+        );
+        """
+    )
+    part_node = Node(Pipelines.Card(d["partition"]))
+    Pipelines.train_evaljoin!(repo, part_node, "small" => "partition", "No")
+    train_df = DBInterface.execute(DataFrame, repo, "FROM partition WHERE partition = 1")
+    X_train = Matrix{Float64}([train_df.DEWP train_df.TEMP train_df.PRES]')
+
+    for (key, output) in ["isolation_forest" => "anomaly_score", "mahalanobis" => "distance",
+                          "pca_reconstruction" => "anomaly_score"]
+        card = Pipelines.Card(d[key])
+        node = Node(card)
+        @test Pipelines.get_node_inputs(node) == ["DEWP", "TEMP", "PRES", "partition"]
+        @test Pipelines.get_node_outputs(node) == [output]
+
+        Pipelines.train_evaljoin!(repo, node, "partition" => "anomaly", "No")
+        df = DBInterface.execute(DataFrame, repo, "FROM anomaly ORDER BY No")
+        # every row is scored, inside the training partition and outside it
+        @test nrow(df) == 300
+        @test all(isfinite, df[!, output])
+        @test all(≥(0), df[!, output])
+
+        # the card scores with the detector fitted on the training rows only
+        detector = card.method(X_train)
+        X = Matrix{Float64}([df.DEWP df.TEMP df.PRES]')
+        @test Pipelines.anomaly_score(detector, X) ≈ df[!, output]
+    end
+
+    # a seeded forest is reproducible
+    card = Pipelines.Card(d["isolation_forest"])
+    s1 = Pipelines.anomaly_score(card.method(X_train), X_train)
+    s2 = Pipelines.anomaly_score(card.method(X_train), X_train)
+    @test s1 == s2
+    @test all(s -> 0 < s < 1, s1)
+end
+
+@testset "anomaly detectors find planted outliers" begin
+    rng = Pipelines.get_rng(7)
+    # 500 normal rows on a correlated plane, plus 5 rows off it and 5 rows far from the cloud
+    N = 500
+    a, b = randn(rng, N), randn(rng, N)
+    X = vcat(a', b', (a .+ b .+ 0.05 .* randn(rng, N))')
+    off_plane = vcat(randn(rng, 5)', randn(rng, 5)', (3 .* ones(5))')
+    far = 8 .* ones(3, 5)
+    X_all = hcat(X, off_plane, far)
+    planted = N+1:N+10
+
+    for method in [
+            Pipelines.IsolationForestMethod(trees = 200, seed = 3),
+            Pipelines.MahalanobisMethod(),
+            Pipelines.PCAReconstructionMethod(n_components = 2),
+        ]
+        detector = method(X)
+        scores = Pipelines.anomaly_score(detector, X_all)
+        top = partialsortperm(scores, 1:10, rev = true)
+        # the far rows are caught by every detector
+        @test issubset(N+6:N+10, top)
+        if !(method isa Pipelines.IsolationForestMethod)
+            # rows that break the correlation are caught by the covariance-aware detectors
+            @test issetequal(top, planted)
+        end
+    end
+
+    @test Pipelines.average_path_length(1) == 0
+    @test Pipelines.average_path_length(2) == 1
+end
+
 @testset "glm" begin
     d = JSON.parsefile(joinpath(@__DIR__, "static", "configs", "glm.json"))
 

@@ -1,0 +1,27 @@
+{
+  "isolation_forest": {
+    "type": "anomaly",
+    "method": { "type": "isolation_forest", "trees": 50, "sample_size": 64, "seed": 1 },
+    "partition": "partition",
+    "inputs": ["DEWP", "TEMP", "PRES"]
+  },
+  "mahalanobis": {
+    "type": "anomaly",
+    "method": { "type": "mahalanobis" },
+    "partition": "partition",
+    "inputs": ["DEWP", "TEMP", "PRES"],
+    "output": "distance"
+  },
+  "pca_reconstruction": {
+    "type": "anomaly",
+    "method": { "type": "pca_reconstruction", "n_components": 2 },
+    "partition": "partition",
+    "inputs": ["DEWP", "TEMP", "PRES"]
+  },
+  "partition": {
+    "type": "split",
+    "method": { "type": "percentile", "percentile": 0.6 },
+    "order_by": ["No"],
+    "output": "partition"
+  }
+}

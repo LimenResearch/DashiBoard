@@ -220,4 +220,20 @@ end
     @test info[11].type == "numerical"
     @test info[11].eltype == "float"
     @test info[11].summary == (min = Iws_min, max = Iws_max)
+    
+    path = joinpath(@__DIR__, "static", "dates.csv")
+    DataIngestion.load_files(repo, [path], "date_table", dateformat = "%m/%d/%Y"; schema)
+    global summaries = DataIngestion.summarize(repo, "date_table"; schema = "schm")
+    
+    @test summaries[1].name == "row"
+    @test summaries[1].type == "numerical"
+    @test summaries[1].eltype == "int"
+    @test summaries[1].summary == (min = 1, max = 3)
+    
+    @test summaries[2].name == "date"
+    @test summaries[2].type == "numerical"
+    @test summaries[2].eltype == "int"
+    @test summaries[2].summary == (min = 1, max = 3)
+   
+    DataIngestion.VariableSummary("row", "numerical", "int", )
 end

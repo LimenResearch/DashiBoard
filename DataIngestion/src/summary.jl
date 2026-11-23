@@ -12,6 +12,9 @@ isnumerical(::Type{<:Number}) = true
 isnumerical(::Type{Bool}) = false
 isnumerical(::Type) = false
 
+istemporal(::Type{TimeType}) = true
+istemporal(::Type) = false
+
 mutable struct VariableSummary
     const name::String
     const type::String
@@ -69,7 +72,7 @@ function summarize(
 
     summaries = map(names, types) do name, eltype
         T = nonmissingtype(eltype)
-        type = isnumerical(T) ? "numerical" : "categorical"
+        type = isnumerical(T) ? "numerical" : istemporal(T) ? "temporal" : "categorical"
         eltype = stringify_type(T)
         return VariableSummary(string(name), type, eltype)
     end

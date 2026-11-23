@@ -7,7 +7,6 @@ authors = ["Limen Research", "Mattia G. Bergomi", "Dario Sarra", "Pietro Vertech
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 DBInterface = "a10d1c49-ce27-4219-8d33-6db1a4562965"
 DashiBase = "b2406810-cf54-4e58-91cb-2ebd7b47efe7"
-Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DuckDBUtils = "7d8cfb0f-d1ec-4adb-bc0e-59660d99800f"
 EnumX = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"

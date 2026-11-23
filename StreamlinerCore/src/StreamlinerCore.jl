@@ -44,7 +44,6 @@ using Base: Fix1, Fix2, front, tail
 using Statistics: mean, std
 using Random: AbstractRNG, Xoshiro, seed!
 using TOML: TOML
-using Dates: now, DateTime
 using StructUtils: make
 using Tables: Tables
 using NNlib: upsample_linear, upsample_nearest

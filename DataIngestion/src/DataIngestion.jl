@@ -5,6 +5,8 @@ export Filter, ListFilter, IntervalFilter
 public is_supported, acceptable_paths, data_path, load_files, summarize, VariableSummary, select, selection_query
 
 using Base.ScopedValues: @with, ScopedValue
+using Dates: Date, Time, DateTime
+
 using FunSQL: SQLNode,
     Agg,
     Fun,
@@ -17,6 +19,7 @@ using FunSQL: SQLNode,
     Where,
     Order,
     Group
+
 using DBInterface: DBInterface
 using DuckDBUtils: DuckDBUtils, Repository, SQLMacro, get_catalog, replace_table, to_sql, in_schema
 using DashiBase: @constructible, StringDict, Maybe

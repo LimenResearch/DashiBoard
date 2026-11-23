@@ -33,6 +33,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 [compat]
 ChainRulesCore = "1"
 DBInterface = "2.6.1"
+Dates = "1.11"
 EnumX = "1.0.4"
 Flux = "0.14, 0.15, 0.16"
 FunSQL = "0.15.0"

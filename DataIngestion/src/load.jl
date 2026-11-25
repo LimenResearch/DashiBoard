@@ -35,7 +35,8 @@ is_supported(file::AbstractString) = haskey(DEFAULT_READERS, to_format(file))
 List of relative paths corresponding to supported files within `DATA_DIR[]`.
 """
 function acceptable_paths()
-    return Iterators.flatmap(walkdir(DATA_DIR[])) do (root, _, files)
+    base_dir = DATA_DIR[]
+    return Iterators.flatmap(walkdir(base_dir)) do (root, _, files)
         rel_root = relpath(root, base_dir)
         return (normpath(rel_root, file) for file in files if is_supported(file))
     end

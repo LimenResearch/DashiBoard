@@ -290,6 +290,8 @@ end
 
 get_label(spec::CardSpec) = spec.label
 
+get_type(spec::CardSpec) = spec.type
+
 const CARD_SPECS = OrderedDict{String, CardSpec}()
 
 get_spec(k::AbstractString) = CARD_SPECS[k]
@@ -307,8 +309,14 @@ end
 
 ## Metadata helpers
 
-card_type(c::Card)::String = findfirst(spec -> isa(c, spec.type), CARD_SPECS)
-card_type(T::Type)::String = findfirst(spec -> (T <: spec.type), CARD_SPECS)
+function _card_type(pred::F, ::Type{C})::String where {F, C <: Card}
+    name = findfirst(pred ∘ get_type, CARD_SPECS)
+    isnothing(name) && throw(ArgumentError("Could not find card spec for $(C)"))
+    return name
+end
+
+card_type(c::C) where {C<:Card} = _card_type(Fix1(isa, c), C)
+card_type(::Type{C}) where {C<:Card} = _card_type(Fix1(<:, C), C)
 
 get_default_label(c::Card) = get_label(CARD_SPECS[card_type(c)])
 

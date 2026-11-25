@@ -2,6 +2,7 @@ using DataIngestion
 using IntervalSets, Dates
 using DBInterface, DuckDBUtils, DataFrames, JSON
 using FunSQL: From, Get, Select
+using Base.ScopedValues: @with
 using Downloads
 using Test
 
@@ -85,6 +86,12 @@ using Test
         @test df′.x == [1, 2, 3, 4, 5, 6]
         @test df′.y == ["a", "b", "c", "d", "e", "f"]
         @test df′.filename == ["test1", "test1", "test1", "test2", "test2", "test2"]
+
+        acceptable_paths = @with DataIngestion.DATA_DIR => dir DataIngestion.acceptable_paths()
+        @test issetequal(
+            acceptable_paths,
+            ["test1.csv", "test1.json", "test1.parquet", "test2.csv", "test2.json", "test2.parquet"]
+        )
     end
 end
 
@@ -160,7 +167,7 @@ end
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
     path = joinpath(@__DIR__, "static", "dates.csv")
-    DataIngestion.load_files(repo, [path], dateformat = "%m/%d/%Y"; schema)
+    DataIngestion.load_files(repo, [path]; dateformat = "%m/%d/%Y", schema)
     f = IntervalFilter("date", Date(2023, 12, 09) .. Date(2023, 12, 10))
     DataIngestion.select(repo, [f]; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")

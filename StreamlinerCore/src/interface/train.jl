@@ -27,7 +27,7 @@ end
 
 Return `true` if `result` is a successful training result, `false` otherwise.
 """
-has_weights(result::Result) = result.trained && result.successful
+has_weights(result::Result) = result.trained && something(result.successful, false)
 
 # Train model via Optimisers.jl or Optim.jl
 

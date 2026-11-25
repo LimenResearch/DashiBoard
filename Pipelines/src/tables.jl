@@ -10,8 +10,6 @@ function fromtable(data)
     return tbl
 end
 
-join_names(args...) = join(args, "_")
-
 function get_colspecs(
         repository::Repository, t::AbstractString;
         schema::Maybe{AbstractString} = nothing

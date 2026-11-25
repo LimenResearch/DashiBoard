@@ -108,6 +108,7 @@ end
 # What a file under a kind's directory is expected to be.
 const EXPECTED_KIND = Dict(:data => "table", :pipeline => "cards", :filter => "filters")
 
+# TODO: unify with `DataIngestion.acceptable_paths`
 """
     files_under(base; except) -> Vector{String}
 

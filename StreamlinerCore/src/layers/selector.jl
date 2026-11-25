@@ -49,8 +49,6 @@ function instantiate(s::Selector, input::Shape, ::Shape)
     return s, Shape(shape, input.features)
 end
 
-(s::Selector)(size, fmt) = Fix1(forward, s), map(length, to_ranges(size, s.window)), fmt
-
 function selector(; window)
     w::Vector{RangeSelector} = range_selector.(window)
     return Selector(Tuple(w))

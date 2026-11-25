@@ -5,9 +5,9 @@ const EVAL_CALLBACK = ScopedValue{Any}(Returns(nothing))
 abstract type ValidatedCallable end
 
 # simple case: `x` is a callable and already validated struct
-validate_method(x::ValidatedCallable) = x
+validated_method(x::ValidatedCallable) = x
 
-validate_method(::Type{T}, spec::AbstractDict) where {T} = validate_method(T(spec))
+validated_method(::Type{T}, spec::AbstractDict) where {T} = validated_method(T(spec))
 
 @kwarg struct FilesConfig
     files::Vector{String}
@@ -104,7 +104,7 @@ end
 
 @constructible RunPipeline
 
-function validate_method(rp::RunPipeline)
+function validated_method(rp::RunPipeline)
     table, proxy, config, train = rp.table, rp.proxy, rp.pipeline, rp.train
     may_refer = referable(config.nodes, config.groups)
     cols = DuckDBUtils.colnames(REPOSITORY[], proxy.table; proxy.schema)

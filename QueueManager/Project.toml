@@ -2,3 +2,6 @@ name = "QueueManager"
 uuid = "4a26e946-5c82-4973-bcbb-af9622d6ea90"
 version = "0.1.0"
 authors = ["Limen Research", "Mattia G. Bergomi", "Dario Sarra", "Pietro Vertechi"]
+
+[compat]
+julia = "1.12"

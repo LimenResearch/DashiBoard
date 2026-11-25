@@ -1,0 +1,6 @@
+[deps]
+QueueManager = "4a26e946-5c82-4973-bcbb-af9622d6ea90"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+QueueManager = {path = ".."}

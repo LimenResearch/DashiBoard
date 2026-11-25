@@ -39,8 +39,8 @@ Broadcast.broadcastable(dp::DepsParser) = Ref(dp)
 node_idx(dp::DepsParser, k::AbstractString) = dp.node_idxs[k]
 group_idx(dp::DepsParser, k::AbstractString) = dp.group_idxs[k]
 
-SubNode(dp::DepsParser, id::AbstractString) = SubNode(node_idx(dp, id), nothing)
-SubNode(dp::DepsParser, d::AbstractDict) = SubNode(node_idx(dp, d["node"]), d["products"])
+sub_node(dp::DepsParser, id::AbstractString) = SubNode(node_idx(dp, id), nothing)
+sub_node(dp::DepsParser, d::AbstractDict) = SubNode(node_idx(dp, d["node"]), d["products"])
 
 function append_edges!(dp::DepsParser, src::AbstractVector, dst::Integer)
     append!(dp.srcs, src)
@@ -66,7 +66,7 @@ function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
     key::String = only(Iterators.filter(in(DEPS_KINDS), keys(d)))
     inputs = if key == "nodes"
         nodes::Vector{Any} = to_list(Any, d[key])
-        Nodes(SubNode.(dp, nodes))
+        Nodes(sub_node.(dp, nodes))
     elseif key == "groups"
         groups::Vector{String} = to_stringlist(d[key])
         Groups(group_idx.(dp, groups))
@@ -74,7 +74,7 @@ function Deps(dp::DepsParser, d::AbstractDict, i::Integer)
         cols::Vector{String} = to_stringlist(d[key])
         Cols(cols)
     end
-    through::Vector{SubNode} = SubNode.(dp, get_through(d))
+    through::Vector{SubNode} = sub_node.(dp, get_through(d))
 
     update!(dp, inputs, i)
     append_edges!(dp, get_node_idx.(through), i)

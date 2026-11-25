@@ -13,6 +13,7 @@ cors405(::HTTP.Request) = HTTP.Response(405, headers = CORS_RES_HEADERS, body = 
 function CorsMiddleware(handler)
     return function (stream::HTTP.Stream)
         req = startread(stream)
+        (req isa HTTP.Request) || throw(ArgumentError("Stream is not a server stream"))
         return if req.method == "OPTIONS"
             HTTP.streamhandler(options_handler)(stream)
         else

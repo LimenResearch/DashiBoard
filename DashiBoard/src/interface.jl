@@ -7,7 +7,7 @@ abstract type ValidatedCallable end
 # simple case: `x` is a callable and already validated struct
 validate_method(x::ValidatedCallable) = x
 
-validate_method(::Type{T}, spec::AbstractDict) where {T} = validate_method(T(x))
+validate_method(::Type{T}, spec::AbstractDict) where {T} = validate_method(T(spec))
 
 @kwarg struct FilesConfig
     files::Vector{String}

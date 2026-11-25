@@ -167,7 +167,7 @@ end
     schema = "schm"
     DBInterface.execute(Returns(nothing), repo, "CREATE SCHEMA schm")
     path = joinpath(@__DIR__, "static", "dates.csv")
-    DataIngestion.load_files(repo, [path], dateformat = "%m/%d/%Y"; schema)
+    DataIngestion.load_files(repo, [path]; dateformat = "%m/%d/%Y", schema)
     f = IntervalFilter("date", Date(2023, 12, 09) .. Date(2023, 12, 10))
     DataIngestion.select(repo, [f]; schema)
     df = DBInterface.execute(DataFrame, repo, "FROM schm.selection")

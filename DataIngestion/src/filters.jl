@@ -57,10 +57,10 @@ end
 
 @constructible IntervalFilter
 
-function Condition(f::IntervalFilter, prefix::AbstractString)
+function Condition(f::IntervalFilter; prefix::AbstractString)
     (; colname, interval) = f
 
-    pleft, pright = string.(prefix, "_", ("left", "right"))
+    pleft, pright = join_names.(prefix, ("left", "right"))
     params = StringDict(pleft => interval.min, pright => interval.max)
     pred = Fun.between(Get(colname), Var(pleft), Var(pright))
 
@@ -96,12 +96,12 @@ end
 
 @constructible ListFilter
 
-function Condition(f::ListFilter, prefix::AbstractString)
+function Condition(f::ListFilter; prefix::AbstractString)
     (; colname, list) = f
     return if isempty(list)
         Condition(Lit(false), StringDict())
     else
-        k = string(prefix, "_", "values")
+        k = join_names(prefix, "values")
         Condition(Fun." IN "(Get(colname), Var(k)), StringDict(k => list))
     end
 end
@@ -120,7 +120,7 @@ a table based on `filters`.
 Each filter should be an instance of [`Filter`](@ref). See also [`select`](@ref).
 """
 function selection_query(filters::AbstractVector)
-    cs = [Condition(f, string("filter", "_", i)) for (i, f) in enumerate(filters)]
+    cs = [Condition(f; prefix = join_names("filter", i)) for (i, f) in enumerate(filters)]
     params = mapfoldl(get_params, merge!, cs, init = StringDict())
     pred = Fun.and(Iterators.map(get_pred, cs)...)
     return Where(pred), params

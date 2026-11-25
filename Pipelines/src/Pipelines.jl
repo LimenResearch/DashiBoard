@@ -51,7 +51,7 @@ using StructUtils: @choosetype, @nonstruct, @defaults, @kwarg, @tags,
     fieldtags, fielddefaults, StructUtils
 using JSONSchema: JSONSchema
 
-using DashiBase: DashiBase, DashiStyle, json_schema, @constructible, enum_instances, to_config,
+using DashiBase: DashiBase, DashiStyle, join_names, json_schema, @constructible, to_config,
     AbstractMethod, @options, lift_simple_method, lower_simple_method, get_metadata,
     Property, TaggedObjectIR, ObjectIR, OneOrManyIR, EitherIR, ArrayIR, StringIR, NumberIR, IntegerIR, ReferenceIR,
     VARIABLE_DEF, VARIABLES_DEF, NONEMPTY_VARIABLES_DEF,

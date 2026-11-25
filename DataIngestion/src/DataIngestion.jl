@@ -21,10 +21,9 @@ using FunSQL: SQLNode,
     Group
 
 using DBInterface: DBInterface
-using DuckDBUtils: DuckDBUtils, Repository, SQLMacro, get_catalog, replace_table, to_sql, in_schema
-using DashiBase: @constructible, StringDict, Maybe
+using DuckDBUtils: DuckDBUtils, Repository, SQLMacro, replace_table, to_sql
+using DashiBase: @constructible, join_names, StringDict, Maybe
 using IntervalSets: ClosedInterval, leftendpoint, rightendpoint
-using IterTools: flagfirst
 using Tables: Tables
 
 const DATA_DIR = ScopedValue(".")

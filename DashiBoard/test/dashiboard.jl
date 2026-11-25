@@ -7,6 +7,23 @@ using Base.ScopedValues: @with
 using StreamlinerCore: StreamlinerCore
 using DashiBoard, Test, Downloads
 
+module Validated
+    using StructUtils: @kwarg
+    using DashiBase: DashiBase
+    using DashiBoard: DashiBoard
+
+    # A struct whose own `validated_method` does something beyond the trivial
+    # pass-through, so `validated_method(::Type{T}, spec)` can be checked to forward to it.
+    @kwarg struct DoubleOrDie
+        n::Int
+    end
+    DashiBase.@constructible DoubleOrDie
+    function DashiBoard.validated_method(d::DoubleOrDie)
+        d.n < 0 && error("n must be non-negative")
+        return d.n * 2
+    end
+end
+
 # A model whose building fails for a reason that has nothing to do with sizes.
 struct BoomSpec end
 BoomModel(::AbstractDict) = BoomSpec()
@@ -70,6 +87,29 @@ end
     @test !occursin("NaN", str) && !occursin("Infinity", str)
     @test d["a"] == [1.0, nothing, nothing, nothing]
     @test d["b"]["x"] === nothing
+end
+
+@testset "validated_method" begin
+    # `T(spec)` constructs the struct from the dict; once built, a plain `ValidatedCallable`
+    # with no override of its own goes through the trivial `validated_method(x::ValidatedCallable)`
+    # case unchanged.
+    spec = Dict(
+        "files" => Dict("files" => ["a.csv"]),
+        "table" => Dict("table" => "t", "id_var" => "id"),
+    )
+    built = DashiBoard.validated_method(DashiBoard.LoadFiles, spec)
+    @test built isa DashiBoard.LoadFiles
+    @test built.files.files == ["a.csv"]
+    @test built.table.table == "t" && built.table.id_var == "id" && isnothing(built.table.schema)
+
+    # A type with its own `validated_method` is dispatched to that method, not the trivial case.
+    @test DashiBoard.validated_method(Validated.DoubleOrDie, Dict("n" => 21)) == 42
+    @test_throws ErrorException DashiBoard.validated_method(Validated.DoubleOrDie, Dict("n" => -1))
+
+    # A spec that fails to construct `T` fails there, before `validated_method` is even reached:
+    # this two-argument method adds no catching of its own (that happens further out, in
+    # `DashiBase.validate_method`).
+    @test_throws Exception DashiBoard.validated_method(DashiBoard.LoadFiles, Dict("files" => Dict("files" => String[])))
 end
 
 mktempdir() do ws

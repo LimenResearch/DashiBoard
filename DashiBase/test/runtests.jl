@@ -309,8 +309,41 @@ end
     @test widths.default == [64, 32]
 end
 
+@testset "validate_method" begin
+    # Success: the "method" is just a callable, and its return value passes through untouched.
+    ok_req = DashiBase.JSONRequest(id = 1, method = "double", params = 2)
+    @test DashiBase.validate_method(p -> p * 2, ok_req) == 4
+
+    # Failure: an exception raised while validating/constructing from `params` is caught and
+    # turned into a JSONFailure carrying the request's id and the `invalid_params` code — this
+    # is how a bad payload (e.g. one that fails struct construction) gets reported, rather than
+    # crashing the handler.
+    bad_req = DashiBase.JSONRequest(id = 7, method = "boom", params = 1)
+    failure = DashiBase.validate_method(_ -> error("boom"), bad_req)
+    @test failure isa DashiBase.JSONFailure
+    @test failure.id == 7
+    @test failure.error.code == Int(DashiBase.invalid_params)
+    @test occursin("Invalid params", failure.error.message)
+
+    # A notification (no id) that fails validation still carries `nothing` through as its id,
+    # rather than inventing one, so the caller can tell it need not be answered.
+    notif_req = DashiBase.JSONRequest(id = nothing, method = "boom", params = 1)
+    failure2 = DashiBase.validate_method(_ -> error("boom"), notif_req)
+    @test failure2 isa DashiBase.JSONFailure
+    @test isnothing(failure2.id)
+
+    # A `StructuredException` is reported through its structured `data`, not just a message —
+    # the same path `json_error` uses for ordinary exceptions.
+    structured_req = DashiBase.JSONRequest(id = 3, method = "boom", params = 1)
+    structured_failure = DashiBase.validate_method(
+        _ -> throw(DashiBase.StructuredException(Dict{String, Any}("field" => "bad"))), structured_req
+    )
+    @test structured_failure.error.code == Int(DashiBase.invalid_params)
+    @test structured_failure.error.data == Dict("field" => "bad")
+end
+
 @testset "json-rpc" begin
-    handlers = Dict{String, Any}("echo" => p -> (() -> p))
+    handlers = Dict{String, Any}("echo" => p -> Returns(p), "boom" => _ -> error("nope"))
     rpc(s) = JSON.parse(JSON.json(DashiBase.apply_handlers(handlers, s)))
 
     ok = rpc("""{"jsonrpc":"2.0","id":1,"method":"echo","params":{"a":1}}""")
@@ -325,6 +358,9 @@ end
     end
     @test rpc("""{"jsonrpc":"2.0","id":2,"method":"nope","params":1}""")["error"]["code"] == -32601
     @test rpc("{bad")["error"]["code"] == -32700
+    # A method that throws while validating its params is reported as `invalid_params`, with the
+    # request's own id attached — this is `validate_method` wired through `apply_handlers`.
+    @test rpc("""{"jsonrpc":"2.0","id":9,"method":"boom","params":1}""")["error"]["code"] == -32602
     # A notification is never answered, not even when it fails.
     @test DashiBase.apply_handlers(handlers, """{"jsonrpc":"2.0","method":"nope","params":1}""") === nothing
     @test DashiBase.apply_handlers(handlers, """{"jsonrpc":"2.0","method":"nope","params":1}""", tempname()) === nothing

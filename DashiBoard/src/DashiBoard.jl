@@ -5,7 +5,7 @@ public launch, default_parser
 # What a deployment's install and `serve.jl` call.
 public init_workspace, provenance, install_deployment, serve_deployment
 
-using Base: Fix1, Fix2
+using Base: Fix1
 
 using Base.ScopedValues: @with, ScopedValue
 
@@ -21,8 +21,6 @@ using JSON: JSON
 
 using TOML: TOML
 
-using Pkg: Pkg
-
 using Graphs: strongly_connected_components, has_edge, gdistances
 
 using DBInterface: DBInterface
@@ -35,8 +33,6 @@ using FunSQL:
     Limit,
     Group,
     Select,
-    Define,
-    Partition,
     Agg,
     Order,
     Get,
@@ -49,7 +45,7 @@ using DuckDBUtils: Repository, export_table, to_nrow, colnames, DuckDBUtils
 
 using DataIngestion: data_path, Filter, VariableSummary, DataIngestion
 
-using Pipelines: Card, Pipelines, Parser, default_parser
+using Pipelines: Pipelines, Parser, default_parser
 
 using StreamlinerCore: StreamlinerCore
 

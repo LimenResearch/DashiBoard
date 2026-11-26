@@ -338,7 +338,7 @@ function load_files(spec::AbstractDict)
     files = FilesConfig(spec)
     table = TableConfig(table = "source", id_var = ID_VAR[])
     foreach(resolve_in_data_dir, files.files)
-    return LoadFiles(; files, table) |> validate_method
+    return LoadFiles(; files, table) |> validated_method
 end
 
 """
@@ -705,9 +705,9 @@ function execute_pipeline(spec::AbstractDict; train::Bool)
     src, dst = TableConfig(table = "source", id_var = ID_VAR[]), TableConfig(table = "selection", id_var = ID_VAR[])
     filters = Filter.(get(spec, "filters", []))
     select_thunk = SelectData(source = src, destination = dst, selection = SelectionConfig(; filters)) |>
-        validate_method
+        validated_method
     pipeline_thunk = RunPipeline(table = dst, proxy = src, pipeline = PipelineConfig(spec), train = train) |>
-        validate_method
+        validated_method
     probe = DashiBase.probe(pipeline_thunk)
     return ProbedThunk(probe) do
         select_thunk()
@@ -793,7 +793,7 @@ function get_processed_data(::AbstractDict)
         export_thunk = ExportData(;
             table = TableConfig(table = "selection", id_var = ID_VAR[]),
             format = "csv", destination = path
-        ) |> validate_method
+        ) |> validated_method
         export_thunk()
         content_type = "text/csv"
         writer = Writer()
